@@ -1,0 +1,21 @@
+{
+  "name": "ai-judgment-mvp",
+  "version": "1.0.0",
+  "description": "AI Judgment MVP (orders, submissions, OpenAI, PDF, manual pay + optional Stripe)",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.0",
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mime": "^4.0.4",
+    "nodemailer": "^6.9.8",
+    "openai": "^4.10.0",
+    "puppeteer": "^23.7.1",
+    "stripe": "^14.21.0",
+    "uuid": "^9.0.1"
+  }
+}

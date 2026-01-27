@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>深化判断 - 填写信息</title>
+<style>
+  body{font-family:Inter,system-ui,Arial;margin:0;background:#f4f6f8;padding:20px}
+  .box{max-width:760px;margin:20px auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 8px 30px rgba(10,20,30,0.06)}
+  h2{margin:0 0 8px}
+  label{display:block;margin-top:14px;font-weight:600}
+  textarea, input{width:100%;padding:10px;margin-top:6px;border:1px solid #e6edf3;border-radius:6px;font-size:14px;box-sizing:border-box}
+  .btn{background:#0b63ff;color:#fff;padding:10px 14px;border-radius:8px;border:none;margin-top:18px;cursor:pointer;width:100%}
+  .btn:hover{background:#0954d6}
+  .btn:disabled{background:#ccc;cursor:not-allowed}
+  .muted{color:#6b7280;font-size:13px;margin-top:8px}
+  input[readonly]{background:#f5f5f5;color:#666}
+</style>
+</head>
+<body>
+  <div class="box">
+    <h2>请补充以下信息（用于完成深化判断）</h2>
+    <div class="muted">提交后我们将在 48 小时内交付判断报告（人工+AI）。</div>
+
+    <form id="deepForm">
+      <label>订单号（自动带入）</label>
+      <input name="order_no" id="order_no" type="text" readonly />
+
+      <label>接收报告的邮箱（建议填写）</label>
+      <input name="email" id="email" type="email" placeholder="you@example.com" />
+
+      <label>1）你现在最真实想解决的问题是什么？</label>
+      <textarea name="q1" rows="2" required></textarea>
+
+      <label>2）这件事成功对你意味着什么？</label>
+      <textarea name="q2" rows="2" required></textarea>
+
+      <label>3）如果失败，你能接受的最大损失是什么？</label>
+      <input name="q3" type="text" required />
+
+      <label>4）你目前可投入的时间 / 资金 / 人力（请量化）</label>
+      <input name="q4" type="text" required />
+
+      <label>5）哪些资源是不可持续或有限的？</label>
+      <input name="q5" type="text"/>
+
+      <label>6）是否必须在某个时间点前得到结论？（若有请写明）</label>
+      <input name="q6" type="text"/>
+
+      <label>7）你现在最犹豫、最不确定的点是什么？</label>
+      <textarea name="q7" rows="2"></textarea>
+
+      <label>8）你最担心发生的结果是什么？</label>
+      <textarea name="q8" rows="2"></textarea>
+
+      <label>9）你是否已经有偏向的答案？（倾向继续/暂停/更换路径）</label>
+      <input name="q9" type="text"/>
+
+      <label>10）如果 AI 判断是否定，你是否愿意调整方向？（是/否）</label>
+      <input name="q10" type="text" required />
+
+      <button class="btn" type="submit" id="submitBtn">提交并进入判断队列</button>
+    </form>
+
+    <div class="muted">提示：为了提升效率，建议在付款备注里写订单号（ORD-xxxx）。</div>
+  </div>
+
+<script>
+const params = new URLSearchParams(location.search);
+document.getElementById('order_no').value = params.get('order_no') || '';
+
+document.getElementById('deepForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const form = e.target;
+  const submitBtn = document.getElementById('submitBtn');
+  
+  // 禁用提交按钮，防止重复提交
+  submitBtn.disabled = true;
+  submitBtn.textContent = '提交中...';
+
+  try {
+    const answers = {};
+    new FormData(form).forEach((v,k)=>{ if(k.startsWith('q')) answers[k]=v; });
+
+    const order_no = document.getElementById('order_no').value || null;
+    const email = document.getElementById('email').value || null;
+
+    const res = await fetch('/api/submissions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ order_no, email, answers })
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || '提交失败');
+    }
+
+    const body = await res.json();
+    if(body.submission_id) {
+      alert('提交成功！你的提交编号：' + body.submission_id + '\n我们将在 48 小时内交付报告。');
+      location.href = '/result.html?id=' + encodeURIComponent(body.submission_id);
+    } else {
+      throw new Error('提交失败：未返回 submission_id');
+    }
+  } catch (err) {
+    alert('提交失败：' + (err.message || '请稍后重试。'));
+    submitBtn.disabled = false;
+    submitBtn.textContent = '提交并进入判断队列';
+  }
+});
+</script>
+</body>
+</html>

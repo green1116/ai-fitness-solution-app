@@ -1,0 +1,21 @@
+# 数据库文件
+*.db
+*.db-shm
+*.db-wal
+
+# Node modules
+node_modules/
+
+# 日志文件
+*.log
+
+# 环境变量
+.env
+
+# PDF 报告（可选，如果不想提交到 git）
+public/reports/
+
+# IDE
+.vscode/
+.idea/
+

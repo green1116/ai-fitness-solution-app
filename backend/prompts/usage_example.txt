@@ -1,0 +1,123 @@
+# OpenAI Prompt 使用示例
+
+## 方式 1：直接在 ChatGPT Web 界面使用
+
+1. 打开 ChatGPT（https://chat.openai.com）
+2. 复制下面的 SYSTEM 部分，在对话框中输入："请扮演以下角色："
+3. 粘贴 SYSTEM 提示
+4. 复制 USER 部分，将 `{answers}` 替换为实际的 JSON 数据
+5. 发送消息并等待回复
+
+---
+
+## 方式 2：替换示例
+
+### 原始 Prompt（需要替换 {answers}）：
+
+```
+SYSTEM:
+你是资深商业咨询师 + 产品经理...
+
+USER:
+以下是用户提交的答案（JSON）：
+{answers}
+
+请基于这些信息，生成一份判断报告...
+```
+
+### 替换后的 Prompt：
+
+```
+SYSTEM:
+你是资深商业咨询师 + 产品经理...
+
+USER:
+以下是用户提交的答案（JSON）：
+{
+  "q1": "我想开发一个健身类的 SaaS 产品，但不确定市场需求是否足够大",
+  "q2": "成功意味着我能获得 1000+ 付费用户，月收入超过 10 万",
+  "q3": "如果失败，我能接受的最大损失是 3 个月的时间和 5 万元资金",
+  "q4": "目前可投入：每周 20 小时，启动资金 10 万元，1 个合伙人",
+  "q5": "合伙人的时间只能在周末，资金在 6 个月内会用完",
+  "q6": "需要在 60 天内决定是否全职投入",
+  "q7": "最不确定的是：目标用户是否愿意为这个产品付费",
+  "q8": "最担心的是：投入大量时间后发现市场根本不存在",
+  "q9": "我倾向于继续，但需要更有把握的证据",
+  "q10": "如果 AI 判断是否定，我愿意调整方向，但不会完全放弃"
+}
+
+请基于这些信息，生成一份判断报告...
+```
+
+---
+
+## 方式 3：通过 OpenAI API 使用
+
+参考 `gpt-service.js` 文件中的 `generateReportWithOpenAI` 函数。
+
+### 代码示例：
+
+```javascript
+const { OpenAI } = require('openai');
+const fs = require('fs');
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+async function generateReport(answers) {
+  const systemPrompt = fs.readFileSync('./prompts/openai_prompt.txt', 'utf-8')
+    .split('USER:')[0]
+    .replace('SYSTEM:', '')
+    .trim();
+  
+  const userPrompt = fs.readFileSync('./prompts/openai_prompt.txt', 'utf-8')
+    .split('USER:')[1]
+    .replace('{answers}', JSON.stringify(answers, null, 2));
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.7,
+    max_tokens: 2000
+  });
+
+  return response.choices[0].message.content;
+}
+
+// 使用
+const answers = {
+  q1: "我想开发一个健身类的 SaaS 产品...",
+  // ... 其他问题
+};
+
+const report = await generateReport(answers);
+console.log(report);
+```
+
+---
+
+## 注意事项
+
+1. **API 密钥安全**：不要将 API 密钥提交到代码仓库
+2. **费用控制**：每次调用都会产生费用，建议设置使用限制
+3. **响应时间**：GPT-4 响应可能需要几秒钟，请设置合适的超时时间
+4. **错误处理**：API 可能失败，需要做好错误处理和重试机制
+5. **格式一致性**：确保输出格式与预期一致，可能需要后处理
+
+---
+
+## 替代模型
+
+如果不想使用 GPT-4，可以考虑：
+
+- **GPT-3.5-turbo**：成本更低，速度更快，但质量稍差
+- **Claude**（Anthropic）：质量接近 GPT-4
+- **文心一言**（百度）：国内可访问
+- **通义千问**（阿里云）：国内可访问
+
+只需修改 API 调用部分即可。
+

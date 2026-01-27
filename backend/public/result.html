@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AI 判断报告 - ai.attaguy.net</title>
+<style>
+  :root{font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;color:#222}
+  body{margin:0;background:#f5f6f8;padding:24px}
+  .container{max-width:920px;margin:20px auto;background:#fff;border-radius:10px;box-shadow:0 6px 22px rgba(12,20,30,0.06);overflow:hidden}
+  header{padding:28px 32px;border-bottom:1px solid #eef0f3;background:linear-gradient(90deg,#fbfcfd,#ffffff)}
+  .title{font-size:20px;font-weight:700;margin:0 0 6px}
+  .sub{color:#6b7280;font-size:13px;margin:0}
+  .summary{padding:22px 32px;background:#f7fbff;border-left:4px solid #2b7cff}
+  .summary h2{margin:0;font-size:16px}
+  .summary p{margin:8px 0 0;color:#1f2937;font-size:15px}
+  .grid{display:grid;grid-template-columns:1fr 320px;gap:18px;padding:20px 32px}
+  .card{background:#fff;border-radius:8px;padding:16px;border:1px solid #eef2f6}
+  .card h3{margin:0;font-size:15px}
+  .list{margin:8px 0 0;padding-left:18px;color:#344054}
+  .list li{margin:8px 0}
+  .risk{background:#fff5f5;border-left:4px solid #ff6b6b}
+  .cta{padding:20px 32px;border-top:1px solid #eef0f3;display:flex;justify-content:space-between;align-items:center}
+  .btn{background:#0b63ff;color:#fff;padding:10px 16px;border-radius:8px;border:none;font-weight:600;cursor:pointer}
+  .btn2{background:#0f1724;color:#fff;padding:10px 16px;border-radius:8px;border:none;font-weight:600;cursor:pointer}
+  .muted{color:#6b7280;font-size:13px}
+  .small-note{font-size:13px;color:#475569;margin-top:6px}
+  @media (max-width:900px){
+    .grid{grid-template-columns:1fr; padding:16px}
+    .container{margin:8px}
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title">AI 判断咨询报告</div>
+      <p class="sub">这不是"工具输出"，而是一份用于决策的结构化判断（可作为下一步投入依据）。</p>
+    </header>
+
+    <section class="summary">
+      <h2>AI 综合判断结论（Executive Summary）</h2>
+      <p id="summary">加载中……</p>
+    </section>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h3>关键判断维度（AI 的思考逻辑）</h3>
+          <ol class="list" id="dims"></ol>
+        </div>
+
+        <div class="card risk" style="margin-top:12px;">
+          <h3>识别出的关键风险与盲区</h3>
+          <ul class="list" id="risks"></ul>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <h3>当前阶段可执行建议（免费）</h3>
+          <ul class="list" id="actions"></ul>
+        </div>
+      </div>
+
+      <aside>
+        <div class="card">
+          <h3>下一步建议</h3>
+          <p class="small-note">如果你希望得到"针对你情况"的完整判断结论（含风险拆解、替代路径、是否继续投入），进入深化判断流程。</p>
+          <div style="margin-top:12px">
+            <button class="btn" id="buyBtn">获取深化判断方案（¥499）</button>
+            <p class="muted" style="margin-top:10px">支付后填写 10 个关键问题，48 小时内交付报告（人工+AI）。</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <h3>适用边界</h3>
+          <p class="small-note">本判断不代替执行、不写代码、不承诺结果。它解决"值不值得继续投入、风险在哪、怎么验证"。</p>
+        </div>
+      </aside>
+    </div>
+
+    <div class="cta">
+      <div class="muted">报告由 AI + 人工复核生成。仅供决策参考。</div>
+      <div>
+        <button class="btn2" id="contactBtn">人工咨询</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+async function loadResult() {
+  // 从 URL 参数获取 resultId，如果没有则使用示例数据
+  const urlParams = new URLSearchParams(window.location.search);
+  const resultId = urlParams.get('id');
+  
+  if (resultId) {
+    try {
+      const res = await fetch(`/api/result/${resultId}`);
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('summary').innerText = data.summary || '暂无数据';
+        
+        const dims = document.getElementById('dims');
+        dims.innerHTML = '';
+        (data.dims || data.dimensions || []).forEach(d => { 
+          const li = document.createElement('li'); 
+          li.innerText = d; 
+          dims.appendChild(li); 
+        });
+        
+        const risks = document.getElementById('risks');
+        risks.innerHTML = '';
+        (data.risks || []).forEach(r => { 
+          const li = document.createElement('li'); 
+          li.innerText = r; 
+          risks.appendChild(li); 
+        });
+        
+        const actions = document.getElementById('actions');
+        actions.innerHTML = '';
+        (data.actions || []).forEach(a => { 
+          const li = document.createElement('li'); 
+          li.innerText = a; 
+          actions.appendChild(li); 
+        });
+        return;
+      }
+    } catch (err) {
+      console.error('加载失败:', err);
+    }
+  }
+
+  // 使用示例数据作为 fallback
+  const sample = {
+    summary: "综合判断：项目存在机会，但推进路径的结构性风险偏高。建议先用低成本验证关键假设，再决定是否扩大投入。",
+    dims: [
+      "目标清晰度：目标仍偏"想做什么"，需要拆成可验证假设。",
+      "资源匹配：当前资源更适合小步验证，不适合全面铺开。",
+      "路径可逆性：一旦投入，回撤成本较高，需要保留回退方案。",
+      "外部不确定性：真实用户反馈与指标尚未系统采集。"
+    ],
+    risks: [
+      "过早锁定未经验证的路径，导致后期推倒重来。",
+      "把技术实现当作验证，忽略商业必要性与付费动机。",
+      "关键指标未定义，导致投入后无法判断对错。"
+    ],
+    actions: [
+      "明确当前阶段唯一要验证的核心假设，并设计 2 周内可完成的测试。",
+      "延迟不可逆决策，用小步试错获取真实数据。",
+      "定义 1-2 个关键指标，用于判断是否继续投入。"
+    ]
+  };
+
+  document.getElementById('summary').innerText = sample.summary;
+  const dims = document.getElementById('dims');
+  sample.dims.forEach(d => { const li=document.createElement('li'); li.innerText=d; dims.appendChild(li); });
+  const risks = document.getElementById('risks');
+  sample.risks.forEach(r => { const li=document.createElement('li'); li.innerText=r; risks.appendChild(li); });
+  const actions = document.getElementById('actions');
+  sample.actions.forEach(a => { const li=document.createElement('li'); li.innerText=a; actions.appendChild(li); });
+}
+
+document.getElementById('buyBtn').addEventListener('click', async ()=>{
+  try {
+    const r = await fetch('/api/orders/create', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})});
+    if (!r.ok) throw new Error('创建订单失败');
+    const body = await r.json();
+    alert('请按提示完成支付：\n' + (body.pay_instructions || ''));
+    // 携带 order_no 跳转表单
+    window.location.href = '/deep-form.html?order_no=' + encodeURIComponent(body.order_no);
+  } catch (err) {
+    alert('创建订单失败：' + (err.message || '请稍后重试'));
+  }
+});
+
+document.getElementById('contactBtn').addEventListener('click', ()=>{
+  alert('人工咨询：你可以在站内放企业微信/WhatsApp/邮件入口。');
+});
+
+loadResult();
+</script>
+</body>
+</html>

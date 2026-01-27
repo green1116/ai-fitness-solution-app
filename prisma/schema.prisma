@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model PlanJob {
+  id        String   @id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  input     Json?
+  plan      Json?
+  status    String   @default("draft")
+
+  @@map("planjob")
+}
+
+model EmailOtp {
+  email     String   @id
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  email     String
+  tokenHash String   @unique(map: "Session_tokenHash_key")
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([email], map: "Session_email_idx")
+  @@map("session")
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  planId    String
+  email     String?
+  amount    Int
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([planId])
+  @@index([email])
+  @@map("order")
+}
+
+model LicenseKey {
+  id           String    @id @default(cuid())
+  keyHash      String    @unique
+  planId       String?
+  maxDownloads Int       @default(0)
+  usedCount    Int       @default(0)
+  expiresAt    DateTime?
+  requireLogin Boolean   @default(false)
+  note         String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model PdfDownloadLog {
+  id        String   @id @default(cuid())
+  planId    String
+  ip        String?
+  ok        Boolean
+  reason    String?
+  createdAt DateTime @default(now())
+  error     String?
+  userAgent String?
+
+  @@index([planId, createdAt])
+  @@index([createdAt])
+}
+
+model LicenseConsume {
+  id          String   @id @default(cuid())
+  licenseId   String
+  planId      String
+  fingerprint String
+  createdAt   DateTime @default(now())
+
+  @@unique([licenseId, fingerprint])
+  @@index([planId, createdAt])
+}
+
+model PdfDownloadTokenDeny {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  planId    String?
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([planId, createdAt])
+}
+
+model PdfDownloadTokenState {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  planId    String
+  mode      String?
+  expAt     DateTime
+  maxUses   Int      @default(1)
+  usedCount Int      @default(0)
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([planId, createdAt])
+  @@index([revoked, expAt])
+}
