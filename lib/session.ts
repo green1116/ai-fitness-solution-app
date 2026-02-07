@@ -9,6 +9,12 @@ function genSessionToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
+// 统一的 tokenHash 计算函数（导出供其他模块使用）
+export function computeSessionTokenHash(token: string) {
+  const secret = process.env.SESSION_SECRET ?? "sess";
+  return sha256(`${token}:${secret}`);
+}
+
 // ✅ 接收 NextResponse，把 cookie 写进去
 export async function createSessionCookie(
   res: NextResponse,
@@ -61,7 +67,7 @@ export async function requireEmailFromSession() {
   if (!raw) return null;
 
   try {
-    const tokenHash = sha256(`${raw}:${process.env.SESSION_SECRET ?? "sess"}`);
+    const tokenHash = computeSessionTokenHash(raw);
     const sess = await (prisma as any).session.findUnique({ where: { tokenHash } });
 
     if (!sess) return null;

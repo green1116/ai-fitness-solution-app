@@ -67,6 +67,11 @@ model LicenseKey {
 model PdfDownloadLog {
   id        String   @id @default(cuid())
   planId    String
+
+  // ✅ 新增：用于“按用户+模式”计数/限额（都允许为空，兼容旧数据）
+  email     String?
+  mode      String?   // "budget" | "full" | "preview" ...
+
   ip        String?
   ok        Boolean
   reason    String?
@@ -76,6 +81,9 @@ model PdfDownloadLog {
 
   @@index([planId, createdAt])
   @@index([createdAt])
+
+  // ✅ 新增：按 email + planId + mode 统计更快
+  @@index([email, planId, mode, createdAt])
 }
 
 model LicenseConsume {
