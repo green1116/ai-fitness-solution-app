@@ -48,27 +48,81 @@ function isoNow() {
   return new Date().toISOString();
 }
 
-// ✅ 中文换行：按字符宽度
+// ✅ 中文换行：优先按“词/数字串”换行，避免把金额拆开
 function wrapTextByChar(font: PDFFont, text: string, size: number, maxWidth: number) {
   const s = String(text ?? "");
+
+  // 把字符串切成 token：
+  // - 金额/数字串（含 ¥ , . - – ）当做一个 token（不可拆）
+  // - 连续英文/数字当做一个 token
+  // - 空白作为 token（用于自然分隔）
+  // - 其他字符（中文/标点）按单字符 token
+  const tokens: string[] = [];
+  const re =
+    /¥[\d,]+(?:\s*[–-]\s*¥?[\d,]+)?|[\d,]+(?:\s*[–-]\s*[\d,]+)?|[A-Za-z0-9]+|[\s]+|[^\s]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s))) tokens.push(m[0]);
+
   const lines: string[] = [];
   let cur = "";
 
-  for (const ch of s) {
-    if (ch === "\n") {
-      lines.push(cur);
-      cur = "";
+  const pushLine = () => {
+    if (cur.length) lines.push(cur.replace(/\s+$/g, ""));
+    cur = "";
+  };
+
+  for (const tk of tokens) {
+    if (tk === "\n") {
+      pushLine();
       continue;
     }
-    const candidate = cur + ch;
+
+    // token 本身超宽：退化为按字符切（极少发生）
+    const tkW = font.widthOfTextAtSize(tk, size);
+    if (tkW > maxWidth) {
+      for (const ch of tk) {
+        const candidate = cur + ch;
+        const w = font.widthOfTextAtSize(candidate, size);
+        if (w <= maxWidth) cur = candidate;
+        else {
+          pushLine();
+          cur = ch;
+        }
+      }
+      continue;
+    }
+
+    const candidate = cur + tk;
     const w = font.widthOfTextAtSize(candidate, size);
-    if (w <= maxWidth) cur = candidate;
-    else {
-      if (cur) lines.push(cur);
-      cur = ch;
+    if (w <= maxWidth) {
+      cur = candidate;
+    } else {
+      pushLine();
+
+      // 新行不以空格开头
+      const trimmed = tk.replace(/^\s+/g, "");
+      cur = trimmed;
+
+      // trimmed 仍然超宽：再按字符兜底
+      if (font.widthOfTextAtSize(cur, size) > maxWidth) {
+        pushLine();
+        let tmp = "";
+        for (const ch of trimmed) {
+          const cand2 = tmp + ch;
+          const w2 = font.widthOfTextAtSize(cand2, size);
+          if (w2 <= maxWidth) tmp = cand2;
+          else {
+            if (tmp) lines.push(tmp);
+            tmp = ch;
+          }
+        }
+        if (tmp) lines.push(tmp);
+        cur = "";
+      }
     }
   }
-  if (cur) lines.push(cur);
+
+  if (cur.trim().length) lines.push(cur.trimEnd());
   return lines;
 }
 
@@ -193,20 +247,13 @@ async function renderFullPlanPdfV2_22Pages(planId: string, plan: any | null) {
     "示例企业";
 
   // 参与率：尽量从 DB 或 plan 中拿，没有就给默认
-  const participation =
-    plan?.client_profile?.participation ??
-    plan?.participation ??
-    0.3;
+  const participation = plan?.client_profile?.participation ?? plan?.participation ?? 0.3;
 
   const preferSmart = !!(plan?.client_profile?.prefer_smart ?? plan?.preferSmart ?? true);
   const preferQuiet = !!(plan?.client_profile?.prefer_quiet ?? plan?.preferQuiet ?? false);
 
   const tierLabel =
-    tier === "lite"
-      ? "lite（lite）"
-      : tier === "pro"
-        ? "pro（pro）"
-        : "standard（standard）";
+    tier === "lite" ? "lite（lite）" : tier === "pro" ? "pro（pro）" : "standard（standard）";
 
   const positioning =
     companySize !== "未填写" && companySize !== "0"
@@ -243,14 +290,16 @@ async function renderFullPlanPdfV2_22Pages(planId: string, plan: any | null) {
       `预算范围：${budgetRange}`,
       `推荐档位：${tierLabel}`,
       `定位：${positioning}`,
-      `参与率：${Math.round(participation * 100)}% ｜ 偏好：${preferSmart ? "偏好智能" : "—"}${preferQuiet ? "｜偏好低噪" : ""} ｜ 导出时间：${isoNow()}`,
+      `参与率：${Math.round(participation * 100)}% ｜ 偏好：${
+        preferSmart ? "偏好智能" : "—"
+      }${preferQuiet ? "｜偏好低噪" : ""} ｜ 导出时间：${isoNow()}`,
     ];
 
     y = drawParagraph(page, font, meta.join("\n"), margin, y, usableW, 11, rgb(0.1, 0.1, 0.1), 6);
     footer(page, 1);
   }
 
-  // —— Page 2 执行摘要（优先用“18 页那种更足”的 bullets） ——
+  // —— Page 2 执行摘要 ——
   {
     const page = pdfDoc.addPage(A4);
     header(page, "执行摘要");
@@ -413,7 +462,7 @@ async function renderFullPlanPdfV2_22Pages(planId: string, plan: any | null) {
     },
   ];
 
-  function addTierPages(basePageNo: number, tierObj: typeof tiers[number]) {
+  function addTierPages(basePageNo: number, tierObj: (typeof tiers)[number]) {
     const label =
       tierObj.key === "lite"
         ? "精简版（Lite）"
@@ -506,7 +555,6 @@ async function renderFullPlanPdfV2_22Pages(planId: string, plan: any | null) {
   addTierPages(14, tiers[2]);
 
   // ===== 附录 A-D（19-22）=====
-  // 附录 A：器材明细表（示例结构，可接入真实清单）
   {
     const pageNo = 19;
     const page = pdfDoc.addPage(A4);
@@ -526,7 +574,6 @@ async function renderFullPlanPdfV2_22Pages(planId: string, plan: any | null) {
     footer(page, pageNo);
   }
 
-  // 附录 B：品牌建议
   {
     const pageNo = 20;
     const page = pdfDoc.addPage(A4);
@@ -551,7 +598,6 @@ async function renderFullPlanPdfV2_22Pages(planId: string, plan: any | null) {
     footer(page, pageNo);
   }
 
-  // 附录 C：补充说明
   {
     const pageNo = 21;
     const page = pdfDoc.addPage(A4);
@@ -569,7 +615,6 @@ async function renderFullPlanPdfV2_22Pages(planId: string, plan: any | null) {
     footer(page, pageNo);
   }
 
-  // 附录 D：其他备注
   {
     const pageNo = 22;
     const page = pdfDoc.addPage(A4);
@@ -601,18 +646,21 @@ async function renderFullPlanPdfV2_22Pages(planId: string, plan: any | null) {
 type TableCell = string;
 type TableRow = TableCell[];
 
+type Align = "left" | "center" | "right";
+
 function drawTable(opts: {
   page: PDFPage;
   font: PDFFont;
   x: number;
-  yTop: number;            // 表格顶部 y
+  yTop: number; // 表格顶部 y
   maxWidth: number;
-  colWidths: number[];     // 需要 sum <= maxWidth
+  colWidths: number[]; // 需要 sum <= maxWidth
   header: TableRow;
   rows: TableRow[];
   fontSize?: number;
   headerFontSize?: number;
   rowMinH?: number;
+  aligns?: Align[]; // ✅ 每列对齐
 }) {
   const {
     page,
@@ -626,6 +674,7 @@ function drawTable(opts: {
     fontSize = 10,
     headerFontSize = 10,
     rowMinH = 20,
+    aligns = [],
   } = opts;
 
   const border = rgb(0.8, 0.8, 0.8);
@@ -652,12 +701,18 @@ function drawTable(opts: {
     return Math.max(...heights);
   };
 
+  const computeX = (cellX: number, wcol: number, ln: string, size: number, align: Align) => {
+    const lineW = font.widthOfTextAtSize(ln, size);
+    if (align === "right") return cellX + wcol - cellPadX - lineW;
+    if (align === "center") return cellX + (wcol - lineW) / 2;
+    return cellX + cellPadX;
+  };
+
   let y = yTop;
 
   // --- header row ---
   const headerH = calcRowH(header, headerFontSize);
 
-  // header bg
   page.drawRectangle({
     x,
     y: y - headerH,
@@ -668,18 +723,19 @@ function drawTable(opts: {
     borderWidth: 1,
   });
 
-  // vertical lines + text
   let cx = x;
   for (let i = 0; i < header.length; i++) {
     const wcol = colWidths[i];
     const lines = measureLines(String(header[i] ?? ""), headerFontSize, wcol);
+    const align = aligns[i] || "left";
+
     let ty = y - cellPadY - headerFontSize;
     for (const ln of lines) {
-      page.drawText(ln, { x: cx + cellPadX, y: ty, size: headerFontSize, font, color: textColor });
+      const tx = computeX(cx, wcol, ln, headerFontSize, align);
+      page.drawText(ln, { x: tx, y: ty, size: headerFontSize, font, color: textColor });
       ty -= headerFontSize + 3;
     }
 
-    // vertical border line (except first already)
     if (i > 0) {
       page.drawLine({
         start: { x: cx, y: y },
@@ -697,7 +753,6 @@ function drawTable(opts: {
   for (const r of rows) {
     const rowH = calcRowH(r, fontSize);
 
-    // row box
     page.drawRectangle({
       x,
       y: y - rowH,
@@ -713,10 +768,12 @@ function drawTable(opts: {
       const wcol = colWidths[i];
       const txt = String(r[i] ?? "");
       const lines = measureLines(txt, fontSize, wcol);
+      const align = aligns[i] || "left";
 
       let ty = y - cellPadY - fontSize;
       for (const ln of lines) {
-        page.drawText(ln, { x: cxx + cellPadX, y: ty, size: fontSize, font, color: textColor });
+        const tx = computeX(cxx, wcol, ln, fontSize, align);
+        page.drawText(ln, { x: tx, y: ty, size: fontSize, font, color: textColor });
         ty -= fontSize + 3;
       }
 
@@ -747,31 +804,26 @@ async function renderBudgetPdfV2_Table(planId: string, plan: any | null) {
   const h = A4[1];
   const usableW = w - margin * 2;
 
-  const version = "BUDGET_PDF_V20260207_01";
+  const version = "BUDGET_PDF_V20260209_01";
   const ts = isoNow();
 
   const profile = plan?.client_profile;
 
-  const companyName =
-    plan?.company?.name || profile?.company_name || "示例企业";
+  const companyName = plan?.company?.name || profile?.company_name || "示例企业";
 
-  const headcount =
-    plan?.company?.headcount ??
-    profile?.company_size ??
-    200;
+  const headcount = plan?.company?.headcount ?? profile?.company_size ?? 200;
 
-  // 预算等级：从 plan 或 profile 推断；默认“中”
-  const budgetTierRaw =
-    plan?.budgetTier || plan?.budget_tier || profile?.budget_tier || "mid";
+  const budgetTierRaw = plan?.budgetTier || plan?.budget_tier || profile?.budget_tier || "mid";
 
   const tierKey =
-    String(budgetTierRaw).toLowerCase().includes("high") ? "high"
-    : String(budgetTierRaw).toLowerCase().includes("low") ? "low"
-    : "mid";
+    String(budgetTierRaw).toLowerCase().includes("high")
+      ? "high"
+      : String(budgetTierRaw).toLowerCase().includes("low")
+        ? "low"
+        : "mid";
 
   const budgetTierLabel = tierKey === "low" ? "低" : tierKey === "high" ? "高" : "中";
 
-  // 预算区间（你后面可接 DB）
   const totalRange = {
     low: { overall: [50000, 100000], sum: [38000, 95000] },
     mid: { overall: [200000, 450000], sum: [180000, 420000] },
@@ -780,6 +832,9 @@ async function renderBudgetPdfV2_Table(planId: string, plan: any | null) {
 
   const overall = totalRange[tierKey].overall;
   const sum = totalRange[tierKey].sum;
+
+  const reserveMin = Math.max(0, overall[0] - sum[0]);
+  const reserveMax = Math.max(0, overall[1] - sum[1]);
 
   const catRows = [
     { cat: "有氧设备", unit: "¥6,000-15,000/台", qty: "跑步机3-4台；椭圆机2-3台", sub: [60000, 150000] },
@@ -796,7 +851,13 @@ async function renderBudgetPdfV2_Table(planId: string, plan: any | null) {
     page.drawText("企业健身房预算方案（设备报价映射）", { x: margin, y, size: 18, font });
     y -= 22;
 
-    page.drawText(`${version} | ${ts}`, { x: margin, y, size: 10, font, color: rgb(0.35, 0.35, 0.35) });
+    page.drawText(`${version} | ${ts}`, {
+      x: margin,
+      y,
+      size: 10,
+      font,
+      color: rgb(0.35, 0.35, 0.35),
+    });
     y -= 18;
 
     const meta = [
@@ -811,6 +872,7 @@ async function renderBudgetPdfV2_Table(planId: string, plan: any | null) {
     y = drawParagraph(page, font, "整体预算区间（含基础器材+配套，含税含安装）", margin, y, usableW, 11, rgb(0, 0, 0), 6);
     y = drawParagraph(page, font, `表内整体总计区间：${formatMoneyRange(overall[0], overall[1])}`, margin, y, usableW, 10, rgb(0, 0, 0), 6);
     y = drawParagraph(page, font, `按分项小计加总估算：${formatMoneyRange(sum[0], sum[1])}`, margin, y, usableW, 10, rgb(0, 0, 0), 6);
+    y = drawParagraph(page, font, `预留（税/安装/运输/配套等）：${formatMoneyRange(reserveMin, reserveMax)}`, margin, y, usableW, 10, rgb(0, 0, 0), 6);
     y -= 10;
 
     // ---- 表 1：预算对比（低/中/高）----
@@ -819,24 +881,26 @@ async function renderBudgetPdfV2_Table(planId: string, plan: any | null) {
 
     const compHeader = ["档位", "整体总计区间", "分项加总估算"];
     const compRows: TableRow[] = [
-      ["低", formatMoneyRange(totalRange.low.overall[0], totalRange.low.overall[1]), formatMoneyRange(totalRange.low.sum[0], totalRange.low.sum[1])],
-      ["中", formatMoneyRange(totalRange.mid.overall[0], totalRange.mid.overall[1]), formatMoneyRange(totalRange.mid.sum[0], totalRange.mid.sum[1])],
-      ["高", formatMoneyRange(totalRange.high.overall[0], totalRange.high.overall[1]), formatMoneyRange(totalRange.high.sum[0], totalRange.high.sum[1])],
+      [`低${tierKey === "low" ? "（当前）" : ""}`, formatMoneyRange(totalRange.low.overall[0], totalRange.low.overall[1]), formatMoneyRange(totalRange.low.sum[0], totalRange.low.sum[1])],
+      [`中${tierKey === "mid" ? "（当前）" : ""}`, formatMoneyRange(totalRange.mid.overall[0], totalRange.mid.overall[1]), formatMoneyRange(totalRange.mid.sum[0], totalRange.mid.sum[1])],
+      [`高${tierKey === "high" ? "（当前）" : ""}`, formatMoneyRange(totalRange.high.overall[0], totalRange.high.overall[1]), formatMoneyRange(totalRange.high.sum[0], totalRange.high.sum[1])],
     ];
 
-    y = drawTable({
-      page,
-      font,
-      x: margin,
-      yTop: y,
-      maxWidth: usableW,
-      colWidths: [60, 210, usableW - 60 - 210],
-      header: compHeader,
-      rows: compRows,
-      fontSize: 10,
-      headerFontSize: 10,
-      rowMinH: 20,
-    }) - 14;
+    y =
+      drawTable({
+        page,
+        font,
+        x: margin,
+        yTop: y,
+        maxWidth: usableW,
+        colWidths: [80, 200, usableW - 80 - 200],
+        header: compHeader,
+        rows: compRows,
+        fontSize: 10,
+        headerFontSize: 10,
+        rowMinH: 20,
+        aligns: ["left", "right", "right"], // ✅ 金额右对齐
+      }) - 14;
 
     // ---- 表 2：分品类预算明细（4 列 + 合计在表内）----
     y = drawParagraph(page, font, "分品类预算明细", margin, y, usableW, 11, rgb(0, 0, 0), 6);
@@ -850,13 +914,7 @@ async function renderBudgetPdfV2_Table(planId: string, plan: any | null) {
       formatMoneyRange(r.sub[0], r.sub[1]),
     ]);
 
-    // ✅ 合计行放入表格内
-    detailRows.push([
-      "合计（分项加总）",
-      "-",
-      "-",
-      formatMoneyRange(sum[0], sum[1]),
-    ]);
+    detailRows.push(["合计（分项加总）", "-", "-", formatMoneyRange(sum[0], sum[1])]);
 
     drawTable({
       page,
@@ -864,12 +922,13 @@ async function renderBudgetPdfV2_Table(planId: string, plan: any | null) {
       x: margin,
       yTop: y,
       maxWidth: usableW,
-      colWidths: [120, 140, 160, usableW - 120 - 140 - 160],
+      colWidths: [130, 140, 150, usableW - 130 - 140 - 150],
       header: detailHeader,
       rows: detailRows,
       fontSize: 10,
       headerFontSize: 10,
       rowMinH: 22,
+      aligns: ["left", "right", "left", "right"], // ✅ 单价/小计右对齐
     });
 
     page.drawText("第 1 页", { x: margin, y: margin - 12, size: 9, font, color: rgb(0.4, 0.4, 0.4) });
@@ -880,10 +939,7 @@ async function renderBudgetPdfV2_Table(planId: string, plan: any | null) {
     const page = pdfDoc.addPage(A4);
     let y = h - margin - 40;
 
-    const participation =
-      plan?.client_profile?.participation ??
-      plan?.participation ??
-      0.3;
+    const participation = plan?.client_profile?.participation ?? plan?.participation ?? 0.3;
 
     const lines = [
       "补充说明",
@@ -892,7 +948,13 @@ async function renderBudgetPdfV2_Table(planId: string, plan: any | null) {
       "2) 高预算等级可额外增加智能健身镜、体测仪、健身房管理系统等增值设备，费用另计。",
       "3) 小型健身角（10-20人）低预算总计可压缩至 ¥20,000-¥40,000（保留1-2台有氧+简易力量设备）。",
       "4) 不同品牌（国产/进口）、材质、功能会导致单价上下浮动 10%-30%。",
-      `5) 参与率说明：参与率 = 在企业总人数里，预计“经常使用健身房”的那一部分比例（当前：${Math.round(participation * 100)}%）。`,
+      `5) 参与率说明：参与率 = 在企业总人数里，预计“经常使用健身房”的那一部分比例（当前：${Math.round(
+        participation * 100
+      )}%）。`,
+      `6) 预留项说明：整体总计通常包含税费、安装运输、施工辅材与配套、项目管理等经验项（当前预留：${formatMoneyRange(
+        reserveMin,
+        reserveMax
+      )}）。`,
     ];
 
     y = drawParagraph(page, font, lines.join("\n"), margin, y, usableW, 11, rgb(0.1, 0.1, 0.1), 8);
@@ -916,7 +978,6 @@ async function renderPreviewPdf(planId: string, plan: any | null) {
   const industry = profile?.industry || "未填写";
   const title = "办公健康支持方案（预览）";
 
-  // p1
   {
     const page = pdfDoc.addPage(A4);
     let y = h - margin - 30;

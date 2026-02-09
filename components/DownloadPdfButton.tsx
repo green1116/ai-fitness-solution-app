@@ -31,6 +31,20 @@ function downloadBase64Pdf(base64: string, fileName: string) {
   URL.revokeObjectURL(a.href);
 }
 
+function friendlyMessage(status: number, code?: string, message?: string) {
+  const c = (code || "").toUpperCase();
+
+  // 你的 download-token 现在会返回这些
+  if (status === 401 || c === "LOGIN_REQUIRED") return "请先登录/完成验证码验证后再下载。";
+  if (status === 402 || c === "PAYMENT_REQUIRED") return "未检测到已支付订单，请先完成支付。";
+  if (status === 403 && c === "LICENSE_EXHAUSTED") return "下载次数已用完。如需更多次数，请重新购买。";
+  if (status === 403 && c === "LICENSE_EXPIRED") return "License 已过期，请重新购买。";
+  if (status === 403 && c === "LICENSE_PLAN_MISMATCH") return "License 与当前方案不匹配。";
+
+  // 其他情况兜底
+  return message || `请求失败（${status}）`;
+}
+
 export default function DownloadPdfButton({
   planId,
   companyName = "未命名企业",
@@ -41,10 +55,7 @@ export default function DownloadPdfButton({
   const [downloadingBudget, setDownloadingBudget] = useState(false);
 
   async function getDownloadToken(mode: "full" | "budget") {
-    const tokenUrl = `/api/download-token?planId=${encodeURIComponent(planId)}&mode=${encodeURIComponent(
-      mode
-    )}`;
-    console.info("[Download] requesting token", tokenUrl);
+    const tokenUrl = `/api/download-token?planId=${encodeURIComponent(planId)}&mode=${encodeURIComponent(mode)}`;
 
     const tokenRes = await fetch(tokenUrl, {
       method: "GET",
@@ -52,32 +63,30 @@ export default function DownloadPdfButton({
       cache: "no-store",
     });
 
-    const tokenText = await tokenRes.text().catch(() => "");
-    console.info("[Download] tokenRes.status", tokenRes.status, "body:", tokenText);
+    const text = await tokenRes.text().catch(() => "");
+    let data: any = {};
+    try {
+      data = JSON.parse(text || "{}");
+    } catch {
+      data = {};
+    }
 
     if (!tokenRes.ok) {
-      alert(`获取 token 失败 ${tokenRes.status}:\n${tokenText}`);
-      throw new Error("获取 token 失败");
+      const msg = friendlyMessage(tokenRes.status, data?.code, data?.message);
+      alert(msg + (data?.code ? `\n（${data.code}）` : ""));
+      throw new Error(`token failed ${tokenRes.status} ${data?.code || ""}`);
     }
 
-    let tokenJson: any = {};
-    try {
-      tokenJson = JSON.parse(tokenText || "{}");
-    } catch {
-      tokenJson = {};
-    }
-
-    const downloadToken = tokenJson?.downloadToken;
+    const downloadToken = data?.downloadToken;
     if (!downloadToken) {
-      alert("token 返回缺失 downloadToken 字段:\n" + tokenText);
-      throw new Error("没有 downloadToken");
+      alert("服务端未返回 downloadToken（请检查 /api/download-token 输出）");
+      throw new Error("missing downloadToken");
     }
+
     return downloadToken as string;
   }
 
   async function downloadPlanPdfV4(downloadToken: string) {
-    console.info("[V4] generating bundle pdf via /api/v1/plan/generate", { planId });
-
     const res = await fetch("/api/v1/plan/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -88,8 +97,6 @@ export default function DownloadPdfButton({
         requireToken: true,
         downloadToken,
         options: { includePdf: true, includeCompare: true },
-
-        // 这段可选：用于减少 usedDefaults，提升输出贴合度
         company: {
           planId,
           industry: "互联网",
@@ -102,9 +109,8 @@ export default function DownloadPdfButton({
 
     const text = await res.text().catch(() => "");
     if (!res.ok) {
-      console.error("[V4] generate failed", res.status, text);
-      alert(`方案 PDF（V4）生成失败 ${res.status}:\n${text}`);
-      throw new Error(`V4 generate failed ${res.status}`);
+      alert(`方案 PDF 生成失败（${res.status}）\n${text}`);
+      throw new Error(`plan generate failed ${res.status}`);
     }
 
     let data: any = {};
@@ -116,15 +122,8 @@ export default function DownloadPdfButton({
 
     const base64 = data?.data?.pdf?.base64;
     const fileName = data?.data?.pdf?.fileName || `${planId}-方案V4.pdf`;
-
-    console.info("[V4] generate ok", {
-      usedDefaults: data?.data?.usedDefaults,
-      hasBase64: Boolean(base64),
-      fileName,
-    });
-
     if (!base64) {
-      alert("方案 PDF 返回缺失 base64 字段:\n" + text);
+      alert("方案 PDF 返回缺失 base64 字段");
       throw new Error("missing pdf.base64");
     }
 
@@ -138,8 +137,6 @@ export default function DownloadPdfButton({
       budgetTier
     )}&downloadToken=${encodeURIComponent(downloadToken)}`;
 
-    console.info("[Download] requesting budget pdf", pdfUrl);
-
     const pdfRes = await fetch(pdfUrl, {
       method: "GET",
       credentials: "include",
@@ -148,9 +145,8 @@ export default function DownloadPdfButton({
 
     if (!pdfRes.ok) {
       const body = await pdfRes.text().catch(() => "");
-      console.error("[Download] budget pdf failed", pdfRes.status, body);
-      alert(`预算 PDF 下载失败 ${pdfRes.status}:\n${body}`);
-      throw new Error(`预算 PDF 下载失败 ${pdfRes.status}`);
+      alert(`预算 PDF 下载失败（${pdfRes.status}）\n${body}`);
+      throw new Error(`budget pdf failed ${pdfRes.status}`);
     }
 
     const blob = await pdfRes.blob();
@@ -169,16 +165,8 @@ export default function DownloadPdfButton({
 
     try {
       const downloadToken = await getDownloadToken(mode);
-
-      if (mode === "full") {
-        // ✅ 方案：强制走 V4
-        await downloadPlanPdfV4(downloadToken);
-      } else {
-        // ✅ 预算：保持旧链路
-        await downloadBudgetPdf(downloadToken);
-      }
-    } catch (err) {
-      console.error("[Download error]", err);
+      if (mode === "full") await downloadPlanPdfV4(downloadToken);
+      else await downloadBudgetPdf(downloadToken);
     } finally {
       setLoading(false);
     }
@@ -191,7 +179,7 @@ export default function DownloadPdfButton({
         disabled={downloadingPlan}
         className="px-6 py-3 rounded-xl bg-black text-white disabled:opacity-60"
       >
-        {downloadingPlan ? "下载中..." : "下载方案 PDF（V4）"}
+        {downloadingPlan ? "下载中..." : "下载方案 PDF"}
       </button>
 
       <button

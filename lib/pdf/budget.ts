@@ -39,8 +39,31 @@ function CNY(n: number) {
   return "¥" + v.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 function formatRange(x: Range) {
-  return `${CNY(x.min)} - ${CNY(x.max)}`;
+  return `${CNY(x.min)}–${CNY(x.max)}`;
 }
+
+function asciiSafe(s: string) {
+  // 只保留 ASCII 可见字符，避免 env/local 编码污染导致 PDF 顶部乱码
+  return String(s || "").replace(/[^\x20-\x7E]/g, "");
+}
+
+function formatRangeCompact(x: Range) {
+  // 宽度不够时用紧凑格式：¥60k–150k
+  const k = (n: number) => {
+    const v = Math.round(n);
+    if (v >= 1000) return `${Math.round(v / 1000)}k`;
+    return String(v);
+  };
+  return `¥${k(x.min)}–¥${k(x.max)}`;
+}
+
+function formatRangeSmart(x: Range, maxChars: number) {
+  const full = `${CNY(x.min)}–${CNY(x.max)}`; // 无空格，减少长度
+  if (full.length <= maxChars) return full;
+  return formatRangeCompact(x);
+}
+
+
 function compactPriceText(s: string) {
   return (s || "")
     .replace(/[\r\n]+/g, " ")
@@ -135,62 +158,80 @@ export async function renderBudgetPdfBuffer(
   }
 
   // Table helpers
-  function tableRow(cells: string[], widths: number[], opts?: { header?: boolean; shade?: boolean; strongCols?: number[] }) {
+  function tableRow(
+    cells: string[],
+    widths: number[],
+    opts?: { header?: boolean; shade?: boolean; strongCols?: number[]; aligns?: Array<"left"|"center"|"right"> }
+  ) {
     const header = !!opts?.header;
     const shade = !!opts?.shade;
     const strongCols = opts?.strongCols || [];
-
+    const aligns = opts?.aligns || [];
+  
     const rowH = header ? 26 : 24;
     ensureSpace(rowH + 2);
-
+  
     const y0 = doc.y;
     const x0 = doc.page.margins.left;
-
-    // shade background
+  
     if (shade) {
-      doc.save();
-      doc.fillOpacity(0.10);
+      doc.save(); doc.fillOpacity(0.10);
       doc.rect(x0, y0, usableWidth, rowH).fill("#000000");
       doc.restore();
     } else if (header) {
-      doc.save();
-      doc.fillOpacity(0.08);
+      doc.save(); doc.fillOpacity(0.08);
       doc.rect(x0, y0, usableWidth, rowH).fill("#000000");
       doc.restore();
     }
-
+  
     let x = x0;
     for (let i = 0; i < cells.length; i++) {
       const w = widths[i];
       doc.lineWidth(1);
       doc.rect(x, y0, w, rowH).stroke();
-
+  
       const fs = header ? 10 : 9;
       const innerW = w - 12;
-      const text = ellipsize(cells[i], innerW, fs);
-
-      // pseudo-bold: draw twice (无需额外粗体字体)
+  
+      // ✅ 金额列（单价/小计）更容易超宽：允许用紧凑格式
+      let raw = String(cells[i] ?? "");
+      const isMoneyLike = /¥/.test(raw) && /–|-/.test(raw);
+  
+      let text = raw;
+      if (isMoneyLike && !header) {
+        // 尝试智能压缩
+        text = formatRangeSmart(
+          // 这里 raw 已经是字符串，我们只做字符长度兜底：太长就 compact
+          // 如果你想严格基于数值压缩，可在传 cells 时直接传 formatRangeSmart(...)
+          { min: 0, max: 0 } as any,
+          18
+        );
+        // 上面这行是兜底：更稳的做法是“在 renderTable 时直接传 formatRangeSmart(line.subtotal, 18)”
+        // 下面我们会在 renderTable 里改为那种更稳的写法
+        text = raw.length > 18 ? raw.replace(/,/g, "").replace(/¥(\d{2})\d+/g, "¥$1k") : raw;
+      } else {
+        text = ellipsize(raw, innerW, fs);
+      }
+  
+      const align = aligns[i] || (i === 0 ? "left" : "center");
       const draw = (dx: number) => {
         if (hasCN) doc.font("CN");
         doc.fontSize(fs).fillColor("#000").text(text, x + 6 + dx, y0 + 7, {
           width: innerW,
-          align: i === 0 ? "left" : "center",
-          lineBreak: false,
+          align,
+          lineBreak: false,  // ✅ 禁止换行（关键）
         });
       };
-
-      if (strongCols.includes(i)) {
-        draw(0);
-        draw(0.35);
-      } else {
-        draw(0);
-      }
-
+  
+      if (strongCols.includes(i)) { draw(0); draw(0.35); }
+      else { draw(0); }
+  
       x += w;
     }
-
+  
     doc.y = y0 + rowH;
   }
+  
 
   function bullet(text: string) {
     ensureSpace(24);
@@ -226,12 +267,18 @@ export async function renderBudgetPdfBuffer(
   const renderHeader = () => {
     h1("企业健身房预算方案（设备报价映射）");
     reset();
-    doc.fontSize(8).fillColor("#666").text(`${opts.pdfVersion} | ${new Date().toISOString()}`, {
+  
+    const pv = asciiSafe(opts.pdfVersion || "BUDGET_PDF_DEV");
+    const ts = asciiSafe(new Date().toISOString());
+  
+    if (hasCN) doc.font("CN");
+    doc.fontSize(8).fillColor("#666").text(`${pv} | ${ts}`, {
       width: usableWidth,
       align: "right",
     });
+  
     doc.moveDown(0.3);
-
+  
     p(`Plan ID：${planId}`);
     p(`企业名称：${companyName}`);
     p(`企业规模：${companySize} 人`);
@@ -239,41 +286,61 @@ export async function renderBudgetPdfBuffer(
     doc.moveDown(0.6);
     hr();
   };
+  
 
   // ---- overall ----
   const renderOverall = () => {
     h2("整体预算区间（含基础器材+配套，含税含安装）");
-    p(`表内整体总计区间：${formatRange(budget.overallTotal)}`);
-    p(`按分项小计加总估算：${formatRange(budget.estimatedBySubtotals)}`);
-    p("（两者可能不同：整体总计通常含更多配套/运输/施工/管理等经验项）");
+  
+    const a = budget.overallTotal;
+    const b = budget.estimatedBySubtotals;
+  
+    const reserveMin = Math.max(0, a.min - b.min);
+    const reserveMax = Math.max(0, a.max - b.max);
+  
+    p(`表内整体总计区间：${formatRange(a)}`);
+    p(`按分项小计加总估算：${formatRange(b)}`);
+  
+    // ✅ 直接把“差额/预留项”列出来，用户就不困惑了
+    p(`预留（税/安装/运输/配套/施工等经验项）：${formatRange({ min: reserveMin, max: reserveMax })}`);
+  
     doc.moveDown(0.6);
     hr();
   };
+  
 
   // ---- compare ----
   const renderCompare = () => {
-    // 单页对比：低/中/高（同 companySize）
     ensureSpace(180);
     h2("预算对比（低 / 中 / 高）");
-
+  
     const bLow = buildBudgetSummary("low" as BudgetTier, companySize);
     const bMid = buildBudgetSummary("mid" as BudgetTier, companySize);
     const bHigh = buildBudgetSummary("high" as BudgetTier, companySize);
-
+  
     const colWidths = [
       Math.round(usableWidth * 0.22),
       Math.round(usableWidth * 0.39),
       Math.round(usableWidth * 0.39),
     ];
-
+  
     tableRow(["档位", "整体总计区间", "分项加总估算"], colWidths, { header: true });
-    tableRow(["低", formatRange(bLow.overallTotal), formatRange(bLow.estimatedBySubtotals)], colWidths);
-    tableRow(["中", formatRange(bMid.overallTotal), formatRange(bMid.estimatedBySubtotals)], colWidths);
-    tableRow(["高", formatRange(bHigh.overallTotal), formatRange(bHigh.estimatedBySubtotals)], colWidths);
-
+  
+    const row = (label: string, b: any, isCurrent: boolean) =>
+      tableRow(
+        [label, formatRangeSmart(b.overallTotal, 18), formatRangeSmart(b.estimatedBySubtotals, 18)],
+        colWidths,
+        isCurrent ? { shade: true, strongCols: [0,1,2] } : undefined
+      );
+  
+    row("低", bLow, budgetTier === "low");
+    row("中", bMid, budgetTier === "mid");
+    row("高", bHigh, budgetTier === "high");
+  
     doc.moveDown(0.6);
     hr();
   };
+  
 
   // ---- table ----
   const renderTable = () => {
@@ -286,26 +353,35 @@ export async function renderBudgetPdfBuffer(
       Math.round(usableWidth * 0.26),
     ];
 
-    tableRow(["设备分类", "单价区间", "常规数量", "单类小计"], colWidths, { header: true });
+    tableRow(["设备分类", "单价区间", "常规数量", "单类小计"], colWidths, {
+      header: true,
+      aligns: ["left", "center", "center", "right"],
+    });
+    
 
     for (const line of budget.lines) {
       tableRow(
         [
           line.categoryName,
+          // 单价区间一般是字符串，尽量变短（去空格/斜杠）
           compactPriceText(line.unitPriceText || "-"),
           line.qtyText || "-",
-          formatRange(line.subtotal),
+          // ✅ 小计区间：用 smart，宽度不够自动变 ¥60k–150k
+          formatRangeSmart(line.subtotal, 18),
         ],
-        colWidths
+        colWidths,
+        { aligns: ["left", "center", "center", "right"] }
       );
     }
+    
 
     // ✅ 合计行：灰底 + 强调首列和末列（一定可见）
     tableRow(
-      ["合计（分项加总）", "-", "-", formatRange(budget.estimatedBySubtotals)],
+      ["合计（分项加总）", "-", "-", formatRangeSmart(budget.estimatedBySubtotals, 18)],
       colWidths,
-      { shade: true, strongCols: [0, 3] }
+      { shade: true, strongCols: [0, 3], aligns: ["left", "center", "center", "right"] }
     );
+    
 
     doc.moveDown(0.6);
     hr();

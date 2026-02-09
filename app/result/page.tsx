@@ -2,6 +2,8 @@
 
 import React, { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import DownloadPdfButton from "@/components/DownloadPdfButton";
+
 
 type ModuleKey =
   | "header"
@@ -191,20 +193,16 @@ export default function ResultPage() {
                 </div>
 
                 {/* ✅ 唯一一处下载按钮：放在左侧卡片底部 */}
-                <div className="mt-6 grid grid-cols-2 gap-3">
-                  <a
-                    href={planPdfUrl}
-                    className="rounded-xl bg-white text-black px-4 py-2 text-sm font-semibold hover:bg-white/90 text-center"
-                  >
-                    下载方案 PDF
-                  </a>
-                  <a
-                    href={budgetPdfUrl}
-                    className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold hover:bg-white/5 text-center"
-                  >
-                    下载预算 PDF
-                  </a>
-                </div>
+                <div className="mt-6">
+  <DownloadPdfButton
+    planId={planId}
+    companyName={companyName}
+    // 你的 DownloadPdfButton 只接受 50/100/200，这里把 headcount 映射成三档
+    companySize={(headcount <= 80 ? 50 : headcount <= 150 ? 100 : 200) as 50 | 100 | 200}
+    budgetTier={budgetTier}
+  />
+</div>
+
               </div>
             </div>
           </div>
