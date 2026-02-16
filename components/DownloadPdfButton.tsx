@@ -1,194 +1,140 @@
+// components/DownloadPdfButton.tsx
 "use client";
-import { useState } from "react";
+
+import React, { useCallback, useMemo, useState } from "react";
+
+type Mode = "full" | "preview" | "budget";
 
 type Props = {
   planId: string;
-
-  // 预算 PDF 参数
-  companyName?: string;
-  companySize?: 50 | 100 | 200;
-  budgetTier?: "low" | "mid" | "high";
+  defaultMode?: Mode;
+  showBudgetButton?: boolean;
 };
 
-function budgetTierToRange(tier: "low" | "mid" | "high") {
-  if (tier === "low") return "≤10万";
-  if (tier === "high") return "≥20万";
-  return "10-20万";
+type TokenResp =
+  | { ok: true; downloadToken: string }
+  | { ok: false; code?: string; message?: string; extra?: any };
+
+async function safeReadJsonOrText(res: Response): Promise<{ rawText: string; json: any | null }> {
+  const rawText = await res.text().catch(() => "");
+  if (!rawText) return { rawText: "", json: null };
+  try {
+    return { rawText, json: JSON.parse(rawText) };
+  } catch {
+    return { rawText, json: null };
+  }
 }
 
-function downloadBase64Pdf(base64: string, fileName: string) {
-  const byteChars = atob(base64);
-  const byteNumbers = new Array(byteChars.length);
-  for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-  const blob = new Blob([new Uint8Array(byteNumbers)], { type: "application/pdf" });
-
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(a.href);
+function getBrowserTz() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
 }
 
-function friendlyMessage(status: number, code?: string, message?: string) {
-  const c = (code || "").toUpperCase();
+function buildPdfUrl(basePath: string, planId: string, mode: Mode, downloadToken: string) {
+  const u = new URL(basePath, window.location.origin);
+  u.searchParams.set("planId", planId);
+  u.searchParams.set("mode", mode);
+  u.searchParams.set("downloadToken", downloadToken);
 
-  // 你的 download-token 现在会返回这些
-  if (status === 401 || c === "LOGIN_REQUIRED") return "请先登录/完成验证码验证后再下载。";
-  if (status === 402 || c === "PAYMENT_REQUIRED") return "未检测到已支付订单，请先完成支付。";
-  if (status === 403 && c === "LICENSE_EXHAUSTED") return "下载次数已用完。如需更多次数，请重新购买。";
-  if (status === 403 && c === "LICENSE_EXPIRED") return "License 已过期，请重新购买。";
-  if (status === 403 && c === "LICENSE_PLAN_MISMATCH") return "License 与当前方案不匹配。";
+  // ✅ 把用户时区带给后端
+  u.searchParams.set("tz", getBrowserTz());
 
-  // 其他情况兜底
-  return message || `请求失败（${status}）`;
+  return u.toString();
+}
+
+async function getDownloadToken(planId: string, mode: Mode) {
+  const u = new URL("/api/download-token", window.location.origin);
+  u.searchParams.set("planId", planId);
+  u.searchParams.set("mode", mode);
+
+  const res = await fetch(u.toString(), {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  const { rawText, json } = await safeReadJsonOrText(res);
+
+  if (!res.ok) {
+    const code = json?.code || `HTTP_${res.status}`;
+    const message = json?.message || rawText || res.statusText || "Request failed";
+    const err = new Error(`${code}: ${message}`);
+    // @ts-expect-error attach meta
+    err.meta = { status: res.status, code, message, rawText, json };
+    throw err;
+  }
+
+  const data: TokenResp = (json ?? {}) as any;
+  if (!data || (data as any).ok !== true || !(data as any).downloadToken) {
+    const code = (data as any)?.code || "BAD_TOKEN_RESPONSE";
+    const message = (data as any)?.message || "Invalid token response";
+    const err = new Error(`${code}: ${message}`);
+    // @ts-expect-error attach meta
+    err.meta = { status: res.status, code, message, rawText, json };
+    throw err;
+  }
+
+  return (data as any).downloadToken as string;
 }
 
 export default function DownloadPdfButton({
   planId,
-  companyName = "未命名企业",
-  companySize = 100,
-  budgetTier = "mid",
+  defaultMode = "full",
+  showBudgetButton = true,
 }: Props) {
-  const [downloadingPlan, setDownloadingPlan] = useState(false);
-  const [downloadingBudget, setDownloadingBudget] = useState(false);
+  const [loadingMode, setLoadingMode] = useState<Mode | null>(null);
+  const canDownload = useMemo(() => Boolean(planId && planId.trim()), [planId]);
 
-  async function getDownloadToken(mode: "full" | "budget") {
-    const tokenUrl = `/api/download-token?planId=${encodeURIComponent(planId)}&mode=${encodeURIComponent(mode)}`;
+  const download = useCallback(
+    async (mode: Mode) => {
+      if (!canDownload) {
+        alert("缺少 planId，无法下载");
+        return;
+      }
 
-    const tokenRes = await fetch(tokenUrl, {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-    });
-
-    const text = await tokenRes.text().catch(() => "");
-    let data: any = {};
-    try {
-      data = JSON.parse(text || "{}");
-    } catch {
-      data = {};
-    }
-
-    if (!tokenRes.ok) {
-      const msg = friendlyMessage(tokenRes.status, data?.code, data?.message);
-      alert(msg + (data?.code ? `\n（${data.code}）` : ""));
-      throw new Error(`token failed ${tokenRes.status} ${data?.code || ""}`);
-    }
-
-    const downloadToken = data?.downloadToken;
-    if (!downloadToken) {
-      alert("服务端未返回 downloadToken（请检查 /api/download-token 输出）");
-      throw new Error("missing downloadToken");
-    }
-
-    return downloadToken as string;
-  }
-
-  async function downloadPlanPdfV4(downloadToken: string) {
-    const res = await fetch("/api/v1/plan/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      cache: "no-store",
-      body: JSON.stringify({
-        planId,
-        requireToken: true,
-        downloadToken,
-        options: { includePdf: true, includeCompare: true },
-        company: {
-          planId,
-          industry: "互联网",
-          companySize,
-          areaSize: 120,
-          budgetRange: budgetTierToRange(budgetTier),
-        },
-      }),
-    });
-
-    const text = await res.text().catch(() => "");
-    if (!res.ok) {
-      alert(`方案 PDF 生成失败（${res.status}）\n${text}`);
-      throw new Error(`plan generate failed ${res.status}`);
-    }
-
-    let data: any = {};
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = {};
-    }
-
-    const base64 = data?.data?.pdf?.base64;
-    const fileName = data?.data?.pdf?.fileName || `${planId}-方案V4.pdf`;
-    if (!base64) {
-      alert("方案 PDF 返回缺失 base64 字段");
-      throw new Error("missing pdf.base64");
-    }
-
-    downloadBase64Pdf(base64, fileName);
-  }
-
-  async function downloadBudgetPdf(downloadToken: string) {
-    const pdfUrl = `/api/budget-pdf?planId=${encodeURIComponent(planId)}&companyName=${encodeURIComponent(
-      companyName
-    )}&companySize=${encodeURIComponent(String(companySize))}&budgetTier=${encodeURIComponent(
-      budgetTier
-    )}&downloadToken=${encodeURIComponent(downloadToken)}`;
-
-    const pdfRes = await fetch(pdfUrl, {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-    });
-
-    if (!pdfRes.ok) {
-      const body = await pdfRes.text().catch(() => "");
-      alert(`预算 PDF 下载失败（${pdfRes.status}）\n${body}`);
-      throw new Error(`budget pdf failed ${pdfRes.status}`);
-    }
-
-    const blob = await pdfRes.blob();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${planId}-预算.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(a.href);
-  }
-
-  async function handleDownload(mode: "full" | "budget") {
-    const setLoading = mode === "full" ? setDownloadingPlan : setDownloadingBudget;
-    setLoading(true);
-
-    try {
-      const downloadToken = await getDownloadToken(mode);
-      if (mode === "full") await downloadPlanPdfV4(downloadToken);
-      else await downloadBudgetPdf(downloadToken);
-    } finally {
-      setLoading(false);
-    }
-  }
+      setLoadingMode(mode);
+      try {
+        const token = await getDownloadToken(planId, mode);
+        const pdfUrl = buildPdfUrl("/api/pdf", planId, mode, token);
+        window.open(pdfUrl, "_blank", "noopener,noreferrer");
+      } catch (e: any) {
+        const meta = e?.meta || {};
+        console.error("[DownloadPdfButton] download failed:", e, meta);
+        const status = meta.status ? `HTTP ${meta.status}` : "";
+        const code = meta.code || "";
+        const message = meta.message || e?.message || "Unknown error";
+        alert([status, code, message].filter(Boolean).join(" - "));
+      } finally {
+        setLoadingMode(null);
+      }
+    },
+    [canDownload, planId]
+  );
 
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-wrap gap-2">
       <button
-        onClick={() => handleDownload("full")}
-        disabled={downloadingPlan}
-        className="px-6 py-3 rounded-xl bg-black text-white disabled:opacity-60"
+        type="button"
+        className="px-4 py-2 rounded bg-black text-white disabled:opacity-50"
+        disabled={!canDownload || loadingMode !== null}
+        onClick={() => download(defaultMode)}
       >
-        {downloadingPlan ? "下载中..." : "下载方案 PDF"}
+        {loadingMode === defaultMode ? "生成中…" : "下载方案 PDF"}
       </button>
 
-      <button
-        onClick={() => handleDownload("budget")}
-        disabled={downloadingBudget}
-        className="px-6 py-3 rounded-xl bg-black text-white disabled:opacity-60"
-      >
-        {downloadingBudget ? "下载中..." : "下载预算 PDF"}
-      </button>
+      {showBudgetButton && (
+        <button
+          type="button"
+          className="px-4 py-2 rounded bg-zinc-200 text-black disabled:opacity-50"
+          disabled={!canDownload || loadingMode !== null}
+          onClick={() => download("budget")}
+        >
+          {loadingMode === "budget" ? "生成中…" : "下载预算 PDF"}
+        </button>
+      )}
     </div>
   );
 }

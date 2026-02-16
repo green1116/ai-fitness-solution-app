@@ -1,13 +1,12 @@
 // app/api/pdf/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { renderPdf } from "../../../lib/pdf/render";
+import crypto from "crypto";
+import { prisma } from "@/lib/prisma";
+import { renderPdf } from "@/lib/pdf/render";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * 统一 JSON 错误返回
- */
 function json(status: number, code: string, message: string, extra?: any) {
   return NextResponse.json(
     { ok: false, code, message, ...(extra ? { extra } : {}) },
@@ -15,11 +14,17 @@ function json(status: number, code: string, message: string, extra?: any) {
   );
 }
 
-/**
- * base64url -> JSON
- * 允许 cfg 传 base64url(JSON-string)：
- *   cfg=eyJtb2R1bGVPcmRlciI6WyJoZWFkZXIiLCJvdmVyYWxsIl19  (示例)
- */
+function sha256Hex(s: string) {
+  return crypto.createHash("sha256").update(s).digest("hex");
+}
+
+function getClientIp(req: Request) {
+  const h = (name: string) => req.headers.get(name) || "";
+  const xff = h("x-forwarded-for");
+  if (xff) return xff.split(",")[0].trim();
+  return h("x-real-ip") || "";
+}
+
 function decodeCfgBase64Url(cfgB64Url: string) {
   const b64 = cfgB64Url.replace(/-/g, "+").replace(/_/g, "/");
   const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
@@ -27,43 +32,80 @@ function decodeCfgBase64Url(cfgB64Url: string) {
   return JSON.parse(raw);
 }
 
-/**
- * 兼容两种 cfg：
- * 1) base64url(JSON)
- * 2) 直接 URI 编码的 JSON（少量人会这么传）
- */
 function parseCfg(cfgParam: string) {
   if (!cfgParam) return undefined;
-
-  // 简单防御：cfg 太大直接拒绝（避免 URL 里塞超大 JSON）
   if (cfgParam.length > 20_000) {
     throw Object.assign(new Error("cfg too large"), { code: "CFG_TOO_LARGE" });
   }
-
-  // 优先按 base64url 解（你现在就是这种）
   try {
     return decodeCfgBase64Url(cfgParam);
   } catch {
-    // 再尝试按 URI JSON 解
     try {
       const raw = decodeURIComponent(cfgParam);
       return JSON.parse(raw);
-    } catch (e) {
+    } catch {
       throw Object.assign(new Error("Invalid cfg"), { code: "CFG_INVALID" });
     }
   }
 }
 
-/**
- * 仅用于日志：把对象 keys 打出来，避免把完整 JSON/敏感信息打到日志里
- */
-function safeTopKeys(obj: any) {
-  if (!obj || typeof obj !== "object") return [];
-  try {
-    return Object.keys(obj);
-  } catch {
-    return [];
+async function consumeLicenseOrThrow(
+  req: Request,
+  opts: { planId: string; mode: string; licenseKey: string }
+) {
+  const { planId, mode, licenseKey } = opts;
+
+  const pepper =
+    process.env.LICENSE_KEY_SECRET || process.env.DOWNLOAD_TOKEN_SECRET || "";
+
+  const keyHash = sha256Hex(`license:${licenseKey}:${pepper}`);
+  const lic = await prisma.licenseKey.findUnique({ where: { keyHash } });
+
+  if (!lic) return { ok: false as const, code: "LICENSE_NOT_FOUND", message: "LicenseKey 无效" };
+  if (lic.planId && lic.planId !== planId) {
+    return { ok: false as const, code: "LICENSE_PLAN_MISMATCH", message: "LicenseKey 与 planId 不匹配" };
   }
+  if (lic.expiresAt && lic.expiresAt.getTime() < Date.now()) {
+    return { ok: false as const, code: "LICENSE_EXPIRED", message: "LicenseKey 已过期" };
+  }
+  if (lic.maxDownloads > 0 && lic.usedCount >= lic.maxDownloads) {
+    return { ok: false as const, code: "LICENSE_EXHAUSTED", message: "LicenseKey 次数已用尽" };
+  }
+
+  const ip = getClientIp(req);
+  const ua = req.headers.get("user-agent") || "";
+  const fingerprint = sha256Hex(`fp:${planId}:${mode}:${ip}:${ua}`);
+
+  const res = await prisma.$transaction(async (tx) => {
+    try {
+      await tx.licenseConsume.create({
+        data: { licenseId: lic.id, planId, fingerprint },
+      });
+
+      const updated = await tx.licenseKey.update({
+        where: { id: lic.id },
+        data: { usedCount: { increment: 1 } },
+        select: { usedCount: true, maxDownloads: true },
+      });
+
+      if (lic.maxDownloads > 0 && updated.usedCount > updated.maxDownloads) {
+        await tx.licenseKey.update({
+          where: { id: lic.id },
+          data: { usedCount: { decrement: 1 } },
+        });
+        return { ok: false as const, code: "LICENSE_EXHAUSTED", message: "LicenseKey 次数已用尽" };
+      }
+
+      return { ok: true as const, reused: false as const };
+    } catch (e: any) {
+      if (e?.code === "P2002") {
+        return { ok: true as const, reused: true as const };
+      }
+      throw e;
+    }
+  });
+
+  return res;
 }
 
 export async function GET(req: NextRequest) {
@@ -75,45 +117,83 @@ export async function GET(req: NextRequest) {
     const planId = (searchParams.get("planId") || "").trim();
     if (!planId) return json(400, "MISSING_PLAN_ID", "Missing planId");
 
-    // 可选：允许前端传 mode（不传默认 full）
-    const modeParam = (searchParams.get("mode") || "full").trim();
-    const mode = modeParam === "preview" ? "preview" : "full";
+    const mode = (searchParams.get("mode") || "full").trim();
+    const allowedModes = new Set(["full", "preview", "budget"]);
+    if (!allowedModes.has(mode)) {
+      return json(400, "INVALID_MODE", `Invalid mode: ${mode}. Allowed: full|preview|budget`);
+    }
 
-    // cfg（模块顺序等）
     const cfgParam = (searchParams.get("cfg") || "").trim();
     const cfg = cfgParam ? parseCfg(cfgParam) : undefined;
 
-    // ---- 关键诊断日志：只打必要信息，不打 token，不打整段 JSON ----
+    // ✅ tz：由前端传 Intl.DateTimeFormat().resolvedOptions().timeZone
+    // 例如 Asia/Shanghai / Asia/Tokyo
+    const tz = (searchParams.get("tz") || "").trim();
+
+    const licenseKey = (searchParams.get("licenseKey") || "").trim();
+    if (licenseKey) {
+      const check = await consumeLicenseOrThrow(req, { planId, mode, licenseKey });
+      if (!check.ok) {
+        try {
+          await prisma.pdfDownloadLog.create({
+            data: {
+              planId,
+              mode,
+              ip: getClientIp(req),
+              ok: false,
+              reason: check.code,
+              error: check.message,
+              userAgent: req.headers.get("user-agent") || "",
+            },
+          });
+        } catch {}
+        return NextResponse.json(
+          { ok: false, code: check.code, message: check.message },
+          { status: 403 }
+        );
+      }
+    }
+
     const moduleOrder =
       cfg && typeof cfg === "object"
-        ? (cfg.moduleOrder || cfg.modules || cfg.order || null)
+        ? (cfg as any).moduleOrder || (cfg as any).modules || (cfg as any).order || null
         : null;
 
-    console.log("[pdf] planId=", planId, "mode=", mode);
+    console.log("[pdf] planId=", planId, "mode=", mode, "tz=", tz || "(none)");
     console.log("[pdf] hasCfg=", !!cfgParam, "cfgLen=", cfgParam.length);
     console.log("[pdf] moduleOrder=", moduleOrder);
-    // 下面这行用于确认你 render 里有没有把 plan 读成“正确结构”
-    // 注意：renderPdf 内部如果能暴露 plan 的顶层 keys 更好；这里先给 route 一些标记
-    console.log("[pdf] route=", "app/api/pdf/route.ts", "elapsed(ms)=", Date.now() - startedAt);
 
-    // ---- 调用渲染 ----
-    const bytes = await renderPdf(planId, { mode, cfg });
-
+    // ✅ 把 tz 下传给渲染器
+    const bytes = await renderPdf(planId, { mode: mode as any, cfg: { ...(cfg || {}), tz } });
     const buf = Buffer.from(bytes);
 
-    // filename 做一下保守处理，避免 planId 里出现奇怪字符
+    try {
+      await prisma.pdfDownloadLog.create({
+        data: {
+          planId,
+          mode,
+          ip: getClientIp(req),
+          ok: true,
+          reason: licenseKey ? "LICENSE_OK" : "NO_LICENSE",
+          userAgent: req.headers.get("user-agent") || "",
+        },
+      });
+    } catch {}
+
     const safePlanId = planId.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const filename =
+      mode === "budget" ? `budget_${safePlanId}.pdf` : `plan_${safePlanId}.pdf`;
+
+    console.log("[pdf] elapsed(ms)=", Date.now() - startedAt);
 
     return new NextResponse(buf, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="plan_${safePlanId}.pdf"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store, max-age=0",
         Pragma: "no-cache",
         "Content-Length": String(buf.length),
-
-        // 方便你一眼确认：是否走了“默认 cfg”
         "X-USED-DEFAULTS": cfg ? "0" : "1",
       },
     });
@@ -124,7 +204,23 @@ export async function GET(req: NextRequest) {
         ? "CFG_INVALID"
         : "PDF_INTERNAL_ERROR");
 
-    // 生产环境建议不要把 stack 直接返回给前端；这里先按你调试期保留
+    try {
+      const { searchParams } = new URL(req.url);
+      const planId = (searchParams.get("planId") || "").trim() || "unknown";
+      const mode = (searchParams.get("mode") || "full").trim();
+      await prisma.pdfDownloadLog.create({
+        data: {
+          planId,
+          mode,
+          ip: getClientIp(req),
+          ok: false,
+          reason: code,
+          error: e?.message || String(e),
+          userAgent: req.headers.get("user-agent") || "",
+        },
+      });
+    } catch {}
+
     return json(500, code, e?.message || String(e), {
       name: e?.name,
       stack: e?.stack,
