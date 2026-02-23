@@ -20,7 +20,7 @@ export default function EditPlanPage() {
   if (!plan) {
     return (
       <main className="min-h-screen bg-black text-white px-6 py-10 flex items-center justify-center">
-        <p className="text-gray-300">加载中...</p>
+        <p className="text-gray-300">加载�?..</p>
       </main>
     );
   }
@@ -43,7 +43,7 @@ export default function EditPlanPage() {
   const handleSave = async () => {
     setLoading(true);
     try {
-      // 读取旧版本用于版本控制
+      // 读取旧版本用于版本控�?
       const oldPlanRaw = localStorage.getItem("attaguy_plan");
       const previousPlan = oldPlanRaw ? JSON.parse(oldPlanRaw) : null;
 
@@ -54,7 +54,7 @@ export default function EditPlanPage() {
         version = (currentVersion + 0.1).toFixed(1);
       }
 
-      // 创建新版本：只更新版本号和生成时间
+      // 创建新版本：只更新版本号和生成时�?
       const newPlan = {
         ...plan,
         meta: {
@@ -64,13 +64,13 @@ export default function EditPlanPage() {
         },
       };
 
-      // 保存旧版本（可选：存到历史记录）
+      // 保存旧版本（可选：存到历史记录�?
       if (previousPlan) {
         const historyKey = `attaguy_plan_v${previousPlan.meta.version}`;
         localStorage.setItem(historyKey, oldPlanRaw);
       }
 
-      // 保存新版本
+      // 保存新版�?
       localStorage.setItem("attaguy_plan", JSON.stringify(newPlan));
 
       router.push("/result");
@@ -86,7 +86,7 @@ export default function EditPlanPage() {
       <div className="max-w-4xl mx-auto space-y-8">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold mb-3">编辑方案</h1>
-          <p className="text-gray-300">修改设备数量、备注和可选服务</p>
+          <p className="text-gray-300">修改设备数量、备注和可选服�?/p>
         </div>
 
         {/* 设备清单编辑 */}
@@ -97,11 +97,11 @@ export default function EditPlanPage() {
               <div key={idx} className="rounded-xl bg-zinc-900 border border-zinc-800 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <span className="text-xs text-gray-400 mr-2">{equip.category || "—"}</span>
+                    <span className="text-xs text-gray-400 mr-2">{equip.category || "�?}</span>
                     <span className="font-semibold text-gray-200">{equip.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-300">数量：</label>
+                    <label className="text-sm text-gray-300">数量�?/label>
                     <input
                       type="number"
                       min="0"
@@ -112,13 +112,13 @@ export default function EditPlanPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">说明/备注：</label>
+                  <label className="block text-sm text-gray-400 mb-1">说明/备注�?/label>
                   <textarea
                     value={equip.reason || ""}
                     onChange={(e) => handleEquipmentChange(idx, "reason", e.target.value)}
                     className="w-full rounded bg-zinc-800 border border-zinc-700 px-3 py-2 text-white text-sm"
                     rows={2}
-                    placeholder="请输入备注..."
+                    placeholder="请输入备�?.."
                   />
                 </div>
               </div>
@@ -126,9 +126,9 @@ export default function EditPlanPage() {
           </div>
         </section>
 
-        {/* Addons 勾选 */}
+        {/* Addons 勾�?*/}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-          <h2 className="text-xl font-semibold mb-4">可选服务</h2>
+          <h2 className="text-xl font-semibold mb-4">可选服�?/h2>
           <div className="space-y-3">
             {plan.upsellHints?.map((hint: string, idx: number) => {
               // 根据 hint 匹配 addons key
@@ -166,7 +166,7 @@ export default function EditPlanPage() {
             disabled={loading}
             className="flex-1 bg-white text-black rounded-xl py-4 font-semibold hover:bg-gray-200 transition disabled:opacity-50"
           >
-            {loading ? "保存中..." : "保存并生成新版本"}
+            {loading ? "保存�?.." : "保存并生成新版本"}
           </button>
           <button
             onClick={() => router.push("/result")}
@@ -179,4 +179,5 @@ export default function EditPlanPage() {
     </main>
   );
 }
+
 

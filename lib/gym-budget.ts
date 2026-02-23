@@ -135,59 +135,73 @@ function sumRange(a: Range, b: Range): Range {
   return { min: a.min + b.min, max: a.max + b.max };
 }
 
+function normalizeTier(tier: any): BudgetTier {
+  const s = String(tier ?? "").trim().toLowerCase();
+
+  if (s === "low" || s === "l" || s === "basic" || s === "starter") return "low";
+  if (s === "mid" || s === "m" || s === "medium" || s === "middle" || s === "standard") return "mid";
+  if (s === "high" || s === "h" || s === "premium" || s === "pro") return "high";
+
+  return "mid";
+}
+
 export function buildBudgetSummary(tier: BudgetTier, companySize: CompanySize): BudgetSummary {
+  const t = normalizeTier(tier);
+
   const lines: BudgetLine[] = [
     {
       category: "cardio",
       categoryName: "有氧设备",
-      tier,
-      unitPriceText: TABLE.cardio[tier].unitPriceText,
-      qtyText: TABLE.cardio[tier].qtyText,
-      subtotal: TABLE.cardio[tier].subtotal,
-      fit: TABLE.cardio[tier].fit,
-      note: TABLE.cardio[tier].note,
+      tier: t,
+      unitPriceText: TABLE.cardio[t].unitPriceText ?? "",
+      qtyText: TABLE.cardio[t].qtyText,
+      subtotal: TABLE.cardio[t].subtotal,
+      fit: TABLE.cardio[t].fit,
+      note: TABLE.cardio[t].note,
     },
     {
       category: "strength_machine",
       categoryName: "力量设备（固定器械）",
-      tier,
-      unitPriceText: TABLE.strength_machine[tier].unitPriceText,
-      qtyText: TABLE.strength_machine[tier].qtyText,
-      subtotal: TABLE.strength_machine[tier].subtotal,
-      fit: TABLE.strength_machine[tier].fit,
-      note: TABLE.strength_machine[tier].note,
+      tier: t,
+      unitPriceText: TABLE.strength_machine[t].unitPriceText ?? "",
+      qtyText: TABLE.strength_machine[t].qtyText,
+      subtotal: TABLE.strength_machine[t].subtotal,
+      fit: TABLE.strength_machine[t].fit,
+      note: TABLE.strength_machine[t].note,
     },
     {
       category: "free_weights",
       categoryName: "自由力量设备",
-      tier,
-      unitPriceText: TABLE.free_weights[tier].unitPriceText,
-      qtyText: TABLE.free_weights[tier].qtyText,
-      subtotal: TABLE.free_weights[tier].subtotal,
-      fit: TABLE.free_weights[tier].fit,
-      note: TABLE.free_weights[tier].note,
+      tier: t,
+      unitPriceText: TABLE.free_weights[t].unitPriceText ?? "",
+      qtyText: TABLE.free_weights[t].qtyText,
+      subtotal: TABLE.free_weights[t].subtotal,
+      fit: TABLE.free_weights[t].fit,
+      note: TABLE.free_weights[t].note,
     },
     {
       category: "accessories",
       categoryName: "辅助设备",
-      tier,
-      unitPriceText: TABLE.accessories[tier].unitPriceText,
-      qtyText: TABLE.accessories[tier].qtyText,
-      subtotal: TABLE.accessories[tier].subtotal,
-      fit: TABLE.accessories[tier].fit,
-      note: TABLE.accessories[tier].note,
+      tier: t,
+      unitPriceText: TABLE.accessories[t].unitPriceText ?? "",
+      qtyText: TABLE.accessories[t].qtyText,
+      subtotal: TABLE.accessories[t].subtotal,
+      fit: TABLE.accessories[t].fit,
+      note: TABLE.accessories[t].note,
     },
   ];
 
-  const estimatedBySubtotals = lines.reduce((acc, line) => sumRange(acc, line.subtotal), r(0, 0));
+  const estimatedBySubtotals = lines.reduce(
+    (acc, line) => sumRange(acc, line.subtotal),
+    r(0, 0)
+  );
 
   return {
-    tier,
+    tier: t,
     companySize,
-    overallTotal: OVERALL[tier],
+    overallTotal: OVERALL[t],
     estimatedBySubtotals,
     lines,
     notes: NOTES,
   };
 }
-

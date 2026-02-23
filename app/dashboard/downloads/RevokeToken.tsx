@@ -32,7 +32,7 @@ export default function RevokeToken() {
       if (!res.ok) {
         setMsg(data?.message || "撤销失败");
       } else {
-        setMsg("✅ Token 已成功撤销");
+        setMsg("�?Token 已成功撤销");
         setToken("");
       }
     } catch (e: any) {
@@ -61,18 +61,19 @@ export default function RevokeToken() {
         />
 
         <input
-          placeholder="reason（可选，默认 manual_revoke）"
+          placeholder="reason（可选，默认 manual_revoke�?
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
 
         <button onClick={submit} disabled={loading}>
-          {loading ? "处理中…" : "吊销 Token"}
+          {loading ? "处理中�? : "吊销 Token"}
         </button>
 
-        {msg && <div style={{ color: msg.startsWith("✅") ? "green" : "red" }}>{msg}</div>}
+        {msg && <div style={{ color: msg.startsWith("�?) ? "green" : "red" }}>{msg}</div>}
       </div>
     </div>
   );
 }
+
 
