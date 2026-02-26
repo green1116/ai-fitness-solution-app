@@ -1,16 +1,19 @@
-import type { NextConfig } from "next";
-import path from "path";
-
-const nextConfig: NextConfig = {
-  reactStrictMode: true,
-
-  // ✅ 关键：告诉 Next/Turbopack 项目根就是当前目录
-  turbopack: {
-    root: path.join(__dirname),
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  webpack: (config) => {
+    config.watchOptions = {
+      ...(config.watchOptions || {}),
+      ignored: [
+        "**/node_modules/**",
+        "C:\\\\swapfile.sys",
+        "C:\\\\pagefile.sys",
+        "C:\\\\hiberfil.sys",
+        "C:\\\\System Volume Information/**",
+        "C:\\\\$Recycle.Bin/**",
+      ],
+    };
+    return config;
   },
-
-  // ✅ 额外保险：让文件追踪也以项目为根（减少诡异扫描）
-  outputFileTracingRoot: path.join(__dirname),
 };
 
-export default nextConfig;
+module.exports = nextConfig;

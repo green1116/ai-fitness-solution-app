@@ -1,0 +1,13 @@
+planId=attaguy-plan
+companyName=某某集团
+bidderName=AI Fitness Solution
+theme=brand
+watermark=1
+tz=Asia/Tokyo
+pdfVersionPlan=PLAN_V1
+pdfVersionBudget=BUDGET_V1
+planPages=18
+budgetPages=2
+includeCover=1
+includeDeclaration=1
+generatedAt=2026-02-24T07:13:05.797Z

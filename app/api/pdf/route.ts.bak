@@ -1,164 +1,114 @@
 // app/api/pdf/route.ts
-import { NextRequest } from "next/server";
-import crypto from "crypto";
-import { prisma } from "@/lib/prisma";
-import {
-  getClientIp,
-  verifyAndConsumePdfToken,
-  logPdfDownload,
-} from "@/lib/pdfDownloadToken";
+import { NextRequest, NextResponse } from "next/server";
 
-// ✅ 你已有的 PDF 渲染函数：按你项目实际路径接回
-// import { renderPdfBuffer } from "@/lib/pdf/render";
-// import { renderPreviewPdfBuffer } from "@/lib/pdf/renderPreview";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// 与 lib/session.ts 保持一致：优先使用 SESSION_SECRET，然后是 SESSION_TOKEN_SECRET
-const SESSION_SECRET = process.env.SESSION_SECRET || process.env.SESSION_TOKEN_SECRET || "";
-
-function hashSessionToken(rawToken: string) {
-  // 与 lib/session.ts 保持一致的哈希算法：
-  // lib/session.ts 使用 sha256(`${token}:${process.env.SESSION_SECRET ?? "sess"}`)
-  const secret = SESSION_SECRET || "sess"; // 与 lib/session.ts 的默认值保持一致
-  return crypto.createHash("sha256").update(`${rawToken}:${secret}`).digest("hex");
+function json(status: number, code: string, message: string, extra?: any) {
+  return NextResponse.json(
+    { ok: false, code, message, ...(extra ? { extra } : {}) },
+    { status }
+  );
 }
 
-function shouldBypassPaywall() {
-  // 生产环境永远不绕过
-  if (process.env.NODE_ENV === "production") return false;
-  // 开发环境：必须显式设置为 1 才绕过
-  return process.env.PDF_PAYWALL_BYPASS === "1";
+function pick<T extends string>(v: string | null, allowed: readonly T[], fallback: T): T {
+  if (!v) return fallback;
+  const s = String(v).trim() as T;
+  return (allowed as readonly string[]).includes(s) ? s : fallback;
 }
 
-async function requireLogin(req: NextRequest) {
-  const cookie = req.headers.get("cookie") || "";
-
-  // 只匹配你实际用到的 cookie 名
-  const candidates = ["session", "sessionToken", "auth_token", "next-auth.session-token"];
-
-  let rawToken: string | null = null;
-  for (const name of candidates) {
-    const m = cookie.match(new RegExp(`${name}=([^;]+)`));
-    if (m?.[1]) {
-      rawToken = decodeURIComponent(m[1]);
-      break;
-    }
-  }
-
-  if (!rawToken) return { ok: false as const };
-
-  const secret = SESSION_SECRET || "sess"; // 与 lib/session.ts 的默认值保持一致
-  if (!SESSION_SECRET) {
-    // 在本地可以短路，但生产必须提供 SESSION_SECRET 或 SESSION_TOKEN_SECRET
-    console.warn("SESSION_SECRET/SESSION_TOKEN_SECRET not set; using default 'sess'");
-  }
-
-  // 计算与 DB 一致的 hash
-  const tokenHash = hashSessionToken(rawToken);
-  
-  // 调试日志（仅开发环境）
-  if (process.env.NODE_ENV !== "production") {
-    console.log(`[requireLogin] rawToken: ${rawToken.substring(0, 20)}..., secret: ${secret}, tokenHash: ${tokenHash.substring(0, 20)}...`);
-  }
-
-  const row = await prisma.session.findUnique({
-    where: { tokenHash },
-    select: { email: true, expiresAt: true },
-  });
-
-  if (!row) {
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`[requireLogin] 数据库中未找到匹配的 tokenHash`);
-    }
-    return { ok: false as const };
-  }
-  if (row.expiresAt.getTime() <= Date.now()) return { ok: false as const };
-
-  return { ok: true as const, email: row.email };
-}
-
-function pdfResponse(buf: Buffer | Uint8Array, filename: string) {
-  return new Response(buf as BodyInit, {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-      "Cache-Control": "no-store",
-    },
-  });
+function toInt(v: string | null, fallback: number) {
+  const n = Number.parseInt(String(v ?? "").trim(), 10);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 export async function GET(req: NextRequest) {
-  const url = new URL(req.url);
-  const planId = String(url.searchParams.get("planId") || "").trim();
-  const mode = String(url.searchParams.get("mode") || "full").trim(); // preview | full
-  const downloadToken = url.searchParams.get("downloadToken");
+  console.log(">>> ENTER /api/pdf");
+  try {
+    const { searchParams } = new URL(req.url);
 
-  if (!planId) {
-    return Response.json({ ok: false, code: "MISSING_PLAN_ID" }, { status: 400 });
-  }
+    const planId = (searchParams.get("planId") || "").trim();
+    if (!planId) return json(400, "MISSING_PLAN_ID", "Missing planId");
 
-  const ip = getClientIp(req.headers);
-  const userAgent = req.headers.get("user-agent") || undefined;
+    const mode = pick(searchParams.get("mode"), ["preview", "full", "budget"] as const, "full");
 
-  // -------------------------
-  // A) Preview：必须登录
-  // -------------------------
-  if (mode === "preview") {
-    const s = await requireLogin(req);
-    if (!s.ok) {
-      await logPdfDownload({
-        planId,
-        ok: false,
-        reason: "LOGIN_REQUIRED",
-        ip,
-        userAgent,
+    // ✅ 预算：动态 import + 兼容 default/named
+    if (mode === "budget") {
+      const companyName = (searchParams.get("companyName") || "某某集团").trim();
+
+      const companySizeRaw = toInt(searchParams.get("companySize"), 100);
+      const companySize =
+        companySizeRaw === 50 || companySizeRaw === 100 || companySizeRaw === 200
+          ? (companySizeRaw as 50 | 100 | 200)
+          : (100 as 50 | 100 | 200);
+
+      const budgetTier = pick(searchParams.get("budgetTier"), ["low", "mid", "high"] as const, "mid");
+
+      const pdfVersion = (searchParams.get("pdfVersion") || "BUDGET_PDF_TENDER").trim();
+      const bidderName = (searchParams.get("bidderName") || "").trim();
+
+      // 1) 先尝试 lib/pdf/budget 的 named export
+      const budgetMod = await import("@/lib/pdf/budget").catch(() => null);
+      const named = budgetMod && (budgetMod as any).renderBudgetPdfBuffer;
+
+      // 2) 再尝试 lib/pdf/renderBudget 的 default export（你现在就是这里炸）
+      const rbMod = await import("@/lib/pdf/renderBudget").catch(() => null);
+      const def = rbMod && (rbMod as any).default;
+
+      const fn =
+        typeof named === "function"
+          ? named
+          : typeof def === "function"
+            ? def
+            : null;
+
+      if (!fn) {
+        return json(500, "BUDGET_RENDER_NOT_FOUND", "No budget render function found", {
+          budgetExports: budgetMod ? Object.keys(budgetMod as any) : null,
+          renderBudgetExports: rbMod ? Object.keys(rbMod as any) : null,
+        });
+      }
+
+      const bytes: Uint8Array = await fn(
+        {
+          planId,
+          companyName,
+          companySize,
+          budgetTier,
+        },
+        {
+          pdfVersion,
+          bidderName,
+          tenderPreset: "new_build",
+        }
+      );
+
+      const buf = Buffer.from(bytes);
+      return new NextResponse(buf, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="${encodeURIComponent(`${pdfVersion}-${planId}.pdf`)}"`,
+          "Cache-Control": "no-store, must-revalidate",
+        },
       });
-      return Response.json({ ok: false, code: "LOGIN_REQUIRED" }, { status: 401 });
     }
 
-    // ✅ 这里接你的 preview 渲染（建议：仅前两页/水印）
-    // const pdf = await renderPreviewPdfBuffer(planId, { email: s.email });
-    // return pdfResponse(pdf, `${planId}-preview.pdf`);
-
-    // 临时返回（你接好渲染后删掉）
-    await logPdfDownload({ planId, ok: true, reason: "PREVIEW_OK", ip, userAgent });
-    return Response.json({ ok: true, code: "PREVIEW_OK" }, { status: 200 });
-  }
-
-  // -------------------------
-  // B) Full：生产不绕过；开发可绕过但必须显式开关
-  // -------------------------
-  if (!shouldBypassPaywall()) {
-    const gate = await verifyAndConsumePdfToken({
-      planId,
-      rawToken: downloadToken,
-      ip,
-      userAgent,
+    // 其他模式照旧
+    const { renderPdf } = await import("@/lib/pdf/render");
+    const bytes = await renderPdf(planId, { mode });
+    return new NextResponse(Buffer.from(bytes), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `inline; filename="${encodeURIComponent(`${mode}-${planId}.pdf`)}"`,
+        "Cache-Control": "no-store, must-revalidate",
+      },
     });
-
-    if (!gate.ok) {
-      const status =
-        gate.code === "TOKEN_EXHAUSTED" ? 429 :
-        gate.code === "MISSING_TOKEN" ? 403 :
-        403;
-
-      // verifyAndConsumePdfToken 已写日志，这里无需重复
-      return Response.json({ ok: false, code: gate.code }, { status });
-    }
-
-    // ✅ 通过门禁后再渲染 full PDF
-    // const pdf = await renderPdfBuffer(planId, { mode: gate.mode ?? "full" });
-    // return pdfResponse(pdf, `${planId}.pdf`);
-
-    await logPdfDownload({ planId, ok: true, reason: "FULL_OK", ip, userAgent });
-    return Response.json({ ok: true, code: "FULL_OK", mode: gate.mode ?? null }, { status: 200 });
+  } catch (e: any) {
+    return json(500, "PDF_INTERNAL_ERROR", e?.message || "Unknown error", {
+      name: e?.name,
+      stack: e?.stack,
+    });
   }
-
-  // 开发绕过（仅开发）
-  await logPdfDownload({ planId, ok: true, reason: "DEV_BYPASS", ip, userAgent });
-
-  // const pdf = await renderPdfBuffer(planId, { mode: "full" });
-  // return pdfResponse(pdf, `${planId}.pdf`);
-
-  return Response.json({ ok: true, code: "DEV_BYPASS" }, { status: 200 });
 }
-

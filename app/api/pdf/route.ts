@@ -1,82 +1,246 @@
-﻿import { NextRequest, NextResponse } from "next/server";
-import renderBudgetPdfBuffer from "@/lib/pdf/renderBudget";
+// app/api/pdf/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { renderPdf } from "@/lib/pdf/render";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function asciiSafe(s: string) {
-  return String(s || "").replace(/[^\x20-\x7E]/g, "");
+type Mode = "preview" | "full" | "budget";
+
+function json(status: number, code: string, message: string, extra?: any) {
+  return NextResponse.json(
+    { ok: false, code, message, ...(extra ? { extra } : {}) },
+    { status }
+  );
 }
-function json(status: number, obj: any) {
-  return NextResponse.json(obj, { status });
+
+function safeStr(v: any, fallback = "") {
+  const s = String(v ?? "").trim();
+  return s ? s : fallback;
+}
+
+function pick<T extends string>(v: any, allowed: readonly T[], fallback: T): T {
+  const s = String(v || "").trim() as T;
+  return (allowed as readonly string[]).includes(s) ? s : fallback;
+}
+
+function encodeHeaderValue(v: string, maxLen = 1600) {
+  const enc = encodeURIComponent(v);
+  return enc.length <= maxLen ? enc : enc.slice(0, maxLen);
+}
+
+/** 生成稳定短签名：参数同样 => 签名同样（用于验真/缓存指纹） */
+async function shortSigHex(payload: string) {
+  // Node 18+ 有 globalThis.crypto.subtle
+  const data = new TextEncoder().encode(payload);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return hex.slice(0, 12); // 12 hex chars：够用且短
 }
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
 
-    const planId = (searchParams.get("planId") || "").trim();
-    const mode = (searchParams.get("mode") || "full").trim();
-    if (!planId) return json(400, { ok: false, code: "MISSING_PLAN_ID" });
+    const planId = safeStr(searchParams.get("planId"));
+    if (!planId) return json(400, "MISSING_PLAN_ID", "Missing planId");
 
-    if (mode !== "budget") {
-      return json(200, { ok: true, hint: "Use mode=budget", planId, mode });
+    const mode = pick(
+      searchParams.get("mode"),
+      ["preview", "full", "budget"] as const,
+      "full"
+    );
+
+    // debug：prod 必须显式 debug=1；dev 默认更可见
+    const debugFlag = safeStr(searchParams.get("debug")) === "1";
+    const debug = debugFlag || process.env.NODE_ENV !== "production";
+
+    // ---------------- budget ----------------
+    if (mode === "budget") {
+      const mod: any = await import("@/lib/pdf/budgetRender");
+      const renderBudgetPdfBuffer: any = mod?.renderBudgetPdfBuffer;
+
+      if (typeof renderBudgetPdfBuffer !== "function") {
+        return json(
+          500,
+          "BUDGET_RENDER_MISSING_EXPORT",
+          "renderBudgetPdfBuffer is not a function in lib/pdf/budgetRender",
+          { gotType: typeof renderBudgetPdfBuffer, modKeys: Object.keys(mod || {}).slice(0, 50) }
+        );
+      }
+
+      const companyName = safeStr(searchParams.get("companyName"), "示例企业");
+      const companySizeRaw = safeStr(searchParams.get("companySize"), "0");
+      const companySize = Number(companySizeRaw || "0") || 0;
+
+      const budgetTier = pick(
+        searchParams.get("budgetTier"),
+        ["low", "mid", "high"] as const,
+        "mid"
+      );
+
+      const pdfVersionBudget = safeStr(
+        searchParams.get("pdfVersionBudget"),
+        "BR_DEFAULT"
+      );
+
+      // ✅ 计算请求签名：不依赖 debug，永远生成
+      const sigPayload = JSON.stringify({
+        planId,
+        mode: "budget",
+        companyName,
+        companySize,
+        budgetTier,
+        pdfVersionBudget,
+      });
+      const reqSig = await shortSigHex(sigPayload);
+
+      // format=json / format=summary（你现在已经在用）
+      const format = safeStr(searchParams.get("format")).toLowerCase();
+
+      const input = { planId, companyName, companySize, budgetTier };
+
+      // ✅ 把 reqSig 传进去：用于写 metadata/隐形水印/页脚 SIG
+      const out: any = await renderBudgetPdfBuffer(input, {
+        pdfVersion: pdfVersionBudget,
+        debug,
+        reqSig,
+      });
+
+      // ✅ 兼容：旧实现返回 Uint8Array；新实现返回 { pdfBytes, meta, summary }
+      let pdfBytes: Uint8Array | null = null;
+      let meta: any = null;
+      let summary: any = null;
+
+      if (out && typeof out === "object") {
+        if (out.pdfBytes) pdfBytes = out.pdfBytes as Uint8Array;
+        meta = out.meta || null;
+        summary = out.summary || meta?.summary || null;
+      } else {
+        pdfBytes = out as Uint8Array;
+      }
+
+      // 如果要求 JSON/summary，则直接返回 JSON（不走 PDF）
+      if (format === "json" || format === "summary") {
+        const summaryTier =
+          summary?.tier || meta?.summary?.tier || budgetTier;
+
+        const body =
+          format === "summary"
+            ? {
+                ok: true,
+                mode: "budget",
+                planId,
+                input: { companyName, companySize, budgetTier },
+                summaryTier,
+                summary: summary || meta?.summary || null,
+                meta: meta || null,
+              }
+            : {
+                ok: true,
+                mode: "budget",
+                planId,
+                input: {
+                  companyName,
+                  companySize,
+                  budgetTier,
+                  pdfVersionBudget,
+                  debug,
+                },
+                engine: {
+                  fp: meta?.engineFp || mod?.BUDGET_ENGINE_FP || "UNKNOWN_FP",
+                  version:
+                    meta?.engineVersion ||
+                    mod?.BUDGET_PDF_VERSION ||
+                    "UNKNOWN_VER",
+                  impl: meta?.impl || "budgetRender.ts",
+                },
+                reqSig,
+                summaryTier,
+                summary: summary || meta?.summary || null,
+                meta: meta || null,
+              };
+
+        return NextResponse.json(body, { status: 200 });
+      }
+
+      if (!pdfBytes || typeof (pdfBytes as any).length !== "number") {
+        return json(500, "BUDGET_RENDER_BAD_RETURN", "budget renderer returned invalid bytes", {
+          outType: typeof out,
+          outKeys: out && typeof out === "object" ? Object.keys(out).slice(0, 30) : null,
+        });
+      }
+
+      const buf = Buffer.from(pdfBytes);
+      const res = new NextResponse(buf, { status: 200 });
+
+      res.headers.set("content-type", "application/pdf");
+      res.headers.set(
+        "content-disposition",
+        `attachment; filename="budget-${planId}-${budgetTier}-size${companySize}.pdf"`
+      );
+      res.headers.set("cache-control", "no-store, max-age=0");
+
+      // ---- always-on diagnostics (安全、短) ----
+      const fp = meta?.engineFp || mod?.BUDGET_ENGINE_FP || "UNKNOWN_FP";
+      const ver = meta?.engineVersion || mod?.BUDGET_PDF_VERSION || "UNKNOWN_VER";
+
+      res.headers.set("x-budget-impl", meta?.impl || "budgetRender.ts");
+      res.headers.set("x-budget-engine-fp", fp);
+      res.headers.set("x-budget-engine-version", ver);
+
+      res.headers.set("x-budget-tier-input", budgetTier);
+      if (meta?.summaryTier) res.headers.set("x-budget-tier-summary", String(meta.summaryTier));
+      else if (meta?.summary?.tier) res.headers.set("x-budget-tier-summary", String(meta.summary.tier));
+      else res.headers.set("x-budget-tier-summary", budgetTier);
+
+      res.headers.set("x-budget-company-size", String(companySize));
+      res.headers.set("x-pdf-version", pdfVersionBudget);
+      res.headers.set("x-budget-req-sig", reqSig);
+      res.headers.set("x-budget-url-mode", "api/pdf");
+
+      // ---- summary headers: status 常驻；err/trunc/warn 仅 debug ----
+      if (meta?.summaryStatus) res.headers.set("x-budget-summary-status", meta.summaryStatus);
+
+      if (debug) {
+        if (meta?.summaryErr) res.headers.set("x-budget-summary-err", encodeHeaderValue(meta.summaryErr));
+        if (meta?.summaryWarn) res.headers.set("x-budget-summary-warn", encodeHeaderValue(meta.summaryWarn));
+        if (meta?.summaryTrunc) res.headers.set("x-budget-summary-trunc", meta.summaryTrunc);
+      }
+
+      if (debug) {
+        console.log(">>> [BUDGET_RENDER] ACTIVE", {
+          fp,
+          ver,
+          planId,
+          budgetTier,
+          companySize,
+          pdfVersionBudget,
+          reqSig,
+        });
+      }
+
+      return res;
     }
 
-    const pdfVersion = (searchParams.get("pdfVersion") || "TENDER_NEW_BUILD_V1").trim();
+    // ---------------- plan (preview/full) ----------------
+    const bytes = await renderPdf(planId, { mode });
+    const buf = Buffer.from(bytes);
 
-    const input = {
-      planId,
-      companyName: (searchParams.get("companyName") || "未命名企业").trim(),
-      companySize: Number(searchParams.get("companySize") || "100"),
-      budgetTier: (searchParams.get("budgetTier") || "mid").trim(),
-
-      projectName: (searchParams.get("projectName") || "").trim() || undefined,
-      tenderNo: (searchParams.get("tenderNo") || "").trim() || undefined,
-      bidderName: (searchParams.get("bidderName") || "AI Fitness Solution").trim(),
-      contactName: (searchParams.get("contactName") || "").trim() || undefined,
-      contactPhone: (searchParams.get("contactPhone") || "").trim() || undefined,
-      contactEmail: (searchParams.get("contactEmail") || "").trim() || undefined,
-    } as any;
-
-    const bytes = await renderBudgetPdfBuffer(input, { pdfVersion });
-
-    const res = new NextResponse(Buffer.from(bytes), { status: 200 });
-    res.headers.set("Content-Type", "application/pdf");
-    res.headers.set("Cache-Control", "no-store");
-    res.headers.set("Content-Disposition", `inline; filename="tender-budget-${asciiSafe(planId)}.pdf"`);
-
-    res.headers.set("X-PDF-KIND", "BUDGET");
-    res.headers.set("X-PDF-VERSION", asciiSafe(pdfVersion));
-
-    // ✅ 唯一标识：只要你还看到 DEBUG_OVERRIDE，就说明没命中新代码
-    res.headers.set("X-ROUTE", "app/api/pdf/route.ts::TENDER_STABLE::GET_RENDERED_3P__MARK_20260221");
-
-    return res;
-  } catch (err: any) {
-    return json(500, {
-      ok: false,
-      code: "PDF_INTERNAL_ERROR",
-      message: err?.message || String(err),
-      name: err?.name,
-      stack: err?.stack,
+    return new NextResponse(buf, {
+      status: 200,
+      headers: {
+        "content-type": "application/pdf",
+        "content-disposition": `attachment; filename="${mode}-${planId}.pdf"`,
+        "cache-control": "no-store, max-age=0",
+      },
+    });
+  } catch (e: any) {
+    return json(500, "PDF_INTERNAL_ERROR", safeStr(e?.message || e), {
+      name: e?.name,
+      stack: e?.stack,
     });
   }
-}
-
-export async function HEAD(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const planId = (searchParams.get("planId") || "").trim() || "NA";
-  const pdfVersion = (searchParams.get("pdfVersion") || "NA").trim();
-
-  const res = new NextResponse(null, { status: 200 });
-  res.headers.set("Cache-Control", "no-store");
-  res.headers.set("Content-Type", "application/pdf");
-  res.headers.set("Content-Disposition", `inline; filename="tender-budget-${asciiSafe(planId)}.pdf"`);
-
-  res.headers.set("X-PDF-KIND", "BUDGET");
-  res.headers.set("X-PDF-VERSION", asciiSafe(pdfVersion));
-  res.headers.set("X-ROUTE", "app/api/pdf/route.ts::TENDER_STABLE::HEAD_NO_BODY__MARK_20260221");
-
-  return res;
 }
