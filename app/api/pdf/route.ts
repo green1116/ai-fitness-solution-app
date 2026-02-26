@@ -1,5 +1,6 @@
 // app/api/pdf/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { BUDGET_ENGINE_FP, BUDGET_PDF_VERSION } from "@/lib/pdf/budgetRender";
 import { renderPdf } from "@/lib/pdf/render";
 
 export const runtime = "nodejs";
@@ -59,18 +60,6 @@ export async function GET(req: NextRequest) {
 
     // ---------------- budget ----------------
     if (mode === "budget") {
-      const mod: any = await import("@/lib/pdf/budgetRender");
-      const renderBudgetPdfBuffer: any = mod?.renderBudgetPdfBuffer;
-
-      if (typeof renderBudgetPdfBuffer !== "function") {
-        return json(
-          500,
-          "BUDGET_RENDER_MISSING_EXPORT",
-          "renderBudgetPdfBuffer is not a function in lib/pdf/budgetRender",
-          { gotType: typeof renderBudgetPdfBuffer, modKeys: Object.keys(mod || {}).slice(0, 50) }
-        );
-      }
-
       const companyName = safeStr(searchParams.get("companyName"), "示例企业");
       const companySizeRaw = safeStr(searchParams.get("companySize"), "0");
       const companySize = Number(companySizeRaw || "0") || 0;
@@ -86,7 +75,6 @@ export async function GET(req: NextRequest) {
         "BR_DEFAULT"
       );
 
-      // ✅ 计算请求签名：不依赖 debug，永远生成
       const sigPayload = JSON.stringify({
         planId,
         mode: "budget",
@@ -97,16 +85,18 @@ export async function GET(req: NextRequest) {
       });
       const reqSig = await shortSigHex(sigPayload);
 
-      // format=json / format=summary（你现在已经在用）
       const format = safeStr(searchParams.get("format")).toLowerCase();
 
-      const input = { planId, companyName, companySize, budgetTier };
+      const budgetInput = { planId, companyName, companySize, budgetTier };
 
-      // ✅ 把 reqSig 传进去：用于写 metadata/隐形水印/页脚 SIG
-      const out: any = await renderBudgetPdfBuffer(input, {
-        pdfVersion: pdfVersionBudget,
-        debug,
-        reqSig,
+      const out: any = await renderPdf(planId, {
+        mode: "budget",
+        budgetInput,
+        budgetOpts: {
+          pdfVersion: pdfVersionBudget,
+          debug,
+          reqSig,
+        },
       });
 
       // ✅ 兼容：旧实现返回 Uint8Array；新实现返回 { pdfBytes, meta, summary }
@@ -150,10 +140,10 @@ export async function GET(req: NextRequest) {
                   debug,
                 },
                 engine: {
-                  fp: meta?.engineFp || mod?.BUDGET_ENGINE_FP || "UNKNOWN_FP",
+                  fp: meta?.engineFp || BUDGET_ENGINE_FP || "UNKNOWN_FP",
                   version:
                     meta?.engineVersion ||
-                    mod?.BUDGET_PDF_VERSION ||
+                    BUDGET_PDF_VERSION ||
                     "UNKNOWN_VER",
                   impl: meta?.impl || "budgetRender.ts",
                 },
@@ -184,8 +174,8 @@ export async function GET(req: NextRequest) {
       res.headers.set("cache-control", "no-store, max-age=0");
 
       // ---- always-on diagnostics (安全、短) ----
-      const fp = meta?.engineFp || mod?.BUDGET_ENGINE_FP || "UNKNOWN_FP";
-      const ver = meta?.engineVersion || mod?.BUDGET_PDF_VERSION || "UNKNOWN_VER";
+      const fp = meta?.engineFp || BUDGET_ENGINE_FP || "UNKNOWN_FP";
+      const ver = meta?.engineVersion || BUDGET_PDF_VERSION || "UNKNOWN_VER";
 
       res.headers.set("x-budget-impl", meta?.impl || "budgetRender.ts");
       res.headers.set("x-budget-engine-fp", fp);
@@ -226,7 +216,11 @@ export async function GET(req: NextRequest) {
     }
 
     // ---------------- plan (preview/full) ----------------
-    const bytes = await renderPdf(planId, { mode });
+    const planResult = await renderPdf(planId, { mode });
+    const bytes =
+      typeof planResult === "object" && planResult !== null && "pdfBytes" in planResult
+        ? planResult.pdfBytes
+        : planResult;
     const buf = Buffer.from(bytes);
 
     return new NextResponse(buf, {
