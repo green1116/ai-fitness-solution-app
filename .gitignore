@@ -1,5 +1,28 @@
-﻿node_modules
-.next
+# regression outputs
+_regress/
+
+# ignore all pdf artifacts by default
+*.pdf
+
+# keep golden PDFs tracked
+!public/golden/*.pdf
+
+# temp debug
+tmp*.json
+resp*.txt
+resp*.json
+_hdr*.txt
+_body*.txt
+
+# node / next
+.next/
+out/
+node_modules/
+
+# env
 .env
 .env.local
+
+# OS
 .DS_Store
+Thumbs.db

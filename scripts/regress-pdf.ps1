@@ -13,6 +13,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Report data structure
+$report = @{
+  ts = (Get-Date -Format "o")
+  baseUrl = $BaseUrl
+  planId = $PlanId
+  cases = @()
+}
+
 function Ensure-Dir([string]$dir) {
   if (!(Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
 }
@@ -69,40 +77,93 @@ Write-Host "--- GET ---"
 Curl-Get $planUrl $planFile
 Write-Host "Saved: $planFile"
 Pdf-Info $planFile
-# Hard assertion for your golden baseline
+
 $planPages = & python -c "from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))" $planFile
-if ([int]$planPages -ne 22) { throw "PLAN pages expected 22, got $planPages" }
+$planBytes = (Get-Item $planFile).Length
+$planOk = ([int]$planPages -eq 22)
+
+if (-not $planOk) { throw "PLAN pages expected 22, got $planPages" }
 Write-Host "assert_ok=PLAN_PAGES_22"
+
+$report.cases += @{
+  name = "PLAN_FULL"
+  ok = $planOk
+  pages = [int]$planPages
+  bytes = [int]$planBytes
+  file = $planFile
+}
 
 # ---------- BUDGET BRAND ----------
 Print-Block "BUDGET BRAND (expected 2 pages)"
 Write-Host "URL: $budgetBrandUrl"
 Write-Host "--- HEAD ---"
-Curl-Head $budgetBrandUrl | Write-Host
+$brandHead = Curl-Head $budgetBrandUrl
+$brandHead | Write-Host
 Write-Host "--- GET ---"
 Curl-Get $budgetBrandUrl $brandFile
 Write-Host "Saved: $brandFile"
 Pdf-Info $brandFile
+
 $brandPages = & python -c "from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))" $brandFile
-if ([int]$brandPages -ne 2) { throw "BUDGET brand pages expected 2, got $brandPages" }
+$brandBytes = (Get-Item $brandFile).Length
+$brandOk = ([int]$brandPages -eq 2)
+
+# Extract reqsig from headers if present
+$brandReqsig = ($brandHead | Select-String -Pattern "x-pdf-reqsig:\s*(\S+)" | ForEach-Object { $_.Matches.Groups[1].Value })
+
+if (-not $brandOk) { throw "BUDGET brand pages expected 2, got $brandPages" }
 Write-Host "assert_ok=BUDGET_BRAND_PAGES_2"
+
+$brandCase = @{
+  name = "BUDGET_BRAND"
+  ok = $brandOk
+  pages = [int]$brandPages
+  bytes = [int]$brandBytes
+  file = $brandFile
+}
+if ($brandReqsig) { $brandCase.reqsig = $brandReqsig }
+$report.cases += $brandCase
 
 # ---------- BUDGET GOV ----------
 Print-Block "BUDGET GOVERNMENT (expected 5 pages + DOCNO/SIG on page1)"
 Write-Host "URL: $budgetGovUrl"
 Write-Host "--- HEAD ---"
-Curl-Head $budgetGovUrl | Write-Host
+$govHead = Curl-Head $budgetGovUrl
+$govHead | Write-Host
 Write-Host "--- GET ---"
 Curl-Get $budgetGovUrl $govFile
 Write-Host "Saved: $govFile"
 Pdf-Info $govFile
+
 $govPages = & python -c "from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))" $govFile
-if ([int]$govPages -ne 5) { throw "BUDGET gov pages expected 5, got $govPages" }
+$govBytes = (Get-Item $govFile).Length
+$govOk = ([int]$govPages -eq 5)
+
+# Extract reqsig from headers if present
+$govReqsig = ($govHead | Select-String -Pattern "x-pdf-reqsig:\s*(\S+)" | ForEach-Object { $_.Matches.Groups[1].Value })
+
+if (-not $govOk) { throw "BUDGET gov pages expected 5, got $govPages" }
 Write-Host "assert_ok=BUDGET_GOV_PAGES_5"
 
 # verify the strict gov identifiers exist (DOCNO/SIG patterns)
-Assert-Contains $govFile @("AFS-GOV-", "DOCNO:", "SIG:")
+$govContains = @("AFS-GOV-", "DOCNO:", "SIG:")
+Assert-Contains $govFile $govContains
 Write-Host "assert_ok=BUDGET_GOV_DOCNO_SIG"
+
+$govCase = @{
+  name = "BUDGET_GOV"
+  ok = $govOk
+  pages = [int]$govPages
+  bytes = [int]$govBytes
+  file = $govFile
+  contains = $govContains
+}
+if ($govReqsig) { $govCase.reqsig = $govReqsig }
+$report.cases += $govCase
+
+# ---------- GENERATE REPORT ----------
+$reportFile = Join-Path $OutDir "report.json"
+$report | ConvertTo-Json -Depth 10 | Set-Content -Path $reportFile -Encoding UTF8
 
 Write-Host ""
 Write-Host "===================="
@@ -111,3 +172,5 @@ Write-Host "===================="
 Write-Host ""
 Write-Host "Output directory:"
 Resolve-Path $OutDir
+Write-Host ""
+Write-Host "Report saved: $reportFile"
