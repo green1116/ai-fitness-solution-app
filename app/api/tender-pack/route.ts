@@ -103,6 +103,17 @@ async function fetchPdfBytes(url: string) {
   return Buffer.from(ab);
 }
 
+async function fetchReqSigHead(url: string) {
+  const res = await fetch(url, {
+    method: "HEAD",
+    cache: "no-store",
+    headers: { Accept: "application/pdf" },
+  });
+  if (!res.ok) return null;
+  const sig = (res.headers.get("x-reqsig") || res.headers.get("X-REQSIG") || "").trim();
+  return sig || null;
+}
+
 async function tryReadFile(p: string) {
   try {
     return await fs.readFile(p);
@@ -175,8 +186,9 @@ async function stampMergedPageNumbers(opts: {
   bytes: Buffer;
   skipFirstPages: number;
   footerLeft?: string;
+  footerSigShort?: string; // ✅ 新增
 }) {
-  const { bytes, skipFirstPages, footerLeft } = opts;
+  const { bytes, skipFirstPages, footerLeft, footerSigShort } = opts;
 
   const doc = await PDFDocument.load(bytes);
   doc.registerFontkit(fontkit);
@@ -224,6 +236,21 @@ async function stampMergedPageNumbers(opts: {
       font,
       color: rgb(0.35, 0.35, 0.35),
     });
+
+    // ✅ 验真码：放在页码左侧
+    const sigShort = (footerSigShort || "").trim();
+    if (sigShort) {
+      const sigText = `验真码：${sigShort}`;
+      const sw = font.widthOfTextAtSize(sigText, size);
+      // 放在页码左侧一点点
+      p.drawText(sigText, {
+        x: rightX - tw - 18 - sw,
+        y,
+        size,
+        font,
+        color: rgb(0.35, 0.35, 0.35),
+      });
+    }
   }
 
   const out = await doc.save();
@@ -489,13 +516,73 @@ async function buildCoverAndTocPdfV7(opts: {
     sy -= lineGap;
   }
 
-  cover.drawText("注：本投标文件由系统生成，仅用于投标及评审用途。", {
-    x: marginX,
-    y: 70,
-    size: 10.5,
+  // ✅ V7.1：规范信息栏（评审/政府采购常用格式）
+const infoBoxX = marginX;
+const infoBoxW = A4_W - marginX * 2;
+const infoBoxH = 170;
+const infoBoxY = 290; // 位置可微调：越大越靠上
+
+cover.drawRectangle({
+  x: infoBoxX,
+  y: infoBoxY,
+  width: infoBoxW,
+  height: infoBoxH,
+  borderWidth: 1,
+  borderColor: rgb(0.82, 0.82, 0.82),
+});
+
+cover.drawText("项目信息（填写/确认）", {
+  x: infoBoxX + 12,
+  y: infoBoxY + infoBoxH - 24,
+  size: 12,
+  font,
+  color: rgb(0.18, 0.18, 0.18),
+});
+
+cover.drawLine({
+  start: { x: infoBoxX, y: infoBoxY + infoBoxH - 32 },
+  end: { x: infoBoxX + infoBoxW, y: infoBoxY + infoBoxH - 32 },
+  thickness: 1,
+  color: rgb(0.9, 0.9, 0.9),
+});
+
+let iy = infoBoxY + infoBoxH - 58;
+const rowGap = 22;
+
+const f = (label: string, value: string) => {
+  cover.drawText(label, {
+    x: infoBoxX + 14,
+    y: iy,
+    size: 11,
     font,
-    color: rgb(0.38, 0.38, 0.38),
+    color: rgb(0.22, 0.22, 0.22),
   });
+  cover.drawText(value, {
+    x: infoBoxX + 120,
+    y: iy,
+    size: 11,
+    font,
+    color: rgb(0.22, 0.22, 0.22),
+  });
+  iy -= rowGap;
+};
+
+const projectName = "企业健身房建设项目（技术标）";
+f("项目名称：", projectName);
+f("招标单位：", companyName?.trim() ? companyName.trim() : planId);
+f("投标人：", (bidderName || "AI Fitness Solution").trim());
+f("联系人：", "________________________");
+f("联系电话：", "________________________");
+f("联系地址：", "______________________________________________");
+
+// ✅ V7.1：封面备注（更正式）
+cover.drawText("说明：本文件为系统生成稿，正式递交前请核对项目信息、版本号与签章。", {
+  x: marginX,
+  y: 70,
+  size: 10.2,
+  font,
+  color: rgb(0.38, 0.38, 0.38),
+});
 
   // -------- 目录页 --------
   const toc = doc.addPage([A4_W, A4_H]);
@@ -540,14 +627,15 @@ async function buildCoverAndTocPdfV7(opts: {
     if (ty < 110) break;
   }
 
-  toc.drawText("提示：目录仅展示二级结构；详细内容请在正文各章节中查阅。", {
+ // ✅ V7.1：页码口径说明（评审关心）
+  toc.drawText("页码说明：本目录页码为“合并阅读顺序”的统一页码，用于评审引用与对照。", {
     x: marginX,
     y: 92,
     size: 10.5,
     font,
     color: rgb(0.35, 0.35, 0.35),
   });
-  toc.drawText("如需独立文件：format=zip；如需单文件合并版：format=merged。", {
+  toc.drawText("目录仅展示二级结构；章节内细项请在正文相应小节中查阅。", {
     x: marginX,
     y: 70,
     size: 10.5,
@@ -844,6 +932,15 @@ export async function GET(req: NextRequest) {
       fetchPdfBytes(budgetPdfUrl.toString()),
     ]);
 
+    // ✅ 从上游 HEAD 读取验真码（优先预算）
+    const [planReqSig, budgetReqSig] = await Promise.all([
+      fetchReqSigHead(planPdfUrl.toString()),
+      fetchReqSigHead(budgetPdfUrl.toString()),
+    ]);
+
+    const sig = (budgetReqSig || planReqSig || "").trim();
+    const sigShort = sig ? sig.slice(0, 8).toUpperCase() : "";
+
     const [planPages, budgetPages] = await Promise.all([
       getPdfPageCount(planBytes),
       getPdfPageCount(budgetBytes),
@@ -949,6 +1046,7 @@ export async function GET(req: NextRequest) {
           bytes: mergedBytes,
           skipFirstPages,
           footerLeft: `标书编号：${tenderNo} · 投标人：${bidderName || "AI Fitness Solution"}`,
+          footerSigShort: sigShort,
         });
       }
 

@@ -1,0 +1,1 @@
+{"ok":false,"code":"BUDGET_RENDER_BAD_RETURN","message":"budget renderer returned invalid bytes","extra":{"outType":"object","outKeys":["pdfBytes","summary"]}}
