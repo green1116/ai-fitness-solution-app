@@ -16,7 +16,16 @@ export type BudgetPdfInput = {
   budgetTier: "low" | "mid" | "high";
 };
 
-export type BudgetLevel = "brand" | "government";
+export type BudgetLevel = "saas" | "enterprise" | "government";
+
+function normalizeLevel(v?: string): BudgetLevel {
+  const s = String(v || "").toLowerCase();
+  if (s === "brand") return "saas";          // legacy: brand -> saas
+  if (s === "saas") return "saas";
+  if (s === "enterprise") return "enterprise";
+  if (s === "government") return "government";
+  return "saas";
+}
 
 export type BudgetPdfSection =
   | "header"
@@ -335,22 +344,21 @@ function drawLegacyFooter(
 // Main entry: renderBudgetPdfBuffer
 // -------------------------------
 export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderBudgetPdfOpts = {}) {
-  const level: BudgetLevel = (opts.level || "brand") as BudgetLevel;
+  const level: BudgetLevel = normalizeLevel(opts.level);
 
   console.log("[BUDGET_RENDER] level=", level, "planId=", input.planId);
 
   const planId = input.planId;
   const companyName = input.companyName || "企业";
   const companySize = Number(input.companySize || 0);
-  const tier = input.budgetTier;
 
   // 取 summary（你现有逻辑）
   const summary = await getBudgetSummary({
     planId,
     companyName,
     companySize,
-    tier,
-  } as any);
+    budgetTier: input.budgetTier,
+  });
 
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
@@ -364,10 +372,29 @@ export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderB
   const fontBold = font;
   const fontMono = await doc.embedFont(StandardFonts.Courier);
 
-  // brand 默认不动：你把原本 2 页渲染逻辑放进这个函数即可
-  if (level === "brand") {
-    console.log("[BUDGET_RENDER] branch=BRAND");
+  // ✅ saas/enterprise：商业分支（enterprise 会追加条款占位页）
+  if (level !== "government") {
+    console.log("[BUDGET_RENDER] branch=SAAS/ENTERPRISE, level=", level);
     await renderBrand2Pages(doc, { doc, font, fontBold, fontMono }, input, summary, opts);
+
+    // ✅ enterprise：按 sections 追加占位条款页（最优扩展点）
+    if (level === "enterprise") {
+      await renderEnterpriseTermsPlaceholder(doc, { doc, font, fontBold, fontMono }, input, opts);
+
+      // ✅ 统一重盖页脚（覆盖所有页的页码为正确的 total）
+      const theme = THEMES.brand; // enterprise 现在也走 brand theme
+      const dateYmd = opts.dateTokyoYmd || ymdTokyoSlash();
+      const reqsig = opts.reqsig ? String(opts.reqsig) : "";
+      const pdfVersion = opts.pdfVersion || BUDGET_PDF_VERSION;
+
+      restampThemeFooters(doc, theme, font, {
+        planId: input.planId,
+        dateYmd,
+        sig: reqsig || undefined,
+        fp: pdfVersion,
+      });
+    }
+
     return Buffer.from(await doc.save());
   }
 
@@ -377,7 +404,7 @@ export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderB
   const seq = (opts.docSeq || "01").padStart(2, "0");
   const docNo = `AFS-GOV-${ymd}-${asciiSafe(planId).toUpperCase()}-${seq}`;
 
-  const strict = toStrictSummaryFromBudgetSummary(summary as any, { planId, companyName, companySize, tier }, docNo);
+  const strict = toStrictSummaryFromBudgetSummary(summary as any, { planId, companyName, companySize, tier: input.budgetTier }, docNo);
   assertStrict(strict);
 
   // ✅ DEV ONLY：压力测试分页（不影响生产）
@@ -1018,5 +1045,138 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
       `Plan ID: ${strict.planId} | ${ymdTokyoSlash()}`,
       `${BUDGET_PDF_VERSION}${opts.reqsig ? ` | SIG:${opts.reqsig}` : ""}`
     );
+  }
+}
+
+// -------------------------------
+// ENTERPRISE: Terms Placeholder Pages
+// -------------------------------
+async function renderEnterpriseTermsPlaceholder(
+  doc: PDFDocument,
+  ctx: DrawCtx,
+  input: BudgetPdfInput,
+  opts: RenderBudgetPdfOpts
+) {
+  const A4: [number, number] = [595.28, 841.89];
+  const theme = THEMES.tender; // ✅ enterprise 用 tender 风格更"评审/招标感"
+  const M = theme.margin;
+
+  const sections = opts.sections || [];
+  const reqsig = opts.reqsig ? String(opts.reqsig) : "";
+  const dateYmd = opts.dateTokyoYmd || ymdTokyoSlash();
+  const fp = opts.pdfVersion || BUDGET_PDF_VERSION;
+
+  // ✅ 只在 presets 指定了才生成（保持最优可扩展）
+  const need = (k: string) => sections.includes(k as any);
+
+  const addPage = (title: string, bullets: string[]) => {
+    const p = doc.addPage(A4);
+    const W = p.getWidth();
+    const H = p.getHeight();
+
+    // 统一 header
+    let y = drawThemeHeader(p, theme, ctx.font, title, {
+      companyName: input.companyName || "示例企业",
+      companySize: input.companySize,
+      tierLabel: String(input.budgetTier).toUpperCase(),
+      planId: input.planId,
+      dateYmd,
+    });
+
+    y -= 10;
+
+    for (const b of bullets) {
+      const lines = wrapTextCN(`• ${b}`, {
+        font: ctx.font,
+        fontSize: 10,
+        maxWidth: W - M.l - M.r,
+        maxLines: 999,
+      });
+      for (const line of lines) {
+        drawTextF(p, ctx.font, line, M.l, y, 10);
+        y -= 14;
+      }
+      y -= 6;
+    }
+
+    // footer（页码这里先不强求精确 total；你后面可以统一 packFooter 再做）
+    drawThemeFooter(p, theme, ctx.font, {
+      planId: input.planId,
+      dateYmd,
+      pageNo: 0,
+      pageTotal: 0,
+      sig: reqsig ? reqsig : undefined,
+      fp,
+    });
+  };
+
+  if (need("pricing_terms")) {
+    addPage("报价与计价条款（企业招标版）", [
+      "报价为区间估算，最终以供应商正式报价/合同为准。",
+      "计价口径：数量区间 × 单价区间闭环核算；可按评审要求提供分项报价表。",
+      "本报价不含装修/强弱电/消防；如需运动地板/橡胶地垫，按可选项单列。",
+    ]);
+  }
+
+  if (need("delivery_terms")) {
+    addPage("交付条款", [
+      "交付周期：按供货周期与场地窗口协同，可提供分批到货/分批交付。",
+      "交付内容：设备到场、安装、基础调试、使用说明与培训交付。",
+      "验收口径：按设备清单、数量、功能测试及外观检查完成验收。",
+    ]);
+  }
+
+  if (need("payment_terms")) {
+    addPage("付款条款", [
+      "付款方式：可支持预付款 + 到货/验收节点付款（按贵司制度调整）。",
+      "发票要求：支持增值税发票（税率及开票信息以合同为准）。",
+      "报价有效期：建议 15–30 天（可按评审要求调整）。",
+    ]);
+  }
+
+  if (need("after_sales")) {
+    addPage("售后与质保", [
+      "质保范围：按设备品牌标准质保执行；可提供延保/巡检/驻场方案（选配）。",
+      "响应机制：故障报修响应与备件支持按合同约定执行。",
+      "培训支持：提供基础使用培训与安全规范说明。",
+    ]);
+  }
+
+  if (need("sign_seal")) {
+    addPage("签章页", [
+      "投标单位（盖章）：AI Fitness Solution",
+      "法定代表人/授权代表（签字）：________________",
+      `签署日期：${dateYmd}`,
+      reqsig ? `验真信息：SIG:${reqsig}` : "验真信息：—",
+    ]);
+  }
+}
+
+// -------------------------------
+// Helper: Restamp Theme Footers
+// -------------------------------
+function restampThemeFooters(
+  doc: PDFDocument,
+  theme: any,
+  font: PDFFont,
+  opts: {
+    planId: string;
+    dateYmd: string;
+    sig?: string;
+    fp?: string;
+  }
+) {
+  const total = doc.getPageCount();
+  for (let i = 0; i < total; i++) {
+    const page = doc.getPage(i);
+    drawThemeFooter(page, theme, font, {
+      planId: opts.planId,
+      dateYmd: opts.dateYmd,
+      pageNo: i + 1,
+      pageTotal: total,
+      sig: opts.sig,
+      fp: opts.fp,
+      cover: true, // ✅ 用白底覆盖重盖
+    } as any);
   }
 }

@@ -152,11 +152,34 @@ export function drawFooter(
   page: PDFPage,
   theme: PdfTheme,
   font: PDFFont,
-  meta: { planId?: string; dateYmd?: string; pageNo: number; pageTotal: number; sig?: string; fp?: string }
+  meta: { 
+    planId?: string; 
+    dateYmd?: string; 
+    pageNo: number; 
+    pageTotal: number; 
+    sig?: string; 
+    fp?: string;
+    cover?: boolean; // ✅ 新增：是否先盖白底（默认 true）
+  }
 ) {
+  const cover = meta.cover !== false;
+
   const M = theme.margin;
   const W = page.getWidth();
   const y = M.b;
+  const h = 18; // 页脚带高度
+
+  // ✅ 关键：先盖一条白底"擦除带"（覆盖旧页脚）
+  if (cover) {
+    page.drawRectangle({
+      x: 0,
+      y: y - 4,
+      width: W,
+      height: h,
+      color: rgb(1, 1, 1),
+      borderWidth: 0,
+    });
+  }
 
   const left = `Plan ID: ${meta.planId || "-"} | ${meta.dateYmd || "-"} | ${meta.pageNo}/${meta.pageTotal}`;
   page.drawText(left, {

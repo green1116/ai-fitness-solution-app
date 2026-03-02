@@ -1,5 +1,5 @@
 # scripts/regress-pdf.ps1
-# Regress PDFs for ai-solution-app (Plan22 + Budget brand/government)
+# Regress PDFs for ai-solution-app (Plan22 + Budget saas/enterprise/government)
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File .\scripts\regress-pdf.ps1
 #   powershell -ExecutionPolicy Bypass -File .\scripts\regress-pdf.ps1 -BaseUrl "http://127.0.0.1:3000" -PlanId "attaguy-plan"
@@ -62,10 +62,12 @@ Ensure-Dir $OutDir
 # ---------- URLs ----------
 $planUrl = "$BaseUrl/api/pdf?" + (Q @{ planId=$PlanId; mode="full"; download="1" })
 $budgetBrandUrl = "$BaseUrl/api/pdf?" + (Q @{ planId=$PlanId; mode="budget"; level="brand"; download="1" })
+$budgetEntUrl = "$BaseUrl/api/pdf?" + (Q @{ planId=$PlanId; mode="budget"; level="enterprise"; download="1" })
 $budgetGovUrl = "$BaseUrl/api/pdf?" + (Q @{ planId=$PlanId; mode="budget"; level="government"; download="1"; docSeq="01" })
 
 $planFile = Join-Path $OutDir ("plan_full_{0}.pdf" -f $PlanId)
 $brandFile = Join-Path $OutDir ("budget_brand_{0}.pdf" -f $PlanId)
+$entFile = Join-Path $OutDir ("budget_enterprise_{0}.pdf" -f $PlanId)
 $govFile = Join-Path $OutDir ("budget_gov_{0}.pdf" -f $PlanId)
 
 # ---------- PLAN FULL ----------
@@ -123,6 +125,37 @@ $brandCase = @{
 }
 if ($brandReqsig) { $brandCase.reqsig = $brandReqsig }
 $report.cases += $brandCase
+
+# ---------- BUDGET ENTERPRISE ----------
+Print-Block "BUDGET ENTERPRISE (expected 7 pages: 2 base + 5 terms)"
+Write-Host "URL: $budgetEntUrl"
+Write-Host "--- HEAD ---"
+$entHead = Curl-Head $budgetEntUrl
+$entHead | Write-Host
+Write-Host "--- GET ---"
+Curl-Get $budgetEntUrl $entFile
+Write-Host "Saved: $entFile"
+Pdf-Info $entFile
+
+$entPages = & python -c "from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))" $entFile
+$entBytes = (Get-Item $entFile).Length
+$entOk = ([int]$entPages -eq 7)
+
+# Extract reqsig from headers if present
+$entReqsig = ($entHead | Select-String -Pattern "x-pdf-reqsig:\s*(\S+)" | ForEach-Object { $_.Matches.Groups[1].Value })
+
+if (-not $entOk) { throw "BUDGET enterprise pages expected 7, got $entPages" }
+Write-Host "assert_ok=BUDGET_ENTERPRISE_PAGES_7"
+
+$entCase = @{
+  name = "BUDGET_ENTERPRISE"
+  ok = $entOk
+  pages = [int]$entPages
+  bytes = [int]$entBytes
+  file = $entFile
+}
+if ($entReqsig) { $entCase.reqsig = $entReqsig }
+$report.cases += $entCase
 
 # ---------- BUDGET GOV ----------
 Print-Block "BUDGET GOVERNMENT (expected 5 pages + DOCNO/SIG on page1)"
