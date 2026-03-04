@@ -22,12 +22,14 @@ jobs:
       - name: Install deps
         run: npm install
 
-      - name: Prisma Validate
-        run: npx prisma validate --schema=prisma/schema.prisma
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - - name: Prisma Validate
+  run: npx prisma validate --schema=prisma/schema.prisma
+  env:
+    DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    DIRECT_URL: ${{ secrets.DIRECT_URL }}
 
-      - name: Prisma Migrate Deploy
-        run: npx prisma migrate deploy --schema=prisma/schema.prisma
-        env:
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+- name: Prisma Migrate Deploy
+  run: npx prisma migrate deploy --schema=prisma/schema.prisma
+  env:
+    DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    DIRECT_URL: ${{ secrets.DIRECT_URL }}
