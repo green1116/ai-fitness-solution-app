@@ -1,4 +1,4 @@
-# regression outputs
+﻿# regression outputs
 _regress/
 
 # ignore all pdf artifacts by default
@@ -26,3 +26,9 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+# 取消追踪（不删本地文件）
+git rm --cached .env.direct .env.pooler 2>$null
+
+# 取消追踪这些日志/产物（按你实际文件名）
+git rm --cached budget_r3_err.txt budget_twice_err.txt full_2_err.txt full_twice_err.txt hdr2.txt hdr_r2.txt pack_twice_err.txt 2>$null
+git rm --cached prisma/schema.prisma.bak prisma/schema.prisma.bak2 prisma/schema.prisma.bak_cleanfix prisma/schema.prisma.bak_cleanfix2 prisma_diff.sql 2>$null
