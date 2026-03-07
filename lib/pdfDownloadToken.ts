@@ -2,6 +2,7 @@
 import crypto from "crypto";
 import * as jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
+import { logPdfDownloadSafe } from "@/lib/audit/pdfLog";
 
 const SECRET = process.env.DOWNLOAD_TOKEN_SECRET || "";
 if (!SECRET) throw new Error("Missing env DOWNLOAD_TOKEN_SECRET");
@@ -35,26 +36,28 @@ export function getClientIp(headers: Headers): string | undefined {
 
 export async function logPdfDownload(params: {
   planId: string;
+  mode?: string | null;
   ok: boolean;
   reason?: string | null;
   error?: string | null;
   ip?: string;
   userAgent?: string;
+  tokenId?: string | null;
+  code?: string | null;
 }) {
-  try {
-    await prisma.pdfDownloadLog.create({
-      data: {
-        planId: params.planId,
-        ip: params.ip,
-        ok: params.ok,
-        reason: params.reason ?? null,
-        error: params.error ?? null,
-        userAgent: params.userAgent ?? null,
-      },
-    });
-  } catch {
-    // 日志失败不应影响主流程
-  }
+  await logPdfDownloadSafe({
+    planId: params.planId,
+    mode: params.mode ?? null,
+    ok: params.ok,
+    ip: params.ip ?? null,
+    ua: params.userAgent ?? null,
+    reason: params.reason ?? null,
+    extra: {
+      tokenId: params.tokenId ?? null,
+      denyCode: params.code ?? params.reason ?? null,
+      ...(params.error != null ? { error: params.error } : {}),
+    },
+  });
 }
 
 export async function issuePdfDownloadToken(params: {

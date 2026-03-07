@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { logPdfDownloadSafe } from "@/lib/audit/pdfLog";
 
 type AuditArgs = {
   planId: string;
@@ -23,22 +23,16 @@ export async function logPdfDownload(args: AuditArgs) {
     ua = null,
   } = args;
 
-  try {
-    await prisma.pdfDownloadLog.create({
-      data: {
-        planId,
-        mode,
-        ok,
-        reason,
-        email,
-        licenseId,
-        ip,
-        ua,
-      },
-    });
-  } catch (e) {
-    // ⚠️ 审计失败不应该影响主流程
-    console.warn("[PdfDownloadLog] write failed:", e);
-  }
+  await logPdfDownloadSafe({
+    planId,
+    route: "/api/pdf",
+    method: "GET",
+    mode,
+    ok,
+    reason: reason ?? null,
+    ip,
+    ua,
+    extra: { email, licenseId },
+  });
 }
 

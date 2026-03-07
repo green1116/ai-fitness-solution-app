@@ -20,7 +20,7 @@ export type BudgetLevel = "saas" | "enterprise" | "government";
 
 function normalizeLevel(v?: string): BudgetLevel {
   const s = String(v || "").toLowerCase();
-  if (s === "brand") return "saas";          // legacy: brand -> saas
+  if (s === "brand") return "saas"; // legacy
   if (s === "saas") return "saas";
   if (s === "enterprise") return "enterprise";
   if (s === "government") return "government";
@@ -33,7 +33,13 @@ export type BudgetPdfSection =
   | "compare"
   | "table_lines"
   | "table_items"
-  | "remarks";
+  | "remarks"
+  // ✅ enterprise terms
+  | "pricing_terms"
+  | "delivery_terms"
+  | "payment_terms"
+  | "after_sales"
+  | "sign_seal";
 
 export type RenderBudgetPdfOpts = {
   pdfVersion?: string;
@@ -42,16 +48,16 @@ export type RenderBudgetPdfOpts = {
   reqsig?: string;
   dateTokyoYmd?: string;
 
-  // ✅ 新增：双版本分流
   level?: BudgetLevel;
 
-  // ✅ 新增：政府版编号序号（默认 01）
   docSeq?: string;
 
-  debugRows?: boolean; // ✅ DEV only：放大明细行数测试分页
+  debugRows?: boolean;
+
+  // ✅ NEW: theme routing from API ("brand" | "tender")
+  theme?: "brand" | "tender";
 };
 
-// 你原来已有的版本常量可以继续用
 export const BUDGET_PDF_VERSION = "BUDGET_PDF_V_GOV_BRAND_DUAL_20260228";
 export const BUDGET_ENGINE_FP = "BUDGET_ENGINE_FP_GOV_BRAND_DUAL_20260228";
 
@@ -61,7 +67,6 @@ console.log("[BUDGET_RENDER] ACTIVE:", BUDGET_ENGINE_FP, BUDGET_PDF_VERSION);
 // Utilities
 // -------------------------------
 function ymdTokyoCompact() {
-  // YYYYMMDD
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
@@ -76,15 +81,13 @@ function ymdTokyoCompact() {
 }
 
 function ymdTokyoSlash() {
-  // YYYY/MM/DD
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
-  const s = fmt.format(new Date()); // 2026-02-28
-  return s.replace(/-/g, "/");
+  return fmt.format(new Date()).replace(/-/g, "/");
 }
 
 function asciiSafe(s: string) {
@@ -96,7 +99,6 @@ function asciiSafe(s: string) {
 }
 
 function fmtMoney(n: number) {
-  // CNY with comma
   const x = Math.round(Number(n || 0));
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
@@ -147,7 +149,6 @@ function pickMoneyRangeFromText(text: string): MoneyRange | null {
   return { min: Number(m[1]), max: Number(m[2]) };
 }
 
-// qtyText 例：跑步机5-10台；椭圆机4-6台；动感单车10-19台
 function splitQtyText(qtyText: string): Array<{ name: string; qty: MoneyRange }> {
   const parts = (qtyText || "")
     .split(/[;；]/g)
@@ -159,11 +160,10 @@ function splitQtyText(qtyText: string): Array<{ name: string; qty: MoneyRange }>
     const r = pickRangeFromText(p);
     if (!r) continue;
 
-    // 名称：去掉数字 + 单位后缀（尽量稳）
     let name = p.replace(/(\d+)\s*-\s*(\d+).*/g, "").trim();
     name = name.replace(/[（(].*?[)）]/g, "").trim();
-    
-    if (!name) continue; // 名称为空就视为不可拆分
+    if (!name) continue;
+
     out.push({ name, qty: r });
   }
   return out;
@@ -174,22 +174,16 @@ function toStrictSummaryFromBudgetSummary(
   ctx: { planId: string; companyName: string; companySize: number; tier: "low" | "mid" | "high" },
   docNo: string
 ): StrictSummary {
-  // 你当前 summary 里肯定有 lines（之前你 header 里也输出过）
   const lines: any[] = (s as any)?.lines || [];
   const items: StrictItem[] = [];
 
   for (const ln of lines) {
     const price = pickMoneyRangeFromText(ln.unitPriceText || "");
     const splits = splitQtyText(ln.qtyText || "");
-
     if (!price) continue;
 
-    // ✅ 情况1：可拆分 → 多条明细
     if (splits.length > 0) {
       for (const sp of splits) {
-        const subtotalMin = sp.qty.min * price.min;
-        const subtotalMax = sp.qty.max * price.max;
-
         items.push({
           category: String(ln.category || ""),
           categoryName: ln.categoryName,
@@ -198,15 +192,14 @@ function toStrictSummaryFromBudgetSummary(
           qtyMax: sp.qty.max,
           priceMin: price.min,
           priceMax: price.max,
-          subtotalMin,
-          subtotalMax,
+          subtotalMin: sp.qty.min * price.min,
+          subtotalMax: sp.qty.max * price.max,
           note: ln.note,
         });
       }
       continue;
     }
 
-    // ✅ 情况2：不可拆分 → 合并行（只要能抓到一个数量区间）
     const q = pickRangeFromText(ln.qtyText || "");
     if (!q) continue;
 
@@ -259,7 +252,7 @@ function assertStrict(strict: StrictSummary) {
 }
 
 // -------------------------------
-// Drawing primitives (simple + stable)
+// Drawing primitives
 // -------------------------------
 type DrawCtx = {
   doc: PDFDocument;
@@ -267,10 +260,6 @@ type DrawCtx = {
   fontBold: PDFFont;
   fontMono: PDFFont;
 };
-
-function drawText(page: PDFPage, text: string, x: number, y: number, size: number, color = rgb(0, 0, 0)) {
-  page.drawText(text || "", { x, y, size, font: undefined as any, color });
-}
 
 function drawTextF(page: PDFPage, font: PDFFont, text: string, x: number, y: number, size: number, color = rgb(0, 0, 0)) {
   page.drawText(text || "", { x, y, size, font, color });
@@ -316,7 +305,6 @@ function drawLegacyFooter(
   const m = 48;
   const W = page.getWidth();
 
-  // 左侧中文 / 正文说明 → 用中文字体
   if (leftText) {
     page.drawText(leftText, {
       x: m,
@@ -327,7 +315,6 @@ function drawLegacyFooter(
     });
   }
 
-  // 右侧 ASCII（签名 / 编号）→ 用 mono
   if (rightText) {
     const width = ctx.fontMono.widthOfTextAtSize(rightText, 8);
     page.drawText(rightText, {
@@ -341,18 +328,18 @@ function drawLegacyFooter(
 }
 
 // -------------------------------
-// Main entry: renderBudgetPdfBuffer
+// Main entry
 // -------------------------------
 export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderBudgetPdfOpts = {}) {
   const level: BudgetLevel = normalizeLevel(opts.level);
+  const themeName: "brand" | "tender" = opts.theme === "tender" ? "tender" : "brand";
 
-  console.log("[BUDGET_RENDER] level=", level, "planId=", input.planId);
+  console.log("[BUDGET_RENDER] level=", level, "theme=", themeName, "planId=", input.planId);
 
   const planId = input.planId;
   const companyName = input.companyName || "企业";
   const companySize = Number(input.companySize || 0);
 
-  // 取 summary（你现有逻辑）
   const summary = await getBudgetSummary({
     planId,
     companyName,
@@ -363,26 +350,22 @@ export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderB
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
 
-  // 中文字体：沿用你项目里的 NotoSansSC-Regular.ttf
   const fontPath = path.join(process.cwd(), "public", "fonts", "NotoSansSC-Regular.ttf");
   const fontBytes = await fs.readFile(fontPath);
 
   const font = await doc.embedFont(fontBytes, { subset: true });
-  // bold 先用同一字体替代（不影响可用性），后续你可以换 Bold 字体文件
   const fontBold = font;
   const fontMono = await doc.embedFont(StandardFonts.Courier);
 
-  // ✅ saas/enterprise：商业分支（enterprise 会追加条款占位页）
+  // SAAS / ENTERPRISE
   if (level !== "government") {
-    console.log("[BUDGET_RENDER] branch=SAAS/ENTERPRISE, level=", level);
     await renderBrand2Pages(doc, { doc, font, fontBold, fontMono }, input, summary, opts);
 
-    // ✅ enterprise：按 sections 追加占位条款页（最优扩展点）
     if (level === "enterprise") {
       await renderEnterpriseTermsPlaceholder(doc, { doc, font, fontBold, fontMono }, input, opts);
 
-      // ✅ 统一重盖页脚（覆盖所有页的页码为正确的 total）
-      const theme = THEMES.brand; // enterprise 现在也走 brand theme
+      // ✅ restamp with correct totals + correct theme
+      const theme = THEMES[themeName];
       const dateYmd = opts.dateTokyoYmd || ymdTokyoSlash();
       const reqsig = opts.reqsig ? String(opts.reqsig) : "";
       const pdfVersion = opts.pdfVersion || BUDGET_PDF_VERSION;
@@ -398,22 +381,22 @@ export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderB
     return Buffer.from(await doc.save());
   }
 
-  // government：生成编号 + strict 数字化 + 校验 + 5页
-  console.log("[BUDGET_RENDER] branch=GOV");
+  // GOVERNMENT
   const ymd = ymdTokyoCompact();
   const seq = (opts.docSeq || "01").padStart(2, "0");
   const docNo = `AFS-GOV-${ymd}-${asciiSafe(planId).toUpperCase()}-${seq}`;
 
-  const strict = toStrictSummaryFromBudgetSummary(summary as any, { planId, companyName, companySize, tier: input.budgetTier }, docNo);
+  const strict = toStrictSummaryFromBudgetSummary(
+    summary as any,
+    { planId, companyName, companySize, tier: input.budgetTier },
+    docNo
+  );
   assertStrict(strict);
 
-  // ✅ DEV ONLY：压力测试分页（不影响生产）
   if (process.env.NODE_ENV !== "production" && opts.debugRows) {
-    const times = 8; // 8倍通常足够触发多页
+    const times = 8;
     const base = strict.items.slice();
     strict.items = Array.from({ length: times }).flatMap(() => base);
-
-    // 重新计算 total（保持闭环一致）
     strict.total = strict.items.reduce(
       (acc, it) => ({ min: acc.min + it.subtotalMin, max: acc.max + it.subtotalMax }),
       { min: 0, max: 0 }
@@ -421,12 +404,11 @@ export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderB
   }
 
   await renderGovernment5Pages(doc, { doc, font, fontBold, fontMono }, strict, opts);
-
   return Buffer.from(await doc.save());
 }
 
 // -------------------------------
-// BRAND: keep your existing 2-page logic here
+// BRAND/ENTERPRISE: 2 base pages (theme aware)
 // -------------------------------
 async function renderBrand2Pages(
   doc: PDFDocument,
@@ -436,14 +418,16 @@ async function renderBrand2Pages(
   opts: RenderBudgetPdfOpts
 ) {
   const A4: [number, number] = [595.28, 841.89];
-  const theme = THEMES.brand;
+
+  // ✅ use theme from opts (enterprise tender / saas brand)
+  const themeName: "brand" | "tender" = opts.theme === "tender" ? "tender" : "brand";
+  const theme = THEMES[themeName];
   const M = theme.margin;
 
   const pdfVersion = opts.pdfVersion || BUDGET_PDF_VERSION;
   const reqsig = opts.reqsig ? String(opts.reqsig) : "";
   const dateYmd = opts.dateTokyoYmd || ymdTokyoSlash();
 
-  // 复用 strict 生成（用于明细页）
   const strict = toStrictSummaryFromBudgetSummary(
     summary as any,
     {
@@ -452,14 +436,13 @@ async function renderBrand2Pages(
       companySize: input.companySize,
       tier: input.budgetTier,
     },
-    `AFS-BRAND-${ymdTokyoCompact()}-${asciiSafe(input.planId).toUpperCase()}`
+    `AFS-${themeName.toUpperCase()}-${ymdTokyoCompact()}-${asciiSafe(input.planId).toUpperCase()}`
   );
 
-  // -------- Page 1: Overview (Sales + Professional) --------
+  // Page 1
   {
     const p = doc.addPage(A4);
     const W = p.getWidth();
-    const H = p.getHeight();
 
     let y = drawThemeHeader(p, theme, ctx.font, "企业健身空间预算提案", {
       companyName: input.companyName || "示例企业",
@@ -469,12 +452,10 @@ async function renderBrand2Pages(
       dateYmd,
     });
 
-    // 副标题（放在 header 返回的 y 下面，风格统一）
-    y = y + 6; // 轻微回抬一点更贴标题（可选）
+    y = y + 6;
     drawTextF(p, ctx.font, "（稳重专业版 / 对外报价参考）", M.l, y, theme.fontSizes.h2, theme.colors.sub);
     y -= 18;
 
-    // recommendation line (sales tone but professional)
     const recLine = `建议：按 ${String(input.budgetTier).toUpperCase()} 档位配置，可覆盖常规高频使用与基础扩展需求。`;
     const recLines = wrapTextCN(`• ${recLine}`, {
       font: ctx.font,
@@ -488,7 +469,6 @@ async function renderBrand2Pages(
       y -= 14;
     }
 
-    // big total box
     const totalMin = strict.total.min;
     const totalMax = strict.total.max;
 
@@ -497,7 +477,6 @@ async function renderBrand2Pages(
     drawTextF(p, ctx.fontBold, "建议预算区间（CNY）", M.l + 14, y + 60, 12);
     drawTextF(p, ctx.fontBold, `${fmtMoney(totalMin)}  -  ${fmtMoney(totalMax)}`, M.l + 14, y + 22, 22);
 
-    // value points (3 bullets) - right side of box area
     const vx = M.l + (W - M.l - M.r) * 0.62;
     let vy = y + 58;
     const values = [
@@ -521,7 +500,6 @@ async function renderBrand2Pages(
 
     y -= 120;
 
-    // category summary table (keep for credibility)
     const map = new Map<string, MoneyRange>();
     for (const it of strict.items) {
       const key = it.categoryName || it.category || "其他";
@@ -567,7 +545,6 @@ async function renderBrand2Pages(
       y -= rowH;
     }
 
-    // scope notes (short)
     const scope = [
       "仅含设备采购及基础交付费用；不含装修/强弱电/消防。",
       "运动地板/力量区橡胶地垫可作为可选项单列。",
@@ -594,7 +571,7 @@ async function renderBrand2Pages(
     });
   }
 
-  // -------- Page 2: Detail (compact) --------
+  // Page 2
   {
     const p = doc.addPage(A4);
     const W = p.getWidth();
@@ -615,7 +592,6 @@ async function renderBrand2Pages(
     const rowH = 22;
     let y = H - 130;
 
-    // header
     drawBox(p, x0, y, tableW, rowH, rgb(0.75, 0.75, 0.75));
     const xs = [x0 + cCat, x0 + cCat + cName, x0 + cCat + cName + cQty, x0 + cCat + cName + cQty + cPrice];
     drawVLines(p, xs, y, rowH);
@@ -647,14 +623,12 @@ async function renderBrand2Pages(
       drawTextF(p, ctx.font, qtyText, x0 + cCat + cName + 6, y + 6, 9);
       drawTextF(p, ctx.font, priceText, x0 + cCat + cName + cQty + 6, y + 6, 9);
 
-      // subtotal right align
       const subW = ctx.font.widthOfTextAtSize(subText, 9);
       drawTextF(p, ctx.font, subText, x0 + tableW - 6 - subW, y + 6, 9);
 
       y -= rowH;
     }
 
-    // small remarks
     drawTextF(p, ctx.font, "备注：本清单为预算测算参考，最终清单与报价以供应商正式报价/合同为准。", M.l, 60, 9, rgb(0.35, 0.35, 0.35));
 
     drawThemeFooter(p, theme, ctx.font, {
@@ -666,13 +640,17 @@ async function renderBrand2Pages(
       fp: pdfVersion,
     });
   }
-
 }
 
 // -------------------------------
 // GOVERNMENT: 5 pages strict template
 // -------------------------------
-async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: StrictSummary, opts: RenderBudgetPdfOpts) {
+async function renderGovernment5Pages(
+  doc: PDFDocument,
+  ctx: DrawCtx,
+  strict: StrictSummary,
+  opts: RenderBudgetPdfOpts
+) {
   const A4: [number, number] = [595.28, 841.89];
   const m = 48;
 
@@ -688,11 +666,10 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
 
     drawTextF(p, ctx.fontBold, "企业健身空间设备采购预算测算报告", m, H - 90, 18);
     drawTextF(p, ctx.font, "（政府评审版）", m, H - 118, 12, rgb(0.25, 0.25, 0.25));
-
     drawLine(p, m, H - 138, W - m, H - 138);
 
-    const rows = [
-      ["项目名称", `企业健身空间设备采购（新建）`],
+    const rows: Array<[string, string]> = [
+      ["项目名称", "企业健身空间设备采购（新建）"],
       ["企业名称", strict.companyName],
       ["企业规模", `${strict.companySize} 人`],
       ["预算档位", String(strict.tier).toUpperCase()],
@@ -707,7 +684,6 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
       y -= 22;
     }
 
-    // 签名信息（页脚）
     drawLegacyFooter(
       p,
       ctx,
@@ -716,7 +692,7 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
     );
   }
 
-  // Page 1: Method + Scope boundary (write-fixed per your requirements)
+  // Page 1: Method + Scope boundary
   {
     const p = doc.addPage(A4);
     const W = p.getWidth();
@@ -734,7 +710,12 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
 
     let y = H - 120;
     for (const b of bullets1) {
-      const lines = wrapTextCN(`• ${b}`, { font: ctx.font, fontSize: 10, maxWidth: W - 2 * m, maxLines: 999 });
+      const lines = wrapTextCN(`• ${b}`, {
+        font: ctx.font,
+        fontSize: 10,
+        maxWidth: W - 2 * m,
+        maxLines: 999,
+      });
       for (const line of lines) {
         drawTextF(p, ctx.font, line, m, y, 10);
         y -= 14;
@@ -754,7 +735,12 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
     ];
 
     for (const b of bullets2) {
-      const lines = wrapTextCN(`• ${b}`, { font: ctx.font, fontSize: 10, maxWidth: W - 2 * m, maxLines: 999 });
+      const lines = wrapTextCN(`• ${b}`, {
+        font: ctx.font,
+        fontSize: 10,
+        maxWidth: W - 2 * m,
+        maxLines: 999,
+      });
       for (const line of lines) {
         drawTextF(p, ctx.font, line, m, y, 10);
         y -= 14;
@@ -779,7 +765,6 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
     drawTextF(p, ctx.fontBold, "三、总体预算汇总（闭环）", m, H - 70, 14);
     drawLine(p, m, H - 86, W - m, H - 86);
 
-    // 分类汇总：按 categoryName 或 category
     const map = new Map<string, MoneyRange>();
     for (const it of strict.items) {
       const key = it.categoryName || it.category || "其他";
@@ -789,12 +774,13 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
 
     const rows = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], "zh-Hans-CN"));
 
-    // table layout
     const x0 = m;
     const tableW = W - 2 * m;
-    const col1 = 180; // 类别
-    const col2 = 160; // 最低
-    const col3 = tableW - col1 - col2; // 最高（剩余）
+    const col1 = 180;
+    const col2 = 160;
+    const col3 = tableW - col1 - col2;
+    void col3;
+
     const rowH = 26;
 
     const xCol1 = x0 + col1;
@@ -802,29 +788,26 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
 
     let y = H - 130;
 
-    // header
     drawBox(p, x0, y, tableW, rowH, rgb(0.75, 0.75, 0.75));
-    drawVLines(p, [xCol1, xCol2], y, rowH); // ✅ header 竖线
+    drawVLines(p, [xCol1, xCol2], y, rowH);
     drawTextF(p, ctx.fontBold, "类别", x0 + 8, y + 8, 10);
     drawTextF(p, ctx.fontBold, "最低估算（CNY）", xCol1 + 8, y + 8, 10);
     drawTextF(p, ctx.fontBold, "最高估算（CNY）", xCol2 + 8, y + 8, 10);
 
     y -= rowH;
 
-    // rows
     for (const [k, v] of rows) {
+      if (y < 120) break;
       drawBox(p, x0, y, tableW, rowH);
-      drawVLines(p, [xCol1, xCol2], y, rowH); // ✅ 每一行都画竖线（关键）
+      drawVLines(p, [xCol1, xCol2], y, rowH);
 
       drawTextF(p, ctx.font, k, x0 + 8, y + 8, 10);
       drawTextF(p, ctx.font, fmtMoney(v.min), xCol1 + 8, y + 8, 10);
       drawTextF(p, ctx.font, fmtMoney(v.max), xCol2 + 8, y + 8, 10);
 
       y -= rowH;
-      if (y < 120) break;
     }
 
-    // total row
     drawBox(p, x0, y, tableW, rowH, rgb(0.93, 0.93, 0.93));
     drawVLines(p, [xCol1, xCol2], y, rowH);
     drawTextF(p, ctx.fontBold, "合计", x0 + 8, y + 8, 10);
@@ -835,28 +818,23 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
       p,
       ctx,
       "总体预算汇总（闭环计算）",
-      `DOCNO:${strict.docNo}`
+      `DOCNO:${strict.docNo}${reqsig ? ` | SIG:${reqsig}` : ""}`
     );
   }
 
   // Page 3: Detailed strict table (AUTO PAGINATION)
   {
-    const A4: [number, number] = [595.28, 841.89];
-    const m = 48;
-
-    // --- layout constants ---
-    const topTitleY = 70;         // 标题距离顶部
-    const topTableY = 130;        // 表格起始（从顶部算）
-    const bottomY = 70;           // 底部安全边距（给页脚留空间）
+    const topTitleY = 70;
+    const topTableY = 130;
+    const bottomY = 70;
     const rowH = 22;
 
-    // --- column widths (safe for portrait) ---
     const makeCols = (tableW: number) => {
-      const cCat = 58;     // 类别
-      const cName = 132;   // 设备
-      const cQty = 52;     // 数量 min/max
-      const cPrice = 66;   // 单价 min/max
-      const cSub = tableW - (cCat + cName + cQty + cQty + cPrice + cPrice); // 小计
+      const cCat = 58;
+      const cName = 132;
+      const cQty = 52;
+      const cPrice = 66;
+      const cSub = tableW - (cCat + cName + cQty + cQty + cPrice + cPrice);
       return { cCat, cName, cQty, cPrice, cSub };
     };
 
@@ -892,18 +870,11 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
       return { cCat, cName, cQty, cPrice, cSub };
     };
 
-    const drawOneRow = (
-      p: PDFPage,
-      x0: number,
-      y: number,
-      tableW: number,
-      it: StrictItem
-    ) => {
-      const { cCat, cName, cQty, cPrice, cSub } = makeCols(tableW);
+    const drawOneRow = (p: PDFPage, x0: number, y: number, tableW: number, it: StrictItem) => {
+      const { cCat, cName, cQty, cPrice } = makeCols(tableW);
 
       drawBox(p, x0, y, tableW, rowH);
 
-      // vertical lines
       let x = x0 + cCat;
       drawLine(p, x, y, x, y + rowH);
       x += cName;
@@ -917,55 +888,25 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
       x += cPrice;
       drawLine(p, x, y, x, y + rowH);
 
-      // category (single line with ellipsis)
-      const cat = ellipsisToWidth(
-        (it.categoryName || it.category || "").trim(),
-        ctx.font,
-        9,
-        cCat - 10
-      );
+      const cat = ellipsisToWidth((it.categoryName || it.category || "").trim(), ctx.font, 9, cCat - 10);
       drawTextF(p, ctx.font, cat, x0 + 6, y + 6, 9);
 
-      // name (single line with ellipsis)
-      const nm = ellipsisToWidth(
-        (it.name || "").trim(),
-        ctx.font,
-        9,
-        cName - 10
-      );
+      const nm = ellipsisToWidth((it.name || "").trim(), ctx.font, 9, cName - 10);
       drawTextF(p, ctx.font, nm, x0 + cCat + 6, y + 6, 9);
 
-      // qty
       drawTextF(p, ctx.font, String(it.qtyMin), x0 + cCat + cName + 6, y + 6, 9);
       drawTextF(p, ctx.font, String(it.qtyMax), x0 + cCat + cName + cQty + 6, y + 6, 9);
 
-      // price
       drawTextF(p, ctx.font, fmtMoney(it.priceMin), x0 + cCat + cName + cQty + cQty + 6, y + 6, 9);
-      drawTextF(
-        p,
-        ctx.font,
-        fmtMoney(it.priceMax),
-        x0 + cCat + cName + cQty + cQty + cPrice + 6,
-        y + 6,
-        9
-      );
+      drawTextF(p, ctx.font, fmtMoney(it.priceMax), x0 + cCat + cName + cQty + cQty + cPrice + 6, y + 6, 9);
 
-      // subtotal (use slightly smaller font)
       const subText = `${fmtMoney(it.subtotalMin)}-${fmtMoney(it.subtotalMax)}`;
-      drawTextF(
-        p,
-        ctx.font,
-        subText,
-        x0 + cCat + cName + cQty + cQty + cPrice + cPrice + 6,
-        y + 7,
-        8
-      );
+      drawTextF(p, ctx.font, subText, x0 + cCat + cName + cQty + cQty + cPrice + cPrice + 6, y + 7, 8);
     };
 
     const drawFooterSafe = (p: PDFPage) => {
-      // ✅ 避免 WinAnsi：中文用 ctx.font，ASCII 用 mono
       const left = "明细小计 = 数量 × 单价（自动计算）";
-      const right = `DOCNO:${strict.docNo}`;
+      const right = `DOCNO:${strict.docNo}${reqsig ? ` | SIG:${reqsig}` : ""}`;
       const y = 24;
       const W = p.getWidth();
       drawTextF(p, ctx.font, left, m, y, 8, rgb(0.35, 0.35, 0.35));
@@ -973,7 +914,6 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
       drawTextF(p, ctx.fontMono, right, W - m - w, y, 8, rgb(0.35, 0.35, 0.35));
     };
 
-    // --- pagination loop ---
     let p = doc.addPage(A4);
     drawPageTitle(p);
 
@@ -982,15 +922,12 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
     const x0 = m;
     const tableW = W - 2 * m;
 
-    // y is measured from bottom in pdf-lib, but our H - topTableY pattern is consistent with your existing code
     let y = H - topTableY;
 
-    // header row on first page
     drawHeaderRow(p, x0, y, tableW);
     y -= rowH;
 
     for (const it of strict.items) {
-      // 如果不够一行，就新建页
       if (y < bottomY) {
         drawFooterSafe(p);
 
@@ -1008,11 +945,10 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
       y -= rowH;
     }
 
-    // last page footer
     drawFooterSafe(p);
   }
 
-  // Page 4: Delivery + Warranty (gov style)
+  // Page 4: Delivery + Warranty
   {
     const p = doc.addPage(A4);
     const W = p.getWidth();
@@ -1031,7 +967,12 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
 
     let y = H - 130;
     for (const t of txt) {
-      const lines = wrapTextCN(t, { font: ctx.font, fontSize: 10, maxWidth: W - 2 * m, maxLines: 999 });
+      const lines = wrapTextCN(t, {
+        font: ctx.font,
+        fontSize: 10,
+        maxWidth: W - 2 * m,
+        maxLines: 999,
+      });
       for (const line of lines) {
         drawTextF(p, ctx.font, line, m, y, 10);
         y -= 14;
@@ -1042,14 +983,14 @@ async function renderGovernment5Pages(doc: PDFDocument, ctx: DrawCtx, strict: St
     drawLegacyFooter(
       p,
       ctx,
-      `Plan ID: ${strict.planId} | ${ymdTokyoSlash()}`,
-      `${BUDGET_PDF_VERSION}${opts.reqsig ? ` | SIG:${opts.reqsig}` : ""}`
+      `Plan ID: ${strict.planId} | ${dateYmd}`,
+      `${pdfVersion}${reqsig ? ` | SIG:${reqsig}` : ""}`
     );
   }
 }
 
 // -------------------------------
-// ENTERPRISE: Terms Placeholder Pages
+// ENTERPRISE: Terms pages (tender feel)
 // -------------------------------
 async function renderEnterpriseTermsPlaceholder(
   doc: PDFDocument,
@@ -1058,7 +999,7 @@ async function renderEnterpriseTermsPlaceholder(
   opts: RenderBudgetPdfOpts
 ) {
   const A4: [number, number] = [595.28, 841.89];
-  const theme = THEMES.tender; // ✅ enterprise 用 tender 风格更"评审/招标感"
+  const theme = THEMES.tender; // ✅ terms 永远 tender（评审/招标感）
   const M = theme.margin;
 
   const sections = opts.sections || [];
@@ -1066,15 +1007,12 @@ async function renderEnterpriseTermsPlaceholder(
   const dateYmd = opts.dateTokyoYmd || ymdTokyoSlash();
   const fp = opts.pdfVersion || BUDGET_PDF_VERSION;
 
-  // ✅ 只在 presets 指定了才生成（保持最优可扩展）
   const need = (k: string) => sections.includes(k as any);
 
   const addPage = (title: string, bullets: string[]) => {
     const p = doc.addPage(A4);
     const W = p.getWidth();
-    const H = p.getHeight();
 
-    // 统一 header
     let y = drawThemeHeader(p, theme, ctx.font, title, {
       companyName: input.companyName || "示例企业",
       companySize: input.companySize,
@@ -1099,7 +1037,7 @@ async function renderEnterpriseTermsPlaceholder(
       y -= 6;
     }
 
-    // footer（页码这里先不强求精确 total；你后面可以统一 packFooter 再做）
+    // 先画占位 footer，最终会被 restamp 覆盖为真实页码
     drawThemeFooter(p, theme, ctx.font, {
       planId: input.planId,
       dateYmd,
@@ -1153,7 +1091,7 @@ async function renderEnterpriseTermsPlaceholder(
 }
 
 // -------------------------------
-// Helper: Restamp Theme Footers
+// Restamp theme footers
 // -------------------------------
 function restampThemeFooters(
   doc: PDFDocument,
@@ -1176,7 +1114,7 @@ function restampThemeFooters(
       pageTotal: total,
       sig: opts.sig,
       fp: opts.fp,
-      cover: true, // ✅ 用白底覆盖重盖
+      cover: true,
     } as any);
   }
 }

@@ -1,107 +1,84 @@
-// lib/downloadToken.ts
+import { prisma } from "@/lib/prisma";
+import { jwtVerify } from "jose";
 import crypto from "crypto";
 
-export type DownloadTokenPayload = {
+export function sha256Hex(s: string) {
+  return crypto.createHash("sha256").update(s).digest("hex");
+}
+
+export async function verifyDownloadJwt(token: string) {
+  const secret = (process.env.DOWNLOAD_TOKEN_SECRET || "").trim();
+  if (!secret) throw new Error("DOWNLOAD_TOKEN_SECRET missing");
+
+  const key = new TextEncoder().encode(secret);
+  const { payload } = await jwtVerify(token, key, { algorithms: ["HS256"] });
+  return payload as any; // { scope, planId, mode, email, iat, exp }
+}
+
+export async function requireAndConsumeToken(opts: {
+  downloadToken: string;
   planId: string;
-  scope: "pdf_download";
-  iat: number;
-  exp: number;
-};
+  mode: "full" | "preview" | "budget";
+  fingerprint: string;
+}) {
+  const token = opts.downloadToken.trim();
+  if (!token) throw new Error("MISSING_DOWNLOAD_TOKEN");
 
-// base64url helpers
-function b64url(input: Buffer | string) {
-  const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
-  return buf
-    .toString("base64")
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
-}
-
-function b64urlToBuffer(input: string) {
-  const pad = input.length % 4 === 0 ? "" : "=".repeat(4 - (input.length % 4));
-  const base64 = input.replace(/-/g, "+").replace(/_/g, "/") + pad;
-  return Buffer.from(base64, "base64");
-}
-
-function hmacSha256(data: string, secret: string) {
-  return crypto.createHmac("sha256", secret).update(data).digest();
-}
-
-function timingSafeEqual(a: string, b: string) {
-  const ba = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ba.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ba, bb);
-}
-
-function getSecret() {
-  const secret = process.env.DOWNLOAD_TOKEN_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error(
-      "DOWNLOAD_TOKEN_SECRET 未配置或太短（建议至少 32 字符）"
-    );
-  }
-  return secret;
-}
-
-function nowSec() {
-  return Math.floor(Date.now() / 1000);
-}
-
-export function createDownloadToken(planId: string, expiresInSeconds?: number) {
-  const secret = getSecret();
-  const ttl =
-    typeof expiresInSeconds === "number"
-      ? expiresInSeconds
-      : Number(process.env.DOWNLOAD_TOKEN_EXPIRES_IN_SECONDS || 1800);
-
-  const iat = nowSec();
-  const exp = iat + Math.max(60, ttl); // 至少 60 秒，避免太短导致误判
-
-  const header = { alg: "HS256", typ: "JWT" };
-  const payload: DownloadTokenPayload = {
-    planId,
-    scope: "pdf_download",
-    iat,
-    exp,
-  };
-
-  const encodedHeader = b64url(JSON.stringify(header));
-  const encodedPayload = b64url(JSON.stringify(payload));
-  const signingInput = `${encodedHeader}.${encodedPayload}`;
-  const signature = b64url(hmacSha256(signingInput, secret));
-  return `${signingInput}.${signature}`;
-}
-
-export function verifyDownloadToken(token: string): DownloadTokenPayload {
-  const secret = getSecret();
-
-  const parts = token.split(".");
-  if (parts.length !== 3) throw new Error("token 格式错误");
-
-  const [encodedHeader, encodedPayload, encodedSig] = parts;
-  const signingInput = `${encodedHeader}.${encodedPayload}`;
-  const expectedSig = b64url(hmacSha256(signingInput, secret));
-
-  if (!timingSafeEqual(encodedSig, expectedSig)) {
-    throw new Error("token 签名不匹配");
+  // ✅ DEV token 直接放行（不扣）
+  if (token === "DEV_MODE_TOKEN") {
+    return { ok: true, dev: true as const, tokenState: null as any };
   }
 
-  const payloadJson = b64urlToBuffer(encodedPayload).toString("utf8");
-  const payload = JSON.parse(payloadJson) as DownloadTokenPayload;
+  // ✅ JWT 验证（防伪造）
+  const payload = await verifyDownloadJwt(token);
 
-  if (payload.scope !== "pdf_download") throw new Error("token scope 不正确");
+  if (payload?.scope !== "pdf_download") throw new Error("BAD_TOKEN_SCOPE");
+  if ((payload?.planId || "") !== opts.planId) throw new Error("TOKEN_PLAN_MISMATCH");
+  if ((payload?.mode || "") !== opts.mode) throw new Error("TOKEN_MODE_MISMATCH");
 
-  const t = nowSec();
-  if (typeof payload.exp !== "number" || t >= payload.exp) {
-    throw new Error("token 已过期");
-  }
-  if (typeof payload.iat !== "number" || payload.iat > t + 30) {
-    throw new Error("token 时间不正确");
-  }
-  if (!payload.planId) throw new Error("token 缺少 planId");
+  // ✅ 查 tokenState（扣次数/撤销/到期）
+  const tokenHash = sha256Hex(token);
+  const row = await prisma.pdfDownloadTokenState.findUnique({
+    where: { tokenHash },
+    select: { id: true, planId: true, mode: true, expAt: true, maxUses: true, usedCount: true, revoked: true },
+  });
+  if (!row) throw new Error("TOKEN_STATE_NOT_FOUND");
+  if (row.revoked) throw new Error("TOKEN_REVOKED");
+  if (row.expAt.getTime() <= Date.now()) throw new Error("TOKEN_EXPIRED");
+  if (row.planId !== opts.planId) throw new Error("TOKEN_STATE_PLAN_MISMATCH");
+  if ((row.mode || "full") !== opts.mode) throw new Error("TOKEN_STATE_MODE_MISMATCH");
 
-  return payload;
+  // ✅ 防重复扣：LicenseConsume unique(licenseId,fingerprint)
+  //   我们复用 LicenseConsume，把 tokenState.id 当作 licenseId
+  await prisma.$transaction(async (tx) => {
+    // 先尝试插入 consume（如果已存在说明已经扣过/用过）
+    let inserted = false;
+    try {
+      await tx.licenseConsume.create({
+        data: {
+          licenseId: row.id,
+          planId: opts.planId,
+          fingerprint: opts.fingerprint,
+        },
+      });
+      inserted = true;
+    } catch (e: any) {
+      // 违反 unique(licenseId,fingerprint) 就说明重复请求，不再扣
+      inserted = false;
+    }
+
+    if (inserted) {
+      // 首次消费才扣次数
+      const next = row.usedCount + 1;
+      if (next > row.maxUses) {
+        throw new Error("TOKEN_MAX_USES_EXCEEDED");
+      }
+      await tx.pdfDownloadTokenState.update({
+        where: { id: row.id },
+        data: { usedCount: next },
+      });
+    }
+  });
+
+  return { ok: true, dev: false as const, tokenState: row };
 }
-

@@ -7,6 +7,8 @@ import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb } from "pdf-lib";
 import { parseTenderLevel, type TenderLevel } from "@/lib/pdf/presets";
 import { scanTocAnchors } from "@/lib/pdf/tocAnchors";
+import { logPdfDownloadSafe, getReqIp } from "@/lib/audit/pdfLog";
+import { requireAndConsumeDownloadToken } from "@/lib/license";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,39 +77,55 @@ async function mergePdfBuffers(buffers: Buffer[]): Promise<Buffer> {
   return Buffer.from(bytes);
 }
 
-async function fetchPdfBytes(url: string) {
-  const res = await fetch(url, {
-    method: "GET",
-    cache: "no-store",
-    headers: { Accept: "application/pdf" },
-  });
+function getInternalPackHeaders(): Record<string, string> {
+  const secret = (process.env.INTERNAL_PACK_SECRET || "").trim();
+  return secret
+    ? { "X-INTERNAL-PACK": "1", "X-INTERNAL-PACK-SECRET": secret }
+    : {};
+}
 
-  if (!res.ok) {
-    const ct = res.headers.get("content-type") || "";
-    let errText = "";
-    try {
-      errText = ct.includes("application/json")
-        ? JSON.stringify(await res.json())
-        : await res.text();
-    } catch {
-      // ignore
+async function fetchPdfBytes(url: string, timeoutMs = 45000) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  const internalHeaders = getInternalPackHeaders();
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      headers: { Accept: "application/pdf", ...internalHeaders },
+      signal: ac.signal,
+    });
+
+    if (!res.ok) {
+      const ct = res.headers.get("content-type") || "";
+      let errText = "";
+      try {
+        errText = ct.includes("application/json")
+          ? JSON.stringify(await res.json())
+          : await res.text();
+      } catch {
+        // ignore
+      }
+      throw new Error(
+        `Upstream /api/pdf failed: ${res.status} ${res.statusText}${
+          errText ? ` | ${errText.slice(0, 1200)}` : ""
+        }`
+      );
     }
-    throw new Error(
-      `Upstream /api/pdf failed: ${res.status} ${res.statusText}${
-        errText ? ` | ${errText.slice(0, 1200)}` : ""
-      }`
-    );
-  }
 
-  const ab = await res.arrayBuffer();
-  return Buffer.from(ab);
+    const ab = await res.arrayBuffer();
+    return Buffer.from(ab);
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function fetchReqSigHead(url: string) {
+  const internalHeaders = getInternalPackHeaders();
   const res = await fetch(url, {
     method: "HEAD",
     cache: "no-store",
-    headers: { Accept: "application/pdf" },
+    headers: { Accept: "application/pdf", ...internalHeaders },
   });
   if (!res.ok) return null;
   const sig = (res.headers.get("x-reqsig") || res.headers.get("X-REQSIG") || "").trim();
@@ -122,9 +140,18 @@ async function tryReadFile(p: string) {
   }
 }
 
-async function getPdfPageCount(bytes: Buffer) {
-  const doc = await PDFDocument.load(bytes);
-  return doc.getPageCount();
+async function assertPdfOk(bytes: Buffer, name: string) {
+  if (!bytes || bytes.length < 1200) {
+    throw new Error(`${name} too small (${bytes?.length ?? 0} bytes)`);
+  }
+  try {
+    const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    const pages = doc.getPageCount();
+    if (!pages || pages <= 0) throw new Error("0 pages");
+    return pages;
+  } catch (e: any) {
+    throw new Error(`${name} is not a valid PDF: ${e?.message || String(e)}`);
+  }
 }
 
 async function loadBrandAssets(doc: PDFDocument) {
@@ -330,6 +357,29 @@ type TocLine = {
 };
 
 /**
+ * Helper: 统一 LOGO 顶部对齐绘制（封面/声明/目录都调用，保证同一基线与缩放）
+ */
+function drawLogoTopLeft(opts: {
+  page: any;
+  logo: any; // PDFImage (embedPng返回)
+  marginX: number; // 左边距（你现在用 60）
+  topY: number; // 距离页面顶部的"基线"位置（推荐 A4_H - 80）
+  maxW: number; // 最大宽度（推荐 150~170）
+}) {
+  const { page, logo, marginX, topY, maxW } = opts;
+  if (!logo) return;
+
+  // 保持等比缩放，以 maxW 为宽上限
+  const scale = Math.min(1, maxW / logo.width);
+  const w = logo.width * scale;
+  const h = logo.height * scale;
+
+  // ✅ 统一基线：topY 是 logo 顶边位置，而不是 bottom
+  const y = topY - h;
+  page.drawImage(logo, { x: marginX, y, width: w, height: h });
+}
+
+/**
  * ✅ V7：封面 + 目录（2页）
  * - 封面标题更像“技术标”
  * - 目录自动编号（1.1/1.2/2.1/2.2）
@@ -381,6 +431,10 @@ async function buildCoverAndTocPdfV7(opts: {
   const A4_W = 595.28;
   const A4_H = 841.89;
 
+  const LOGO_MARGIN_X = 60;
+  const LOGO_TOP_Y = A4_H - 70;
+  const LOGO_MAX_W = 150;
+
   const dateYMD = ymdTokyo();
   const dateHuman = ymdHumanTokyo();
 
@@ -390,17 +444,19 @@ async function buildCoverAndTocPdfV7(opts: {
   let y = A4_H - 80;
 
   if (logo) {
-    const maxW = 160;
-    const scale = maxW / logo.width;
-    const w = logo.width * scale;
-    const h = logo.height * scale;
-    cover.drawImage(logo, { x: marginX, y: y - h + 10, width: w, height: h });
+    drawLogoTopLeft({
+      page: cover,
+      logo,
+      marginX: LOGO_MARGIN_X,
+      topY: LOGO_TOP_Y,
+      maxW: LOGO_MAX_W,
+    });
   }
 
   // ✅ V7：技术标风格封面标题
   cover.drawText("企业健身房建设项目投标文件（技术部分）", {
     x: marginX,
-    y: y - 90,
+    y: A4_H - 160, // ✅ 和 topY= A4_H-60 搭配，留足空间
     size: 24,
     font,
     color: rgb(0.1, 0.1, 0.1),
@@ -678,16 +734,22 @@ async function buildDeclarationPdf(opts: {
   const A4_H = 841.89;
   const marginX = 60;
 
+  const LOGO_MARGIN_X = 60;
+  const LOGO_TOP_Y = A4_H - 70;
+  const LOGO_MAX_W = 150;
+
   const dateHuman = ymdHumanTokyo();
 
   const page = doc.addPage([A4_W, A4_H]);
 
   if (logo) {
-    const maxW = 120;
-    const scale = maxW / logo.width;
-    const w = logo.width * scale;
-    const h = logo.height * scale;
-    page.drawImage(logo, { x: marginX, y: A4_H - 90, width: w, height: h });
+    drawLogoTopLeft({
+      page,
+      logo,
+      marginX: LOGO_MARGIN_X,
+      topY: LOGO_TOP_Y,
+      maxW: LOGO_MAX_W,
+    });
   }
 
   page.drawText("投标声明与承诺函", {
@@ -887,13 +949,14 @@ export async function GET(req: NextRequest) {
       tz,
       level,
     };
-    if (downloadToken) baseCommon.downloadToken = downloadToken;
+    // ✅ 不把 downloadToken 透传给 /api/pdf，pack 内部 fetch 走 X-INTERNAL-PACK 信任头
 
     const planPdfUrl = new URL(`${origin}/api/pdf`);
     Object.entries({
       ...baseCommon,
       mode: "full",
-      pdfVersion: pdfVersionPlan,
+      pdfVersionPlan,
+      pdfVersion: pdfVersionPlan, // backward compat
     }).forEach(([k, v]) => planPdfUrl.searchParams.set(k, v));
 
     const packBudgetSections = budgetSectionsForPack(level);
@@ -901,8 +964,9 @@ export async function GET(req: NextRequest) {
     Object.entries({
       ...baseCommon,
       mode: "budget",
-      pdfVersion: pdfVersionBudget,
       sections: packBudgetSections,
+      pdfVersionBudget,
+      pdfVersion: pdfVersionBudget, // backward compat
     }).forEach(([k, v]) => budgetPdfUrl.searchParams.set(k, v));
 
     if (format === "links") {
@@ -927,6 +991,26 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // ✅ 包级别扣一次：只校验/消耗 pack token，失败即 403
+    const ip = getReqIp(req as any);
+    const ua = req.headers.get("user-agent") || "";
+    const fp = [
+      planId,
+      "pack",
+      (ip || "noip").split(",")[0].trim(),
+      (ua || "noua").slice(0, 80),
+    ].join("|");
+
+    const c = await requireAndConsumeDownloadToken({
+      downloadToken,
+      planId,
+      mode: "pack",
+      fingerprint: fp,
+      ip,
+      ua,
+    });
+    if (!c.ok) return json(403, c.code, `download token rejected: ${c.code}`, c);
+
     const [planBytes, budgetBytes] = await Promise.all([
       fetchPdfBytes(planPdfUrl.toString()),
       fetchPdfBytes(budgetPdfUrl.toString()),
@@ -942,8 +1026,8 @@ export async function GET(req: NextRequest) {
     const sigShort = sig ? sig.slice(0, 8).toUpperCase() : "";
 
     const [planPages, budgetPages] = await Promise.all([
-      getPdfPageCount(planBytes),
-      getPdfPageCount(budgetBytes),
+      assertPdfOk(planBytes, "plan"),
+      assertPdfOk(budgetBytes, "budget"),
     ]);
 
     const declarationPages = includeDeclaration ? 1 : 0;
@@ -1053,6 +1137,40 @@ export async function GET(req: NextRequest) {
       const safePlanId = asciiSafeFilename(planId);
       const filename = `AI_Fitness_Solution_Tender_Merged-${level}-${safePlanId}-${date}.pdf`;
 
+      // ✅ 日志记录（仅 GET）
+      if (req.method === "GET") {
+        const ip = getReqIp(req as any);
+        const ua = req.headers.get("user-agent") || null;
+
+        await logPdfDownloadSafe({
+          planId,
+          route: "/api/tender-pack",
+          method: "GET",
+          mode: null,
+          level,
+          format: "merged",
+          theme,
+          pdfVersion: null,
+          planVersion: pdfVersionPlan,
+          budgetVersion: pdfVersionBudget,
+          reqsig: sig || null,
+          docSeq: null,
+          pages: totalPages || null,
+          bytes: mergedBytes.length,
+          ip,
+          ua,
+          extra: {
+            tenderNo,
+            includeCover,
+            includeDeclaration,
+            packFooter,
+            packBudgetSections,
+            watermark,
+            tz,
+          },
+        });
+      }
+
       return new NextResponse(mergedBytes, {
         status: 200,
         headers: {
@@ -1152,6 +1270,37 @@ export async function GET(req: NextRequest) {
 
     const zipFilename = `AI_Fitness_Solution_Tender_Pack-${level}-${safePlanId}-${date}.zip`;
 
+    // ✅ 日志记录（仅 GET）
+    if (req.method === "GET") {
+      const ip = getReqIp(req as any);
+      const ua = req.headers.get("user-agent") || null;
+
+      await logPdfDownloadSafe({
+        planId,
+        route: "/api/tender-pack",
+        method: "GET",
+        mode: null,
+        level,
+        format: "zip",
+        theme,
+        pdfVersion: null,
+        planVersion: pdfVersionPlan,
+        budgetVersion: pdfVersionBudget,
+        reqsig: sig || null,
+        docSeq: null,
+        pages: totalPages || null,
+        bytes: zipBytes.length,
+        ip,
+        ua,
+        extra: {
+          tenderNo,
+          includeCover,
+          includeDeclaration,
+          packBudgetSections,
+        },
+      });
+    }
+
     return new NextResponse(zipBytes, {
       status: 200,
       headers: {
@@ -1175,5 +1324,95 @@ export async function GET(req: NextRequest) {
       name: e?.name,
       stack: e?.stack,
     });
+  }
+}
+
+export async function HEAD(req: NextRequest) {
+  try {
+    const url = new URL(req.url);
+    const sp = url.searchParams;
+
+    const planId = (sp.get("planId") || "").trim();
+    if (!planId) {
+      return new NextResponse(null, {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const format = (sp.get("format") || "links").trim().toLowerCase();
+    const theme = (sp.get("theme") || "brand").trim();
+    const watermark = (sp.get("watermark") || "0").trim();
+    const tz = (sp.get("tz") || "Asia/Tokyo").trim();
+
+    const pdfVersionPlan = (sp.get("pdfVersionPlan") || "PLAN_V1").trim();
+    const pdfVersionBudget = (sp.get("pdfVersionBudget") || "BUDGET_V1").trim();
+
+    const level = parseTenderLevel(sp.get("level"));
+    const packFooter = parseBool01(sp.get("packFooter"), true);
+
+    const includeCoverDefault = level === "saas" ? "0" : "1";
+    const includeDeclarationDefault = level === "saas" ? "0" : "1";
+
+    const includeCover =
+      (sp.get("includeCover") || includeCoverDefault).trim() !== "0";
+    const includeDeclarationRaw =
+      (sp.get("includeDeclaration") || includeDeclarationDefault).trim() !== "0";
+    const includeDeclaration =
+      level === "government" ? true : includeDeclarationRaw;
+
+    const date = ymdTokyo();
+    const tenderNo = `TENDER-${asciiSafeFilename(planId)}-${date}`;
+
+    const packBudgetSections = budgetSectionsForPack(level);
+
+    // 这里不做任何 fetch，所以 planPages/budgetPages/skipFirst 无法精确
+    // ✅ 但 Engine 验收的关键是：编号、级别、sections、分页开关、包含项等
+    const skipFirstPages = (includeCover ? 2 : 0) + (includeDeclaration ? 1 : 0);
+
+    // content-type / disposition：按 format 返回
+    let contentType = "application/json";
+    let filename = `AI_Fitness_Solution_Tender_Pack-${level}-${asciiSafeFilename(planId)}-${date}.json`;
+
+    if (format === "merged") {
+      contentType = "application/pdf";
+      filename = `AI_Fitness_Solution_Tender_Merged-${level}-${asciiSafeFilename(planId)}-${date}.pdf`;
+    } else if (format === "zip") {
+      contentType = "application/zip";
+      filename = `AI_Fitness_Solution_Tender_Pack-${level}-${asciiSafeFilename(planId)}-${date}.zip`;
+    }
+
+    return new NextResponse(null, {
+      status: 200,
+      headers: {
+        "Content-Type": contentType,
+        "Content-Disposition": `attachment; filename="${asciiSafeFilename(filename)}"`,
+        "Cache-Control": "no-store",
+
+        // ✅ 与 GET 对齐的验收 headers（轻量版）
+        "X-TENDER-PACK": format === "merged"
+          ? "MERGED_TENDER_V7_REVIEWSTYLE_TOC"
+          : format === "zip"
+            ? "ZIP_TENDER_V7_REVIEWSTYLE_TOC"
+            : "LINKS_TENDER_V7_REVIEWSTYLE_TOC",
+        "X-TENDER-LEVEL": level,
+        "X-TENDER-NO": tenderNo,
+        "X-PLAN-VERSION": pdfVersionPlan,
+        "X-BUDGET-VERSION": pdfVersionBudget,
+        "X-INCLUDE-COVER": includeCover ? "1" : "0",
+        "X-INCLUDE-DECLARATION": includeDeclaration ? "1" : "0",
+        "X-PACK-BUDGET-SECTIONS": packBudgetSections,
+        "X-PACK-PAGINATION": packFooter ? "1" : "0",
+        "X-PACK-SKIP-FIRST": String(skipFirstPages),
+        "X-PACK-FOOTER": packFooter ? "1" : "0",
+
+        // 可选：把 theme/watermark/tz 也暴露给验收面板（不会影响现有 GET）
+        "X-PACK-THEME": theme || "brand",
+        "X-PACK-WATERMARK": watermark === "1" ? "1" : "0",
+        "X-PACK-TZ": tz,
+      },
+    });
+  } catch (e: any) {
+    return new NextResponse(null, { status: 500 });
   }
 }
