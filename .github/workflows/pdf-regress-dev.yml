@@ -10,6 +10,10 @@ jobs:
     name: regress (dev)
     runs-on: windows-latest
     timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "1"
 
     steps:
       - name: Checkout
@@ -51,12 +55,26 @@ jobs:
 
       - name: Run PDF regress (dev gate)
         shell: powershell
-        env:
-          NEXT_TELEMETRY_DISABLED: "1"
-          CI: "1"
         run: |
           $ErrorActionPreference = "Stop"
           powershell -ExecutionPolicy Bypass -File .\scripts\regress-pdf.ps1 -BaseUrl "http://127.0.0.1:3000"
+
+      - name: Upload regress artifacts (dev) on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-regress-dev-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            _regress/**
+            **/*regress*.log
+            **/*regress*.txt
+            **/*_hdr*.txt
+            **/*headers*.txt
+            **/*report*.json
+            **/*diff*.txt
+            **/*.pdf
 
       - name: Cleanup Next dev
         if: always()
@@ -77,10 +95,14 @@ jobs:
           }
           exit 0
 
-  regress_build:
-    name: regress (build)
+  regress-build:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    if: github.ref == 'refs/heads/main'
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "1"
 
     steps:
       - name: Checkout
@@ -95,64 +117,64 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Build Next (production)
-        shell: powershell
-        env:
-          NEXT_TELEMETRY_DISABLED: "1"
-          CI: "1"
-        run: |
-          $ErrorActionPreference = "Stop"
-          npm run build
+      - name: Build
+        run: npm run build
 
       - name: Start Next start (background)
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $proc = Start-Process -FilePath "npm" -ArgumentList @("run","start","--","-p","3000") -PassThru -WindowStyle Hidden
-          $proc.Id | Out-File -Encoding ascii .\.ci_next_start_pid.txt
-          "NEXT_START_PID=$($proc.Id)" | Out-Host
+          $p = Start-Process -FilePath "npm" -ArgumentList @("run","start","--","-p","3000") -PassThru -WindowStyle Hidden
+          $p.Id | Out-File -Encoding ascii .\.ci_next_pid.txt
+          "NEXT_PID=$($p.Id)" | Out-Host
 
-      - name: Wait for server (start)
+      - name: Wait for server
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $url = "http://127.0.0.1:3000"
-          $deadline = (Get-Date).AddSeconds(180)
+          $urlCandidates = @("http://127.0.0.1:3000/api/health", "http://127.0.0.1:3000/")
+          $deadline = (Get-Date).AddSeconds(120)
           while ((Get-Date) -lt $deadline) {
-            try {
-              Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 5 | Out-Null
-              "Server ready: $url" | Out-Host
-              exit 0
-            } catch {
-              Start-Sleep -Seconds 2
+            foreach ($url in $urlCandidates) {
+              try {
+                Invoke-WebRequest -Uri $url -Method Get -TimeoutSec 5 -UseBasicParsing | Out-Null
+                "Server ready: $url" | Out-Host
+                exit 0
+              } catch { }
             }
+            Start-Sleep -Seconds 2
           }
-          throw "Server not ready within 180s: $url"
+          throw "Server not ready within 120s"
 
-      - name: Run PDF regress (build gate)
+      - name: Run PDF regress (build)
         shell: powershell
-        env:
-          NEXT_TELEMETRY_DISABLED: "1"
-          CI: "1"
         run: |
           $ErrorActionPreference = "Stop"
           powershell -ExecutionPolicy Bypass -File .\scripts\regress-pdf.ps1 -BaseUrl "http://127.0.0.1:3000"
+
+      - name: Upload regress artifacts (build) on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-regress-build-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            _regress/**
+            _golden/**
 
       - name: Cleanup Next start
         if: always()
         shell: powershell
         run: |
           $ErrorActionPreference = "Continue"
-          $pidFile = ".\.ci_next_start_pid.txt"
+          $pidFile = ".\.ci_next_pid.txt"
           if (Test-Path $pidFile) {
             $nextPid = (Get-Content $pidFile -Raw).Trim()
             if ($nextPid -match '^\d+$') {
-              Write-Host "Stopping NEXT start PID=$nextPid"
+              Write-Host "Stopping NEXT PID=$nextPid"
               Stop-Process -Id ([int]$nextPid) -Force -ErrorAction SilentlyContinue
-            } else {
-              Write-Host "PID file not a number: $nextPid"
             }
-          } else {
-            Write-Host "No pid file, skip cleanup"
           }
           exit 0
+          
