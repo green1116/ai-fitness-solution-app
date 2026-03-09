@@ -1,4 +1,4 @@
-name: PDF Regress (dev)
+name: PDF Regress (dev+build)
 
 on:
   pull_request:
@@ -6,7 +6,8 @@ on:
     branches: [ main ]
 
 jobs:
-  regress:
+  regress_dev:
+    name: regress (dev)
     runs-on: windows-latest
     timeout-minutes: 20
 
@@ -23,27 +24,20 @@ jobs:
       - name: Install
         run: npm ci
 
-      # 如果你的 CI 需要 Prisma client，保留；不需要可删
-      - name: Prisma generate
-        run: npx prisma generate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
       - name: Start Next dev (background)
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          # 启动 dev 并把 PID 写到文件，便于后面清理
-          $p = Start-Process -FilePath "npm" -ArgumentList @("run","dev","--","-p","3000") -PassThru -WindowStyle Hidden
-          $p.Id | Out-File -Encoding ascii .\.ci_next_pid.txt
-          "NEXT_PID=$($p.Id)" | Out-Host
+          $proc = Start-Process -FilePath "npm" -ArgumentList @("run","dev","--","-p","3000") -PassThru -WindowStyle Hidden
+          $proc.Id | Out-File -Encoding ascii .\.ci_next_dev_pid.txt
+          "NEXT_DEV_PID=$($proc.Id)" | Out-Host
 
-      - name: Wait for server
+      - name: Wait for server (dev)
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           $url = "http://127.0.0.1:3000"
-          $deadline = (Get-Date).AddSeconds(120)
+          $deadline = (Get-Date).AddSeconds(180)
           while ((Get-Date) -lt $deadline) {
             try {
               Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 5 | Out-Null
@@ -53,14 +47,15 @@ jobs:
               Start-Sleep -Seconds 2
             }
           }
-          throw "Server not ready within 120s: $url"
+          throw "Server not ready within 180s: $url"
 
-      - name: Run PDF regress (CI gate)
+      - name: Run PDF regress (dev gate)
         shell: powershell
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          CI: "1"
         run: |
           $ErrorActionPreference = "Stop"
-          # 默认 FailOnDiff=true（你脚本里已经是 CI gate）
-          # 如需临时放行可设置 REGRESS_FAIL_ON_DIFF=0
           powershell -ExecutionPolicy Bypass -File .\scripts\regress-pdf.ps1 -BaseUrl "http://127.0.0.1:3000"
 
       - name: Cleanup Next dev
@@ -68,10 +63,96 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Continue"
-          if (Test-Path .\.ci_next_pid.txt) {
-            $pid = (Get-Content .\.ci_next_pid.txt -Raw).Trim()
-            if ($pid) {
-              "Stopping NEXT dev PID=$pid" | Out-Host
-              Stop-Process -Id ([int]$pid) -Force -ErrorAction SilentlyContinue
+          $pidFile = ".\.ci_next_dev_pid.txt"
+          if (Test-Path $pidFile) {
+            $nextPid = (Get-Content $pidFile -Raw).Trim()
+            if ($nextPid -match '^\d+$') {
+              Write-Host "Stopping NEXT dev PID=$nextPid"
+              Stop-Process -Id ([int]$nextPid) -Force -ErrorAction SilentlyContinue
+            } else {
+              Write-Host "PID file not a number: $nextPid"
+            }
+          } else {
+            Write-Host "No pid file, skip cleanup"
+          }
+          exit 0
+
+  regress_build:
+    name: regress (build)
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Build Next (production)
+        shell: powershell
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          CI: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          npm run build
+
+      - name: Start Next start (background)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $proc = Start-Process -FilePath "npm" -ArgumentList @("run","start","--","-p","3000") -PassThru -WindowStyle Hidden
+          $proc.Id | Out-File -Encoding ascii .\.ci_next_start_pid.txt
+          "NEXT_START_PID=$($proc.Id)" | Out-Host
+
+      - name: Wait for server (start)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "http://127.0.0.1:3000"
+          $deadline = (Get-Date).AddSeconds(180)
+          while ((Get-Date) -lt $deadline) {
+            try {
+              Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 5 | Out-Null
+              "Server ready: $url" | Out-Host
+              exit 0
+            } catch {
+              Start-Sleep -Seconds 2
             }
           }
+          throw "Server not ready within 180s: $url"
+
+      - name: Run PDF regress (build gate)
+        shell: powershell
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          CI: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          powershell -ExecutionPolicy Bypass -File .\scripts\regress-pdf.ps1 -BaseUrl "http://127.0.0.1:3000"
+
+      - name: Cleanup Next start
+        if: always()
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          $pidFile = ".\.ci_next_start_pid.txt"
+          if (Test-Path $pidFile) {
+            $nextPid = (Get-Content $pidFile -Raw).Trim()
+            if ($nextPid -match '^\d+$') {
+              Write-Host "Stopping NEXT start PID=$nextPid"
+              Stop-Process -Id ([int]$nextPid) -Force -ErrorAction SilentlyContinue
+            } else {
+              Write-Host "PID file not a number: $nextPid"
+            }
+          } else {
+            Write-Host "No pid file, skip cleanup"
+          }
+          exit 0
