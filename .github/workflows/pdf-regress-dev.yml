@@ -1,16 +1,37 @@
 name: pdf-regress-dev
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - plan22_stable
   pull_request:
+    branches:
+      - main
+      - plan22_stable
+
+concurrency:
+  group: pdf-regress-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   regress:
-    runs-on: windows-latest
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
     env:
+      NODE_ENV: production
+      PORT: "3000"
+      # 让构建更稳一点（避免 CI 内存波动）
+      NODE_OPTIONS: "--max-old-space-size=4096"
+      # 你的回归冻结时间（你本地已经用过）
       FORCE_NOW: "2026-03-10T00:00:00.000Z"
+      # 统一时区（可选，但建议固定）
+      TZ: "Asia/Tokyo"
 
     steps:
       - name: Checkout
@@ -19,73 +40,117 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+          cache: "pip"
 
-      - name: Install Python dependencies
+      # ---- Python deps (用于 pypdf / diff / info 等) ----
+      - name: Install Python dependencies (if any)
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          pip install pypdf
+          set -e
+          python -V
+          pip -V
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          if [ -f scripts/requirements.txt ]; then
+            pip install -r scripts/requirements.txt
+          fi
 
+      # ---- Node deps ----
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Create .env for CI
-        shell: pwsh
+      # 如果你项目需要 prisma generate（很多 Next+Prisma 都需要）
+      - name: Prisma generate (if prisma exists)
+        shell: bash
         run: |
-          @"
+          set -e
+          if [ -f prisma/schema.prisma ]; then
+            npx prisma generate
+          fi
+
+      # ---- Create .env from GitHub Secrets ----
+      # 这里把 secrets 写成 .env 给 Next 构建/运行和脚本使用
+      - name: Create .env for CI
+        shell: bash
+        run: |
+          set -e
+          cat > .env << 'EOF'
           DATABASE_URL=${{ secrets.DATABASE_URL }}
           DIRECT_URL=${{ secrets.DIRECT_URL }}
           DOWNLOAD_TOKEN_SECRET=${{ secrets.DOWNLOAD_TOKEN_SECRET }}
           INTERNAL_PACK_SECRET=${{ secrets.INTERNAL_PACK_SECRET }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
-          "@ | Out-File -FilePath .env -Encoding utf8
+          FORCE_NOW=${{ env.FORCE_NOW }}
+          TZ=${{ env.TZ }}
+          EOF
 
-      - name: Build Next app
-        run: npm run build
+          # 避免把 secrets 打到日志里（只显示 key，不显示 value）
+          echo "Created .env with keys:"
+          sed -E 's/=.*$/=*** /' .env
 
+      # ---- Build (force webpack mode) ----
+      - name: Build Next app (force webpack)
+        env:
+          NEXT_DISABLE_TURBOPACK: "1"
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build -- --webpack
+
+      # ---- Start server in background ----
       - name: Start Next server (background)
-        shell: pwsh
+        shell: bash
         run: |
-          Start-Process -FilePath "npm" -ArgumentList "run","start","--","-p","3000" -NoNewWindow
-          Start-Sleep -Seconds 3
+          set -e
+          # 用 build 后的生产模式启动（更接近真实发布）
+          nohup npm run start -- -p $PORT > server.log 2>&1 &
+          echo $! > server.pid
+          sleep 1
+          echo "Server PID=$(cat server.pid)"
 
+      # ---- Wait for server ready ----
       - name: Wait for server ready
-        shell: pwsh
+        shell: bash
         run: |
-          $ok = $false
-          for ($i=0; $i -lt 60; $i++) {
-            try {
-              $r = Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:3000/api/download-token?planId=attaguy-plan&mode=full" -TimeoutSec 5
-              if ($r.StatusCode -eq 200) {
-                $ok = $true
-                break
-              }
-            } catch {}
-            Start-Sleep -Seconds 2
-          }
-          if (-not $ok) {
-            throw "Server not ready on http://localhost:3000"
-          }
-          Write-Host "server_ready=YES"
+          set -e
+          # 使用 npx wait-on 更稳；如果你没装也没关系，npx 会临时拉
+          npx wait-on --timeout 120000 "http://127.0.0.1:${PORT}"
+          echo "Server is up."
 
+      # ---- Run regression ----
+      # 你的脚本是 powershell：在 ubuntu 用 pwsh
       - name: Run PDF regression
         shell: pwsh
         run: |
-          powershell -ExecutionPolicy Bypass -File .\scripts\regress-pdf.ps1 `
-            -BaseUrl "http://localhost:3000" `
-            -TimeoutSec 180
+          $ErrorActionPreference = "Stop"
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/regress-pdf.ps1 -BaseUrl "http://127.0.0.1:${env:PORT}"
 
+      # ---- Always upload artifacts for debugging ----
       - name: Upload regression artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: regress-output
+          name: pdf-regress-artifacts
           path: |
             _regress/**
             _golden/**
+            server.log
+            .next/**/trace
+            .next/**/build-manifest.json
+          if-no-files-found: warn
+
+      # ---- Always stop server ----
+      - name: Stop server
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ -f server.pid ]; then
+            kill $(cat server.pid) || true
+          fi
