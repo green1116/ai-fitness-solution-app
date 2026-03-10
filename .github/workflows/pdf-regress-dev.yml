@@ -33,16 +33,16 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      # 如果你的项目需要 .env（JWT_SECRET / DATABASE_URL 等）
-      # 请在 GitHub Secrets 中添加，然后取消下面注释
-      #
-      # - name: Create .env
-      #   shell: pwsh
-      #   run: |
-      #     @"
-      #     DATABASE_URL=${{ secrets.DATABASE_URL }}
-      #     JWT_SECRET=${{ secrets.JWT_SECRET }}
-      #     "@ | Out-File -FilePath .env -Encoding utf8
+      - name: Create .env for CI
+        shell: pwsh
+        run: |
+          @"
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          DIRECT_URL=${{ secrets.DIRECT_URL }}
+          DOWNLOAD_TOKEN_SECRET=${{ secrets.DOWNLOAD_TOKEN_SECRET }}
+          INTERNAL_PACK_SECRET=${{ secrets.INTERNAL_PACK_SECRET }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          "@ | Out-File -FilePath .env -Encoding utf8
 
       - name: Build Next app
         run: npm run build
