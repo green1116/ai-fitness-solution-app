@@ -9,6 +9,8 @@ jobs:
   regress:
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      FORCE_NOW: "2026-03-10T00:00:00.000Z"
 
     steps:
       - name: Checkout
