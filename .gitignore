@@ -1,4 +1,4 @@
-﻿# regression outputs
+# regression outputs
 _regress/
 
 # ignore all pdf artifacts by default
@@ -6,6 +6,10 @@ _regress/
 
 # keep golden PDFs tracked
 !public/golden/*.pdf
+
+# CI temp
+.ci_next_pid.txt
+.ci_next_dev.log
 
 # temp debug
 tmp*.json
@@ -32,3 +36,26 @@ git rm --cached .env.direct .env.pooler 2>$null
 # 取消追踪这些日志/产物（按你实际文件名）
 git rm --cached budget_r3_err.txt budget_twice_err.txt full_2_err.txt full_twice_err.txt hdr2.txt hdr_r2.txt pack_twice_err.txt 2>$null
 git rm --cached prisma/schema.prisma.bak prisma/schema.prisma.bak2 prisma/schema.prisma.bak_cleanfix prisma/schema.prisma.bak_cleanfix2 prisma_diff.sql 2>$null
+
+# local env
+.env.*
+!.env.example
+
+# local scratch / debug artifacts
+_regress/
+*_err.txt
+*_hdr.txt
+_h*.txt
+_b*.json
+*.log
+
+# local api health folder (if only for local testing)
+app/api/health/
+
+# prisma backups / temp
+prisma/*.bak*
+prisma_diff.sql
+
+# ad-hoc scripts
+scripts/pdf_hashes.py
+scripts/promote-golden.ps1
