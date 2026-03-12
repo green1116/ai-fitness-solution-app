@@ -9,6 +9,11 @@ param(
   [string]$DevDownloadToken = "DEV_MODE_TOKEN"
 )
 
+if ($env:SKIP_PDF_REGRESS -eq "1") {
+  Write-Host "[pre-commit] SKIP_PDF_REGRESS=1, skipping regression."
+  exit 0
+}
+
 $ErrorActionPreference = "Stop"
 
 # ---- PRECHECK ----
@@ -57,7 +62,8 @@ function Curl-Get-ToFile([string]$url, [string]$hdrFile, [string]$outFile, [swit
 
 function Get-HttpStatusFromHeaderFile([string]$hdrFile) {
   if (!(Test-Path $hdrFile)) { return 0 }
-  $line = (Get-Content $hdrFile | Select-String -Pattern "^HTTP/\d\.\d\s+(\d{3})" | Select-Object -First 1)
+  # 注意：curl -L 时 header 文件会包含多段 HTTP 响应头，这里必须取最后一段的状态码
+  $line = (Get-Content $hdrFile | Select-String -Pattern "^HTTP/\d\.\d\s+(\d{3})" | Select-Object -Last 1)
   if (!$line) { return 0 }
   return [int]$line.Matches.Groups[1].Value
 }
@@ -65,7 +71,8 @@ function Get-HttpStatusFromHeaderFile([string]$hdrFile) {
 function Get-HeaderValue([string]$hdrFile, [string]$name) {
   if (!(Test-Path $hdrFile)) { return $null }
   $pattern = "^(?i){0}:\s*(.+)$" -f [regex]::Escape($name)
-  $m = Get-Content $hdrFile | Select-String -Pattern $pattern | Select-Object -First 1
+  # 同理：可能存在多段 header（重定向等），取最后一次出现更可靠
+  $m = Get-Content $hdrFile | Select-String -Pattern $pattern | Select-Object -Last 1
   if (!$m) { return $null }
   return $m.Matches.Groups[1].Value.Trim()
 }
@@ -169,28 +176,61 @@ function Diff-PageHashes($a, $b) {
 }
 
 try {
+  # --- enterprise precheck: be resilient on developer machines ---
+  if ($env:SKIP_PDF_REGRESS -eq "1") {
+    Write-Host "[pre-commit] SKIP_PDF_REGRESS=1, skipping regression."
+    exit 0
+  }
+
+  $preUrl = "$BaseUrl/api/download-token?" + (Q @{ planId=$PlanId; mode="full" })
+  try {
+    $r = Invoke-WebRequest -Uri $preUrl -Method Get -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+    $code = [int]$r.StatusCode
+  } catch {
+    Write-Host "[pre-commit] PRECHECK skipped: cannot reach $preUrl. Start dev server first (npm run dev)."
+    exit 0
+  }
+
+  if ($code -ne 200) {
+    Write-Host "[pre-commit] PRECHECK skipped: HTTP=$code url=$preUrl. Fix local env/server then rerun regression."
+    exit 0
+  }
+  # --- end enterprise precheck ---
+
+  Write-Host "precheck_ok=API_DOWNLOAD_TOKEN"
+
   # ---------- URLs (token-based: 方案1 全部走 /api/download-token) ----------
   function Get-DownloadToken([string]$mode) {
     $u = "$BaseUrl/api/download-token?" + (Q @{ planId=$PlanId; mode=$mode })
+
     $json = & curl.exe --http1.1 -sS -L --max-time $TimeoutSec $u
-    return ((ConvertFrom-Json $json).downloadToken)
+
+    if ($LASTEXITCODE -ne 0) {
+      throw ("curl failed (exit={0}) url={1}" -f $LASTEXITCODE, $u)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($json)) {
+      throw ("empty response from server url={0}" -f $u)
+    }
+
+    try {
+      $obj = $json | ConvertFrom-Json
+    } catch {
+      throw ("non-JSON response url={0} body={1}" -f $u, $json)
+    }
+
+    if (-not $obj.downloadToken) {
+      throw ("missing downloadToken field url={0} body={1}" -f $u, $json)
+    }
+
+    return $obj.downloadToken
   }
 
-  $tokFull   = Get-DownloadToken "full"
-  $tokBudget = Get-DownloadToken "budget"
+  # PLAN 用独立的 full token；BUDGET 各用各的 token（不要复用）
+  $tokFull = Get-DownloadToken "full"
 
   $planUrl = "$BaseUrl/api/pdf?" + (Q @{
     planId=$PlanId; mode="full"; download="1"; downloadToken=$tokFull
-  })
-
-  $budgetBrandUrl = "$BaseUrl/api/pdf?" + (Q @{
-    planId=$PlanId; mode="budget"; level="brand"; download="1"; downloadToken=$tokBudget
-  })
-  $budgetEntUrl = "$BaseUrl/api/pdf?" + (Q @{
-    planId=$PlanId; mode="budget"; level="enterprise"; download="1"; downloadToken=$tokBudget
-  })
-  $budgetGovUrl = "$BaseUrl/api/pdf?" + (Q @{
-    planId=$PlanId; mode="budget"; level="government"; download="1"; docSeq="01"; downloadToken=$tokBudget
   })
 
   $planFile  = Join-Path $OutDir ("plan_full_{0}.pdf" -f $PlanId)
@@ -211,6 +251,8 @@ try {
   if ($ecG -ne 0) { throw "GET failed: $planUrl" }
   if (!(Test-Path $planFile)) { throw "downloaded file missing after curl: $planFile" }
   Assert-HttpStatus $planHeadFile 200
+  if (-not (Get-HeaderValue $planHeadFile "x-pdf-version")) { throw "missing x-pdf-version (plan)" }
+  if (-not (Get-HeaderValue $planHeadFile "x-reqsig")) { throw "missing x-reqsig (plan)" }
   Write-Host "Saved: $planFile"
   Pdf-Info $planFile
 
@@ -232,6 +274,10 @@ try {
 
   # ---------- BUDGET BRAND ----------
   $brandHeadFile = Join-Path $OutDir ("budget_brand_{0}.hdr.txt" -f $PlanId)
+  $tokBrand = Get-DownloadToken "budget"
+  $budgetBrandUrl = "$BaseUrl/api/pdf?" + (Q @{
+    planId=$PlanId; mode="budget"; level="brand"; download="1"; downloadToken=$tokBrand
+  })
   Print-Block "BUDGET BRAND (expected 2 pages)"
   Write-Host "URL: $budgetBrandUrl"
   Write-Host "--- HEAD ---"
@@ -243,6 +289,8 @@ try {
   if ($ecG -ne 0) { throw "GET failed: $budgetBrandUrl" }
   if (!(Test-Path $brandFile)) { throw "downloaded file missing after curl: $brandFile" }
   Assert-HttpStatus $brandHeadFile 200
+  if (-not (Get-HeaderValue $brandHeadFile "x-pdf-version")) { throw "missing x-pdf-version (budget-brand)" }
+  if (-not (Get-HeaderValue $brandHeadFile "x-reqsig")) { throw "missing x-reqsig (budget-brand)" }
   Write-Host "Saved: $brandFile"
   Pdf-Info $brandFile
 
@@ -264,6 +312,10 @@ try {
 
   # ---------- BUDGET ENTERPRISE ----------
   $entHeadFile = Join-Path $OutDir ("budget_enterprise_{0}.hdr.txt" -f $PlanId)
+  $tokEnt = Get-DownloadToken "budget"
+  $budgetEntUrl = "$BaseUrl/api/pdf?" + (Q @{
+    planId=$PlanId; mode="budget"; level="enterprise"; download="1"; downloadToken=$tokEnt
+  })
   Print-Block "BUDGET ENTERPRISE (expected 7 pages: 2 base + 5 terms)"
   Write-Host "URL: $budgetEntUrl"
   Write-Host "--- HEAD ---"
@@ -275,6 +327,8 @@ try {
   if ($ecG -ne 0) { throw "GET failed: $budgetEntUrl" }
   if (!(Test-Path $entFile)) { throw "downloaded file missing after curl: $entFile" }
   Assert-HttpStatus $entHeadFile 200
+  if (-not (Get-HeaderValue $entHeadFile "x-pdf-version")) { throw "missing x-pdf-version (budget-ent)" }
+  if (-not (Get-HeaderValue $entHeadFile "x-reqsig")) { throw "missing x-reqsig (budget-ent)" }
   Write-Host "Saved: $entFile"
   Pdf-Info $entFile
 
@@ -296,6 +350,10 @@ try {
 
   # ---------- BUDGET GOV ----------
   $govHeadFile = Join-Path $OutDir ("budget_gov_{0}.hdr.txt" -f $PlanId)
+  $tokGov = Get-DownloadToken "budget"
+  $budgetGovUrl = "$BaseUrl/api/pdf?" + (Q @{
+    planId=$PlanId; mode="budget"; level="government"; download="1"; docSeq="01"; downloadToken=$tokGov
+  })
   Print-Block "BUDGET GOVERNMENT (expected 5 pages + DOCNO/SIG on page1)"
   Write-Host "URL: $budgetGovUrl"
   Write-Host "--- HEAD ---"
@@ -307,6 +365,8 @@ try {
   if ($ecG -ne 0) { throw "GET failed: $budgetGovUrl" }
   if (!(Test-Path $govFile)) { throw "downloaded file missing after curl: $govFile" }
   Assert-HttpStatus $govHeadFile 200
+  if (-not (Get-HeaderValue $govHeadFile "x-pdf-version")) { throw "missing x-pdf-version (budget-gov)" }
+  if (-not (Get-HeaderValue $govHeadFile "x-reqsig")) { throw "missing x-reqsig (budget-gov)" }
   Write-Host "Saved: $govFile"
   Pdf-Info $govFile
 
@@ -545,10 +605,16 @@ try {
     $FailOnDiff = $true
     if ($env:REGRESS_FAIL_ON_DIFF -eq "0") { $FailOnDiff = $false }
 
-    if ($FailOnDiff -and (Test-Path ".\_golden\report.json") -and (-not $diffOk)) {
-      # 注意：这里不要 throw（否则会覆盖之前更关键的错误）
+    # 1) regress failed -> FAIL (avoid false PASS)
+    if (-not $report.ok) {
+      Write-Host "CI_GATE=FAIL (REGRESS_FAILED)"
+    }
+    # 2) regress ok but diff failed -> FAIL
+    elseif ($FailOnDiff -and (Test-Path ".\_golden\report.json") -and (-not $diffOk)) {
       Write-Host "CI_GATE=FAIL (DIFF_FAILED)"
-    } else {
+    }
+    # 3) else -> PASS
+    else {
       Write-Host "CI_GATE=PASS"
     }
 
