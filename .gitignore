@@ -59,3 +59,27 @@ prisma_diff.sql
 # ad-hoc scripts
 scripts/pdf_hashes.py
 scripts/promote-golden.ps1
+# =========================
+# Local debug / scratch
+# =========================
+_regress/
+*_err.txt
+*_hdr.txt
+hdr*.txt
+_h*.txt
+_b*.json
+*.log
+
+# =========================
+# Local env (DO NOT COMMIT)
+# =========================
+.env.*
+!.env.example
+
+# =========================
+# Local temp / backups
+# =========================
+prisma/*.bak*
+prisma_diff.sql
+scripts/pdf_hashes.py
+scripts/promote-golden.ps1
