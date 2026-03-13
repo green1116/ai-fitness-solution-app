@@ -190,26 +190,59 @@ function Diff-PageHashes($a, $b) {
 }
 
 try {
-  # --- enterprise precheck: be resilient on developer machines ---
   if ($env:SKIP_PDF_REGRESS -eq "1") {
     Write-Host "[pre-commit] SKIP_PDF_REGRESS=1, skipping regression."
     exit 0
   }
 
-  $preUrl = "$BaseUrl/api/download-token?" + (Q @{ planId=$PlanId; mode="full" })
+  # ====================
+  # PRECHECK (best, non-interactive): curl.exe HEAD /api/pdf (force 127.0.0.1)
+  # ====================
+  # Normalize BaseUrl (KEEP PORT)
+  $base = ($BaseUrl.Trim())
+  if (-not $base) { $base = "http://127.0.0.1:3000" }
+  $base = $base.TrimEnd("/")
+
+  # Replace localhost with 127.0.0.1 but KEEP the port (if any)
+  $base = $base -replace "^http://localhost(?=[:/]|$)", "http://127.0.0.1"
+  $base = $base -replace "^https://localhost(?=[:/]|$)", "https://127.0.0.1"
+
+  # If user passed http://127.0.0.1 (no port), default it to :3000
+  if ($base -match "^https?://127\.0\.0\.1$") { $base = $base + ":3000" }
+
+  $preUrl = "$base/api/pdf?download=1&downloadToken=DEV_MODE_TOKEN&mode=full&planId=$PlanId"
+
   try {
-    $r = Invoke-WebRequest -Uri $preUrl -Method Get -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
-    $code = [int]$r.StatusCode
+    $raw = (& curl.exe --http1.1 -sS -I --max-time 8 "$preUrl") 2>$null
+
+    if ($LASTEXITCODE -ne 0 -or -not $raw) {
+      throw "curl HEAD failed (exit=$LASTEXITCODE)"
+    }
+
+    # curl 输出在 PS 里可能是字符串数组，统一拼成一个字符串
+    $hdr = if ($raw -is [Array]) { ($raw -join "`n") } else { [string]$raw }
+
+    # 取第一行 HTTP/1.1 200
+    $firstLine = ($hdr -split "`n" | Select-Object -First 1).Trim()
+    $status = $null
+    if ($firstLine -match "HTTP/\d\.\d\s+(\d{3})") { $status = [int]$matches[1] }
+
+    if ($status -ne 200) {
+      throw "status=$status firstLine=$firstLine"
+    }
+
+    if (($hdr -notmatch "(?i)\bx-pdf-mode\b") -and ($hdr -notmatch "(?i)\bcontent-type:\s*application/pdf\b")) {
+      throw "missing pdf headers"
+    }
+
+    Write-Host "precheck_ok=API_PDF_HEAD"
   } catch {
-    throw "[pre-commit] PRECHECK FAIL: cannot reach $preUrl. Start dev server first: npm run dev"
-  }
+    $emsg = ""
+    try { $emsg = $_.Exception.Message } catch { $emsg = "" }
+    if (-not $emsg) { $emsg = "$_" }
 
-  if ($code -ne 200) {
-    throw "[pre-commit] PRECHECK FAIL: HTTP=$code url=$preUrl. Fix local env/server then rerun regression."
+    throw ("[pre-commit] PRECHECK FAIL: cannot reach " + $preUrl + "`nHint: start dev server first: npm run dev`n" + $emsg)
   }
-  # --- end enterprise precheck ---
-
-  Write-Host "precheck_ok=API_DOWNLOAD_TOKEN"
 
   # ---------- URLs (token-based: 方案1 全部走 /api/download-token) ----------
   function Get-DownloadToken([string]$mode) {
