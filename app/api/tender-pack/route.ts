@@ -28,6 +28,30 @@ function asciiSafeFilename(s: string) {
     .slice(0, 120);
 }
 
+function isInternalPack(req: NextRequest) {
+  const flag = (req.headers.get("x-internal-pack") || "").trim();
+  const secret = (req.headers.get("x-internal-pack-secret") || "").trim();
+  const expect = (process.env.INTERNAL_PACK_SECRET || "").trim();
+  return flag === "1" && !!expect && secret === expect;
+}
+
+function isInternalRequest(req: NextRequest, searchParams: URLSearchParams) {
+  return searchParams.get("internal") === "1" || isInternalPack(req);
+}
+
+function normFreezeYmd(v: string) {
+  const s = (v || "").trim();
+  return /^\d{8}$/.test(s) ? s : "";
+}
+
+function normFreezeTenderNo(v: string) {
+  const s = (v || "").trim();
+  if (!s) return "";
+  if (s.length > 80) return "";
+  if (!/^[A-Za-z0-9._-]+$/.test(s)) return "";
+  return s;
+}
+
 function ymdTokyo() {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tokyo",
@@ -937,10 +961,17 @@ export async function GET(req: NextRequest) {
 
     const downloadToken = (sp.get("downloadToken") || "").trim();
 
+    const internal = isInternalRequest(req, sp);
+    const freezeYmdRaw = sp.get("freezeYmd") || "";
+    const freezeTenderNoRaw = sp.get("freezeTenderNo") || "";
+    const freezeYmd = internal ? normFreezeYmd(freezeYmdRaw) : "";
+    const freezeTenderNo = internal ? normFreezeTenderNo(freezeTenderNoRaw) : "";
+
     const origin = url.origin;
 
-    const date = ymdTokyo();
-    const tenderNo = `TENDER-${asciiSafeFilename(planId)}-${date}`;
+    const date = freezeYmd || ymdTokyo();
+    const tenderNo =
+      freezeTenderNo || `TENDER-${asciiSafeFilename(planId)}-${date}`;
 
     const baseCommon: Record<string, string> = {
       planId,
@@ -1361,8 +1392,15 @@ export async function HEAD(req: NextRequest) {
     const includeDeclaration =
       level === "government" ? true : includeDeclarationRaw;
 
-    const date = ymdTokyo();
-    const tenderNo = `TENDER-${asciiSafeFilename(planId)}-${date}`;
+    const internal = isInternalRequest(req, sp);
+    const freezeYmdRaw = sp.get("freezeYmd") || "";
+    const freezeTenderNoRaw = sp.get("freezeTenderNo") || "";
+    const freezeYmd = internal ? normFreezeYmd(freezeYmdRaw) : "";
+    const freezeTenderNo = internal ? normFreezeTenderNo(freezeTenderNoRaw) : "";
+
+    const date = freezeYmd || ymdTokyo();
+    const tenderNo =
+      freezeTenderNo || `TENDER-${asciiSafeFilename(planId)}-${date}`;
 
     const packBudgetSections = budgetSectionsForPack(level);
 

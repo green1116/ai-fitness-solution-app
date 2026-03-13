@@ -413,7 +413,7 @@ try {
   $packMainUrl = "$BaseUrl/api/tender-pack?" + (Q @{
     planId=$PlanId; format="merged"; level="enterprise"; theme="tender"; watermark="0";
     includeCover="1"; includeDeclaration="1"; packFooter="1"; download="1"; downloadToken=$DevDownloadToken;
-    freezeYmd="20260313"; freezeTenderNo="TENDER-attaguy-plan-20260313"
+    internal="1"; freezeYmd="20260313"; freezeTenderNo="TENDER-attaguy-plan-20260313"
   })
 
   $packMainHdr = Join-Path $OutDir ("pack_merged_{0}.hdr.txt" -f $PlanId)
