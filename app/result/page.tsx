@@ -60,6 +60,11 @@ function cnBudgetTierLabel(t: BudgetTier) {
   return "中";
 }
 
+const DEV_DOWNLOAD_TOKEN =
+  typeof process !== "undefined" && process.env?.NODE_ENV !== "production"
+    ? "DEV_MODE_TOKEN"
+    : "";
+
 function buildUrl(base: string, params: Record<string, any>) {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -68,6 +73,7 @@ function buildUrl(base: string, params: Record<string, any>) {
     if (s.trim() === "") continue;
     sp.set(k, s);
   }
+  if (DEV_DOWNLOAD_TOKEN) sp.set("downloadToken", DEV_DOWNLOAD_TOKEN);
   return `${base}?${sp.toString()}`;
 }
 
@@ -178,8 +184,6 @@ export default function ResultPage() {
       buildType,
       preferSmart: preferSmart ? "1" : "0",
       preferQuiet: preferQuiet ? "1" : "0",
-      // 若你有 token 校验，这里保持不传，走你现有逻辑即可
-      // downloadToken: "DEV_MODE_TOKEN",
       tz: "Asia/Shanghai",
     });
   }, [planId, companyName, headcount, participationRate, spaceSqm, budgetTier, buildType, preferSmart, preferQuiet]);
