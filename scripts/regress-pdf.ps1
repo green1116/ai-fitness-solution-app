@@ -195,54 +195,21 @@ try {
     exit 0
   }
 
-  # ====================
-  # PRECHECK (best, non-interactive): curl.exe HEAD /api/pdf (force 127.0.0.1)
-  # ====================
-  # Normalize BaseUrl (KEEP PORT)
-  $base = ($BaseUrl.Trim())
-  if (-not $base) { $base = "http://127.0.0.1:3000" }
-  $base = $base.TrimEnd("/")
-
-  # Replace localhost with 127.0.0.1 but KEEP the port (if any)
+  # --- PRECHECK (lightweight) ---
+  $base = $BaseUrl.Trim().TrimEnd("/")
   $base = $base -replace "^http://localhost(?=[:/]|$)", "http://127.0.0.1"
-  $base = $base -replace "^https://localhost(?=[:/]|$)", "https://127.0.0.1"
+  if ($base -match "^https?://127\.0\.0\.1$") { $base = "$base:3000" }
 
-  # If user passed http://127.0.0.1 (no port), default it to :3000
-  if ($base -match "^https?://127\.0\.0\.1$") { $base = $base + ":3000" }
+  $preUrl = "$base/api/download-token?mode=full&planId=$PlanId"
+  Write-Host ("precheck_url=" + $preUrl)
 
-  $preUrl = "$base/api/pdf?download=1&downloadToken=DEV_MODE_TOKEN&mode=full&planId=$PlanId"
-
-  try {
-    $raw = (& curl.exe --http1.1 -sS -I --max-time 8 "$preUrl") 2>$null
-
-    if ($LASTEXITCODE -ne 0 -or -not $raw) {
-      throw "curl HEAD failed (exit=$LASTEXITCODE)"
-    }
-
-    # curl 输出在 PS 里可能是字符串数组，统一拼成一个字符串
-    $hdr = if ($raw -is [Array]) { ($raw -join "`n") } else { [string]$raw }
-
-    # 取第一行 HTTP/1.1 200
-    $firstLine = ($hdr -split "`n" | Select-Object -First 1).Trim()
-    $status = $null
-    if ($firstLine -match "HTTP/\d\.\d\s+(\d{3})") { $status = [int]$matches[1] }
-
-    if ($status -ne 200) {
-      throw "status=$status firstLine=$firstLine"
-    }
-
-    if (($hdr -notmatch "(?i)\bx-pdf-mode\b") -and ($hdr -notmatch "(?i)\bcontent-type:\s*application/pdf\b")) {
-      throw "missing pdf headers"
-    }
-
-    Write-Host "precheck_ok=API_PDF_HEAD"
-  } catch {
-    $emsg = ""
-    try { $emsg = $_.Exception.Message } catch { $emsg = "" }
-    if (-not $emsg) { $emsg = "$_" }
-
-    throw ("[pre-commit] PRECHECK FAIL: cannot reach " + $preUrl + "`nHint: start dev server first: npm run dev`n" + $emsg)
+  # curl precheck: fast + non-interactive
+  $preOut = & curl.exe --http1.1 -sS -L --max-time 8 "$preUrl"
+  if ($LASTEXITCODE -ne 0 -or -not $preOut) {
+    throw ("[pre-commit] PRECHECK FAIL: cannot reach " + $preUrl + "`n" +
+           "Hint: start dev server first: npm run dev")
   }
+  Write-Host "precheck_ok=API_DOWNLOAD_TOKEN"
 
   # ---------- URLs (token-based: 方案1 全部走 /api/download-token) ----------
   function Get-DownloadToken([string]$mode) {
