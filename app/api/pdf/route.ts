@@ -1,5 +1,5 @@
 // app/api/pdf/route.ts
-console.log("[PDF_ROUTE] ACTIVE: 20260302_TENDER_ENTERPRISE");
+console.log("[PDF_ROUTE] ACTIVE: 20260312_TOKEN_GUARD_UNIFIED");
 
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -17,9 +17,7 @@ import {
 } from "@/lib/pdf/presets";
 import { logPdfDownloadSafe, getReqIp } from "@/lib/audit/pdfLog";
 import { requireAndConsumeDownloadToken } from "@/lib/license";
-import { prisma } from "@/lib/prisma";
-import { jwtVerify } from "jose";
-import crypto, { webcrypto } from "crypto";
+import { webcrypto } from "crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,72 +30,6 @@ function isInternalPack(req: NextRequest) {
 }
 
 type Mode = "preview" | "full" | "budget";
-
-function sha256Hex(s: string) {
-  return crypto.createHash("sha256").update(s).digest("hex");
-}
-
-async function verifyDownloadJwt(token: string) {
-  const secret = (process.env.DOWNLOAD_TOKEN_SECRET || "").trim();
-  if (!secret) throw new Error("TOKEN_SECRET_MISSING");
-
-  const key = new TextEncoder().encode(secret);
-  const { payload } = await jwtVerify(token, key, { algorithms: ["HS256"] });
-  return payload as any;
-}
-
-async function requireAndConsumeToken(opts: {
-  downloadToken: string;
-  planId: string;
-  mode: "full" | "preview" | "budget";
-  fingerprint: string;
-}) {
-  const token = opts.downloadToken.trim();
-  if (!token) throw new Error("MISSING_DOWNLOAD_TOKEN");
-
-  if (token === "DEV_MODE_TOKEN") return;
-
-  const payload = await verifyDownloadJwt(token);
-
-  if (payload.scope !== "pdf_download")
-    throw new Error("BAD_TOKEN_SCOPE");
-
-  if (payload.planId !== opts.planId)
-    throw new Error("TOKEN_PLAN_MISMATCH");
-
-  const tokenHash = sha256Hex(token);
-
-  const row = await prisma.pdfDownloadTokenState.findUnique({
-    where: { tokenHash },
-  });
-
-  if (!row) throw new Error("TOKEN_STATE_NOT_FOUND");
-  if (row.revoked) throw new Error("TOKEN_REVOKED");
-  if (row.expAt.getTime() <= Date.now())
-    throw new Error("TOKEN_EXPIRED");
-
-  await prisma.$transaction(async (tx) => {
-    try {
-      await tx.licenseConsume.create({
-        data: {
-          licenseId: row.id,
-          planId: opts.planId,
-          fingerprint: opts.fingerprint,
-        },
-      });
-
-      if (row.usedCount + 1 > row.maxUses)
-        throw new Error("TOKEN_MAX_USES_EXCEEDED");
-
-      await tx.pdfDownloadTokenState.update({
-        where: { id: row.id },
-        data: { usedCount: { increment: 1 } },
-      });
-    } catch (e: any) {
-      // unique冲突 → 重复下载，不扣
-    }
-  });
-}
 
 function json(status: number, code: string, message: string, extra?: any) {
   return NextResponse.json(
@@ -159,6 +91,42 @@ async function shortSigHex(payload: string) {
   return hex.slice(0, 12);
 }
 
+/**
+ * ✅ 统一下载鉴权（Plan/Budget 共用）
+ * - 缺 token / token 不合法：返回 403（不会变成 500）
+ * - internal/internal-pack：直接放行
+ */
+async function guardDownloadOr403(opts: {
+  req: NextRequest;
+  internal: boolean;
+  downloadToken: string;
+  planId: string;
+  mode: Mode;
+  fingerprint: string;
+}) {
+  const { req, internal, downloadToken, planId, mode, fingerprint } = opts;
+  if (internal) return null;
+
+  const ip = getReqIp(req as any);
+  const ua = req.headers.get("user-agent") || "";
+
+  const c = await requireAndConsumeDownloadToken({
+    downloadToken,
+    planId,
+    mode,
+    fingerprint,
+    ip,
+    ua,
+  });
+
+  if (!c?.ok) {
+    const code = safeStr(c?.code, "TOKEN_MISSING");
+    return json(403, code, `download token rejected: ${code}`, c);
+  }
+
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -173,7 +141,15 @@ export async function GET(req: NextRequest) {
     );
 
     const internal = searchParams.get("internal") === "1" || isInternalPack(req);
-    const downloadToken = (searchParams.get("downloadToken") || "").trim();
+
+    // ✅ 统一支持 token 参数名（浏览器地址栏一般只能用 query/cookie）
+    const downloadToken = safeStr(
+      searchParams.get("downloadToken") ??
+        searchParams.get("token") ??
+        req.headers.get("x-download-token") ??
+        "",
+      ""
+    );
 
     // ---------------- budget ----------------
     if (mode === "budget") {
@@ -192,12 +168,13 @@ export async function GET(req: NextRequest) {
         levelRaw === "brand" ? "saas" : levelRaw
       );
 
-      // ✅ theme（但 enterprise 强制 tender）
+      // ✅ theme（enterprise 强制 tender）
       const themeRaw = parseTheme(searchParams.get("theme"));
-      let resolvedTheme: "brand" | "tender" = themeRaw === "tender" ? "tender" : "brand";
+      let resolvedTheme: "brand" | "tender" =
+        themeRaw === "tender" ? "tender" : "brand";
       if (level === "enterprise") resolvedTheme = "tender";
 
-      // ✅ 由 preset 决定 sections，但 enterprise 强制 5 条款 = 7 页
+      // ✅ 由 preset 决定 sections，但 enterprise 强制条款
       const preset = resolvePreset({ level, theme: resolvedTheme });
       const enterpriseForcedSections = [
         "pricing_terms",
@@ -293,7 +270,8 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(body, { status: 200 });
       }
 
-      if (!internal) {
+      // ✅ budget 鉴权（统一为 guardDownloadOr403）
+      {
         const ip = getReqIp(req as any);
         const ua = req.headers.get("user-agent") || "";
         const fp = [
@@ -303,15 +281,15 @@ export async function GET(req: NextRequest) {
           (ua || "noua").slice(0, 80),
         ].join("|");
 
-        const c = await requireAndConsumeDownloadToken({
+        const deny = await guardDownloadOr403({
+          req,
+          internal,
           downloadToken,
           planId,
           mode: "budget",
           fingerprint: fp,
-          ip,
-          ua,
         });
-        if (!c.ok) return json(403, c.code, `download token rejected: ${c.code}`, c);
+        if (deny) return deny;
       }
 
       const levelHeader = level === "saas" ? "brand" : level;
@@ -330,18 +308,26 @@ export async function GET(req: NextRequest) {
         }
       );
 
-      const pdfLike = out && typeof out === "object" && "pdfBytes" in out ? out.pdfBytes : out;
+      const pdfLike =
+        out && typeof out === "object" && "pdfBytes" in out ? out.pdfBytes : out;
       const bytes = normalizePdfBytes(pdfLike);
 
       if (!bytes || bytes.length < 1000) {
-        return json(500, "BUDGET_RENDER_BAD_RETURN", "budget renderer returned invalid bytes", {
-          outType: typeof out,
-          outKeys: out && typeof out === "object" ? Object.keys(out).slice(0, 30) : undefined,
-          outLen: bytes ? bytes.length : undefined,
-        });
+        return json(
+          500,
+          "BUDGET_RENDER_BAD_RETURN",
+          "budget renderer returned invalid bytes",
+          {
+            outType: typeof out,
+            outKeys:
+              out && typeof out === "object"
+                ? Object.keys(out).slice(0, 30)
+                : undefined,
+            outLen: bytes ? bytes.length : undefined,
+          }
+        );
       }
 
-      // legacy header：saas 对外显示 brand（levelHeader 已在 fingerprint 前定义）
       const fname = `budget-${planId}-${levelHeader}-${reqSig}.pdf`;
 
       // ✅ 日志记录（仅 GET）
@@ -383,7 +369,7 @@ export async function GET(req: NextRequest) {
           "X-ENGINE-FP": BUDGET_ENGINE_FP,
           "X-REQSIG": reqSig,
           "X-BUDGET-LEVEL": levelHeader,
-          "X-TENDER-LEVEL": level,
+          "X-TENDER-LEVEL": String(level),
           "X-THEME": resolvedTheme,
           "X-BUDGET-DOCSEQ": docSeq,
           "X-BUDGET-DEBUG-ROWS": debugRows ? "1" : "0",
@@ -395,7 +381,6 @@ export async function GET(req: NextRequest) {
     }
 
     // ---------------- plan (preview/full) ----------------
-    // ✅ 计划书也计算 reqSig，便于 tender-pack 在预算缺失时回退到 plan 的验真码
     const pdfVersionPlan = safeStr(searchParams.get("pdfVersionPlan"), "PLAN_V1");
     const pvLegacy = safeStr(searchParams.get("pdfVersion"));
     const finalPlanVersion = pvLegacy ? pvLegacy : pdfVersionPlan;
@@ -404,11 +389,14 @@ export async function GET(req: NextRequest) {
     const levelPlan: TenderLevel = parseTenderLevel(
       levelRawPlan === "brand" ? "saas" : levelRawPlan
     );
+
     const themeRawPlan = parseTheme(searchParams.get("theme"));
     const resolvedThemePlan: "brand" | "tender" =
       themeRawPlan === "tender" ? "tender" : "brand";
+
     const watermarkPlan = safeStr(searchParams.get("watermark"), "0");
     const tzPlan = safeStr(searchParams.get("tz"), "Asia/Tokyo");
+    const download = safeStr(searchParams.get("download"), "1");
 
     const sigPayloadPlan = JSON.stringify({
       planId,
@@ -421,30 +409,38 @@ export async function GET(req: NextRequest) {
     });
     const reqSigPlan = await shortSigHex(sigPayloadPlan);
 
-    const fingerprintPlan = sha256Hex(
-      JSON.stringify({
-        route: "/api/pdf",
-        mode,
+    // ✅ plan 鉴权（统一为 guardDownloadOr403）
+    {
+      const ip = getReqIp(req as any);
+      const ua = req.headers.get("user-agent") || "";
+      const fp = [
         planId,
-        pdfVersion: finalPlanVersion,
-        level: levelPlan,
-        theme: resolvedThemePlan,
-        watermark: watermarkPlan,
-        tz: tzPlan,
-      })
-    );
-    if (!internal) {
-      await requireAndConsumeToken({
+        mode,
+        (ip || "noip").split(",")[0].trim(),
+        (ua || "noua").slice(0, 80),
+        finalPlanVersion,
+        String(levelPlan),
+        resolvedThemePlan,
+        watermarkPlan === "1" ? "wm1" : "wm0",
+        tzPlan,
+      ].join("|");
+
+      const deny = await guardDownloadOr403({
+        req,
+        internal,
         downloadToken,
         planId,
         mode,
-        fingerprint: fingerprintPlan,
+        fingerprint: fp,
       });
+      if (deny) return deny;
     }
 
     const planResult = await renderPdf(planId, { mode });
     const bytesPlan =
-      typeof planResult === "object" && planResult !== null && "pdfBytes" in planResult
+      typeof planResult === "object" &&
+      planResult !== null &&
+      "pdfBytes" in planResult
         ? (planResult as any).pdfBytes
         : planResult;
 
@@ -472,17 +468,19 @@ export async function GET(req: NextRequest) {
         ua,
         extra: {
           url: req.url,
+          contentDisposition: download === "1" ? "attachment" : "inline",
           ...(isInternalPack(req) ? { internalPack: true } : {}),
         },
       });
     }
 
+    const fname = `${mode}-${planId}.pdf`;
+
     return new NextResponse(buf, {
       status: 200,
       headers: {
-        "content-type": "application/pdf",
-        "content-disposition": `attachment; filename="${mode}-${planId}.pdf"`,
-        "cache-control": "no-store, max-age=0",
+        "Content-Type": "application/pdf",
+        "Cache-Control": "no-store, max-age=0",
         "X-REQSIG": reqSigPlan,
         "X-PDF-MODE": mode,
         "X-PDF-VERSION": finalPlanVersion,
@@ -490,6 +488,9 @@ export async function GET(req: NextRequest) {
         "X-THEME": resolvedThemePlan,
         "X-WATERMARK": watermarkPlan === "1" ? "1" : "0",
         "X-TZ": tzPlan,
+        ...(download === "1"
+          ? { "Content-Disposition": `attachment; filename="${fname}"` }
+          : { "Content-Disposition": `inline; filename="${fname}"` }),
       },
     });
   } catch (err: any) {
@@ -575,7 +576,8 @@ export async function HEAD(req: NextRequest) {
         : "00";
 
       const pdfVersionBudget = safeStr(
-        (searchParams.get("pdfVersionBudget") || searchParams.get("pdfVersion")) ?? "",
+        (searchParams.get("pdfVersionBudget") || searchParams.get("pdfVersion")) ??
+          "",
         BUDGET_PDF_VERSION
       );
 
@@ -614,13 +616,16 @@ export async function HEAD(req: NextRequest) {
       searchParams.get("pdfVersionPlan") || searchParams.get("pdfVersion"),
       "PLAN_V1"
     );
+
     const levelRawPlan = safeStr(searchParams.get("level"), "").toLowerCase();
     const levelPlan: TenderLevel = parseTenderLevel(
       levelRawPlan === "brand" ? "saas" : levelRawPlan
     );
+
     const themeRawPlan = parseTheme(searchParams.get("theme"));
     const resolvedThemePlan: "brand" | "tender" =
       themeRawPlan === "tender" ? "tender" : "brand";
+
     const watermarkPlan = safeStr(searchParams.get("watermark"), "0");
     const tzPlan = safeStr(searchParams.get("tz"), "Asia/Tokyo");
 
