@@ -6,7 +6,9 @@ param(
   [string]$PlanId = "attaguy-plan",
   [string]$OutDir = ".\_regress",
   [int]$TimeoutSec = 90,
-  [string]$DevDownloadToken = "DEV_MODE_TOKEN"
+  [string]$DevDownloadToken = "DEV_MODE_TOKEN",
+  [string]$DownloadToken = "",
+  [string]$Level = "brand"
 )
 
 if ($env:SKIP_PDF_REGRESS -eq "1") {
@@ -15,6 +17,7 @@ if ($env:SKIP_PDF_REGRESS -eq "1") {
 }
 
 $ErrorActionPreference = "Stop"
+$didDownload = $false
 
 # ---- PRECHECK ----
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -136,6 +139,17 @@ function Print-Block([string]$title) {
   Write-Host "===================="
 }
 
+function Get-ResponseHeaderValue($headers, $key) {
+  foreach ($k in $headers.Keys) {
+    if ($k.ToString().ToLower() -eq $key.ToLower()) { return $headers[$k] }
+  }
+  return $null
+}
+
+function Assert-True($cond, $msg) {
+  if (-not $cond) { throw $msg }
+}
+
 # ---------- report structs ----------
 Ensure-Dir $OutDir
 
@@ -187,13 +201,11 @@ try {
     $r = Invoke-WebRequest -Uri $preUrl -Method Get -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
     $code = [int]$r.StatusCode
   } catch {
-    Write-Host "[pre-commit] PRECHECK skipped: cannot reach $preUrl. Start dev server first (npm run dev)."
-    exit 0
+    throw "[pre-commit] PRECHECK FAIL: cannot reach $preUrl. Start dev server first: npm run dev"
   }
 
   if ($code -ne 200) {
-    Write-Host "[pre-commit] PRECHECK skipped: HTTP=$code url=$preUrl. Fix local env/server then rerun regression."
-    exit 0
+    throw "[pre-commit] PRECHECK FAIL: HTTP=$code url=$preUrl. Fix local env/server then rerun regression."
   }
   # --- end enterprise precheck ---
 
@@ -229,8 +241,9 @@ try {
   # PLAN 用独立的 full token；BUDGET 各用各的 token（不要复用）
   $tokFull = Get-DownloadToken "full"
 
+  $planToken = if ($DownloadToken) { $DownloadToken } else { $tokFull }
   $planUrl = "$BaseUrl/api/pdf?" + (Q @{
-    planId=$PlanId; mode="full"; download="1"; downloadToken=$tokFull
+    planId=$PlanId; mode="full"; download="1"; downloadToken=$planToken
   })
 
   $planFile  = Join-Path $OutDir ("plan_full_{0}.pdf" -f $PlanId)
@@ -251,9 +264,11 @@ try {
   if ($ecG -ne 0) { throw "GET failed: $planUrl" }
   if (!(Test-Path $planFile)) { throw "downloaded file missing after curl: $planFile" }
   Assert-HttpStatus $planHeadFile 200
-  if (-not (Get-HeaderValue $planHeadFile "x-pdf-version")) { throw "missing x-pdf-version (plan)" }
-  if (-not (Get-HeaderValue $planHeadFile "x-reqsig")) { throw "missing x-reqsig (plan)" }
+  if (-not (Get-HeaderValue $planHeadFile "x-pdf-mode")) { throw "missing X-PDF-MODE (plan)" }
+  if (-not (Get-HeaderValue $planHeadFile "x-pdf-version")) { throw "missing X-PDF-VERSION (plan)" }
+  if (-not (Get-HeaderValue $planHeadFile "x-reqsig")) { throw "missing X-REQSIG (plan)" }
   Write-Host "Saved: $planFile"
+  $didDownload = $true
   Pdf-Info $planFile
 
   $planPages = & python -c "from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))" $planFile
@@ -292,6 +307,7 @@ try {
   if (-not (Get-HeaderValue $brandHeadFile "x-pdf-version")) { throw "missing x-pdf-version (budget-brand)" }
   if (-not (Get-HeaderValue $brandHeadFile "x-reqsig")) { throw "missing x-reqsig (budget-brand)" }
   Write-Host "Saved: $brandFile"
+  $didDownload = $true
   Pdf-Info $brandFile
 
   $brandPages = & python -c "from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))" $brandFile
@@ -330,6 +346,7 @@ try {
   if (-not (Get-HeaderValue $entHeadFile "x-pdf-version")) { throw "missing x-pdf-version (budget-ent)" }
   if (-not (Get-HeaderValue $entHeadFile "x-reqsig")) { throw "missing x-reqsig (budget-ent)" }
   Write-Host "Saved: $entFile"
+  $didDownload = $true
   Pdf-Info $entFile
 
   $entPages = & python -c "from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))" $entFile
@@ -368,6 +385,7 @@ try {
   if (-not (Get-HeaderValue $govHeadFile "x-pdf-version")) { throw "missing x-pdf-version (budget-gov)" }
   if (-not (Get-HeaderValue $govHeadFile "x-reqsig")) { throw "missing x-reqsig (budget-gov)" }
   Write-Host "Saved: $govFile"
+  $didDownload = $true
   Pdf-Info $govFile
 
   $govPages = & python -c "from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))" $govFile
@@ -394,7 +412,8 @@ try {
   # ---------- PACK MERGED (main) ----------
   $packMainUrl = "$BaseUrl/api/tender-pack?" + (Q @{
     planId=$PlanId; format="merged"; level="enterprise"; theme="tender"; watermark="0";
-    includeCover="1"; includeDeclaration="1"; packFooter="1"; download="1"; downloadToken=$DevDownloadToken
+    includeCover="1"; includeDeclaration="1"; packFooter="1"; download="1"; downloadToken=$DevDownloadToken;
+    freezeYmd="20260313"; freezeTenderNo="TENDER-attaguy-plan-20260313"
   })
 
   $packMainHdr = Join-Path $OutDir ("pack_merged_{0}.hdr.txt" -f $PlanId)
@@ -419,6 +438,7 @@ try {
 
   if (!(Test-Path $packMainPdf)) { throw "downloaded file missing: $packMainPdf" }
   Write-Host "Saved: $packMainPdf"
+  $didDownload = $true
   Pdf-Info $packMainPdf
 
   Assert-Contains $packMainPdf @("TENDER-", "AI Fitness Solution")
@@ -438,6 +458,64 @@ try {
     url = $packMainUrl
     headers = (Extract-AuditHeaders $packMainHdr)
     hashes = (Pdf-Hashes $packMainPdf)
+  }
+
+  # ---------- BUDGET BRAND (Invoke-WebRequest, expected 2 pages) ----------
+  $CompanyName = "Example Corp"
+  $CompanySize = 200
+  $BudgetTier = "mid"
+  $Tz = "Asia/Tokyo"
+  $budgetToken = if ($DownloadToken) { $DownloadToken } elseif ($DevDownloadToken) { $DevDownloadToken } else { Get-DownloadToken "budget" }
+
+  Write-Host ""
+  Write-Host "===================="
+  Write-Host "BUDGET BRAND (Invoke-WebRequest, expected 2 pages)"
+  Write-Host "===================="
+
+  $bu = "$BaseUrl/api/pdf?download=1" +
+    "&planId=$([uri]::EscapeDataString($PlanId))" +
+    "&mode=budget" +
+    "&level=$([uri]::EscapeDataString($Level))" +
+    "&companyName=$([uri]::EscapeDataString($CompanyName))" +
+    "&companySize=$CompanySize" +
+    "&budgetTier=$BudgetTier" +
+    "&tz=$([uri]::EscapeDataString($Tz))" +
+    "&downloadToken=$([uri]::EscapeDataString($budgetToken))"
+
+  Write-Host "URL: $bu"
+
+  $bh = Invoke-WebRequest -Method Head -Uri $bu -UseBasicParsing -TimeoutSec $TimeoutSec
+  Assert-True ($bh.StatusCode -eq 200) "BUDGET HEAD not 200"
+  Assert-True (Get-ResponseHeaderValue $bh.Headers "X-PDF-MODE") "BUDGET Missing X-PDF-MODE"
+  Assert-True (Get-ResponseHeaderValue $bh.Headers "X-PDF-VERSION") "BUDGET Missing X-PDF-VERSION"
+  Assert-True (Get-ResponseHeaderValue $bh.Headers "X-REQSIG") "BUDGET Missing X-REQSIG"
+
+  $outBudget = Join-Path $OutDir "budget_invoke_${Level}_${PlanId}.pdf"
+  Invoke-WebRequest -Method Get -Uri $bu -OutFile $outBudget -UseBasicParsing -TimeoutSec $TimeoutSec
+  Assert-True (Test-Path $outBudget) "Budget pdf not saved"
+
+  $pagesB = & python -c "from pypdf import PdfReader; import sys; print(len(PdfReader(sys.argv[1]).pages))" $outBudget
+  $pagesB = [int]$pagesB.Trim()
+  Write-Host "Saved: $outBudget"
+  $didDownload = $true
+  Write-Host "pages=$pagesB"
+  Assert-True ($pagesB -eq 2) "Budget pages mismatch: got $pagesB expect 2"
+  Write-Host "assert_ok=BUDGET_INVOKE_PAGES_2"
+
+  $report.cases += @{
+    name = "BUDGET_BRAND_INVOKE"
+    ok = $true
+    pages = [int]$pagesB
+    bytes = [int](Get-Item $outBudget).Length
+    file = $outBudget
+    url = $bu
+    headers = @{
+      status = $bh.StatusCode
+      x_pdf_mode = (Get-ResponseHeaderValue $bh.Headers "X-PDF-MODE")
+      x_pdf_version = (Get-ResponseHeaderValue $bh.Headers "X-PDF-VERSION")
+      x_reqsig = (Get-ResponseHeaderValue $bh.Headers "X-REQSIG")
+    }
+    hashes = (Pdf-Hashes $outBudget)
   }
 
   # ---------- TOKEN QUOTA ----------
@@ -613,8 +691,11 @@ try {
     elseif ($FailOnDiff -and (Test-Path ".\_golden\report.json") -and (-not $diffOk)) {
       Write-Host "CI_GATE=FAIL (DIFF_FAILED)"
     }
-    # 3) else -> PASS
+    # 3) else -> PASS (only if downloads actually ran)
     else {
+      if (-not $didDownload) {
+        throw "REGRESS_FAILED: downloads not executed (didDownload=false)"
+      }
       Write-Host "CI_GATE=PASS"
     }
 
