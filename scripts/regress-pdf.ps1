@@ -16,20 +16,80 @@ function Write-Section($name) {
 function Check-DevServer($url) {
   try {
     $r = curl.exe --http1.1 -s -I --max-time 3 $url
-    if ($LASTEXITCODE -ne 0) {
-      return $false
-    }
-    if ($r -match "200 OK") {
-      return $true
-    }
-    return $false
+    if ($LASTEXITCODE -ne 0) { return $false }
+    return ($r -match "200 OK")
   } catch {
     return $false
   }
 }
 
+function Get-DownloadToken($mode, $planId, $baseUrl) {
+  $url = "$baseUrl/api/download-token?mode=$mode&planId=$planId"
+  Write-Host "token_url=$url"
+
+  $resp = curl.exe --http1.1 -s "$url"
+  if ($LASTEXITCODE -ne 0) {
+    throw "REGRESS_FAILED: token request failed for mode=$mode"
+  }
+
+  try {
+    $obj = $resp | ConvertFrom-Json
+  } catch {
+    Write-Host $resp
+    throw "REGRESS_FAILED: token parse error for mode=$mode"
+  }
+
+  if (-not $obj.downloadToken) {
+    Write-Host $resp
+    throw "REGRESS_FAILED: token missing for mode=$mode"
+  }
+
+  return $obj.downloadToken
+}
+
+function Assert-IsPdf($file) {
+  if (-not (Test-Path $file)) {
+    throw "REGRESS_FAILED: file not found: $file"
+  }
+
+  $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $file))
+  if ($bytes.Length -lt 5) {
+    throw "REGRESS_FAILED: file too small: $file"
+  }
+
+  $header = [System.Text.Encoding]::ASCII.GetString($bytes[0..4])
+  if ($header -ne "%PDF-") {
+    Write-Host ""
+    Write-Host "NON_PDF_RESPONSE_BEGIN"
+    try {
+      Get-Content $file -TotalCount 20
+    } catch {
+      Write-Host "(unable to print file content)"
+    }
+    Write-Host "NON_PDF_RESPONSE_END"
+    throw "REGRESS_FAILED: response is not a PDF: $file"
+  }
+}
+
+function Check-PdfPages($file, $expectedPages, $label) {
+  $py = @"
+from pypdf import PdfReader
+r = PdfReader(r"$file")
+print("pages=", len(r.pages))
+assert len(r.pages) == $expectedPages, f"$label expected $expectedPages pages, got {len(r.pages)}"
+"@
+
+  $tmp = Join-Path "_regress" "_check_pages.py"
+  $py | Out-File $tmp -Encoding utf8
+
+  python $tmp
+  if ($LASTEXITCODE -ne 0) {
+    throw "REGRESS_FAILED: page check failed for $label"
+  }
+}
+
 # -------------------------------------------------------
-# 1 检查 dev server
+# 1 PRECHECK
 # -------------------------------------------------------
 
 $preUrl = "$BaseUrl/api/download-token?mode=full&planId=$PlanId"
@@ -49,76 +109,69 @@ if (-not $serverOk) {
 Write-Host "precheck_ok=API_DOWNLOAD_TOKEN"
 
 # -------------------------------------------------------
-# 2 获取 download token
+# 2 PREPARE OUTPUT
 # -------------------------------------------------------
-
-$tokenResp = curl.exe --http1.1 -s "$preUrl"
-
-try {
-  $tokenObj = $tokenResp | ConvertFrom-Json
-} catch {
-  Write-Host "REGRESS_FAILED: token parse error"
-  exit 1
-}
-
-$token = $tokenObj.downloadToken
-
-if (-not $token) {
-  Write-Host "REGRESS_FAILED: token missing"
-  exit 1
-}
-
-# -------------------------------------------------------
-# 3 PLAN FULL regression
-# -------------------------------------------------------
-
-Write-Section "PLAN FULL (expected 22 pages)"
-
-$planUrl = "$BaseUrl/api/pdf?download=1&downloadToken=$token&mode=full&planId=$PlanId"
-
-Write-Host "URL: $planUrl"
 
 $outDir = "_regress"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-$planFile = "$outDir/plan_full_$PlanId.pdf"
+# -------------------------------------------------------
+# 3 GET TOKENS
+# -------------------------------------------------------
+
+$planToken = Get-DownloadToken "full" $PlanId $BaseUrl
+$budgetToken = Get-DownloadToken "budget" $PlanId $BaseUrl
+
+# -------------------------------------------------------
+# 4 PLAN FULL
+# -------------------------------------------------------
+
+Write-Section "PLAN FULL (expected 22 pages)"
+
+$planUrl = "$BaseUrl/api/pdf?download=1&downloadToken=$planToken&mode=full&planId=$PlanId"
+$planFile = Join-Path $outDir "plan_full_$PlanId.pdf"
+
+Write-Host "URL: $planUrl"
 
 curl.exe --http1.1 -L -o $planFile "$planUrl"
-
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "REGRESS_FAILED: download plan failed"
-  exit 1
+  throw "REGRESS_FAILED: download plan failed"
 }
 
 Write-Host "Saved: $planFile"
+Assert-IsPdf $planFile
+Check-PdfPages $planFile 22 "PLAN FULL"
 
 # -------------------------------------------------------
-# 4 page count check
+# 5 BUDGET
 # -------------------------------------------------------
 
-try {
-  $py = @"
-from pypdf import PdfReader
-r = PdfReader("$planFile")
-print("pages=", len(r.pages))
-"@
+Write-Section "BUDGET PDF (expected 2 pages)"
 
-  $tmp = "$outDir/_check_pages.py"
-  $py | Out-File $tmp -Encoding utf8
+$budgetUrl = "$BaseUrl/api/pdf?download=1&downloadToken=$budgetToken&mode=budget&planId=$PlanId&level=$Level"
+$budgetFile = Join-Path $outDir "budget_$PlanId.pdf"
 
-  python $tmp
-} catch {
-  Write-Host "WARN: page check skipped (python/pypdf missing)"
+Write-Host "URL: $budgetUrl"
+
+curl.exe --http1.1 -L -o $budgetFile "$budgetUrl"
+if ($LASTEXITCODE -ne 0) {
+  throw "REGRESS_FAILED: download budget failed"
 }
 
+Write-Host "Saved: $budgetFile"
+Assert-IsPdf $budgetFile
+Check-PdfPages $budgetFile 2 "BUDGET PDF"
+
 # -------------------------------------------------------
-# 5 summary
+# 6 SUMMARY
 # -------------------------------------------------------
 
 Write-Section "SUMMARY"
 
 Write-Host "PDF regression completed."
-Write-Host "Output directory:"
-Write-Host (Resolve-Path $outDir)
+Write-Host ""
+Write-Host "Generated files:"
+Write-Host (Resolve-Path $planFile)
+Write-Host (Resolve-Path $budgetFile)
 
 exit 0
