@@ -17,8 +17,8 @@ on:
   push:
     branches:
       - main
-      - ci/*
-      - feat/*
+      - "ci/*"
+      - "feat/*"
     paths:
       - "app/api/pdf/**"
       - "app/api/tender-pack/**"
@@ -40,6 +40,15 @@ jobs:
     env:
       CI: "true"
       NODE_ENV: production
+      PORT: "3000"
+      # 按你的仓库实际 secrets 保留/补齐
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      DOWNLOAD_TOKEN_SECRET: ${{ secrets.DOWNLOAD_TOKEN_SECRET }}
+      INTERNAL_PACK_SECRET: ${{ secrets.INTERNAL_PACK_SECRET }}
 
     steps:
       - name: Checkout
@@ -62,21 +71,31 @@ jobs:
       - name: Install Python dependencies
         run: pip install pypdf
 
+      - name: Build app
+        run: npm run build
+
       - name: Start Next.js server
+        shell: bash
         run: |
-          npm run build
-          npm run start &
+          nohup npm run start > .next-start.log 2>&1 &
+          echo $! > .next-start.pid
+          echo "Started Next.js with PID $(cat .next-start.pid)"
 
       - name: Wait for server
+        shell: bash
         run: |
-          for i in {1..60}; do
-            if curl -s http://127.0.0.1:3000/api/download-token?mode=full\&planId=attaguy-plan > /dev/null; then
+          for i in {1..90}; do
+            if curl -sS "http://127.0.0.1:3000/api/download-token?mode=full&planId=attaguy-plan" > /dev/null; then
               echo "Server ready"
               exit 0
             fi
             sleep 2
           done
           echo "Server failed to start"
+          echo "===== .next-start.log ====="
+          if [ -f ".next-start.log" ]; then
+            tail -n 200 .next-start.log
+          fi
           exit 1
 
       - name: Run PDF regression
@@ -84,7 +103,7 @@ jobs:
         run: |
           ./scripts/regress-pdf.ps1 `
             -BaseUrl "http://127.0.0.1:3000" `
-            -DownloadToken "DEV_MODE_TOKEN" `
+            -PlanId "attaguy-plan" `
             -Level "brand"
 
       - name: Upload regression artifacts
@@ -94,22 +113,23 @@ jobs:
           name: pdf-regression-artifacts
           path: |
             _regress/**
-            _golden/report.json
+            _golden/**
             .next-start.log
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Show report summary
+      - name: Show regression outputs
         if: always()
         shell: bash
         run: |
-          echo "===== _regress/report.json ====="
-          if [ -f "_regress/report.json" ]; then
-            head -n 200 _regress/report.json
+          echo "===== _regress ====="
+          if [ -d "_regress" ]; then
+            find _regress -maxdepth 2 -type f | sort
           fi
-          echo "===== _regress/diff.json ====="
-          if [ -f "_regress/diff.json" ]; then
-            head -n 200 _regress/diff.json
+
+          echo "===== .next-start.log ====="
+          if [ -f ".next-start.log" ]; then
+            tail -n 200 .next-start.log
           fi
 
       - name: Stop app
