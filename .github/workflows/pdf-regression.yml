@@ -62,25 +62,21 @@ jobs:
       - name: Install Python dependencies
         run: pip install pypdf
 
-      - name: Build app
-        run: npm run build
-
-      - name: Start app
+      - name: Start Next.js server
         run: |
-          nohup npm run start > .next-start.log 2>&1 &
-          echo $! > .next-start.pid
+          npm run build
+          npm run start &
 
-      - name: Wait for app to be ready
-        shell: bash
+      - name: Wait for server
         run: |
           for i in {1..60}; do
-            if curl -fsS "http://127.0.0.1:3000/api/download-token?mode=full&planId=attaguy-plan" > /dev/null; then
-              echo "App is ready"
+            if curl -s http://127.0.0.1:3000/api/download-token?mode=full\&planId=attaguy-plan > /dev/null; then
+              echo "Server ready"
               exit 0
             fi
             sleep 2
           done
-          echo "App did not become ready in time"
+          echo "Server failed to start"
           exit 1
 
       - name: Run PDF regression
