@@ -1,5 +1,5 @@
 ﻿{
-    "ts":  "2026-03-13T19:15:46.4858054+08:00",
+    "ts":  "2026-03-14T11:22:57.8385025+08:00",
     "ok":  true,
     "baseUrl":  "http://127.0.0.1:3000",
     "failReason":  null,
@@ -8,7 +8,7 @@
                   {
                       "hashes":  {
                                      "pages":  22,
-                                     "sha256_pdf":  "cf6ca9fc1d3036ce0710d79387346b7bdbdf25ea3a4da3fe413910dcbacee115",
+                                     "sha256_pdf":  "2c1adc87cefe74ee1a1279a70d783b42325bc64aa28414e33e77ac7bae455ccb",
                                      "sha256_text":  "64d744061554419824bcb8e84e7e63b3054785d54d09401a5f63354212e2b572",
                                      "page_text_sha256":  [
                                                               "ee69cee11340c329f8afa8d6b959759ddf7394c0c10a3fccb7c441b7d7adc116",
@@ -36,7 +36,7 @@
                                                           ]
                                  },
                       "name":  "PLAN_FULL",
-                      "bytes":  5231371,
+                      "bytes":  5231406,
                       "pages":  22,
                       "ok":  true,
                       "headers":  {
@@ -61,7 +61,7 @@
                   {
                       "hashes":  {
                                      "pages":  2,
-                                     "sha256_pdf":  "63be430d22f97cea03298b918d6d4c912aa08e201b257a34b7bf3a4755cb80d1",
+                                     "sha256_pdf":  "e5ff70b5786f005e8d9469c6c5da8ff41bf3cbec738c668797ae6df5ca1f0552",
                                      "sha256_text":  "aa1fcabe493bc821ed579d5c7341bc1f4bf76a3bc051b1106bab18989628d104",
                                      "page_text_sha256":  [
                                                               "1066dddb209da176cc54b0664b1878b75e9c09771dac534403eb7ef58a7d0fea",
@@ -69,7 +69,7 @@
                                                           ]
                                  },
                       "name":  "BUDGET_BRAND",
-                      "bytes":  31508,
+                      "bytes":  31510,
                       "pages":  2,
                       "ok":  true,
                       "headers":  {
@@ -94,7 +94,7 @@
                   {
                       "hashes":  {
                                      "pages":  7,
-                                     "sha256_pdf":  "3c6599b4385b300fdd3f4979e15e20722e771395dcef66c37140ed01af52b009",
+                                     "sha256_pdf":  "88d530024408c94486c2db1606976efea7b8377e1e1e4553814cd0c90a304ebb",
                                      "sha256_text":  "ca1f4f6da6e7eb2bb1bca008d6b71aa2ab647b5e3485cb098167483f215a106c",
                                      "page_text_sha256":  [
                                                               "cb62f36466e0c4f392f84e9d71e7a917833bbd98fc0351dbd256ef79c9148768",
@@ -107,7 +107,7 @@
                                                           ]
                                  },
                       "name":  "BUDGET_ENTERPRISE",
-                      "bytes":  48146,
+                      "bytes":  48151,
                       "pages":  7,
                       "ok":  true,
                       "headers":  {
@@ -155,11 +155,11 @@
                                        "DOCNO:",
                                        "SIG:"
                                    ],
-                      "bytes":  41319,
+                      "bytes":  41316,
                       "pages":  5,
                       "hashes":  {
                                      "pages":  5,
-                                     "sha256_pdf":  "ad266a931d5116039b759362f2c2f19d757ee41303b788eea74884ce6d37926d",
+                                     "sha256_pdf":  "012c3e56cd488a14a593364acb5ea93b45d057d0362e190bbd007f5ae22f3268",
                                      "sha256_text":  "c1eea61399ac3f05b9f4d74ff5577f7edebbee9780accf2306777854a0d3abc7",
                                      "page_text_sha256":  [
                                                               "af30172d790a0f9d66e9774c59c682b6ed0eeebc4c74b6376983c7eb3b89590a",
@@ -192,16 +192,16 @@
                       "ok":  true,
                       "url":  "http://127.0.0.1:3000/api/tender-pack?download=1\u0026downloadToken=DEV_MODE_TOKEN\u0026format=merged\u0026freezeTenderNo=TENDER-attaguy-plan-20260313\u0026freezeYmd=20260313\u0026includeCover=1\u0026includeDeclaration=1\u0026internal=1\u0026level=enterprise\u0026packFooter=1\u0026planId=attaguy-plan\u0026theme=tender\u0026watermark=0",
                       "name":  "PACK_MERGED",
-                      "bytes":  5523577,
+                      "bytes":  5523277,
                       "pages":  32,
                       "hashes":  {
                                      "pages":  32,
-                                     "sha256_pdf":  "c9e41d10e4dd0c4cfaf6da9bef94ab8939014cac0ab8141b4ada85574ce89601",
-                                     "sha256_text":  "74c1f7da62370e71e9aa80aa4f22356be37bdf794cebe2225a1db6c9eca3fb44",
+                                     "sha256_pdf":  "d47853513b5facd1936d311cd5cf23bc6be59df3cb0ff8571d316de377577a83",
+                                     "sha256_text":  "4e6452ecf1062ab61628162d1145d292bd446e4e7a4f9b13b90c494fa53facbf",
                                      "page_text_sha256":  [
-                                                              "442ec23367d0db538d16850aeb005c9eb6f2c44b809734d42b1e49e7dfad181c",
+                                                              "279b6a34ce0ba2aef8a840a6f507fefb91f5ae30eb42069622945df929f0e0fa",
                                                               "17825b383e72551781901427d4dcf47a1d76a5e394eda076b57e1f9caa3ef458",
-                                                              "38ba24ef80dc7c40dfb0f498fd099b97b842fee0f5697880695ca93d93fcacac",
+                                                              "2c5a5a2fd1ea6f2021003e6e9d6ce9d54df0e9cd950a80a433edb2ed32a1e745",
                                                               "0f3e9e41b7b4fa21c0eb5102e0b8429d1266cc0c3de27ef92c9dac3e3499f06e",
                                                               "9e69ab3c3c3787cd49cd7bcba474e7c93728737a1da07b71e090b70d8c8df530",
                                                               "51cf928a847249729e650e72bc8f9be8dfaa930d0c16f411315c2203d36de6a7",
@@ -245,11 +245,11 @@
                       "ok":  true,
                       "url":  "http://127.0.0.1:3000/api/pdf?download=1\u0026planId=attaguy-plan\u0026mode=budget\u0026level=brand\u0026companyName=Example%20Corp\u0026companySize=200\u0026budgetTier=mid\u0026tz=Asia%2FTokyo\u0026downloadToken=DEV_MODE_TOKEN",
                       "name":  "BUDGET_BRAND_INVOKE",
-                      "bytes":  31401,
+                      "bytes":  31403,
                       "pages":  2,
                       "hashes":  {
                                      "pages":  2,
-                                     "sha256_pdf":  "3d75826d051b1ce7340d3a609f08603312332ac1852e56949d358f724619b1d0",
+                                     "sha256_pdf":  "899321acbebc8f87f7b5854262b546d34c1dfbb3b3f88698ebc036f1248081b3",
                                      "sha256_text":  "723671fa4e3d2c7513f66b34e1fad9480354c86b7591ac99b9f740668ca36a28",
                                      "page_text_sha256":  [
                                                               "919ddb038d034899ad5d0fec1358806814d4fb7ee1e7eda55456414064655e4c",
@@ -300,7 +300,7 @@
                                                 },
                                     "file":  ".\\_regress\\quota_full_1.pdf"
                                 },
-                      "url":  "http://127.0.0.1:3000/api/pdf?downloadToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InBkZl9kb3dubG9hZCIsInBsYW5JZCI6ImF0dGFndXktcGxhbiIsIm1vZGUiOiJmdWxsIiwiaWF0IjoxNzczNDAwODAzLCJleHAiOjE3NzM0MDI2MDN9.gj6-LEF1y1FDb4sWWNUMH7PhOuCznk1BPptoBKhg-CQ\u0026level=enterprise\u0026mode=full\u0026pdfVersionPlan=PLAN_V1\u0026planId=attaguy-plan\u0026theme=tender",
+                      "url":  "http://127.0.0.1:3000/api/pdf?downloadToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InBkZl9kb3dubG9hZCIsInBsYW5JZCI6ImF0dGFndXktcGxhbiIsIm1vZGUiOiJmdWxsIiwiaWF0IjoxNzczNDU4ODU3LCJleHAiOjE3NzM0NjA2NTd9.GYK1ZktL0rQ-9E9clkCAizbEiOPjuFI5DXxj9eRuQN0\u0026level=enterprise\u0026mode=full\u0026pdfVersionPlan=PLAN_V1\u0026planId=attaguy-plan\u0026theme=tender",
                       "headers":  {
                                       "x_tender":  null,
                                       "x_engine_fp":  null,
@@ -362,7 +362,7 @@
                                                 },
                                     "file":  ".\\_regress\\quota_budget_1.pdf"
                                 },
-                      "url":  "http://127.0.0.1:3000/api/pdf?downloadToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InBkZl9kb3dubG9hZCIsInBsYW5JZCI6ImF0dGFndXktcGxhbiIsIm1vZGUiOiJidWRnZXQiLCJpYXQiOjE3NzM0MDA4MTUsImV4cCI6MTc3MzQwMjYxNX0.Vq_M03-bXyagj8NtYIN-6jisLJapgUqCi7VqB-wG-vI\u0026level=enterprise\u0026mode=budget\u0026pdfVersionBudget=BUDGET_V1\u0026planId=attaguy-plan\u0026theme=tender",
+                      "url":  "http://127.0.0.1:3000/api/pdf?downloadToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InBkZl9kb3dubG9hZCIsInBsYW5JZCI6ImF0dGFndXktcGxhbiIsIm1vZGUiOiJidWRnZXQiLCJpYXQiOjE3NzM0NTg4NjksImV4cCI6MTc3MzQ2MDY2OX0.tvX_YaEohUdyQZZytbTI39X1fy5SpsaKSTXT3JNFir4\u0026level=enterprise\u0026mode=budget\u0026pdfVersionBudget=BUDGET_V1\u0026planId=attaguy-plan\u0026theme=tender",
                       "headers":  {
                                       "x_tender":  null,
                                       "x_engine_fp":  null,
@@ -408,7 +408,7 @@
                                     "headers":  {
                                                     "x_tender":  "enterprise",
                                                     "x_engine_fp":  null,
-                                                    "x_tender_no":  "TENDER-attaguy-plan-20260313",
+                                                    "x_tender_no":  "TENDER-attaguy-plan-20260314",
                                                     "x_pack_theme":  null,
                                                     "x_pdf_mode":  null,
                                                     "x_pack_ver":  "MERGED_TENDER_V7_REVIEWSTYLE_TOC",
@@ -424,7 +424,7 @@
                                                 },
                                     "file":  ".\\_regress\\quota_pack_1.pdf"
                                 },
-                      "url":  "http://127.0.0.1:3000/api/tender-pack?downloadToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InBkZl9kb3dubG9hZCIsInBsYW5JZCI6ImF0dGFndXktcGxhbiIsIm1vZGUiOiJwYWNrIiwiaWF0IjoxNzczNDAwODI5LCJleHAiOjE3NzM0MDI2Mjl9.G0tk9hCJFaLg5DIgRSm63WcmQZ67zS-QlppJdkmtJLs\u0026format=merged\u0026level=enterprise\u0026planId=attaguy-plan\u0026theme=tender",
+                      "url":  "http://127.0.0.1:3000/api/tender-pack?downloadToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InBkZl9kb3dubG9hZCIsInBsYW5JZCI6ImF0dGFndXktcGxhbiIsIm1vZGUiOiJwYWNrIiwiaWF0IjoxNzczNDU4ODgwLCJleHAiOjE3NzM0NjA2ODB9.4iNC7qpXfo60huNlXH31unBxdaOHukj0Fj6V1cGL2Rg\u0026format=merged\u0026level=enterprise\u0026planId=attaguy-plan\u0026theme=tender",
                       "headers":  {
                                       "x_tender":  null,
                                       "x_engine_fp":  null,

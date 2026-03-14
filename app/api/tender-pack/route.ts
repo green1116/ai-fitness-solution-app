@@ -80,6 +80,18 @@ function ymdHumanTokyo() {
   return `${y}年${m}月${d}日`;
 }
 
+function resolvePackDateYmd(freezeYmd?: string) {
+  return freezeYmd && freezeYmd.trim() ? freezeYmd.trim() : ymdTokyo();
+}
+
+function resolvePackDateHuman(freezeYmd?: string) {
+  const ymd = resolvePackDateYmd(freezeYmd);
+  if (/^\d{8}$/.test(ymd)) {
+    return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
+  }
+  return ymdHumanTokyo();
+}
+
 function parseBool01(v: string | null, fallback: boolean) {
   const s = (v ?? "").trim();
   if (!s) return fallback;
@@ -418,6 +430,7 @@ async function buildCoverAndTocPdfV7(opts: {
   tz: string;
   level: TenderLevel;
   tenderNo: string;
+  freezeYmd?: string;
 
   pdfVersionPlan: string;
   pdfVersionBudget: string;
@@ -439,6 +452,7 @@ async function buildCoverAndTocPdfV7(opts: {
     tz,
     level,
     tenderNo,
+    freezeYmd,
     pdfVersionPlan,
     pdfVersionBudget,
     planPages,
@@ -459,8 +473,8 @@ async function buildCoverAndTocPdfV7(opts: {
   const LOGO_TOP_Y = A4_H - 70;
   const LOGO_MAX_W = 150;
 
-  const dateYMD = ymdTokyo();
-  const dateHuman = ymdHumanTokyo();
+  const dateYMD = resolvePackDateYmd(freezeYmd);
+  const dateHuman = resolvePackDateHuman(freezeYmd);
 
   // -------- 封面页 --------
   const cover = doc.addPage([A4_W, A4_H]);
@@ -735,6 +749,7 @@ async function buildDeclarationPdf(opts: {
   companyName: string;
   bidderName: string;
   tenderNo: string;
+  freezeYmd?: string;
   pdfVersionPlan: string;
   pdfVersionBudget: string;
   planPages: number;
@@ -745,6 +760,7 @@ async function buildDeclarationPdf(opts: {
     companyName,
     bidderName,
     tenderNo,
+    freezeYmd,
     pdfVersionPlan,
     pdfVersionBudget,
     planPages,
@@ -762,7 +778,7 @@ async function buildDeclarationPdf(opts: {
   const LOGO_TOP_Y = A4_H - 70;
   const LOGO_MAX_W = 150;
 
-  const dateHuman = ymdHumanTokyo();
+  const dateHuman = resolvePackDateHuman(freezeYmd);
 
   const page = doc.addPage([A4_W, A4_H]);
 
@@ -969,7 +985,7 @@ export async function GET(req: NextRequest) {
 
     const origin = url.origin;
 
-    const date = freezeYmd || ymdTokyo();
+    const date = resolvePackDateYmd(freezeYmd);
     const tenderNo =
       freezeTenderNo || `TENDER-${asciiSafeFilename(planId)}-${date}`;
 
@@ -1124,6 +1140,7 @@ export async function GET(req: NextRequest) {
           tz,
           level,
           tenderNo,
+          freezeYmd,
           pdfVersionPlan,
           pdfVersionBudget,
           planPages,
@@ -1142,6 +1159,7 @@ export async function GET(req: NextRequest) {
           companyName: companyName || planId,
           bidderName,
           tenderNo,
+          freezeYmd,
           pdfVersionPlan,
           pdfVersionBudget,
           planPages,
@@ -1241,6 +1259,7 @@ export async function GET(req: NextRequest) {
         tz,
         level,
         tenderNo,
+        freezeYmd,
         pdfVersionPlan,
         pdfVersionBudget,
         planPages,
@@ -1262,6 +1281,7 @@ export async function GET(req: NextRequest) {
         companyName: companyName || planId,
         bidderName,
         tenderNo,
+        freezeYmd,
         pdfVersionPlan,
         pdfVersionBudget,
         planPages,
@@ -1398,7 +1418,7 @@ export async function HEAD(req: NextRequest) {
     const freezeYmd = internal ? normFreezeYmd(freezeYmdRaw) : "";
     const freezeTenderNo = internal ? normFreezeTenderNo(freezeTenderNoRaw) : "";
 
-    const date = freezeYmd || ymdTokyo();
+    const date = resolvePackDateYmd(freezeYmd);
     const tenderNo =
       freezeTenderNo || `TENDER-${asciiSafeFilename(planId)}-${date}`;
 
