@@ -1,4 +1,4 @@
-﻿import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,7 +68,7 @@ export default async function PdfLogsPage({
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-sm text-white/70">
               褰撳墠杩囨护锛歿" "}
-              <span className="text-white/90">{planId ? planId : "锛堟棤锛?}</span>
+              <span className="text-white/90">{planId ? planId : "点击查看日志"}</span>
             </div>
           </div>
         )}
