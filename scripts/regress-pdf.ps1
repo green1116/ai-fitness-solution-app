@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$BaseUrl = "http://127.0.0.1:3000",
   [string]$PlanId = "attaguy-plan",
   [string]$Level = "brand"
@@ -75,8 +75,9 @@ function Check-PdfPages($file, $expectedPages, $label) {
   $py = @"
 from pypdf import PdfReader
 r = PdfReader(r"$file")
-print("pages=", len(r.pages))
-assert len(r.pages) == $expectedPages, f"$label expected $expectedPages pages, got {len(r.pages)}"
+n = len(r.pages)
+print("pages=", n)
+assert n == $expectedPages, f"$label expected $expectedPages pages, got {n}"
 "@
 
   $tmp = Join-Path "_regress" "_check_pages.py"
@@ -85,6 +86,51 @@ assert len(r.pages) == $expectedPages, f"$label expected $expectedPages pages, g
   python $tmp
   if ($LASTEXITCODE -ne 0) {
     throw "REGRESS_FAILED: page check failed for $label"
+  }
+}
+
+function Download-WithHeaders($url, $outFile, $headerFile, $label) {
+  curl.exe --http1.1 -s -D $headerFile -o $outFile "$url"
+  if ($LASTEXITCODE -ne 0) {
+    throw "REGRESS_FAILED: download failed for $label"
+  }
+
+  if (-not (Test-Path $headerFile)) {
+    throw "REGRESS_FAILED: header file missing for $label"
+  }
+
+  return Get-Content $headerFile -Raw
+}
+
+function Normalize-HeadText($headText) {
+  if ($null -eq $headText) { return "" }
+  if ($headText -is [System.Array]) {
+    return (($headText | ForEach-Object { "$_" }) -join "`n")
+  }
+  return [string]$headText
+}
+
+function Assert-HeaderContains($headText, $needle, $label) {
+  $text = (Normalize-HeadText $headText).ToLowerInvariant()
+  $want = $needle.ToLowerInvariant()
+
+  if (-not $text.Contains($want)) {
+    Write-Host ""
+    Write-Host "HEADER_DUMP_BEGIN"
+    Write-Host $text
+    Write-Host "HEADER_DUMP_END"
+    throw "REGRESS_FAILED: missing header [$needle] for $label"
+  }
+}
+
+function Print-ImportantHeaders($headText) {
+  $text = Normalize-HeadText $headText
+  $lines = $text -split "`r?`n"
+  foreach ($line in $lines) {
+    $trimmed = $line.Trim()
+    if ($trimmed -match '^(content-type|x-pdf-version|x-reqsig|x-pdf-mode|x-tender-level|x-theme|x-watermark)\s*:') {
+      Write-Host $trimmed
+    }
   }
 }
 
@@ -130,13 +176,15 @@ Write-Section "PLAN FULL (expected 22 pages)"
 
 $planUrl = "$BaseUrl/api/pdf?download=1&downloadToken=$planToken&mode=full&planId=$PlanId"
 $planFile = Join-Path $outDir "plan_full_$PlanId.pdf"
+$planHeaderFile = Join-Path $outDir "plan_full_$PlanId.headers.txt"
 
 Write-Host "URL: $planUrl"
 
-curl.exe --http1.1 -L -o $planFile "$planUrl"
-if ($LASTEXITCODE -ne 0) {
-  throw "REGRESS_FAILED: download plan failed"
-}
+$planHead = Download-WithHeaders $planUrl $planFile $planHeaderFile "PLAN FULL"
+Print-ImportantHeaders $planHead
+Assert-HeaderContains $planHead "content-type: application/pdf" "PLAN FULL"
+Assert-HeaderContains $planHead "x-pdf-version:" "PLAN FULL"
+Assert-HeaderContains $planHead "x-reqsig:" "PLAN FULL"
 
 Write-Host "Saved: $planFile"
 Assert-IsPdf $planFile
@@ -150,13 +198,15 @@ Write-Section "BUDGET PDF (expected 2 pages)"
 
 $budgetUrl = "$BaseUrl/api/pdf?download=1&downloadToken=$budgetToken&mode=budget&planId=$PlanId&level=$Level"
 $budgetFile = Join-Path $outDir "budget_$PlanId.pdf"
+$budgetHeaderFile = Join-Path $outDir "budget_$PlanId.headers.txt"
 
 Write-Host "URL: $budgetUrl"
 
-curl.exe --http1.1 -L -o $budgetFile "$budgetUrl"
-if ($LASTEXITCODE -ne 0) {
-  throw "REGRESS_FAILED: download budget failed"
-}
+$budgetHead = Download-WithHeaders $budgetUrl $budgetFile $budgetHeaderFile "BUDGET PDF"
+Print-ImportantHeaders $budgetHead
+Assert-HeaderContains $budgetHead "content-type: application/pdf" "BUDGET PDF"
+Assert-HeaderContains $budgetHead "x-pdf-version:" "BUDGET PDF"
+Assert-HeaderContains $budgetHead "x-reqsig:" "BUDGET PDF"
 
 Write-Host "Saved: $budgetFile"
 Assert-IsPdf $budgetFile
