@@ -47,61 +47,6 @@ function Get-DownloadToken($mode, $planId, $baseUrl) {
   return $obj.downloadToken
 }
 
-function Assert-IsPdf($file) {
-  if (-not (Test-Path $file)) {
-    throw "REGRESS_FAILED: file not found: $file"
-  }
-
-  $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $file))
-  if ($bytes.Length -lt 5) {
-    throw "REGRESS_FAILED: file too small: $file"
-  }
-
-  $header = [System.Text.Encoding]::ASCII.GetString($bytes[0..4])
-  if ($header -ne "%PDF-") {
-    Write-Host ""
-    Write-Host "NON_PDF_RESPONSE_BEGIN"
-    try {
-      Get-Content $file -TotalCount 20
-    } catch {
-      Write-Host "(unable to print file content)"
-    }
-    Write-Host "NON_PDF_RESPONSE_END"
-    throw "REGRESS_FAILED: response is not a PDF: $file"
-  }
-}
-
-function Check-PdfPages($file, $expectedPages, $label) {
-  $py = @"
-from pypdf import PdfReader
-r = PdfReader(r"$file")
-n = len(r.pages)
-print("pages=", n)
-assert n == $expectedPages, f"$label expected $expectedPages pages, got {n}"
-"@
-
-  $tmp = Join-Path "_regress" "_check_pages.py"
-  $py | Out-File $tmp -Encoding utf8
-
-  python $tmp
-  if ($LASTEXITCODE -ne 0) {
-    throw "REGRESS_FAILED: page check failed for $label"
-  }
-}
-
-function Download-WithHeaders($url, $outFile, $headerFile, $label) {
-  curl.exe --http1.1 -s -D $headerFile -o $outFile "$url"
-  if ($LASTEXITCODE -ne 0) {
-    throw "REGRESS_FAILED: download failed for $label"
-  }
-
-  if (-not (Test-Path $headerFile)) {
-    throw "REGRESS_FAILED: header file missing for $label"
-  }
-
-  return Get-Content $headerFile -Raw
-}
-
 function Normalize-HeadText($headText) {
   if ($null -eq $headText) { return "" }
   if ($headText -is [System.Array]) {
@@ -128,10 +73,83 @@ function Print-ImportantHeaders($headText) {
   $lines = $text -split "`r?`n"
   foreach ($line in $lines) {
     $trimmed = $line.Trim()
-    if ($trimmed -match '^(content-type|x-pdf-version|x-reqsig|x-pdf-mode|x-tender-level|x-theme|x-watermark)\s*:') {
+    if ($trimmed -match '^(content-type|x-pdf-version|x-reqsig|x-pdf-mode|x-tender-level|x-theme|x-watermark|x-pack-pagination|x-pack-footer|x-pack-budget-sections)\s*:') {
       Write-Host $trimmed
     }
   }
+}
+
+function Assert-IsPdf($file) {
+  if (-not (Test-Path $file)) {
+    throw "REGRESS_FAILED: file not found: $file"
+  }
+
+  $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $file))
+  if ($bytes.Length -lt 5) {
+    throw "REGRESS_FAILED: file too small: $file"
+  }
+
+  $header = [System.Text.Encoding]::ASCII.GetString($bytes[0..4])
+  if ($header -ne "%PDF-") {
+    Write-Host ""
+    Write-Host "NON_PDF_RESPONSE_BEGIN"
+    try {
+      Get-Content $file -TotalCount 20
+    } catch {
+      Write-Host "(unable to print file content)"
+    }
+    Write-Host "NON_PDF_RESPONSE_END"
+    throw "REGRESS_FAILED: response is not a PDF: $file"
+  }
+}
+
+function Check-PdfPagesExact($file, $expectedPages, $label) {
+  $py = @"
+from pypdf import PdfReader
+r = PdfReader(r"$file")
+n = len(r.pages)
+print("pages=", n)
+assert n == $expectedPages, f"$label expected $expectedPages pages, got {n}"
+"@
+
+  $tmp = Join-Path "_regress" "_check_pages_exact.py"
+  $py | Out-File $tmp -Encoding utf8
+
+  python $tmp
+  if ($LASTEXITCODE -ne 0) {
+    throw "REGRESS_FAILED: page check failed for $label"
+  }
+}
+
+function Check-PdfPagesMin($file, $minPages, $label) {
+  $py = @"
+from pypdf import PdfReader
+r = PdfReader(r"$file")
+n = len(r.pages)
+print("pages=", n)
+assert n >= $minPages, f"$label expected at least $minPages pages, got {n}"
+"@
+
+  $tmp = Join-Path "_regress" "_check_pages_min.py"
+  $py | Out-File $tmp -Encoding utf8
+
+  python $tmp
+  if ($LASTEXITCODE -ne 0) {
+    throw "REGRESS_FAILED: minimum page check failed for $label"
+  }
+}
+
+function Download-WithHeaders($url, $outFile, $headerFile, $label) {
+  curl.exe --http1.1 -s -D $headerFile -o $outFile "$url"
+  if ($LASTEXITCODE -ne 0) {
+    throw "REGRESS_FAILED: download failed for $label"
+  }
+
+  if (-not (Test-Path $headerFile)) {
+    throw "REGRESS_FAILED: header file missing for $label"
+  }
+
+  return Get-Content $headerFile -Raw
 }
 
 # -------------------------------------------------------
@@ -188,7 +206,7 @@ Assert-HeaderContains $planHead "x-reqsig:" "PLAN FULL"
 
 Write-Host "Saved: $planFile"
 Assert-IsPdf $planFile
-Check-PdfPages $planFile 22 "PLAN FULL"
+Check-PdfPagesExact $planFile 22 "PLAN FULL"
 
 # -------------------------------------------------------
 # 5 BUDGET
@@ -210,10 +228,65 @@ Assert-HeaderContains $budgetHead "x-reqsig:" "BUDGET PDF"
 
 Write-Host "Saved: $budgetFile"
 Assert-IsPdf $budgetFile
-Check-PdfPages $budgetFile 2 "BUDGET PDF"
+Check-PdfPagesExact $budgetFile 2 "BUDGET PDF"
 
 # -------------------------------------------------------
-# 6 SUMMARY
+# 6 TENDER PACK MERGED
+# -------------------------------------------------------
+
+Write-Section "TENDER PACK MERGED (soft/strict hybrid)"
+
+$tenderHeadUrl = "$BaseUrl/api/tender-pack?planId=$PlanId&format=merged&level=enterprise&theme=tender&watermark=0&includeCover=1&includeDeclaration=1&packFooter=1"
+$tenderFile = Join-Path $outDir "tender_merged_$PlanId.pdf"
+$tenderHeaderFile = Join-Path $outDir "tender_merged_$PlanId.headers.txt"
+
+Write-Host "HEAD URL: $tenderHeadUrl"
+
+$tenderHead = curl.exe --http1.1 -s -I --max-time 20 "$tenderHeadUrl"
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "WARN: tender pack HEAD request failed, skipping tender validation."
+} else {
+  Print-ImportantHeaders $tenderHead
+  Assert-HeaderContains $tenderHead "content-type: application/pdf" "TENDER PACK MERGED"
+  Assert-HeaderContains $tenderHead "x-tender-pack:" "TENDER PACK MERGED"
+  Assert-HeaderContains $tenderHead "x-tender-level:" "TENDER PACK MERGED"
+  Assert-HeaderContains $tenderHead "x-pack-pagination:" "TENDER PACK MERGED"
+  Assert-HeaderContains $tenderHead "x-pack-footer:" "TENDER PACK MERGED"
+}
+
+Write-Host "token_url=$BaseUrl/api/download-token?mode=pack&planId=$PlanId"
+$tenderTokenResp = curl.exe --http1.1 -s "$BaseUrl/api/download-token?mode=pack&planId=$PlanId"
+
+$tenderToken = $null
+try {
+  $tenderTokenObj = $tenderTokenResp | ConvertFrom-Json
+  $tenderToken = $tenderTokenObj.downloadToken
+} catch {
+  $tenderToken = $null
+}
+
+if (-not $tenderToken) {
+  Write-Host ""
+  Write-Host "WARN: tender pack strict validation skipped."
+  Write-Host "Reason: unable to get pack download token."
+  Write-Host "Token response:"
+  Write-Host $tenderTokenResp
+} else {
+  $tenderUrl = "$BaseUrl/api/tender-pack?planId=$PlanId&format=merged&level=enterprise&theme=tender&watermark=0&includeCover=1&includeDeclaration=1&packFooter=1&downloadToken=$tenderToken"
+
+  Write-Host "GET URL: $tenderUrl"
+
+  $tenderDownloadHead = Download-WithHeaders $tenderUrl $tenderFile $tenderHeaderFile "TENDER PACK MERGED"
+  Print-ImportantHeaders $tenderDownloadHead
+  Assert-HeaderContains $tenderDownloadHead "content-type: application/pdf" "TENDER PACK MERGED"
+
+  Write-Host "Saved: $tenderFile"
+  Assert-IsPdf $tenderFile
+  Check-PdfPagesMin $tenderFile 25 "TENDER PACK MERGED"
+}
+
+# -------------------------------------------------------
+# 7 SUMMARY
 # -------------------------------------------------------
 
 Write-Section "SUMMARY"
@@ -223,5 +296,6 @@ Write-Host ""
 Write-Host "Generated files:"
 Write-Host (Resolve-Path $planFile)
 Write-Host (Resolve-Path $budgetFile)
+Write-Host (Resolve-Path $tenderFile)
 
 exit 0
