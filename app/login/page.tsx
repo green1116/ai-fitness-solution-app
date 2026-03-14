@@ -1,231 +1,267 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+type Step = "phone" | "code";
 
 export default function LoginPage() {
   const router = useRouter();
-  const sp = useSearchParams();
-  const returnTo = sp.get("returnTo") || "/result";
 
-  const [step, setStep] = useState<"email" | "code">("email");
-  const [email, setEmail] = useState("");
+  const [step, setStep] = useState<Step>("phone");
+  const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
-  const [msg, setMsg] = useState<string>("");
-  const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
   const [cooldown, setCooldown] = useState(0);
 
-  async function requestCode() {
-    setMsg("");
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((v) => (v > 0 ? v - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  async function sendCode() {
+    if (!phone.trim()) {
+      alert("请输入手机号");
+      return;
+    }
+
     setLoading(true);
+    setMsg("");
+
     try {
-      const r = await fetch("/api/auth/email/request", {
+      const r = await fetch("/api/auth/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ phone: phone.trim() }),
       });
+
+      const j = await r.json().catch(() => ({}));
+
+      if (!r.ok) {
+        throw new Error(j?.error || "发送验证码失败");
+      }
+
+      setStep("code");
+      setMsg("验证码已发送，请查看您的短信");
+      setCooldown(60);
+    } catch (err: any) {
+      alert(err?.message || "发送验证码失败，请稍后重试");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!phone.trim()) {
+      alert("请输入手机号");
+      return;
+    }
+
+    if (!code.trim()) {
+      alert("请输入验证码");
+      return;
+    }
+
+    setLoading(true);
+    setMsg("");
+
+    try {
+      const r = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: phone.trim(),
+          code: code.trim(),
+        }),
+      });
+
       const j = await r.json().catch(() => ({}));
 
       if (!r.ok) {
         throw new Error(j?.error || "登录失败");
       }
 
-      setStep("code");
-      setMsg("验证码已发送，请查看您的短信");
-
-      // 60绉掑€掕鏃?
-      setCooldown(60);
-      const t = setInterval(() => {
-        setCooldown((c) => {
-          if (c <= 1) {
-            clearInterval(t);
-            return 0;
-          }
-          return c - 1;
-        });
-      }, 1000);
-    } catch (e: any) {
-      setMsg(e?.message || "发送失败");
+      setMsg("登录成功，正在跳转...");
+      router.push("/dashboard");
+    } catch (err: any) {
+      alert(err?.message || "登录失败，请稍后重试");
     } finally {
       setLoading(false);
     }
   }
 
-  async function verifyCode() {
-    try {
-      setError("");
-
-      const r = await fetch("/api/auth/email/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          code,
-        }),
-        cache: "no-store",
-      });
-
-      const data = await r.json().catch(() => ({}));
-
-      console.log("[verify] status=", r.status, "data=", data); // 鉁?鍏抽敭锛氭墦鍗版湇鍔＄杩斿洖
-
-      if (!r.ok) {
-        // 鉁?鎶婂悗绔繑鍥炵殑 stage/message 鏄剧ず鍑烘潵
-        setError(data?.message || data?.msg || `楠岃瘉澶辫触锛?{data?.stage || "unknown"}锛塦);
-        return;
-      }
-
-      // 鎴愬姛锛氬洖璺?
-      const returnTo = new URLSearchParams(location.search).get("returnTo");
-      location.href = returnTo ? decodeURIComponent(returnTo) : "/result";
-    } catch (e: any) {
-      console.error("[verify] exception", e);
-      setError(e?.message || "楠岃瘉澶辫触");
-    }
-  }
-
   return (
-    <div style={{ maxWidth: 420, margin: "60px auto", padding: 16 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 10 }}>鐧诲綍</h1>
-      <p className="text-sm text-gray-500" style={{ marginBottom: 18 }}>
-        鐧诲綍鍚庡皢杩斿洖涓婁竴椤?
-      </p>
-
-      {step === "email" && (
-        <>
-          <label style={{ display: "block", marginBottom: 8 }}>閭</label>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@company.com"
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: "1px solid #ddd",
-              borderRadius: 10,
-              marginBottom: 12,
-            }}
-          />
-
-          <button
-            onClick={requestCode}
-            disabled={loading || !email}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "1px solid #111",
-              background: loading ? "#eee" : "#111",
-              color: loading ? "#666" : "#fff",
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
-          >
-            {loading ? "鍙戦€佷腑..." : "鍙戦€侀獙璇佺爜"}
-          </button>
-        </>
-      )}
-
-      {step === "code" && (
-        <>
-          <div style={{ marginBottom: 10, color: "#666" }}>
-            宸插彂閫佸埌锛?b>{email}</b>
-          </div>
-
-          <label style={{ display: "block", marginBottom: 8 }}>楠岃瘉鐮?/label>
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="6浣嶆暟瀛?
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: "1px solid #ddd",
-              borderRadius: 10,
-              marginBottom: 12,
-            }}
-          />
-
-          <button
-            onClick={verifyCode}
-            disabled={loading || code.length < 6}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "1px solid #111",
-              background: loading ? "#eee" : "#111",
-              color: loading ? "#666" : "#fff",
-              cursor: loading ? "not-allowed" : "pointer",
-              marginBottom: 10,
-            }}
-          >
-            {loading ? "楠岃瘉涓?.." : "鐧诲綍"}
-          </button>
-
-          <button
-            onClick={async () => {
-              setError("");
-              setLoading(true);
-              try {
-                const r = await fetch("/api/auth/email/send", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email }),
-                });
-                const j = await r.json().catch(() => ({}));
-                if (!r.ok) throw new Error(j?.message || j?.msg || "登录失败");
-
-                setMsg("验证码已发送，请查看您的短信");
-
-                // 60绉掑€掕鏃?
-                setCooldown(60);
-                const t = setInterval(() => {
-                  setCooldown((c) => {
-                    if (c <= 1) {
-                      clearInterval(t);
-                      return 0;
-                    }
-                    return c - 1;
-                  });
-                }, 1000);
-              } catch (e: any) {
-                setError(e?.message || "鍙戦€佸け璐?);
-              } finally {
-                setLoading(false);
-              }
-            }}
-            disabled={loading || cooldown > 0}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "1px solid #ddd",
-              background: "#fff",
-              cursor: loading || cooldown > 0 ? "not-allowed" : "pointer",
-            }}
-          >
-            {cooldown > 0 ? `閲嶆柊鍙戦€侊紙${cooldown}s锛塦 : "閲嶅彂楠岃瘉鐮?}
-          </button>
-        </>
-      )}
-
-      {(msg || error) && (
-        <div
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f5f7fb",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 420,
+          background: "#fff",
+          borderRadius: 16,
+          padding: 24,
+          boxShadow: "0 12px 36px rgba(15, 23, 42, 0.08)",
+        }}
+      >
+        <h1
           style={{
-            marginTop: 14,
-            padding: 10,
-            borderRadius: 10,
-            background: error ? "#fee" : "#f6f6f6",
-            border: `1px solid ${error ? "#fcc" : "#eee"}`,
-            color: error ? "#c33" : "#333",
-            whiteSpace: "pre-wrap",
+            margin: 0,
+            fontSize: 28,
+            fontWeight: 700,
+            color: "#111827",
           }}
         >
-          {error || msg}
-        </div>
-      )}
+          登录
+        </h1>
+
+        <p
+          style={{
+            marginTop: 8,
+            marginBottom: 20,
+            color: "#6b7280",
+            fontSize: 14,
+            lineHeight: 1.6,
+          }}
+        >
+          请输入手机号并完成验证码验证。
+        </p>
+
+        <form onSubmit={submitLogin}>
+          <label
+            htmlFor="phone"
+            style={{
+              display: "block",
+              fontSize: 14,
+              fontWeight: 600,
+              color: "#374151",
+              marginBottom: 8,
+            }}
+          >
+            手机号
+          </label>
+          <input
+            id="phone"
+            type="text"
+            inputMode="numeric"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="请输入手机号"
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              border: "1px solid #d1d5db",
+              borderRadius: 10,
+              fontSize: 14,
+              outline: "none",
+              boxSizing: "border-box",
+              marginBottom: 16,
+            }}
+          />
+
+          {step === "code" && (
+            <>
+              <label
+                htmlFor="code"
+                style={{
+                  display: "block",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "#374151",
+                  marginBottom: 8,
+                }}
+              >
+                验证码
+              </label>
+              <input
+                id="code"
+                type="text"
+                inputMode="numeric"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="请输入验证码"
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 10,
+                  fontSize: 14,
+                  outline: "none",
+                  boxSizing: "border-box",
+                  marginBottom: 16,
+                }}
+              />
+            </>
+          )}
+
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              type="button"
+              onClick={sendCode}
+              disabled={loading || cooldown > 0}
+              style={{
+                flex: 1,
+                height: 44,
+                border: "none",
+                borderRadius: 10,
+                background: "#2563eb",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: loading || cooldown > 0 ? "not-allowed" : "pointer",
+                opacity: loading || cooldown > 0 ? 0.6 : 1,
+              }}
+            >
+              {cooldown > 0 ? `验证码已发送，请 ${cooldown}s 后重试` : "获取验证码"}
+            </button>
+
+            <button
+              type="submit"
+              disabled={loading || step !== "code"}
+              style={{
+                flex: 1,
+                height: 44,
+                border: "none",
+                borderRadius: 10,
+                background: "#111827",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: loading || step !== "code" ? "not-allowed" : "pointer",
+                opacity: loading || step !== "code" ? 0.6 : 1,
+              }}
+            >
+              {loading ? "处理中..." : "登录"}
+            </button>
+          </div>
+        </form>
+
+        {msg ? (
+          <div
+            style={{
+              marginTop: 16,
+              fontSize: 13,
+              color: "#2563eb",
+              lineHeight: 1.6,
+            }}
+          >
+            {msg}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
-
