@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 
@@ -11,7 +11,7 @@ export default function RevokeToken() {
 
   async function submit() {
     if (!token.trim()) {
-      setMsg("请先粘贴 token");
+      setMsg("璇峰厛绮樿创 token");
       return;
     }
     setLoading(true);
@@ -30,13 +30,13 @@ export default function RevokeToken() {
 
       const data = await res.json();
       if (!res.ok) {
-        setMsg(data?.message || "撤销失败");
+        setMsg(data?.message || "鎾ら攢澶辫触");
       } else {
-        setMsg("�?Token 已成功撤销");
+        setMsg("鉁?Token 宸叉垚鍔熸挙閿€");
         setToken("");
       }
     } catch (e: any) {
-      setMsg(e?.message || "网络错误");
+      setMsg(e?.message || "缃戠粶閿欒");
     } finally {
       setLoading(false);
     }
@@ -44,33 +44,33 @@ export default function RevokeToken() {
 
   return (
     <div style={{ border: "1px solid #e5e5e5", padding: 16, borderRadius: 8, marginBottom: 24 }}>
-      <h3 style={{ fontWeight: 600, marginBottom: 8 }}>吊销下载 Token</h3>
+      <h3 style={{ fontWeight: 600, marginBottom: 8 }}>鍚婇攢涓嬭浇 Token</h3>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <textarea
-          placeholder="粘贴 downloadToken（必填）"
+          placeholder="绮樿创 downloadToken锛堝繀濉級"
           rows={3}
           value={token}
           onChange={(e) => setToken(e.target.value)}
         />
 
         <input
-          placeholder="planId（可选）"
+          placeholder="planId锛堝彲閫夛級"
           value={planId}
           onChange={(e) => setPlanId(e.target.value)}
         />
 
         <input
-          placeholder="reason（可选，默认 manual_revoke�?
+          placeholder="reason锛堝彲閫夛紝榛樿 manual_revoke锛?
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
 
         <button onClick={submit} disabled={loading}>
-          {loading ? "处理中�? : "吊销 Token"}
+          {loading ? "澶勭悊涓€? : "鍚婇攢 Token"}
         </button>
 
-        {msg && <div style={{ color: msg.startsWith("�?) ? "green" : "red" }}>{msg}</div>}
+        {msg && <div style={{ color: msg.startsWith("鉁?) ? "green" : "red" }}>{msg}</div>}
       </div>
     </div>
   );

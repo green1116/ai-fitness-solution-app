@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -27,7 +27,7 @@ export default function DeepFormPage() {
     e.preventDefault();
 
     if (!orderNo) {
-      alert("缺少订单号");
+      alert("缂哄皯璁㈠崟鍙?);
       return;
     }
 
@@ -45,23 +45,23 @@ export default function DeepFormPage() {
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({}));
-        throw new Error(error?.error || "提交失败");
+        throw new Error(error?.error || "鎻愪氦澶辫触");
       }
 
       const body = await res.json();
 
       if (body.submission_id) {
         alert(
-          "提交成功，submission_id=" +
+          "鎻愪氦鎴愬姛锛宻ubmission_id=" +
             body.submission_id +
-            "，我们将会在 48 小时内处理。"
+            "锛屾垜浠皢浼氬湪 48 灏忔椂鍐呭鐞嗐€?
         );
         router.push(`/result/analysis?id=${body.submission_id}`);
       } else {
-        alert("提交失败，请稍后重试。");
+        alert("鎻愪氦澶辫触锛岃绋嶅悗閲嶈瘯銆?);
       }
     } catch (err: any) {
-      alert("提交失败：" + (err?.message || "请稍后重试。"));
+      alert("鎻愪氦澶辫触锛? + (err?.message || "璇风◢鍚庨噸璇曘€?));
     } finally {
       setSubmitting(false);
     }
@@ -132,13 +132,12 @@ export default function DeepFormPage() {
       `}</style>
 
       <div className="box">
-        <h2>请补充以下信息（用于完成深化判断）</h2>
+        <h2>璇疯ˉ鍏呬互涓嬩俊鎭紙鐢ㄤ簬瀹屾垚娣卞寲鍒ゆ柇锛?/h2>
         <div className="muted">
-          提交后我们将会在 48 小时内交付判断报告（人工 + AI）。
-        </div>
+          鎻愪氦鍚庢垜浠皢浼氬湪 48 灏忔椂鍐呬氦浠樺垽鏂姤鍛婏紙浜哄伐 + AI锛夈€?        </div>
 
         <form id="deepForm" onSubmit={handleSubmit}>
-          <label>1）你现在最真实想解决的问题是什么？（简述）</label>
+          <label>1锛変綘鐜板湪鏈€鐪熷疄鎯宠В鍐崇殑闂鏄粈涔堬紵锛堢畝杩帮級</label>
           <textarea
             name="q1"
             rows={2}
@@ -147,7 +146,7 @@ export default function DeepFormPage() {
             onChange={(e) => updateField("q1", e.target.value)}
           />
 
-          <label>2）这件事成功对你意味着什么？（收益 / 目标）</label>
+          <label>2锛夎繖浠朵簨鎴愬姛瀵逛綘鎰忓懗鐫€浠€涔堬紵锛堟敹鐩?/ 鐩爣锛?/label>
           <textarea
             name="q2"
             rows={2}
@@ -157,8 +156,7 @@ export default function DeepFormPage() {
           />
 
           <label>
-            3）如果失败，你能接受的最大损失是什么？（金钱 / 时间 / 名誉）
-          </label>
+            3锛夊鏋滃け璐ワ紝浣犺兘鎺ュ彈鐨勬渶澶ф崯澶辨槸浠€涔堬紵锛堥噾閽?/ 鏃堕棿 / 鍚嶈獕锛?          </label>
           <input
             name="q3"
             type="text"
@@ -167,7 +165,7 @@ export default function DeepFormPage() {
             onChange={(e) => updateField("q3", e.target.value)}
           />
 
-          <label>4）你目前可投入的时间 / 资金 / 人力（请量化）</label>
+          <label>4锛変綘鐩墠鍙姇鍏ョ殑鏃堕棿 / 璧勯噾 / 浜哄姏锛堣閲忓寲锛?/label>
           <input
             name="q4"
             type="text"
@@ -176,7 +174,7 @@ export default function DeepFormPage() {
             onChange={(e) => updateField("q4", e.target.value)}
           />
 
-          <label>5）哪些资源是不可持续或有限的？</label>
+          <label>5锛夊摢浜涜祫婧愭槸涓嶅彲鎸佺画鎴栨湁闄愮殑锛?/label>
           <input
             name="q5"
             type="text"
@@ -185,8 +183,7 @@ export default function DeepFormPage() {
           />
 
           <label>
-            6）是否有必须在某个时间点前得到结论？若有，请说明。
-          </label>
+            6锛夋槸鍚︽湁蹇呴』鍦ㄦ煇涓椂闂寸偣鍓嶅緱鍒扮粨璁猴紵鑻ユ湁锛岃璇存槑銆?          </label>
           <input
             name="q6"
             type="text"
@@ -194,7 +191,7 @@ export default function DeepFormPage() {
             onChange={(e) => updateField("q6", e.target.value)}
           />
 
-          <label>7）你现在最犹豫、最不确定的点是什么？</label>
+          <label>7锛変綘鐜板湪鏈€鐘硅鲍銆佹渶涓嶇‘瀹氱殑鐐规槸浠€涔堬紵</label>
           <textarea
             name="q7"
             rows={2}
@@ -202,7 +199,7 @@ export default function DeepFormPage() {
             onChange={(e) => updateField("q7", e.target.value)}
           />
 
-          <label>8）你最担心的结果是什么？</label>
+          <label>8锛変綘鏈€鎷呭績鐨勭粨鏋滄槸浠€涔堬紵</label>
           <textarea
             name="q8"
             rows={2}
@@ -210,7 +207,7 @@ export default function DeepFormPage() {
             onChange={(e) => updateField("q8", e.target.value)}
           />
 
-          <label>9）你是否已经有偏向的答案？（例如继续 / 暂停）</label>
+          <label>9锛変綘鏄惁宸茬粡鏈夊亸鍚戠殑绛旀锛燂紙渚嬪缁х画 / 鏆傚仠锛?/label>
           <input
             name="q9"
             type="text"
@@ -218,7 +215,7 @@ export default function DeepFormPage() {
             onChange={(e) => updateField("q9", e.target.value)}
           />
 
-          <label>10）如果 AI 判断是否定，你是否愿意调整方向？（是 / 否）</label>
+          <label>10锛夊鏋?AI 鍒ゆ柇鏄惁瀹氾紝浣犳槸鍚︽効鎰忚皟鏁存柟鍚戯紵锛堟槸 / 鍚︼級</label>
           <input
             name="q10"
             type="text"
@@ -228,14 +225,13 @@ export default function DeepFormPage() {
           />
 
           <button className="btn" type="submit" disabled={submitting}>
-            {submitting ? "提交中..." : "提交并进入判断队列"}
+            {submitting ? "鎻愪氦涓?.." : "鎻愪氦骞惰繘鍏ュ垽鏂槦鍒?}
           </button>
         </form>
 
         <div className="muted">
-          提交后会生成一份 submission 记录，我们会在 48 小时内以 PDF /
-          站内消息发送报告。
-        </div>
+          鎻愪氦鍚庝細鐢熸垚涓€浠?submission 璁板綍锛屾垜浠細鍦?48 灏忔椂鍐呬互 PDF /
+          绔欏唴娑堟伅鍙戦€佹姤鍛娿€?        </div>
       </div>
     </>
   );

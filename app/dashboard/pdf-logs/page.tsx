@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+﻿import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export default async function PdfLogsPage({
   let dbErr = "";
 
   try {
-    // ✅ 关键：避免 LetsTAP/PGBouncer 导致 SSR 卡死
+    // 鉁?鍏抽敭锛氶伩鍏?LetsTAP/PGBouncer 瀵艰嚧 SSR 鍗℃
     rows = await withTimeout(
       prisma.pdfDownloadLog.findMany({
         where: planId ? { planId } : undefined,
@@ -55,21 +55,20 @@ export default async function PdfLogsPage({
   return (
     <div className="min-h-screen bg-[#0b0f14] text-white">
       <div className="mx-auto max-w-6xl px-6 py-10">
-        <div className="text-2xl font-semibold">PDF 下载审计日志</div>
+        <div className="text-2xl font-semibold">PDF 涓嬭浇瀹¤鏃ュ織</div>
         <div className="mt-2 text-sm text-white/60">
-          仅展示最近 200 条。可用 <span className="text-white/80">?planId=xxx</span> 过滤。
-        </div>
+          浠呭睍绀烘渶杩?200 鏉°€傚彲鐢?<span className="text-white/80">?planId=xxx</span> 杩囨护銆?        </div>
 
         {dbErr ? (
           <div className="mt-5 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200/90">
-            数据库暂不可用（或连接超时），日志页已降级显示空列表。<br />
-            <span className="text-xs opacity-80">错误：{dbErr}</span>
+            鏁版嵁搴撴殏涓嶅彲鐢紙鎴栬繛鎺ヨ秴鏃讹級锛屾棩蹇楅〉宸查檷绾ф樉绀虹┖鍒楄〃銆?br />
+            <span className="text-xs opacity-80">閿欒锛歿dbErr}</span>
           </div>
         ) : (
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-sm text-white/70">
-              当前过滤：{" "}
-              <span className="text-white/90">{planId ? planId : "（无）"}</span>
+              褰撳墠杩囨护锛歿" "}
+              <span className="text-white/90">{planId ? planId : "锛堟棤锛?}</span>
             </div>
           </div>
         )}
@@ -78,7 +77,7 @@ export default async function PdfLogsPage({
           <table className="w-full text-left text-sm">
             <thead className="bg-white/5 text-white/70">
               <tr>
-                <th className="px-4 py-3">时间</th>
+                <th className="px-4 py-3">鏃堕棿</th>
                 <th className="px-4 py-3">planId</th>
                 <th className="px-4 py-3">route</th>
                 <th className="px-4 py-3">mode</th>
@@ -117,8 +116,8 @@ export default async function PdfLogsPage({
                 <tr>
                   <td className="px-4 py-6 text-white/60" colSpan={9}>
                     {dbErr
-                      ? "数据库不可达/超时：请先修复网络（LetsTAP）或在可联网环境执行迁移。"
-                      : "暂无记录（先下载一次方案/预算/招标包再刷新）"}
+                      ? "鏁版嵁搴撲笉鍙揪/瓒呮椂锛氳鍏堜慨澶嶇綉缁滐紙LetsTAP锛夋垨鍦ㄥ彲鑱旂綉鐜鎵ц杩佺Щ銆?
+                      : "鏆傛棤璁板綍锛堝厛涓嬭浇涓€娆℃柟妗?棰勭畻/鎷涙爣鍖呭啀鍒锋柊锛?}
                   </td>
                 </tr>
               )}
@@ -127,8 +126,7 @@ export default async function PdfLogsPage({
         </div>
 
         <div className="mt-6 text-xs text-white/40">
-          提示：后续可加 RBAC/登录保护；也可把 extra 展开到详情页。
-        </div>
+          鎻愮ず锛氬悗缁彲鍔?RBAC/鐧诲綍淇濇姢锛涗篃鍙妸 extra 灞曞紑鍒拌鎯呴〉銆?        </div>
       </div>
     </div>
   );

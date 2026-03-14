@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -25,7 +25,7 @@ export default function LoginPage() {
 
   async function sendCode() {
     if (!phone.trim()) {
-      alert("请输入手机号");
+      alert("璇疯緭鍏ユ墜鏈哄彿");
       return;
     }
 
@@ -42,14 +42,14 @@ export default function LoginPage() {
       const j = await r.json().catch(() => ({}));
 
       if (!r.ok) {
-        throw new Error(j?.error || "发送验证码失败");
+        throw new Error(j?.error || "鍙戦€侀獙璇佺爜澶辫触");
       }
 
       setStep("code");
-      setMsg("验证码已发送，请查看您的短信");
+      setMsg("楠岃瘉鐮佸凡鍙戦€侊紝璇锋煡鐪嬫偍鐨勭煭淇?);
       setCooldown(60);
     } catch (err: any) {
-      alert(err?.message || "发送验证码失败，请稍后重试");
+      alert(err?.message || "鍙戦€侀獙璇佺爜澶辫触锛岃绋嶅悗閲嶈瘯");
     } finally {
       setLoading(false);
     }
@@ -59,12 +59,12 @@ export default function LoginPage() {
     e.preventDefault();
 
     if (!phone.trim()) {
-      alert("请输入手机号");
+      alert("璇疯緭鍏ユ墜鏈哄彿");
       return;
     }
 
     if (!code.trim()) {
-      alert("请输入验证码");
+      alert("璇疯緭鍏ラ獙璇佺爜");
       return;
     }
 
@@ -84,13 +84,13 @@ export default function LoginPage() {
       const j = await r.json().catch(() => ({}));
 
       if (!r.ok) {
-        throw new Error(j?.error || "登录失败");
+        throw new Error(j?.error || "鐧诲綍澶辫触");
       }
 
-      setMsg("登录成功，正在跳转...");
+      setMsg("鐧诲綍鎴愬姛锛屾鍦ㄨ烦杞?..");
       router.push("/dashboard");
     } catch (err: any) {
-      alert(err?.message || "登录失败，请稍后重试");
+      alert(err?.message || "鐧诲綍澶辫触锛岃绋嶅悗閲嶈瘯");
     } finally {
       setLoading(false);
     }
@@ -125,7 +125,7 @@ export default function LoginPage() {
             color: "#111827",
           }}
         >
-          登录
+          鐧诲綍
         </h1>
 
         <p
@@ -137,7 +137,7 @@ export default function LoginPage() {
             lineHeight: 1.6,
           }}
         >
-          请输入手机号并完成验证码验证。
+          璇疯緭鍏ユ墜鏈哄彿骞跺畬鎴愰獙璇佺爜楠岃瘉銆?
         </p>
 
         <form onSubmit={submitLogin}>
@@ -151,7 +151,7 @@ export default function LoginPage() {
               marginBottom: 8,
             }}
           >
-            手机号
+            鎵嬫満鍙?
           </label>
           <input
             id="phone"
@@ -159,7 +159,7 @@ export default function LoginPage() {
             inputMode="numeric"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="请输入手机号"
+            placeholder="璇疯緭鍏ユ墜鏈哄彿"
             style={{
               width: "100%",
               padding: "12px 14px",
@@ -184,7 +184,7 @@ export default function LoginPage() {
                   marginBottom: 8,
                 }}
               >
-                验证码
+                楠岃瘉鐮?
               </label>
               <input
                 id="code"
@@ -192,7 +192,7 @@ export default function LoginPage() {
                 inputMode="numeric"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder="请输入验证码"
+                placeholder="璇疯緭鍏ラ獙璇佺爜"
                 style={{
                   width: "100%",
                   padding: "12px 14px",
@@ -225,7 +225,7 @@ export default function LoginPage() {
                 opacity: loading || cooldown > 0 ? 0.6 : 1,
               }}
             >
-              {cooldown > 0 ? `验证码已发送，请 ${cooldown}s 后重试` : "获取验证码"}
+              {cooldown > 0 ? `楠岃瘉鐮佸凡鍙戦€侊紝璇?${cooldown}s 鍚庨噸璇昤 : "鑾峰彇楠岃瘉鐮?}
             </button>
 
             <button
@@ -244,7 +244,7 @@ export default function LoginPage() {
                 opacity: loading || step !== "code" ? 0.6 : 1,
               }}
             >
-              {loading ? "处理中..." : "登录"}
+              {loading ? "澶勭悊涓?.." : "鐧诲綍"}
             </button>
           </div>
         </form>

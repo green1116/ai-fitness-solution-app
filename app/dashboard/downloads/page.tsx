@@ -1,4 +1,4 @@
-// app/dashboard/downloads/page.tsx
+﻿// app/dashboard/downloads/page.tsx
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { getSessionEmail } from "@/lib/auth-server";
@@ -24,20 +24,20 @@ export default async function DownloadsPage({ searchParams }: any) {
   const reason = String(searchParams?.reason ?? "").trim().slice(0, 200);
   const view = (searchParams?.view || "overview") as "overview" | "logs";
   
-  // days 杈圭晫妫€鏌ワ細闃叉 NaN 鍜岃秴鍑鸿寖鍥?
+  // days 鏉堝湱鏅Λ鈧弻銉窗闂冨弶顒?NaN 閸滃矁绉撮崙楦垮瘱閸?
   const rawDays = Number(searchParams?.days ?? 14);
-  const days = Number.isFinite(rawDays) ? Math.min(Math.max(rawDays, 1), 90) : 14; // 1~90澶?
+  const days = Number.isFinite(rawDays) ? Math.min(Math.max(rawDays, 1), 90) : 14; // 1~90婢?
 
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  // 鏋勫缓 where 鏉′欢锛堥噸鐐癸細where 閲屼笉瑕佸 NaN锛?
+  // 閺嬪嫬缂?where 閺夆€叉閿涘牓鍣搁悙鐧哥窗where 闁插奔绗夌憰浣割敚 NaN閿?
   const where: any = {
     createdAt: { gte: since },
   };
 
   if (planId) where.planId = planId;
   if (reason) where.reason = { contains: reason, mode: "insensitive" };
-  if (emailFilter) where.userAgent = { contains: emailFilter, mode: "insensitive" }; // 濡傛灉鏃ュ織閲屾病 email锛屽氨鍏堢敤 UA/IP 杩囨护鍗犱綅
+  if (emailFilter) where.userAgent = { contains: emailFilter, mode: "insensitive" }; // 婵″倹鐏夐弮銉ョ箶闁插本鐥?email閿涘苯姘ㄩ崗鍫㈡暏 UA/IP 鏉╁洦鎶ら崡鐘辩秴
 
   const rows = await prisma.pdfDownloadLog.findMany({
     where,
@@ -45,22 +45,21 @@ export default async function DownloadsPage({ searchParams }: any) {
     take: 200,
   });
 
-  // 绠€鍗曡仛鍚堬細鎸?reason 缁熻
-  const byReason = await prisma.pdfDownloadLog.groupBy({
+  // 缁犫偓閸楁洝浠涢崥鍫窗閹?reason 缂佺喕顓?  const byReason = await prisma.pdfDownloadLog.groupBy({
     by: ["reason"],
     _count: { _all: true },
     where,
   });
 
-  // 鍙栨渶杩?N 澶╂棩蹇楋紙鐢ㄤ簬鍥捐〃鑱氬悎锛?
+  // 閸欐牗娓舵潻?N 婢垛晜妫╄箛妤嬬礄閻劋绨崶鎹愩€冮懕姘値閿?
   const chartRows = await prisma.pdfDownloadLog.findMany({
     where,
     select: { createdAt: true, reason: true, planId: true },
     orderBy: { createdAt: "asc" },
-    take: 20000, // 瓒冲鏀拺 14 澶?灏忚妯?
+    take: 20000, // 鐡掑啿顧勯弨顖涙嫼 14 婢?鐏忓繗顫夊Ο?
   });
 
-  // 1) 鑱氬悎锛氭寜澶┿€佹寜 reason
+  // 1) 閼辨艾鎮庨敍姘瘻婢垛斂鈧焦瀵?reason
   const dayKey = (d: Date) => d.toISOString().slice(0, 10); // YYYY-MM-DD
   const reasons = ["preview", "token", "paid", "license", "bypass", "revoked", "expired", "exhausted", "invalid"] as const;
 
@@ -106,7 +105,7 @@ export default async function DownloadsPage({ searchParams }: any) {
 
     const reason = (r.reason || "").toLowerCase();
 
-    // 鎶婁竴浜涘け璐ュ師鍥犲綊涓€鍒?invalid锛堜綘涔熷彲浠ユ寜鑷繁鐨?reason 瀛楁鍐嶆墿锛?
+    // 閹跺﹣绔存禍娑樸亼鐠愩儱甯崶鐘茬秺娑撯偓閸?invalid閿涘牅缍樻稊鐔峰讲娴犮儲瀵滈懛顏勭箒閻?reason 鐎涙顔岄崘宥嗗⒖閿?
     if (reasons.includes(reason as any)) {
       (row as any)[reason] += 1;
     } else if (reason.includes("revoke")) {
@@ -120,15 +119,14 @@ export default async function DownloadsPage({ searchParams }: any) {
     }
   }
 
-  // 琛ラ綈缂哄け鐨勬棩鏈燂紙璁╁浘琛ㄨ繛缁級
-  for (let i = days - 1; i >= 0; i--) {
+  // 鐞涖儵缍堢紓鍝勩亼閻ㄥ嫭妫╅張鐕傜礄鐠佲晛娴樼悰銊ㄧ箾缂侇叏绱?  for (let i = days - 1; i >= 0; i--) {
     const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
     ensure(dayKey(d));
   }
 
   const daily = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
 
-  // 2) Top planId锛堝湪绛涢€夋潯浠朵笅锛?
+  // 2) Top planId閿涘牆婀粵娑⑩偓澶嬫蒋娴犳湹绗呴敍?
   const planCount = new Map<string, number>();
   for (const r of chartRows) {
     planCount.set(r.planId, (planCount.get(r.planId) || 0) + 1);
@@ -138,7 +136,7 @@ export default async function DownloadsPage({ searchParams }: any) {
     .slice(0, 10)
     .map(([planId, count]) => ({ planId, count }));
 
-  // 鏋勫缓 URLSearchParams
+  // 閺嬪嫬缂?URLSearchParams
   const q = new URLSearchParams();
   if (planId) q.set("planId", planId);
   if (emailFilter) q.set("email", emailFilter);
@@ -151,7 +149,7 @@ export default async function DownloadsPage({ searchParams }: any) {
 
   return (
     <div style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 20, fontWeight: 700 }}>PDF 涓嬭浇瀹¤</h1>
+      <h1 style={{ fontSize: 20, fontWeight: 700 }}>PDF 娑撳娴囩€孤ゎ吀</h1>
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 10, marginTop: 10, marginBottom: 10 }}>
@@ -165,8 +163,7 @@ export default async function DownloadsPage({ searchParams }: any) {
             background: view === "overview" ? "#f5f5f5" : "white",
           }}
         >
-          姒傝
-        </a>
+          濮掑倽顫?        </a>
         <a
           href={logsHref}
           style={{
@@ -177,11 +174,10 @@ export default async function DownloadsPage({ searchParams }: any) {
             background: view === "logs" ? "#f5f5f5" : "white",
           }}
         >
-          鏄庣粏
-        </a>
+          閺勫海绮?        </a>
       </div>
 
-      {/* 澶╂暟蹇€熷垏鎹?*/}
+      {/* 婢垛晜鏆熻箛顐︹偓鐔峰瀼閹?*/}
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         {[7, 14, 30].map((d) => {
           const qp = new URLSearchParams(q);
@@ -199,7 +195,7 @@ export default async function DownloadsPage({ searchParams }: any) {
                 background: days === d ? "#f5f5f5" : "white",
               }}
             >
-              杩?{d} 澶?
+              鏉?{d} 婢?
             </a>
           );
         })}
@@ -211,9 +207,9 @@ export default async function DownloadsPage({ searchParams }: any) {
         <input name="reason" defaultValue={reason} placeholder="reason (preview/bypass/token/paid/license)" />
         <input name="view" type="hidden" value={view} />
         <input name="days" type="hidden" value={String(days)} />
-        <button type="submit">绛涢€?/button>
+        <button type="submit">缁涙盯鈧?/button>
         <a href={exportHref} target="_blank" rel="noreferrer" style={{ padding: "8px 16px", border: "1px solid #ccc", borderRadius: 4, textDecoration: "none", color: "#333", display: "inline-block" }}>
-          瀵煎嚭 CSV
+          鐎电厧鍤?CSV
         </a>
       </form>
 
@@ -226,7 +222,7 @@ export default async function DownloadsPage({ searchParams }: any) {
       ) : (
         <>
           <div style={{ marginBottom: 12 }}>
-            <strong>鎸?reason 缁熻锛?/strong>{" "}
+            <strong>閹?reason 缂佺喕顓搁敍?/strong>{" "}
             {byReason.map((x) => (
               <span key={x.reason ?? "null"} style={{ marginRight: 12 }}>
                 {(x.reason ?? "(null)")}={x._count._all}
@@ -237,7 +233,7 @@ export default async function DownloadsPage({ searchParams }: any) {
           <table cellPadding={8} style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-            <th>鏃堕棿</th>
+            <th>閺冨爼妫?/th>
             <th>planId</th>
             <th>mode</th>
             <th>reason</th>
