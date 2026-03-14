@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -26,10 +26,13 @@ export default function LoginPage() {
         body: JSON.stringify({ email }),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j?.error || "鍙戦€佸け璐?);
+
+      if (!r.ok) {
+        throw new Error(j?.error || "登录失败");
+      }
 
       setStep("code");
-      setMsg("楠岃瘉鐮佸凡鍙戦€侊紝璇锋煡鏀堕偖绠憋紙5鍒嗛挓鍐呮湁鏁堬級");
+      setMsg("验证码已发送，请查看您的短信");
 
       // 60绉掑€掕鏃?
       setCooldown(60);
@@ -43,7 +46,7 @@ export default function LoginPage() {
         });
       }, 1000);
     } catch (e: any) {
-      setMsg(e?.message || "鍙戦€佸け璐?);
+      setMsg(e?.message || "发送失败");
     } finally {
       setLoading(false);
     }
@@ -171,9 +174,9 @@ export default function LoginPage() {
                   body: JSON.stringify({ email }),
                 });
                 const j = await r.json().catch(() => ({}));
-                if (!r.ok) throw new Error(j?.message || j?.msg || "鍙戦€佸け璐?);
+                if (!r.ok) throw new Error(j?.message || j?.msg || "登录失败");
 
-                setMsg("楠岃瘉鐮佸凡鍙戦€侊紝璇锋煡鏀堕偖绠憋紙10鍒嗛挓鍐呮湁鏁堬級");
+                setMsg("验证码已发送，请查看您的短信");
 
                 // 60绉掑€掕鏃?
                 setCooldown(60);
