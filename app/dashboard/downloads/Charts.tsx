@@ -14,7 +14,7 @@ import {
 } from "recharts";
 
 type DailyRow = {
-  date: string; // YYYY-MM-DD
+  date: string;
   total: number;
   preview: number;
   token: number;
@@ -49,64 +49,85 @@ export default function Charts(props: { daily: DailyRow[]; topPlans: TopPlanRow[
   const full = sum(daily, "token") + sum(daily, "paid") + sum(daily, "license");
   const preview = sum(daily, "preview");
 
-  const fail = sum(daily, "revoked") + sum(daily, "expired") + sum(daily, "exhausted") + sum(daily, "invalid");
+  const fail =
+    sum(daily, "revoked") +
+    sum(daily, "expired") +
+    sum(daily, "exhausted") +
+    sum(daily, "invalid");
   const failRate = safeDiv(fail, total);
 
-  // 寮傚父鍛婅锛氭渶杩?澶╁け璐ョ巼 vs 鍓?澶╁钩鍧囧け璐ョ巼
   const last = daily[daily.length - 1];
-  const prev7 = daily.slice(Math.max(0, daily.length - 8), Math.max(0, daily.length - 1)); // 鍓?澶╋紙涓嶅惈鏈€鍚?澶╋級
-  const lastFail = (last?.revoked || 0) + (last?.expired || 0) + (last?.exhausted || 0) + (last?.invalid || 0);
+  const prev7 = daily.slice(Math.max(0, daily.length - 8), Math.max(0, daily.length - 1));
+  const lastFail =
+    (last?.revoked || 0) +
+    (last?.expired || 0) +
+    (last?.exhausted || 0) +
+    (last?.invalid || 0);
   const lastFailRate = safeDiv(lastFail, last?.total || 0);
 
   const prev7Total = sum(prev7, "total");
   const prev7Fail =
-    sum(prev7, "revoked") + sum(prev7, "expired") + sum(prev7, "exhausted") + sum(prev7, "invalid");
+    sum(prev7, "revoked") +
+    sum(prev7, "expired") +
+    sum(prev7, "exhausted") +
+    sum(prev7, "invalid");
   const prev7FailRate = safeDiv(prev7Fail, prev7Total);
 
   const spike =
-    (last?.total || 0) >= 10 && // 鏍锋湰澶皬涓嶆姤
-    lastFailRate >= 0.2 && // 鑷冲皯 20%
+    (last?.total || 0) >= 10 &&
+    lastFailRate >= 0.2 &&
     prev7FailRate > 0 &&
-    lastFailRate / prev7FailRate >= 2; // 鑷冲皯 2 鍊?
+    lastFailRate / prev7FailRate >= 2;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginBottom: 24 }}>
-      {/* KPI */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
         <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 14 }}>
-          <div style={{ color: "#666", fontSize: 12 }}>鎬讳笅杞?/div>
+          <div style={{ color: "#666", fontSize: 12 }}>总下载量</div>
           <div style={{ fontWeight: 800, fontSize: 22 }}>{total}</div>
         </div>
+
         <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 14 }}>
-          <div style={{ color: "#666", fontSize: 12 }}>Full锛坱oken/paid/license锛?/div>
+          <div style={{ color: "#666", fontSize: 12 }}>完整版下载量（token / paid / license）</div>
           <div style={{ fontWeight: 800, fontSize: 22 }}>{full}</div>
         </div>
+
         <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 14 }}>
           <div style={{ color: "#666", fontSize: 12 }}>Preview</div>
           <div style={{ fontWeight: 800, fontSize: 22 }}>{preview}</div>
         </div>
+
         <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 14 }}>
-          <div style={{ color: "#666", fontSize: 12 }}>澶辫触鍗犳瘮锛坮evoked/expired/exhausted/invalid锛?/div>
+          <div style={{ color: "#666", fontSize: 12 }}>
+            失败占比（revoked / expired / exhausted / invalid）
+          </div>
           <div style={{ fontWeight: 800, fontSize: 22 }}>{fmtPct(failRate)}</div>
         </div>
       </div>
 
-      {/* 寮傚父鍛婅 */}
       {spike && (
-        <div style={{ border: "1px solid #f0c36d", background: "#fff7e6", borderRadius: 10, padding: 14 }}>
-          <div style={{ fontWeight: 800 }}>鈿狅笍 寮傚父鍛婅锛氬け璐ョ巼椋欏崌</div>
-          <div style={{ marginTop: 6, color: "#444" }}>
-            鏈€杩戜竴澶╁け璐ョ巼锛歿fmtPct(lastFailRate)}锛涘墠 7 澶╁钩鍧囷細{fmtPct(prev7FailRate)}銆?
-            寤鸿鎺掓煡锛歵oken 鏄惁琚ぇ閲忓悐閿€/杩囨湡銆乵axUses 鏄惁杩囧皬銆佸墠绔槸鍚﹀鐢ㄤ簡鏃ч摼鎺ャ€佺鐞嗗憳鏄惁鎵归噺 revoke銆?
+        <div
+          style={{
+            border: "1px solid #f0c36d",
+            background: "#fff7e6",
+            borderRadius: 10,
+            padding: 14,
+          }}
+        >
+          <div style={{ fontWeight: 800 }}>异常告警：失败率上升</div>
+          <div style={{ marginTop: 6, color: "#444", lineHeight: 1.7 }}>
+            最近一天失败率：{fmtPct(lastFailRate)}；前 7 天平均：{fmtPct(prev7FailRate)}。
+            建议排查 token 是否被大量撤销或过期、maxUses 是否过小、前端是否复用了旧链接，以及是否存在批量 revoke 操作。
           </div>
         </div>
       )}
 
-      {/* 1) 姣忔棩涓嬭浇瓒嬪娍 */}
       <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-          <div style={{ fontWeight: 700 }}>姣忔棩涓嬭浇瓒嬪娍</div>
-          <div style={{ color: "#666", fontSize: 12 }}>Total / Preview / Full(Token/Paid/License)</div>
+          <div style={{ fontWeight: 700 }}>每日下载趋势</div>
+          <div style={{ color: "#666", fontSize: 12 }}>
+            Total / Preview / Full(Token / Paid / License)
+          </div>
         </div>
 
         <div style={{ height: 280 }}>
@@ -117,7 +138,7 @@ export default function Charts(props: { daily: DailyRow[]; topPlans: TopPlanRow[
               <YAxis allowDecimals={false} />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="total" name="鎬讳笅杞? dot={false} />
+              <Line type="monotone" dataKey="total" name="总下载" dot={false} />
               <Line type="monotone" dataKey="preview" name="Preview" dot={false} />
               <Line type="monotone" dataKey="token" name="Token" dot={false} />
               <Line type="monotone" dataKey="paid" name="Paid" dot={false} />
@@ -127,9 +148,8 @@ export default function Charts(props: { daily: DailyRow[]; topPlans: TopPlanRow[
         </div>
       </div>
 
-      {/* 2) reason 鍒嗗竷 */}
       <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 16 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>鎸?Reason 鍒嗗竷锛堟瘡鏃ュ爢鍙狅級</div>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>按 Reason 分布（每日堆叠）</div>
 
         <div style={{ height: 300 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -153,9 +173,8 @@ export default function Charts(props: { daily: DailyRow[]; topPlans: TopPlanRow[
         </div>
       </div>
 
-      {/* 3) Top planId */}
       <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 16 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Top PlanId锛堟渶澶?10锛?/div>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Top PlanId（最多 10 个）</div>
 
         <div style={{ height: 260 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -165,7 +184,7 @@ export default function Charts(props: { daily: DailyRow[]; topPlans: TopPlanRow[
               <YAxis type="category" dataKey="planId" width={180} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="count" name="涓嬭浇娆℃暟" />
+              <Bar dataKey="count" name="下载次数" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -173,4 +192,3 @@ export default function Charts(props: { daily: DailyRow[]; topPlans: TopPlanRow[
     </div>
   );
 }
-

@@ -1,15 +1,13 @@
 ﻿"use client";
-import React, { useEffect, useMemo, useState } from "react";
+
+import React, { useEffect, useState } from "react";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   proposalNo: string;
-  // 濡傛灉浣犳湁璁㈠崟鍙凤紝灏变紶杩涙潵锛堟湭鏉ユ帴 paid 鏍￠獙锛?
   orderNo?: string;
-  // plan 鏁版嵁锛堢敤浜庣敓鎴?PDF锛?
   plan?: any;
-  // 浣犵殑鏀粯璺宠浆锛堝 /pay?orderNo=xxx锛?
   onPay?: () => void;
   onVerified?: (emailToken: string) => void;
 };
@@ -32,7 +30,7 @@ export default function VerifyGateModal({
   const [downloading, setDownloading] = useState(false);
 
   const [cooldown, setCooldown] = useState(0);
-  const canSend = cooldown <= 0 && !!email;
+  const canSend = cooldown <= 0 && !!email.trim();
 
   useEffect(() => {
     if (!open) return;
@@ -50,40 +48,54 @@ export default function VerifyGateModal({
 
   async function sendCode() {
     if (!canSend) return;
+
     setSending(true);
     try {
       const res = await fetch("/api/auth/email/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim() }),
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || body?.msg || "send_failed");
+
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(body?.error || body?.msg || "send_failed");
+      }
+
       setCooldown(60);
-      alert("楠岃瘉鐮佸凡鍙戦€侊紝璇锋煡鏀堕偖绠憋紙鍙兘闇€瑕佸嚑鍒嗛挓鎵嶈兘閫佽揪锛岃妫€鏌ユ敹浠剁鍜屽瀮鍦鹃偖浠舵枃浠跺す锛?0鍒嗛挓鍐呮湁鏁堬級");
-    } catch (e: any) {
-      alert("鍙戦€佸け璐ワ細" + (e?.message || e));
+      alert("验证码已发送，请检查收件箱和垃圾邮件文件夹。验证码 10 分钟内有效。");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert("发送失败：" + message);
     } finally {
       setSending(false);
     }
   }
 
   async function verifyCode() {
-    if (!email || !code) return;
+    if (!email.trim() || !code.trim()) return;
+
     setVerifying(true);
     try {
       const res = await fetch("/api/auth/email/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ email: email.trim(), code: code.trim() }),
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || "verify_failed");
+
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(body?.error || "verify_failed");
+      }
+
       setEmailToken(body.emailToken);
       onVerified?.(body.emailToken);
-      alert("楠岃瘉鎴愬姛锛屽彲浠ヤ笅杞藉畬鏁寸増 PDF 浜?);
-    } catch (e: any) {
-      alert("楠岃瘉澶辫触锛? + (e?.message || e));
+      alert("验证成功，现在可以下载完整版 PDF。");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert("验证失败：" + message);
     } finally {
       setVerifying(false);
     }
@@ -92,29 +104,28 @@ export default function VerifyGateModal({
   async function downloadPdf() {
     setDownloading(true);
     try {
-      // 涓嬭浇 PDF锛堜娇鐢?session cookie锛? 浣跨敤 fetch + blob 鏂瑰紡
       const proposalNoValue = proposalNo || "attaguy-plan";
 
       if (!plan) {
-        alert("缂哄皯 plan 鏁版嵁锛屾棤娉曠敓鎴?PDF");
+        alert("缺少 plan 数据，无法生成 PDF。");
         return;
       }
 
-      const pdfRes = await fetch(`/api/pdf`, {
+      const pdfRes = await fetch("/api/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proposalNo: proposalNoValue, plan }),
       });
 
       if (pdfRes.status === 402) {
-        const body = await pdfRes.json();
-        alert(body?.msg || "闇€瑕侀獙璇?);
+        const body = await pdfRes.json().catch(() => ({}));
+        alert(body?.msg || "需要先完成验证或支付。");
         return;
       }
 
       if (!pdfRes.ok) {
         const t = await pdfRes.text();
-        alert("鐢熸垚澶辫触锛? + t);
+        alert("生成失败：" + t);
         return;
       }
 
@@ -129,8 +140,9 @@ export default function VerifyGateModal({
       window.URL.revokeObjectURL(url);
 
       onClose();
-    } catch (e: any) {
-      alert("涓嬭浇澶辫触锛? + (e?.message || e));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert("下载失败：" + message);
     } finally {
       setDownloading(false);
     }
@@ -139,14 +151,14 @@ export default function VerifyGateModal({
   return (
     <div style={styles.backdrop}>
       <div style={styles.modal}>
-        <div style={styles.title}>闇€瑕侀獙璇?/div>
-        <div style={styles.desc}>涓嬭浇瀹屾暣鐗?PDF 闇€瑕佸厛鏀粯鎴栧畬鎴愰偖绠遍獙璇?/div>
+        <div style={styles.title}>需要验证</div>
+        <div style={styles.desc}>下载完整版 PDF 前，请先完成支付或邮箱验证。</div>
 
         <button
           style={styles.payBtn}
-          onClick={() => (onPay ? onPay() : alert("璇锋帴鍏ユ敮浠樿烦杞?))}
+          onClick={() => (onPay ? onPay() : alert("请先接入支付跳转。"))}
         >
-          鍓嶅線鏀粯锛埪?99锛?
+          前往支付（￥499）
         </button>
 
         <div style={{ height: 16 }} />
@@ -154,12 +166,12 @@ export default function VerifyGateModal({
         <div style={styles.row}>
           <input
             style={styles.input}
-            placeholder="杈撳叆閭"
+            placeholder="输入邮箱"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
           <button style={styles.smallBtn} onClick={sendCode} disabled={!canSend || sending}>
-            {cooldown > 0 ? `宸插彂閫?${cooldown}s)` : sending ? "鍙戦€佷腑鈥? : "鑾峰彇楠岃瘉鐮?}
+            {cooldown > 0 ? `已发送（${cooldown}s）` : sending ? "发送中..." : "获取验证码"}
           </button>
         </div>
 
@@ -168,12 +180,16 @@ export default function VerifyGateModal({
         <div style={styles.row}>
           <input
             style={{ ...styles.input, color: "#111", caretColor: "#111", background: "#fff" }}
-            placeholder="杈撳叆閭楠岃瘉鐮?
+            placeholder="输入邮箱验证码"
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
-          <button style={styles.smallBtn} onClick={verifyCode} disabled={!email || !code || verifying}>
-            {verifying ? "楠岃瘉涓€? : "楠岃瘉"}
+          <button
+            style={styles.smallBtn}
+            onClick={verifyCode}
+            disabled={!email.trim() || !code.trim() || verifying}
+          >
+            {verifying ? "验证中..." : "验证"}
           </button>
         </div>
 
@@ -187,11 +203,14 @@ export default function VerifyGateModal({
           onClick={downloadPdf}
           disabled={downloading}
         >
-          {downloading ? "涓嬭浇涓€? : "涓嬭浇瀹屾暣鐗?PDF"}
+          {downloading ? "下载中..." : "下载完整版 PDF"}
         </button>
 
         <div style={{ height: 10 }} />
-        <button style={styles.cancel} onClick={onClose}>鍙栨秷</button>
+
+        <button style={styles.cancel} onClick={onClose}>
+          取消
+        </button>
       </div>
     </div>
   );
@@ -265,5 +284,3 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
 };
-
-

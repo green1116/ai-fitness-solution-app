@@ -11,9 +11,10 @@ export default function RevokeToken() {
 
   async function submit() {
     if (!token.trim()) {
-      setMsg("璇峰厛绮樿创 token");
+      setMsg("请先粘贴 token");
       return;
     }
+
     setLoading(true);
     setMsg(null);
 
@@ -22,58 +23,67 @@ export default function RevokeToken() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token,
-          planId: planId || undefined,
-          reason,
+          token: token.trim(),
+          planId: planId.trim() || undefined,
+          reason: reason.trim() || "manual_revoke",
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        setMsg(data?.message || "鎾ら攢澶辫触");
+        setMsg(data?.message || "撤销失败");
       } else {
-        setMsg("鉁?Token 宸叉垚鍔熸挙閿€");
+        setMsg("成功：Token 已撤销");
         setToken("");
       }
-    } catch (e: any) {
-      setMsg(e?.message || "缃戠粶閿欒");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "网络错误";
+      setMsg(message);
     } finally {
       setLoading(false);
     }
   }
 
+  const ok = !!msg && msg.startsWith("成功");
+
   return (
-    <div style={{ border: "1px solid #e5e5e5", padding: 16, borderRadius: 8, marginBottom: 24 }}>
-      <h3 style={{ fontWeight: 600, marginBottom: 8 }}>鍚婇攢涓嬭浇 Token</h3>
+    <div
+      style={{
+        border: "1px solid #e5e5e5",
+        padding: 16,
+        borderRadius: 8,
+        marginBottom: 24,
+      }}
+    >
+      <h3 style={{ fontWeight: 600, marginBottom: 8 }}>撤销下载 Token</h3>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <textarea
-          placeholder="绮樿创 downloadToken锛堝繀濉級"
+          placeholder="粘贴 downloadToken（必填）"
           rows={3}
           value={token}
           onChange={(e) => setToken(e.target.value)}
         />
 
         <input
-          placeholder="planId锛堝彲閫夛級"
+          placeholder="planId（可选）"
           value={planId}
           onChange={(e) => setPlanId(e.target.value)}
         />
 
         <input
-          placeholder="reason锛堝彲閫夛紝榛樿 manual_revoke锛?
+          placeholder="reason（可选，默认 manual_revoke）"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
 
         <button onClick={submit} disabled={loading}>
-          {loading ? "澶勭悊涓€? : "鍚婇攢 Token"}
+          {loading ? "处理中..." : "撤销 Token"}
         </button>
 
-        {msg && <div style={{ color: msg.startsWith("鉁?) ? "green" : "red" }}>{msg}</div>}
+        {msg && <div style={{ color: ok ? "green" : "red" }}>{msg}</div>}
       </div>
     </div>
   );
 }
-
-
