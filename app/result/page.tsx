@@ -10,15 +10,14 @@ type UserPlan = "free" | "pro" | "tender";
 type BudgetTier = "low" | "mid" | "high";
 type CompanySize = "small" | "medium" | "large";
 
-// 浣犲悗绔绠楀紩鎿庣洰鍓嶆敮鎸佺殑 sections锛堜粠浣犳埅鍥剧湅锛?// 杩欒竟 UI 瀵瑰鐢ㄤ腑鏂囧睍绀猴紝瀵瑰唴淇濈暀宸ョ▼鎺у埗
 const SECTION_META = [
-  { id: "header", cn: "澶撮儴", desc: "灏侀潰涓庡熀鏈俊鎭? },
-  { id: "overall", cn: "鎬昏", desc: "鎵ц鎽樿 / 绌洪棿鎷嗚В / 閲岀▼纰? },
-  { id: "budgetCompare", cn: "棰勭畻瀵规瘮", desc: "浣?涓?楂?妗ｅ缓璁笌鍙栬垗" },
-  { id: "table", cn: "鏄庣粏琛?, desc: "鍣ㄦ潗娓呭崟涓庡垎椤? },
-  { id: "brands", cn: "鍝佺墝寤鸿", desc: "鍒嗗搧绫诲搧鐗屼笌閫夊瀷鏂瑰悜" },
-  { id: "supplement", cn: "琛ュ厖璇存槑", desc: "鍙ｅ緞銆佺淮鎶や笌杩愯惀寤鸿" },
-  { id: "remarks", cn: "鍏朵粬澶囨敞", desc: "鍏嶈矗澹版槑涓庡鏍告竻鍗? },
+  { id: "header", cn: "头部", desc: "封面与基础信息" },
+  { id: "overall", cn: "总览", desc: "执行摘要 / 空间拆解 / 里程碑" },
+  { id: "budgetCompare", cn: "预算对比", desc: "低 / 中 / 高档建议与取舍" },
+  { id: "table", cn: "明细表", desc: "器材清单与分页明细" },
+  { id: "brands", cn: "品牌建议", desc: "分类品牌与选型方向" },
+  { id: "supplement", cn: "补充说明", desc: "口径、维护与运营建议" },
+  { id: "remarks", cn: "其他备注", desc: "免责声明与复核清单" },
 ] as const;
 
 type SectionId = (typeof SECTION_META)[number]["id"];
@@ -32,13 +31,12 @@ function getQueryParam(search: string, key: string) {
   }
 }
 
-// 鎶婂澶栤€滀娇鐢ㄥ己搴︹€濇槧灏勪负鍙備笌鐜囷紙0~1锛?function intensityToParticipation(intensity: "conservative" | "standard" | "active") {
+function intensityToParticipation(intensity: "conservative" | "standard" | "active") {
   if (intensity === "conservative") return 0.2;
   if (intensity === "active") return 0.4;
-  return 0.3; // standard
+  return 0.3;
 }
 
-// 鎶婅緭鍏?headcount 鏄犲皠涓哄尯闂达紙瀵瑰鍙睍绀哄尯闂达紝涓嶈瀹㈡埛濉妧鏈灇涓撅級
 function headcountToSizeTier(headcount: number): CompanySize {
   if (!Number.isFinite(headcount)) return "medium";
   if (headcount <= 120) return "small";
@@ -47,15 +45,15 @@ function headcountToSizeTier(headcount: number): CompanySize {
 }
 
 function cnSizeLabel(size: CompanySize) {
-  if (size === "small") return "灏忓瀷锛堚墹120浜猴級";
-  if (size === "large") return "澶у瀷锛堚墺400浜猴級";
-  return "涓瀷锛?21鈥?99浜猴級";
+  if (size === "small") return "小型（≤120人）";
+  if (size === "large") return "大型（≥400人）";
+  return "中型（121–399人）";
 }
 
 function cnBudgetTierLabel(t: BudgetTier) {
-  if (t === "low") return "浣?;
-  if (t === "high") return "楂?;
-  return "涓?;
+  if (t === "low") return "低";
+  if (t === "high") return "高";
+  return "中";
 }
 
 const DEV_DOWNLOAD_TOKEN =
@@ -92,7 +90,7 @@ function CollapsiblePanel(props: {
         className="flex w-full items-center justify-between gap-3"
       >
         <div className="flex items-center gap-2">
-          <span className="text-white/60">{open ? "鈻? : "鈻?}</span>
+          <span className="text-white/60">{open ? "▼" : "▶"}</span>
           <div className="text-sm font-semibold">{title}</div>
         </div>
         <div onClick={(e) => e.stopPropagation()}>{right}</div>
@@ -105,23 +103,26 @@ function CollapsiblePanel(props: {
 
 export default function ResultPage() {
   const modeFromUrl = useMemo<Mode>(() => {
-    const m = getQueryParam(typeof window !== "undefined" ? window.location.search : "", "mode");
+    const m = getQueryParam(
+      typeof window !== "undefined" ? window.location.search : "",
+      "mode"
+    );
     return m === "engine" ? "engine" : "client";
   }, []);
 
-  // 鍩虹淇℃伅锛堝澶栵級
   const [planId, setPlanId] = useState("attaguy-plan");
-  const [companyName, setCompanyName] = useState("绀轰緥浼佷笟");
+  const [companyName, setCompanyName] = useState("示例企业");
   const [headcount, setHeadcount] = useState<number>(200);
   const [spaceSqm, setSpaceSqm] = useState<number>(120);
   const [budgetTier, setBudgetTier] = useState<BudgetTier>("mid");
   const [buildType, setBuildType] = useState<"new_build" | "renovation">("new_build");
-  const [usageIntensity, setUsageIntensity] = useState<"conservative" | "standard" | "active">("standard");
+  const [usageIntensity, setUsageIntensity] = useState<
+    "conservative" | "standard" | "active"
+  >("standard");
   const [preferSmart, setPreferSmart] = useState(false);
   const [preferQuiet, setPreferQuiet] = useState(false);
   const [budgetLevel, setBudgetLevel] = useState<BudgetLevel>("brand");
 
-  // 宸ョ▼鎺у埗锛堝鍐咃級
   const [sections, setSections] = useState<SectionId[]>([
     "header",
     "overall",
@@ -132,9 +133,6 @@ export default function ResultPage() {
     "remarks",
   ]);
 
-  // ==============
-  // Engine 楠屾敹闈㈡澘锛堜粎 engine 妯″紡锛夛細HEAD 璇诲彇娓叉煋淇℃伅
-  // ==============
   const [budgetHeadLoading, setBudgetHeadLoading] = useState(false);
   const [budgetHeadErr, setBudgetHeadErr] = useState<string>("");
   const [budgetHead, setBudgetHead] = useState<Record<string, string>>({});
@@ -144,29 +142,25 @@ export default function ResultPage() {
   const [tenderPackHead, setTenderPackHead] = useState<Record<string, string>>({});
 
   const companySizeTier = useMemo(() => headcountToSizeTier(headcount), [headcount]);
-
-  // 瀵瑰灞曠ず锛氭妸鎶€鏈瓧娈佃绠楀嚭鏉ワ紙浣嗕笉鏆撮湶 0-1 杈撳叆锛?  const participationRate = useMemo(() => intensityToParticipation(usageIntensity), [usageIntensity]);
+  const participationRate = useMemo(
+    () => intensityToParticipation(usageIntensity),
+    [usageIntensity]
+  );
 
   const peakUsers = useMemo(() => {
-    // 闈炰弗鏍肩瀛︼紝鍙仛鎶曟爣鏂囨绾т及绠楋細宄板€煎悓鏃朵娇鐢ㄤ汉鏁?鈮?headcount * participationRate
-    // 鍙悗缁浛鎹负浣犳洿涓ヨ皑鐨勬ā鍨?    const v = Math.round((headcount || 0) * participationRate);
+    const v = Math.round((headcount || 0) * participationRate);
     return Math.max(0, v);
   }, [headcount, participationRate]);
 
   const mode: Mode = modeFromUrl;
 
-  // =========================
-  // SaaS 濂楅鏉冮檺锛堟渶浼橈細Client 鍙楅檺锛孍ngine 涓嶅彈闄愶級
-  // 鍏堝啓姝伙紝鍚庣画鎺ヤ綘鐪熷疄鐢ㄦ埛/License
-  // =========================
-  const userPlan: UserPlan = "pro" as UserPlan; // TODO: replace with real license
+  const userPlan: UserPlan = "pro";
 
   const canUseEnterprise = mode === "engine" ? true : userPlan === "pro" || userPlan === "tender";
   const canUseGovernment = mode === "engine" ? true : userPlan === "tender";
 
-  // 涓嬭浇 URL锛堝敖閲忓吋瀹逛綘鐜版湁 /api/pdf锛?  const planPdfUrl = useMemo(() => {
-    // 鏂规 PDF锛氫綘椤圭洰閲屽鍗婃槸 mode=full
-    // 杩欓噷闄勫甫涓€浜涢€氱敤瀛楁锛屽悗绔鏋滀笉鍚冧篃涓嶅奖鍝?    return buildUrl("/api/pdf", {
+  const planPdfUrl = useMemo(() => {
+    return buildUrl("/api/pdf", {
       planId,
       mode: "full",
       download: 1,
@@ -180,11 +174,20 @@ export default function ResultPage() {
       preferQuiet: preferQuiet ? "1" : "0",
       tz: "Asia/Shanghai",
     });
-  }, [planId, companyName, headcount, participationRate, spaceSqm, budgetTier, buildType, preferSmart, preferQuiet]);
+  }, [
+    planId,
+    companyName,
+    headcount,
+    participationRate,
+    spaceSqm,
+    budgetTier,
+    buildType,
+    preferSmart,
+    preferQuiet,
+  ]);
 
   const budgetPdfUrl = useMemo(() => {
-    // 棰勭畻 PDF锛氫綘椤圭洰閲屽鍗婃槸 mode=budget
-    // sections 鐢ㄩ€楀彿涓诧紙浣犲悗绔嫢鏀寔 sections=xxx,yyy锛?    const params: Record<string, any> = {
+    const params: Record<string, any> = {
       planId,
       mode: "budget",
       download: 1,
@@ -200,29 +203,38 @@ export default function ResultPage() {
       sections: sections.join(","),
       tz: "Asia/Shanghai",
     };
-    
-    // government 闇€瑕?docSeq
+
     if (budgetLevel === "government") {
       params.docSeq = "01";
     }
-    
+
     return buildUrl("/api/pdf", params);
-  }, [planId, companyName, headcount, participationRate, spaceSqm, budgetTier, buildType, preferSmart, preferQuiet, sections, budgetLevel]);
+  }, [
+    planId,
+    companyName,
+    headcount,
+    participationRate,
+    spaceSqm,
+    budgetTier,
+    buildType,
+    preferSmart,
+    preferQuiet,
+    sections,
+    budgetLevel,
+  ]);
 
   const tenderPackUrl = useMemo(() => {
-    // 鉁?鏈€浼橈細鎷涙爣鍖?level 璺熼殢 budgetLevel锛屼絾 brand 鏄犲皠涓?enterprise
-    // - brand 閫変腑鏃讹細浼佷笟绾ф嫑鏍囧寘鏇村悎鐞?    // - enterprise/government锛氬師鏍蜂紶閫?    const packLevel = budgetLevel === "brand" ? "enterprise" : budgetLevel;
+    const packLevel = budgetLevel === "brand" ? "enterprise" : budgetLevel;
 
     return buildUrl("/api/tender-pack", {
       planId,
       format: "merged",
       level: packLevel,
-      // 鎺ㄨ崘锛歟nterprise 鐢?tender 涓婚锛屽叾瀹冪敤 brand锛堜綘鍙寜瀹為檯寰皟锛?      theme: packLevel === "enterprise" ? "tender" : "brand",
+      theme: packLevel === "enterprise" ? "tender" : "brand",
       watermark: 0,
       includeCover: 1,
       includeDeclaration: 1,
       packFooter: 1,
-      // 鍙€夛細浼犲叕鍙镐俊鎭紙鍚庣鍚冧笉鍚冮兘娌″叧绯伙級
       companyName,
       companySize: headcount,
       tz: "Asia/Shanghai",
@@ -239,7 +251,7 @@ export default function ResultPage() {
         setBudgetHeadLoading(true);
         setBudgetHeadErr("");
 
-        // 鈿狅笍 娉ㄦ剰锛歜udgetPdfUrl 宸茬粡甯?download=1锛汬EAD 涓嶄細涓嬭浇姝ｆ枃锛堝彧鎷?headers锛?        const res = await fetch(budgetPdfUrl, { method: "HEAD" });
+        const res = await fetch(budgetPdfUrl, { method: "HEAD" });
 
         if (!res.ok) {
           throw new Error(`HEAD ${res.status} ${res.statusText}`);
@@ -347,7 +359,7 @@ export default function ResultPage() {
   }, [mode, tenderPackUrl]);
 
   useEffect(() => {
-    // Client 妯″紡涓嬩笉鍏佽闈炴硶鐗堟湰鍋滅暀锛氳嚜鍔ㄩ檷绾?    if (mode !== "client") return;
+    if (mode !== "client") return;
 
     if (budgetLevel === "government" && !canUseGovernment) {
       setBudgetLevel("enterprise");
@@ -359,18 +371,20 @@ export default function ResultPage() {
     }
   }, [mode, budgetLevel, canUseEnterprise, canUseGovernment]);
 
-  const budgetOk = mode === "engine" && !budgetHeadErr && Object.keys(budgetHead || {}).length > 0;
-  const packOk = mode === "engine" && !tenderPackHeadErr && Object.keys(tenderPackHead || {}).length > 0;
+  const budgetOk =
+    mode === "engine" && !budgetHeadErr && Object.keys(budgetHead || {}).length > 0;
+  const packOk =
+    mode === "engine" && !tenderPackHeadErr && Object.keys(tenderPackHead || {}).length > 0;
 
   function getH(h: Record<string, string>, k: string) {
     return (h?.[k] || "").trim();
   }
 
   const auditSummaryText = useMemo(() => {
-    // 棰勭畻锛堜紭鍏堜粠 budget HEAD 鎷?reqsig锛?    const reqsig = getH(budgetHead, "x-reqsig") || getH(tenderPackHead, "x-reqsig");
+    const reqsig = getH(budgetHead, "x-reqsig") || getH(tenderPackHead, "x-reqsig");
     const reqsigShort = reqsig ? reqsig.slice(0, 8).toUpperCase() : "";
 
-    // 鎷涙爣鍖呬俊鎭紙鏉ヨ嚜 tender-pack HEAD锛?    const tenderNo = getH(tenderPackHead, "x-tender-no");
+    const tenderNo = getH(tenderPackHead, "x-tender-no");
     const tenderLevel = getH(tenderPackHead, "x-tender-level");
     const tenderPackFp = getH(tenderPackHead, "x-tender-pack");
 
@@ -391,25 +405,31 @@ export default function ResultPage() {
     const bEngineFp = getH(budgetHead, "x-engine-fp");
 
     return [
-      "銆怉I Fitness Solution 路 Engine 楠屾敹鎽樿銆?,
+      "【AI Fitness Solution · Engine 验收摘要】",
       "",
       `PlanID: ${planId}`,
-      `浼佷笟: ${companyName}锝滀汉鏁? ${headcount}锝滈潰绉? ${spaceSqm}銕★綔妗ｄ綅: ${String(budgetTier).toUpperCase()}锝滃缓璁? ${buildType}`,
+      `企业: ${companyName}｜人数: ${headcount}｜面积: ${spaceSqm}㎡｜档位: ${String(
+        budgetTier
+      ).toUpperCase()}｜建设: ${buildType}`,
       "",
-      "鈥?棰勭畻 PDF锛?api/pdf?mode=budget锛夆€?,
-      `level: ${bLevel || "(绌?"}锝渢enderLevel: ${bTenderLevel || "(绌?"}锝渢heme: ${bTheme || "(绌?"}`,
-      `pdfVersion: ${bVer || "(绌?"}锝渆ngineFP: ${bEngineFp || "(绌?"}`,
-      `REQSIG: ${reqsig || "(绌?"}${reqsigShort ? `锛堢煭鐮? ${reqsigShort}锛塦 : ""}`,
+      "— 预算 PDF（/api/pdf?mode=budget）—",
+      `level: ${bLevel || "(空)"}｜tenderLevel: ${bTenderLevel || "(空)"}｜theme: ${
+        bTheme || "(空)"
+      }`,
+      `pdfVersion: ${bVer || "(空)"}｜engineFP: ${bEngineFp || "(空)"}`,
+      `REQSIG: ${reqsig || "(空)"}${reqsigShort ? `（短码 ${reqsigShort}）` : ""}`,
       "",
-      "鈥?鎷涙爣鍖咃紙/api/tender-pack?format=merged锛夆€?,
-      `tenderLevel: ${tenderLevel || "(绌?"}锝渢enderNo: ${tenderNo || "(绌?"}`,
-      `tenderPackFP: ${tenderPackFp || "(绌?"}`,
-      `planVersion: ${planVer}锝渂udgetVersion: ${budgetVer}`,
-      `includeCover: ${includeCover}锝渋ncludeDeclaration: ${includeDecl}`,
-      `packPagination: ${packPagination}锝減ackFooter: ${packFooter}锝渟kipFirst: ${packSkip || "(绌?"}`,
-      `budgetSections: ${packSections || "(绌?"}`,
+      "— 招标包（/api/tender-pack?format=merged）—",
+      `tenderLevel: ${tenderLevel || "(空)"}｜tenderNo: ${tenderNo || "(空)"}`,
+      `tenderPackFP: ${tenderPackFp || "(空)"}`,
+      `planVersion: ${planVer}｜budgetVersion: ${budgetVer}`,
+      `includeCover: ${includeCover}｜includeDeclaration: ${includeDecl}`,
+      `packPagination: ${packPagination}｜packFooter: ${packFooter}｜skipFirst: ${
+        packSkip || "(空)"
+      }`,
+      `budgetSections: ${packSections || "(空)"}`,
       "",
-      "鈥?URLs 鈥?,
+      "— URLs —",
       `Budget: ${budgetPdfUrl}`,
       `TenderPack: ${tenderPackUrl}`,
       "",
@@ -430,9 +450,8 @@ export default function ResultPage() {
   async function copyAuditSummary() {
     try {
       await navigator.clipboard.writeText(auditSummaryText);
-      alert("宸插鍒堕獙鏀舵憳瑕佸埌鍓创鏉?);
+      alert("已复制验收摘要到剪贴板");
     } catch (e) {
-      // 鍏煎灏戞暟鐜
       try {
         const ta = document.createElement("textarea");
         ta.value = auditSummaryText;
@@ -440,9 +459,9 @@ export default function ResultPage() {
         ta.select();
         document.execCommand("copy");
         document.body.removeChild(ta);
-        alert("宸插鍒堕獙鏀舵憳瑕佸埌鍓创鏉?);
+        alert("已复制验收摘要到剪贴板");
       } catch {
-        alert("澶嶅埗澶辫触锛氳鍦ㄦ祻瑙堝櫒鍏佽鍓创鏉挎潈闄?);
+        alert("复制失败，请在浏览器中允许剪贴板权限");
       }
     }
   }
@@ -464,7 +483,6 @@ export default function ResultPage() {
   function toggleSection(id: SectionId, checked: boolean) {
     setSections((prev) => {
       if (checked) {
-        // 杩藉姞鍒版湯灏撅紝淇濇寔鐢ㄦ埛鍙帶
         if (prev.includes(id)) return prev;
         return [...prev, id];
       } else {
@@ -486,23 +504,32 @@ export default function ResultPage() {
         <div className="mb-8">
           <div className="text-3xl font-semibold">Result</div>
           <div className="mt-2 text-white/60">
-            Plan ID锛?span className="text-white/90">{planId}</span>
+            Plan ID：<span className="text-white/90">{planId}</span>
             <span className="ml-3 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs">
-              褰撳墠妯″紡锛歿mode === "client" ? "瀵瑰锛圕lient锛? : "鍐呴儴锛圗ngine锛?}
+              当前模式：{mode === "client" ? "对外（Client）" : "内部（Engine）"}
             </span>
             <span className="ml-3 text-xs text-white/50">
-              锛堝垏鎹細URL 鍔?<code className="text-white/70">?mode=engine</code>锛?            </span>
+              （切换：URL 后加 <code className="text-white/70">?mode=engine</code>）
+            </span>
           </div>
 
           {mode === "engine" && (
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs">
               <span className="font-semibold text-white/80">ENGINE STATUS</span>
 
-              <span className={`rounded-full px-3 py-1 ${budgetOk ? "bg-white/10 text-white/80" : "bg-red-500/10 text-red-200/90"}`}>
+              <span
+                className={`rounded-full px-3 py-1 ${
+                  budgetOk ? "bg-white/10 text-white/80" : "bg-red-500/10 text-red-200/90"
+                }`}
+              >
                 Budget HEAD: {budgetOk ? "OK" : "FAIL"}
               </span>
 
-              <span className={`rounded-full px-3 py-1 ${packOk ? "bg-white/10 text-white/80" : "bg-red-500/10 text-red-200/90"}`}>
+              <span
+                className={`rounded-full px-3 py-1 ${
+                  packOk ? "bg-white/10 text-white/80" : "bg-red-500/10 text-red-200/90"
+                }`}
+              >
                 TenderPack HEAD: {packOk ? "OK" : "FAIL"}
               </span>
 
@@ -511,34 +538,37 @@ export default function ResultPage() {
                 onClick={copyAuditSummary}
                 className="ml-auto rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
               >
-                澶嶅埗楠屾敹鎽樿
+                复制验收摘要
               </button>
             </div>
           )}
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          {/* 宸︼細瀵瑰鍙傛暟锛圕lient Mode锛?*/}
           <div className={cardCls}>
-            <div className="text-xl font-semibold">浼佷笟淇℃伅</div>
+            <div className="text-xl font-semibold">企业信息</div>
             <div className="mt-1 text-sm text-white/60">
-              鐢ㄤ簬鐢熸垚鎶曟爣绾?PDF 鐨勫叧閿緭鍏ワ紙宸查殣钘忓伐绋嬪瓧娈碉級
+              用于生成招标级 PDF 的关键输入（已隐藏工程字段）
             </div>
 
             <div className="mt-6 grid gap-5">
               <div>
-                <div className={labelCls}>Plan ID锛堝唴閮級</div>
+                <div className={labelCls}>Plan ID（内部）</div>
                 <input className={inputCls} value={planId} onChange={(e) => setPlanId(e.target.value)} />
               </div>
 
               <div>
-                <div className={labelCls}>浼佷笟鍚嶇О</div>
-                <input className={inputCls} value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+                <div className={labelCls}>企业名称</div>
+                <input
+                  className={inputCls}
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className={labelCls}>鍛樺伐浜烘暟</div>
+                  <div className={labelCls}>员工人数</div>
                   <input
                     className={inputCls}
                     type="number"
@@ -546,12 +576,12 @@ export default function ResultPage() {
                     onChange={(e) => setHeadcount(Number(e.target.value || 0))}
                   />
                   <div className="mt-2 text-xs text-white/50">
-                    绯荤粺鑷姩褰掔被锛歿cnSizeLabel(companySizeTier)}
+                    系统自动归类：{cnSizeLabel(companySizeTier)}
                   </div>
                 </div>
 
                 <div>
-                  <div className={labelCls}>鍦哄湴闈㈢Н锛堛帯锛?/div>
+                  <div className={labelCls}>场地面积（㎡）</div>
                   <input
                     className={inputCls}
                     type="number"
@@ -563,48 +593,56 @@ export default function ResultPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className={labelCls}>棰勭畻绛夌骇</div>
+                  <div className={labelCls}>预算等级</div>
                   <select
                     className={inputCls}
                     value={budgetTier}
                     onChange={(e) => setBudgetTier(e.target.value as BudgetTier)}
                   >
-                    <option value="low">浣?/option>
-                    <option value="mid">涓?/option>
-                    <option value="high">楂?/option>
+                    <option value="low">低</option>
+                    <option value="mid">中</option>
+                    <option value="high">高</option>
                   </select>
+                  <div className="mt-2 text-xs text-white/50">
+                    当前选择：{cnBudgetTierLabel(budgetTier)}档
+                  </div>
                 </div>
 
                 <div>
-                  <div className={labelCls}>寤鸿绫诲瀷</div>
+                  <div className={labelCls}>建设类型</div>
                   <select
                     className={inputCls}
                     value={buildType}
-                    onChange={(e) => setBuildType(e.target.value as any)}
+                    onChange={(e) => setBuildType(e.target.value as "new_build" | "renovation")}
                   >
-                    <option value="new_build">鏂板缓</option>
-                    <option value="renovation">鏀归€?/option>
+                    <option value="new_build">新建</option>
+                    <option value="renovation">改造</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <div className={labelCls}>浣跨敤寮哄害锛堢郴缁熷皢鑷姩鎺ㄥ浣跨敤姣斾緥锛?/div>
+                <div className={labelCls}>使用强度（系统将自动推导使用比例）</div>
                 <select
                   className={inputCls}
                   value={usageIntensity}
-                  onChange={(e) => setUsageIntensity(e.target.value as any)}
+                  onChange={(e) =>
+                    setUsageIntensity(
+                      e.target.value as "conservative" | "standard" | "active"
+                    )
+                  }
                 >
-                  <option value="conservative">淇濆畧锛堜綆棰戜娇鐢級</option>
-                  <option value="standard">鏍囧噯锛堝父瑙勪紒涓氾級</option>
-                  <option value="active">楂樻椿璺冿紙鍋ュ悍鏂囧寲寮猴級</option>
+                  <option value="conservative">保守（低频使用）</option>
+                  <option value="standard">标准（常规企业）</option>
+                  <option value="active">高活跃（健康文化强）</option>
                 </select>
 
                 <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
-                  <div>绯荤粺棰勬祴浣跨敤姣斾緥锛歿Math.round(participationRate * 100)}%</div>
-                  <div>宄板€煎悓鏃朵娇鐢ㄤ汉鏁帮紙浼扮畻锛夛細{peakUsers} 浜?/div>
+                  <div>系统预测使用比例：{Math.round(participationRate * 100)}%</div>
+                  <div>峰值同时使用人数（估算）：{peakUsers} 人</div>
                   <div className="mt-1 text-xs text-white/50">
-                    璇存槑锛氫娇鐢ㄦ瘮渚?= 棰勮缁忓父浣跨敤鍋ヨ韩鎴跨殑鍛樺伐鍗犳瘮锛堢敤浜庡櫒鏉愯妯′笌瀹归噺鎺ㄥ锛?                  </div>
+                    说明：使用比例 = 预计经常使用健身房的员工占比，用于器材规模与容量推导。
+                  </div>
                 </div>
               </div>
 
@@ -616,7 +654,7 @@ export default function ResultPage() {
                     preferSmart ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5"
                   }`}
                 >
-                  鍋忓ソ鏅鸿兘
+                  偏好智能
                 </button>
                 <button
                   type="button"
@@ -625,11 +663,10 @@ export default function ResultPage() {
                     preferQuiet ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5"
                   }`}
                 >
-                  鍋忓ソ浣庡櫔
+                  偏好低噪
                 </button>
               </div>
 
-              {/* 棰勭畻鏂囨。鐗堟湰閫夋嫨 */}
               <div style={{ marginTop: 16, marginBottom: 12 }}>
                 <div
                   style={{
@@ -639,7 +676,7 @@ export default function ResultPage() {
                     color: "rgba(255,255,255,0.9)",
                   }}
                 >
-                  棰勭畻鏂囨。鐗堟湰
+                  预算文档版本
                 </div>
 
                 <label
@@ -657,9 +694,9 @@ export default function ResultPage() {
                     onChange={() => setBudgetLevel("brand")}
                     style={{ marginRight: 6 }}
                   />
-                  鏍囧噯鎶ヤ环鐗堬紙2椤碉級
+                  标准报价版（2页）
                   <span style={{ marginLeft: 8, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-                    榛樿鍙敤
+                    默认可用
                   </span>
                 </label>
 
@@ -679,10 +716,12 @@ export default function ResultPage() {
                     onChange={() => setBudgetLevel("enterprise")}
                     style={{ marginRight: 6 }}
                   />
-                  浼佷笟璇勫鐗堬紙7椤碉級
+                  企业评审版（7页）
                   {!canUseEnterprise && (
-                    <span style={{ marginLeft: 8, fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
-                      闇€鍗囩骇 Pro
+                    <span
+                      style={{ marginLeft: 8, fontSize: 12, color: "rgba(255,255,255,0.45)" }}
+                    >
+                      需升级 Pro
                     </span>
                   )}
                 </label>
@@ -702,15 +741,16 @@ export default function ResultPage() {
                     onChange={() => setBudgetLevel("government")}
                     style={{ marginRight: 6 }}
                   />
-                  鏀垮簻璇勫鐗堬紙5椤碉紝鍚紪鍙风鍚嶏級
+                  政府评审版（5页，含编号签章）
                   {!canUseGovernment && (
-                    <span style={{ marginLeft: 8, fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
-                      闇€鍗囩骇 Tender
+                    <span
+                      style={{ marginLeft: 8, fontSize: 12, color: "rgba(255,255,255,0.45)" }}
+                    >
+                      需升级 Tender
                     </span>
                   )}
                 </label>
 
-                {/* 濂楅鎻愮ず锛堜粎 Client 灞曠ず锛孍ngine 涓嶉渶瑕侊級 */}
                 {mode === "client" && (
                   <div
                     style={{
@@ -723,11 +763,12 @@ export default function ResultPage() {
                       padding: "10px 12px",
                     }}
                   >
-                    褰撳墠濂楅锛?b style={{ color: "rgba(255,255,255,0.85)" }}>{userPlan.toUpperCase()}</b>
+                    当前套餐：
+                    <b style={{ color: "rgba(255,255,255,0.85)" }}>{userPlan.toUpperCase()}</b>
                     <span style={{ marginLeft: 10 }}>
-                      {userPlan === "free" && "锛圥ro 瑙ｉ攣浼佷笟璇勫鐗堬紱Tender 瑙ｉ攣鏀垮簻璇勫鐗堬級"}
-                      {userPlan === "pro" && "锛圱ender 瑙ｉ攣鏀垮簻璇勫鐗堬級"}
-                      {userPlan === "tender" && "锛堝凡瑙ｉ攣鍏ㄩ儴鐗堟湰锛?}
+                      {userPlan === "free" && "（Pro 解锁企业评审版；Tender 解锁政府评审版）"}
+                      {userPlan === "pro" && "（Tender 解锁政府评审版）"}
+                      {userPlan === "tender" && "（已解锁全部版本）"}
                     </span>
                   </div>
                 )}
@@ -738,30 +779,30 @@ export default function ResultPage() {
                   href={planPdfUrl}
                   className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black"
                 >
-                  涓嬭浇鏂规 PDF
+                  下载方案 PDF
                 </a>
 
                 <a
                   href={budgetPdfUrl}
                   className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white"
                 >
-                  涓嬭浇棰勭畻 PDF
+                  下载预算 PDF
                 </a>
 
                 {mode === "engine" && (
                   <a
                     href={tenderPackUrl}
                     className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white hover:bg-white/10"
-                    title="Engine 妯″紡涓撶敤锛氬悎骞剁増鎷涙爣鍖咃紙灏侀潰/鐩綍/澹版槑/鏂规/棰勭畻锛?
+                    title="Engine 模式专用：合并版招标包（封面 / 目录 / 声明 / 方案 / 预算）"
                   >
-                    涓嬭浇鎷涙爣鍖咃紙鍚堝苟鐗堬級
+                    下载招标包（合并版）
                   </a>
                 )}
               </div>
 
               {mode === "engine" && (
                 <CollapsiblePanel
-                  title="棰勭畻 PDF 楠屾敹淇℃伅锛圚EAD锛?
+                  title="预算 PDF 验收信息（HEAD）"
                   defaultOpen={false}
                   right={
                     <button
@@ -769,27 +810,23 @@ export default function ResultPage() {
                       onClick={copyAuditSummary}
                       className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 hover:bg-white/10"
                     >
-                      澶嶅埗鎽樿
+                      复制摘要
                     </button>
                   }
                 >
-                  <div className="text-xs text-white/50 mb-2">
+                  <div className="mb-2 text-xs text-white/50">
                     level=<span className="text-white/80">{budgetLevel}</span>
                     {budgetLevel === "government" ? (
                       <span className="ml-2 text-white/50">docSeq=01</span>
                     ) : null}
                   </div>
 
-                  <div className="text-xs text-white/60 break-all mb-3">
-                    url锛歿budgetPdfUrl}
-                  </div>
+                  <div className="mb-3 break-all text-xs text-white/60">url：{budgetPdfUrl}</div>
 
                   {budgetHeadLoading ? (
-                    <div className="text-xs text-white/60">璇诲彇涓€?/div>
+                    <div className="text-xs text-white/60">读取中...</div>
                   ) : budgetHeadErr ? (
-                    <div className="text-xs text-red-300/90">
-                      璇诲彇澶辫触锛歿budgetHeadErr}
-                    </div>
+                    <div className="text-xs text-red-300/90">读取失败：{budgetHeadErr}</div>
                   ) : (
                     <div className="grid gap-2 md:grid-cols-2">
                       {[
@@ -811,8 +848,8 @@ export default function ResultPage() {
                           className="rounded-lg border border-white/10 bg-white/5 px-3 py-2"
                         >
                           <div className="text-[11px] text-white/50">{k}</div>
-                          <div className="mt-1 text-xs text-white/80 break-all">
-                            {v || <span className="text-white/35">锛堢┖锛?/span>}
+                          <div className="mt-1 break-all text-xs text-white/80">
+                            {v || <span className="text-white/35">（空）</span>}
                           </div>
                         </div>
                       ))}
@@ -823,7 +860,7 @@ export default function ResultPage() {
 
               {mode === "engine" && (
                 <CollapsiblePanel
-                  title="鎷涙爣鍖?楠屾敹淇℃伅锛圚EAD锛?
+                  title="招标包 验收信息（HEAD）"
                   defaultOpen={false}
                   right={
                     <button
@@ -831,23 +868,24 @@ export default function ResultPage() {
                       onClick={copyAuditSummary}
                       className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 hover:bg-white/10"
                     >
-                      澶嶅埗鎽樿
+                      复制摘要
                     </button>
                   }
                 >
-                  <div className="text-xs text-white/50 mb-2">
-                    packLevel=<span className="text-white/80">{budgetLevel === "brand" ? "enterprise" : budgetLevel}</span>
+                  <div className="mb-2 text-xs text-white/50">
+                    packLevel=
+                    <span className="text-white/80">
+                      {budgetLevel === "brand" ? "enterprise" : budgetLevel}
+                    </span>
                   </div>
 
-                  <div className="text-xs text-white/60 break-all mb-3">
-                    url锛歿tenderPackUrl}
-                  </div>
+                  <div className="mb-3 break-all text-xs text-white/60">url：{tenderPackUrl}</div>
 
                   {tenderPackHeadLoading ? (
-                    <div className="text-xs text-white/60">璇诲彇涓€?/div>
+                    <div className="text-xs text-white/60">读取中...</div>
                   ) : tenderPackHeadErr ? (
                     <div className="text-xs text-red-300/90">
-                      璇诲彇澶辫触锛歿tenderPackHeadErr}
+                      读取失败：{tenderPackHeadErr}
                     </div>
                   ) : (
                     <div className="grid gap-2 md:grid-cols-2">
@@ -877,8 +915,8 @@ export default function ResultPage() {
                           className="rounded-lg border border-white/10 bg-white/5 px-3 py-2"
                         >
                           <div className="text-[11px] text-white/50">{k}</div>
-                          <div className="mt-1 text-xs text-white/80 break-all">
-                            {v || <span className="text-white/35">锛堢┖锛?/span>}
+                          <div className="mt-1 break-all text-xs text-white/80">
+                            {v || <span className="text-white/35">（空）</span>}
                           </div>
                         </div>
                       ))}
@@ -889,25 +927,26 @@ export default function ResultPage() {
 
               {mode === "engine" ? (
                 <div className="mt-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 text-xs text-yellow-200/80">
-                  褰撳墠涓?Engine 妯″紡锛氬乏渚т粛浠モ€滃澶栧瓧娈碘€濅负涓伙紝浣嗗彸渚т細鏄剧ず妯″潡椤哄簭鎺у埗鍙般€?                </div>
+                  当前为 Engine 模式：左侧仍以“对外字段”为主，但右侧会显示模块顺序控制台。
+                </div>
               ) : (
                 <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
-                  褰撳墠涓?Client 妯″紡锛氬凡闅愯棌鈥滄ā鍧楅『搴忋€?-1 鍙備笌鐜囥€佽嫳鏂囨ā鍧楀悕鈥濈瓑宸ョ▼瀛楁锛屾洿閫傚悎闈㈠悜瀹㈡埛/璇勫灞曠ず銆?                </div>
+                  当前为 Client 模式：已隐藏“模块顺序、0-1 参与率、英文模块名”等工程字段，更适合面向客户 / 评审展示。
+                </div>
               )}
             </div>
           </div>
 
-          {/* 鍙筹細妯″潡椤哄簭锛堜粎 Engine Mode 灞曠ず锛汣lient Mode 灞曠ず鈥滄柟妗堢粨鏋勬瑙堚€濓級 */}
           <div className={cardCls}>
             {mode === "engine" ? (
               <>
-                <div className="text-xl font-semibold">妯″潡椤哄簭锛圗ngine锛?/div>
+                <div className="text-xl font-semibold">模块顺序（Engine）</div>
                 <div className="mt-1 text-sm text-white/60">
-                  鍐呴儴璋冭瘯鐢細閫夋嫨妯″潡骞惰皟鏁撮『搴忥紙瀵瑰涓嶅睍绀猴級
+                  内部调试用：选择模块并调整顺序（对外不展示）
                 </div>
 
                 <div className="mt-4 text-xs text-white/50">
-                  褰撳墠椤哄簭锛歿sections.join(" / ")}
+                  当前顺序：{sections.join(" / ")}
                 </div>
 
                 <div className="mt-4 space-y-3">
@@ -922,7 +961,9 @@ export default function ResultPage() {
                           <input
                             type="checkbox"
                             checked={checked}
-                            onChange={(e) => toggleSection(m.id as SectionId, e.target.checked)}
+                            onChange={(e) =>
+                              toggleSection(m.id as SectionId, e.target.checked)
+                            }
                             className="mt-1"
                           />
                           <div>
@@ -939,7 +980,7 @@ export default function ResultPage() {
                             disabled={!checked}
                             className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs disabled:opacity-40"
                           >
-                            涓婄Щ
+                            上移
                           </button>
                           <button
                             type="button"
@@ -947,7 +988,7 @@ export default function ResultPage() {
                             disabled={!checked}
                             className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs disabled:opacity-40"
                           >
-                            涓嬬Щ
+                            下移
                           </button>
                         </div>
                       </div>
@@ -956,24 +997,27 @@ export default function ResultPage() {
                 </div>
 
                 <div className="mt-5 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
-                  璇存槑锛欵ngine 妯″紡鍙敤浜庝綘鍐呴儴楠岃瘉 PDF 缁撴瀯涓庢覆鏌撶ǔ瀹氭€э紱瀵瑰浜や粯璇蜂娇鐢?Client 妯″紡榛樿椤甸潰銆?                </div>
+                  说明：Engine 模式只用于你内部验收 PDF 结构与渲染稳定性；对外交付请使用
+                  Client 模式默认页面。
+                </div>
               </>
             ) : (
               <>
-                <div className="text-xl font-semibold">鏂规缁撴瀯姒傝锛圕lient锛?/div>
+                <div className="text-xl font-semibold">方案结构概览（Client）</div>
                 <div className="mt-1 text-sm text-white/60">
-                  闈㈠悜瀹㈡埛/璇勫鐨勫睍绀猴細涓嶆毚闇插伐绋嬫ā鍧楀悕涓庨『搴忔帶鍒?                </div>
+                  面向客户 / 评审的展示：不暴露工程模块名与顺序控制
+                </div>
 
                 <div className="mt-5 space-y-3">
                   {[
-                    { t: "椤圭洰鑳屾櫙涓庣洰鏍?, d: "浼佷笟鍋ュ悍鏀寔鐩爣銆佸缓璁惧師鍒欎笌鏀剁泭" },
-                    { t: "闇€姹傚垎鏋愪笌瀹归噺鎺ㄥ", d: "瑙勬ā銆佷娇鐢ㄥ己搴︿笌宄板€煎閲忕殑鎺ㄥ璇存槑" },
-                    { t: "鏂规瀵规瘮涓庢帹鑽?, d: "Lite / Standard / Pro 涓夋。瀵规瘮涓庢帹鑽愮悊鐢? },
-                    { t: "鎺ㄨ崘鏂规璇︾粏閰嶇疆", d: "鍔熻兘鍖恒€佸櫒鏉愰厤缃緷鎹笌浜や粯鑼冨洿" },
-                    { t: "瀹炴柦璁″垝涓庨獙鏀?, d: "鏂藉伐銆佸畨瑁呫€佽皟璇曘€侀獙鏀惰妭鐐逛笌鏍囧噯" },
-                    { t: "杩愮淮涓庡敭鍚庝繚闅?, d: "璐ㄤ繚銆佸搷搴旀満鍒躲€佸贰妫€涓庡煿璁? },
-                    { t: "椋庨櫓鎺у埗涓庤竟鐣?, d: "瀹夊叏銆侀绠椼€佷娇鐢ㄤ笌杩愯惀椋庨櫓鎺у埗" },
-                    { t: "闄勫綍涓庡０鏄?, d: "鍙傛暟琛ㄣ€佸搧鐗屽缓璁€佸０鏄庡嚱绛? },
+                    { t: "项目背景与目标", d: "企业健康支持目标、建设原则与收益说明" },
+                    { t: "需求分析与容量推导", d: "规模、使用强度与峰值容量的推导说明" },
+                    { t: "方案对比与推荐", d: "Lite / Standard / Pro 三档对比与推荐理由" },
+                    { t: "推荐方案详细配置", d: "功能区、器材配置依据与交付范围" },
+                    { t: "实施计划与验收", d: "施工、安装、调试、验收节点与标准" },
+                    { t: "运维与售后保障", d: "质保、响应机制、巡检与培训" },
+                    { t: "风险控制与边界", d: "安全、预算、使用与运营风险控制" },
+                    { t: "附录与声明", d: "参数表、品牌建议、声明函等" },
                   ].map((x) => (
                     <div
                       key={x.t}
@@ -986,14 +1030,18 @@ export default function ResultPage() {
                 </div>
 
                 <div className="mt-5 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
-                  闇€瑕佽繘鍏ュ唴閮ㄨ皟璇曪紵鍦ㄥ湴鍧€鍚庡姞 <code className="text-white/70">?mode=engine</code>銆?                </div>
+                  需要进入内部调试？在地址后加{" "}
+                  <code className="text-white/70">?mode=engine</code>。
+                </div>
               </>
             )}
           </div>
         </div>
 
         <div className="mt-10 text-xs text-white/35">
-          UI 鍒嗗眰鐩爣锛欳lient 妯″紡鐢ㄤ簬瀵瑰灞曠ず涓庝氦浠橈紱Engine 妯″紡鐢ㄤ簬鍐呴儴璋冭瘯 PDF 寮曟搸锛屼笉鍚戝鎴锋毚闇层€?        </div>
+          UI 分层目标：Client 模式用于对外展示与交付；Engine 模式用于内部调试 PDF
+          引擎，不向客户暴露。
+        </div>
       </div>
     </div>
   );
