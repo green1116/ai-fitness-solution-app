@@ -43,9 +43,9 @@ function withTimeout<T>(p: Promise<T>, ms: number, label = "timeout"): Promise<T
 export default async function PdfLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<SP> | SP;
+  searchParams?: Promise<SP>;
 }) {
-  const sp = await Promise.resolve(searchParams);
+  const sp = (await searchParams) || {};
   const planId = (sp?.planId || "").trim();
 
   let rows: PdfLogRow[] = [];
