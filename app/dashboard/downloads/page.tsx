@@ -1,4 +1,4 @@
-﻿// app/dashboard/downloads/page.tsx
+// app/dashboard/downloads/page.tsx
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { getSessionEmail } from "@/lib/auth-server";
@@ -17,7 +17,7 @@ type SearchParams = {
 export default async function DownloadsPage({
   searchParams,
 }: {
-  searchParams?: Promise<SearchParams> | SearchParams;
+  searchParams?: Promise<SearchParams>;
 }) {
   const email = await getSessionEmail();
   if (!email) redirect("/login");
@@ -31,7 +31,7 @@ export default async function DownloadsPage({
     redirect("/dashboard");
   }
 
-  const sp = await Promise.resolve(searchParams || {});
+  const sp = (await searchParams) || {};
 
   const planId = String(sp?.planId ?? "")
     .trim()
