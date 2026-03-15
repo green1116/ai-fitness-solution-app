@@ -18,7 +18,7 @@ export const runtime = "nodejs";
  * Plan JSON Schema（Zod 验证）
  * 用于严格验证 LLM 输出的 JSON 格式
  */
-export const PlanSchema = z.object({
+const PlanSchema = z.object({
   meta: z.object({
     plan_id: z.string(),
     proposalNo: z.string().optional(), // 兼容旧字段
