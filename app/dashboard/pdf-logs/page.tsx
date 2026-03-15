@@ -116,8 +116,8 @@ export default async function PdfLogsPage({
                 <tr>
                   <td className="px-4 py-6 text-white/60" colSpan={9}>
                     {dbErr
-                      ? "鏁版嵁搴撲笉鍙揪/瓒呮椂锛氳鍏堜慨澶嶇綉缁滐紙LetsTAP锛夋垨鍦ㄥ彲鑱旂綉鐜鎵ц杩佺Щ銆?
-                      : "鏆傛棤璁板綍锛堝厛涓嬭浇涓€娆℃柟妗?棰勭畻/鎷涙爣鍖呭啀鍒锋柊锛?}
+                      ? "数据库读取失败"
+                      : "日志读取成功"}
                   </td>
                 </tr>
               )}
