@@ -24,7 +24,6 @@ async function sendOtp(email: string, planId: string | null) {
 
   await prisma.emailOtp.create({
     data: {
-      id: crypto.randomUUID(),
       email,
       codeHash,
       planId,
