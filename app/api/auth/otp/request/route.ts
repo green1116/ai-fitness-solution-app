@@ -1,6 +1,4 @@
-// app/api/auth/otp/request/route.ts
 import { NextRequest } from "next/server";
-import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
 import { fail, ok, requestIdFromHeaders } from "@/lib/api-response";
@@ -8,25 +6,23 @@ import { rateLimit } from "@/lib/rate-limit";
 import { getIp } from "@/lib/http";
 import { safeLog } from "@/lib/log";
 
-function sha256(s: string) {
-  return crypto.createHash("sha256").update(s).digest("hex");
-}
-
 function genCode() {
-  // 6位数字
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-async function sendOtp(email: string, planId: string | null) {
+async function sendOtp(email: string) {
   const code = genCode();
-  const codeHash = sha256(code);
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10分钟
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-  await prisma.emailOtp.create({
-    data: {
+  await prisma.emailOtp.upsert({
+    where: { email },
+    update: {
+      code,
+      expiresAt,
+    },
+    create: {
       email,
-      codeHash,
-      planId,
+      code,
       expiresAt,
     },
   });
@@ -65,7 +61,6 @@ export async function POST(req: NextRequest) {
     return fail("BAD_REQUEST", "Email invalid", 400, requestId);
   }
 
-  // 限流：同 IP + email，60 秒最多 1 次（可调）
   const rl = rateLimit(`otp:req:${ip}:${email}`, 1, 60_000);
   if (!rl.ok) {
     safeLog("otp_request_rate_limited", { requestId, email, ip, planId });
@@ -79,7 +74,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await sendOtp(email, planId || null);
+    await sendOtp(email);
     safeLog("otp_request_ok", { requestId, email, ip, planId });
     return ok({ requestId });
   } catch (e: any) {
