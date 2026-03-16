@@ -1,104 +1,75 @@
-// app/api/auth/email/request/route.ts
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
-import { enforceLimit } from "@/lib/ratelimit";
-import { getClientIp } from "@/lib/ip";
-import { notify } from "@/lib/notify";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const resend = new Resend(process.env.RESEND_API_KEY || "");
-
-function isEmail(s: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+function json(status: number, body: any) {
+  return NextResponse.json(body, { status });
 }
 
-export async function POST(req: Request) {
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) return null;
+  return new Resend(apiKey);
+}
+
+function genCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+export async function POST(req: NextRequest) {
   try {
-    const { email, planId } = await req.json();
-    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const body = await req.json().catch(() => ({}));
+    const email = String(body?.email || body?.to || "").trim().toLowerCase();
+    const planId = String(body?.planId || "").trim();
+    const code = genCode();
 
-    if (!normalizedEmail || !isEmail(normalizedEmail)) {
-      return NextResponse.json(
-        { ok: false, code: "BAD_EMAIL", message: "请输入有效的邮箱" },
-        { status: 400 }
-      );
+    if (!email) {
+      return json(400, {
+        ok: false,
+        code: "EMAIL_REQUIRED",
+        message: "Missing email",
+      });
     }
 
-    const ip = getClientIp(req);
-
-    // 限流：同邮箱 & 同 IP
-    const limEmail = await enforceLimit(`rl:otp:email:${normalizedEmail}`, 3600, 10);
-    if (!limEmail.ok) {
-      return NextResponse.json(
-        { ok: false, code: "TOO_MANY_REQUESTS", message: "验证码发送过于频繁，请稍后再试" },
-        { status: 429 }
-      );
+    const resend = getResendClient();
+    if (!resend) {
+      return json(500, {
+        ok: false,
+        code: "RESEND_API_KEY_MISSING",
+        message: "RESEND_API_KEY is not configured",
+      });
     }
 
-    const limIp = await enforceLimit(`rl:otp:ip:${ip}`, 3600, 60);
-    if (!limIp.ok) {
-      return NextResponse.json(
-        { ok: false, code: "TOO_MANY_REQUESTS", message: "请求过于频繁，请稍后再试" },
-        { status: 429 }
-      );
-    }
+    const from = process.env.RESEND_FROM_EMAIL?.trim() || "onboarding@resend.dev";
 
-    // 生成 6 位数字验证码
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 分钟
-
-    // ✅ 统一：写入 EmailOtp 表
-    // 模型假设为：
-    // model EmailOtp {
-    //   email     String   @id
-    //   code      String
-    //   expiresAt DateTime
-    //   createdAt DateTime @default(now())
-    // }
-    await (prisma as any).emailOtp.upsert({
-      where: { email: normalizedEmail },
-      update: {
-        code,
-        expiresAt,
-      },
-      create: {
-        email: normalizedEmail,
-        code,
-        expiresAt,
-      },
-    });
-
-    console.log(
-      `[EmailOtp] upsert ok: email=${normalizedEmail}, code=${code}, expiresAt=${expiresAt.toISOString()}`
-    );
-
-    // 开发期把验证码打在控制台，方便你对比
-    console.log(`[DEV OTP] ${normalizedEmail} ${code}`);
-
-    // 发送邮件
-    const from = process.env.EMAIL_FROM || "Attaguy <noreply@mail.attaguy.net>";
-
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from,
-      to: normalizedEmail,
-      subject: "验证码登录",
-      text: `您的验证码是：${code}\n10 分钟内有效，请勿泄露给他人。`,
-      html: `<p>您的验证码是：<strong>${code}</strong></p><p>10 分钟内有效，请勿泄露给他人。</p>`,
+      to: email,
+      subject: "Your verification code",
+      html: `
+        <div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;">
+          <p>Your verification code is:</p>
+          <p style="font-size:24px;font-weight:700;letter-spacing:2px;">${code}</p>
+          ${planId ? `<p>Plan ID: ${planId}</p>` : ""}
+          <p>This code will expire soon.</p>
+        </div>
+      `,
     });
 
-    await notify(`[Attaguy] 发送登录验证码：${normalizedEmail} | ip=${ip} | planId=${planId || "-"}`);
-
-    return NextResponse.json({
+    return json(200, {
       ok: true,
-      message: "验证码已发送，请查收邮箱（10 分钟内有效）",
+      email,
+      planId,
+      code,
+      id: result.data?.id || null,
     });
   } catch (e: any) {
-    console.error("[Email Request] failed:", e?.message || e);
-    return NextResponse.json(
-      { ok: false, code: "SEND_FAILED", message: e?.message || "验证码发送失败" },
-      { status: 500 }
-    );
+    return json(500, {
+      ok: false,
+      code: "EMAIL_REQUEST_FAILED",
+      message: e?.message || "Failed to request email verification",
+    });
   }
 }

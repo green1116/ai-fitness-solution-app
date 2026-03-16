@@ -6,6 +6,41 @@ import RevokeToken from "./RevokeToken";
 import RevokeByPlan from "./RevokeByPlan";
 import Charts from "./Charts";
 
+function readJsonObject(v: unknown): Record<string, unknown> | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  return v as Record<string, unknown>;
+}
+
+function getRowEmail(r: {
+  extra?: unknown;
+  [key: string]: unknown;
+}): string {
+  const topLevel =
+    typeof r["email"] === "string"
+      ? (r["email"] as string)
+      : typeof r["userEmail"] === "string"
+      ? (r["userEmail"] as string)
+      : typeof r["verifiedEmail"] === "string"
+      ? (r["verifiedEmail"] as string)
+      : "";
+
+  if (topLevel) return topLevel;
+
+  const extraObj = readJsonObject(r.extra);
+  if (!extraObj) return "";
+
+  const extraEmail =
+    typeof extraObj["email"] === "string"
+      ? (extraObj["email"] as string)
+      : typeof extraObj["userEmail"] === "string"
+      ? (extraObj["userEmail"] as string)
+      : typeof extraObj["verifiedEmail"] === "string"
+      ? (extraObj["verifiedEmail"] as string)
+      : "";
+
+  return extraEmail || "";
+}
+
 type SearchParams = {
   planId?: string;
   email?: string;
@@ -312,14 +347,14 @@ export default async function DownloadsPage({
                   <td>{r.mode ?? ""}</td>
                   <td>{r.reason ?? ""}</td>
                   <td>{String(r.ok)}</td>
-                  <td>{r.email ?? ""}</td>
+                  <td>{getRowEmail(r)}</td>
                   <td>{r.ip ?? ""}</td>
                   <td
                     style={{
-                      maxWidth: 420,
+                      maxWidth: 320,
+                      whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
                     }}
                   >
                     {r.ua ?? r.userAgent ?? ""}

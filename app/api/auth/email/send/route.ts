@@ -1,65 +1,75 @@
-// app/api/auth/email/send/route.ts
-export const runtime = "nodejs";
-
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
-import { maskEmail, maskToken } from "@/lib/mask";
-// import { sendEmail } from "@/lib/email"; // 你原来的发信方法（resend）保持不变即可
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function normalizeEmail(email: any) {
-  return String(email || "").trim().toLowerCase();
-}
-function isEmail(s: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+function json(status: number, body: any) {
+  return NextResponse.json(body, { status });
 }
 
-export async function POST(req: Request) {
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) return null;
+  return new Resend(apiKey);
+}
+
+function genCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const email = normalizeEmail(body.email);
+    const email = String(body?.email || body?.to || "").trim().toLowerCase();
+    const planId = String(body?.planId || "").trim();
+    const code = genCode();
 
-    if (!email || !isEmail(email)) {
-      return NextResponse.json({ ok: false, code: "BAD_EMAIL", message: "请输入有效邮箱" }, { status: 400 });
+    if (!email) {
+      return json(400, {
+        ok: false,
+        code: "EMAIL_REQUIRED",
+        message: "Missing email",
+      });
     }
 
-    const code = String(Math.floor(100000 + Math.random() * 900000)); // 6位
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10分钟
+    const resend = getResendClient();
+    if (!resend) {
+      return json(500, {
+        ok: false,
+        code: "RESEND_API_KEY_MISSING",
+        message: "RESEND_API_KEY is not configured",
+      });
+    }
 
-    // ✅ 关键：写进数据库（稳定，不会因为热更新丢失）
-    await (prisma as any).emailOtp.upsert({
-      where: { email },
-      update: { code, expiresAt },
-      create: { email, code, expiresAt },
+    const from = process.env.RESEND_FROM_EMAIL?.trim() || "onboarding@resend.dev";
+
+    const result = await resend.emails.send({
+      from,
+      to: email,
+      subject: "Your verification code",
+      html: `
+        <div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;">
+          <p>Your verification code is:</p>
+          <p style="font-size:24px;font-weight:700;letter-spacing:2px;">${code}</p>
+          ${planId ? `<p>Plan ID: ${planId}</p>` : ""}
+          <p>This code will expire soon.</p>
+        </div>
+      `,
     });
 
-    // 发送邮件
-    console.log(`[Send] 发送验证码到: ${maskEmail(email)}, 验证码: ${maskToken(code)}`);
-    let emailId: string | undefined;
-    try {
-      const from = process.env.EMAIL_FROM || "Attaguy <noreply@mail.attaguy.net>";
-      const result = await resend.emails.send({
-        from,
-        to: email,
-        subject: "Attaguy 验证码（10分钟有效）",
-        html: `<p>你的验证码是：</p><h2 style="letter-spacing:2px">${code}</h2><p>10 分钟内有效。如非本人操作请忽略。</p>`,
-      });
-
-      emailId = result.data?.id;
-      console.log(`[Resend] 邮件发送成功 - ID: ${emailId}, Email: ${maskEmail(email)}, Code: ${maskToken(code)}`);
-    } catch (resendError: any) {
-      console.error("[Resend] 邮件发送失败:", resendError?.message || resendError);
-      throw new Error(`Resend API 错误: ${resendError?.message || "unknown_error"}`);
-    }
-
-    return NextResponse.json({ ok: true, message: "sent" });
+    return json(200, {
+      ok: true,
+      email,
+      planId,
+      code,
+      id: result.data?.id || null,
+    });
   } catch (e: any) {
-    console.error("[Send] 发送失败:", e?.message || e);
-    return NextResponse.json(
-      { ok: false, code: "SEND_FAILED", message: e?.message || "发送失败" },
-      { status: 500 }
-    );
+    return json(500, {
+      ok: false,
+      code: "EMAIL_REQUEST_FAILED",
+      message: e?.message || "Failed to request email verification",
+    });
   }
 }

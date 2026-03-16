@@ -1,4 +1,4 @@
-﻿// app/result/page.tsx
+// app/result/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -110,6 +110,16 @@ export default function ResultPage() {
     return m === "engine" ? "engine" : "client";
   }, []);
 
+  const userPlanFromUrl = useMemo<UserPlan>(() => {
+    const p = getQueryParam(
+      typeof window !== "undefined" ? window.location.search : "",
+      "plan"
+    );
+    if (p === "tender") return "tender";
+    if (p === "pro") return "pro";
+    return "free";
+  }, []);
+
   const [planId, setPlanId] = useState("attaguy-plan");
   const [companyName, setCompanyName] = useState("示例企业");
   const [headcount, setHeadcount] = useState<number>(200);
@@ -154,7 +164,7 @@ export default function ResultPage() {
 
   const mode: Mode = modeFromUrl;
 
-  const userPlan: UserPlan = "pro";
+  const userPlan: UserPlan = userPlanFromUrl;
 
   const canUseEnterprise = mode === "engine" ? true : userPlan === "pro" || userPlan === "tender";
   const canUseGovernment = mode === "engine" ? true : userPlan === "tender";

@@ -1,20 +1,42 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  turbopack: {}, // 企业级：明确声明，避免 next16 在 CI 报错
-  webpack: (config) => {
+import type { NextConfig } from "next";
+
+type WebpackLikeConfig = {
+  watchOptions?: {
+    ignored?: string | string[];
+  };
+};
+
+const nextConfig: NextConfig = {
+  turbopack: {},
+  webpack: (config: WebpackLikeConfig) => {
+    const existingIgnored = config.watchOptions?.ignored;
+
+    const ignored: string[] = [];
+
+    if (typeof existingIgnored === "string" && existingIgnored.trim()) {
+      ignored.push(existingIgnored);
+    } else if (Array.isArray(existingIgnored)) {
+      for (const item of existingIgnored) {
+        if (typeof item === "string" && item.trim()) {
+          ignored.push(item);
+        }
+      }
+    }
+
+    ignored.push(
+      "**/.git/**",
+      "**/.next/**",
+      "**/node_modules/**",
+      "**/_regress/**"
+    );
+
     config.watchOptions = {
       ...(config.watchOptions || {}),
-      ignored: [
-        "**/node_modules/**",
-        "C:\\\\swapfile.sys",
-        "C:\\\\pagefile.sys",
-        "C:\\\\hiberfil.sys",
-        "C:\\\\System Volume Information/**",
-        "C:\\\\$Recycle.Bin/**",
-      ],
+      ignored,
     };
+
     return config;
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
