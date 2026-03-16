@@ -1220,7 +1220,7 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      return new NextResponse(mergedBytes, {
+      return new NextResponse(new Uint8Array(mergedBytes), {
         status: 200,
         headers: {
           "Content-Type": "application/pdf",
@@ -1352,7 +1352,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return new NextResponse(zipBytes, {
+    return new NextResponse(new Uint8Array(zipBytes), {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
