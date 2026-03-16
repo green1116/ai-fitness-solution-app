@@ -229,7 +229,12 @@ export async function POST(req: NextRequest) {
 
     let pdfBase64: string | null = null;
     if (includePdf) {
-      const pdfBytes = await renderBundle(bundle);
+      const pdfSections = (bundle.sections || []).map((s: any) => ({
+        title: String(s.title || ""),
+        body: String(s.body || ""),
+      }));
+
+      const pdfBytes = await renderBundle(pdfSections);
       pdfBase64 = Buffer.from(pdfBytes).toString("base64");
     }
 
