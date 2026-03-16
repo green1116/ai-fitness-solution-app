@@ -14,7 +14,6 @@ export async function POST(req: Request) {
     data: {
       email,
       planId,
-      intent,
       payload,
     },
   });
