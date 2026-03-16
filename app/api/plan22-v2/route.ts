@@ -34,10 +34,7 @@ export async function GET(req: NextRequest) {
 
     console.log("[PLAN22_V2_API] PDF generated, size:", pdfBytes.length);
 
-    const body = pdfBytes.buffer.slice(
-      pdfBytes.byteOffset,
-      pdfBytes.byteOffset + pdfBytes.byteLength
-    );
+    const body = Buffer.from(pdfBytes);
 
     return new NextResponse(body, {
       status: 200,
