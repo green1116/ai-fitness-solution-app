@@ -129,3 +129,14 @@ model PdfDownloadTokenState {
   @@index([planId, createdAt])
   @@index([revoked, expAt])
 }
+
+model Lead {
+  id        String   @id @default(cuid())
+  email     String
+  planId    String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([planId])
+}
