@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 import { jwtVerify } from "jose";
 import { buildPlanBundle } from "@/lib/plan/builder";
-import { renderBundlePdf } from "@/lib/pdf/render-bundle";
+import { renderBundle } from "@/lib/pdf/render-bundle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
 
     let pdfBase64: string | null = null;
     if (includePdf) {
-      const pdfBytes = await renderBundlePdf(bundle);
+      const pdfBytes = await renderBundle(bundle);
       pdfBase64 = Buffer.from(pdfBytes).toString("base64");
     }
 
