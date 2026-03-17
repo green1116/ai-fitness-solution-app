@@ -88,7 +88,9 @@ export async function renderBudgetPdfBuffer(
   input: BudgetPdfInput,
   opts: RenderBudgetPdfOpts = {}
 ): Promise<Uint8Array> {
-  console.log("[BUDGET_RENDER] FP:", BUDGET_PDF_VERSION, "planId:", input?.planId);
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[BUDGET_RENDER]", BUDGET_PDF_VERSION, "planId=", input?.planId);
+  }
 
   const fontBytes = await loadFontBytes();
   const pdfDoc = await PDFDocument.create();

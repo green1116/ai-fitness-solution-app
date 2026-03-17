@@ -61,7 +61,9 @@ export type RenderBudgetPdfOpts = {
 export const BUDGET_PDF_VERSION = "BUDGET_PDF_V_GOV_BRAND_DUAL_20260228";
 export const BUDGET_ENGINE_FP = "BUDGET_ENGINE_FP_GOV_BRAND_DUAL_20260228";
 
-console.log("[BUDGET_RENDER] ACTIVE:", BUDGET_ENGINE_FP, BUDGET_PDF_VERSION);
+if (process.env.NODE_ENV !== "production") {
+  console.log("[BUDGET_RENDER]", BUDGET_ENGINE_FP, BUDGET_PDF_VERSION);
+}
 
 // -------------------------------
 // Utilities
@@ -334,7 +336,9 @@ export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderB
   const level: BudgetLevel = normalizeLevel(opts.level);
   const themeName: "brand" | "tender" = opts.theme === "tender" ? "tender" : "brand";
 
-  console.log("[BUDGET_RENDER] level=", level, "theme=", themeName, "planId=", input.planId);
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[BUDGET_RENDER]", "level=", level, "theme=", themeName, "planId=", input.planId);
+  }
 
   const planId = input.planId;
   const companyName = input.companyName || "企业";

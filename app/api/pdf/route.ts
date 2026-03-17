@@ -1,5 +1,7 @@
 // app/api/pdf/route.ts
-console.log("[PDF_ROUTE] ACTIVE: 20260312_TOKEN_GUARD_UNIFIED");
+if (process.env.NODE_ENV !== "production") {
+  console.log("[PDF_ROUTE]", "20260312_TOKEN_GUARD_UNIFIED");
+}
 
 import { NextRequest, NextResponse } from "next/server";
 import {

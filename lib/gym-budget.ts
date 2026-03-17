@@ -7,7 +7,9 @@ import type {
   BudgetSummary,
 } from "@/lib/types/gym-budget";
 
-console.log("[GYM_BUDGET_FP] LOADED: 20260227_BAND_TABLE_V1");
+if (process.env.NODE_ENV !== "production") {
+  console.log("[GYM_BUDGET]", "20260227_BAND_TABLE_V1");
+}
 
 const r = (min: number, max: number): Range => ({ min, max });
 

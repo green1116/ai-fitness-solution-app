@@ -23,7 +23,9 @@ export async function GET(req: NextRequest) {
       .format(now)
       .replace(/\//g, "/");
 
-    console.log("[PLAN22_V2_API] Rendering PDF...", { planId, companyName, ymd });
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[PLAN22_V2_API]", "Rendering PDF...", { planId, companyName, ymd });
+    }
 
     const pdfBytes = await renderPlan22PdfBytes_v2({
       planId,
@@ -32,7 +34,9 @@ export async function GET(req: NextRequest) {
       reqsig,
     });
 
-    console.log("[PLAN22_V2_API] PDF generated, size:", pdfBytes.length);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[PLAN22_V2_API]", "PDF generated, size=", pdfBytes.length);
+    }
 
     const body = Buffer.from(pdfBytes);
 
