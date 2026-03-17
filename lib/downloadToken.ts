@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { jwtVerify } from "jose";
 import crypto from "crypto";
@@ -50,7 +51,7 @@ export async function requireAndConsumeToken(opts: {
 
   // ✅ 防重复扣：LicenseConsume unique(licenseId,fingerprint)
   //   我们复用 LicenseConsume，把 tokenState.id 当作 licenseId
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // 先尝试插入 consume（如果已存在说明已经扣过/用过）
     let inserted = false;
     try {

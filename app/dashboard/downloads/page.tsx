@@ -49,6 +49,26 @@ type SearchParams = {
   days?: string | number;
 };
 
+type ReasonStat = {
+  reason: string | null;
+  _count: {
+    _all: number;
+  };
+};
+
+type DownloadRow = {
+  id: string;
+  createdAt: Date;
+  planId: string | null;
+  mode: string | null;
+  reason: string | null;
+  ok: boolean;
+  ip: string | null;
+  ua: string | null;
+  userAgent?: string | null;
+  extra?: unknown;
+};
+
 export default async function DownloadsPage({
   searchParams,
 }: {
@@ -94,17 +114,19 @@ export default async function DownloadsPage({
     where.userAgent = { contains: emailFilter, mode: "insensitive" };
   }
 
-  const rows = await prisma.pdfDownloadLog.findMany({
+  const rows: DownloadRow[] = (await prisma.pdfDownloadLog.findMany({
     where,
     orderBy: { createdAt: "desc" },
     take: 200,
-  });
+  })) as DownloadRow[];
 
-  const byReason = await prisma.pdfDownloadLog.groupBy({
+  const byReasonRaw = await (prisma.pdfDownloadLog as any).groupBy({
     by: ["reason"],
     _count: { _all: true },
     where,
   });
+
+  const byReason = (byReasonRaw ?? []) as ReasonStat[];
 
   const chartRows = await prisma.pdfDownloadLog.findMany({
     where,

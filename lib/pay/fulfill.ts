@@ -1,4 +1,6 @@
-﻿import crypto from "crypto";
+// lib/pay/fulfill.ts
+import crypto from "crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 function sha256Hex(s: string) {
@@ -9,6 +11,12 @@ function randomKeyPlain() {
   return crypto.randomBytes(32).toString("base64url");
 }
 
+/**
+ * 支付成功后的权益发放（License）
+ * - 唯一可信入口：webhook
+ * - 幂等标记：LicenseKey.note = `order:${orderId}`
+ * - 明文 licenseKey 仅首次创建时返回一次，后续不可恢复
+ */
 export async function fulfillPaidOrder(orderId: string) {
   const maxDownloads = Number(process.env.DEFAULT_MAX_DOWNLOADS || "2");
   const ttlDays = Number(process.env.LICENSE_TTL_DAYS || "30");
@@ -23,14 +31,24 @@ export async function fulfillPaidOrder(orderId: string) {
   const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000);
   const note = `order:${orderId}`;
 
-  return await prisma.$transaction(async (tx) => {
+  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const order = await tx.order.findUnique({
       where: { id: orderId },
-      select: { id: true, planId: true, email: true, status: true, amount: true },
+      select: {
+        id: true,
+        planId: true,
+        email: true,
+        status: true,
+        amount: true,
+      },
     });
 
     if (!order) {
-      return { ok: false as const, code: "ORDER_NOT_FOUND", message: "订单不存在" };
+      return {
+        ok: false as const,
+        code: "ORDER_NOT_FOUND",
+        message: "订单不存在",
+      };
     }
 
     const existing = await tx.licenseKey.findFirst({
@@ -55,10 +73,10 @@ export async function fulfillPaidOrder(orderId: string) {
     if (existing) {
       return {
         ok: true as const,
-        order: { ...order, status: "PAID" },
+        order: { ...order, status: "PAID" as const },
         license: existing,
         licenseKeyPlain: null as string | null,
-        note: "license 已存在（幂等命中），明文 key 不可回溯",
+        note: "license 已存在（命中幂等），明文 key 不可再次返回",
       };
     }
 
@@ -89,12 +107,10 @@ export async function fulfillPaidOrder(orderId: string) {
 
     return {
       ok: true as const,
-      order: { ...order, status: "PAID" },
+      order: { ...order, status: "PAID" as const },
       license,
       licenseKeyPlain,
-      note: "首次发放 license（仅本次返回明文 key）",
+      note: "首次发放 license，仅本次返回明文 key",
     };
   });
 }
-
-export default fulfillPaidOrder;

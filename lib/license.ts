@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logPdfDownloadSafe } from "@/lib/audit/pdfLog";
 
@@ -93,7 +94,7 @@ export async function validateAndConsumeLicenseKey(params: {
     (params.ua || "noua").slice(0, 80),
   ].join("|");
 
-  const { result, duplicate } = await prisma.$transaction(async (tx) => {
+  const { result, duplicate } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // ✅ 幂等：同一 fingerprint 已消费过 -> 不再扣 usedCount
     try {
       await tx.licenseConsume.create({
@@ -218,7 +219,7 @@ export async function requireAndConsumeDownloadToken(params: {
   }
 
   // ✅ 事务：幂等扣次（用 LicenseConsume 表做 fingerprint 幂等）
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // 1) 幂等：同 fingerprint 已 consume -> 不扣 usedCount
     try {
       await tx.licenseConsume.create({
