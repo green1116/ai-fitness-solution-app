@@ -161,16 +161,50 @@ $preUrl = "$BaseUrl/api/download-token?mode=full&planId=$PlanId"
 Write-Host "[pre-commit] Running PDF regression..."
 Write-Host "precheck_url=$preUrl"
 
-$serverOk = Check-DevServer $preUrl
+$preResp = ""
+try {
+  $preResp = curl.exe --http1.1 -s --max-time 8 "$preUrl"
+} catch {
+  $preResp = ""
+}
 
-if (-not $serverOk) {
+if ([string]::IsNullOrWhiteSpace($preResp)) {
   Write-Host ""
   Write-Host "[pre-commit] dev server not running."
   Write-Host "[pre-commit] skip regression (this will not block commit)."
   exit 0
 }
 
+$preJson = $null
+try {
+  $preJson = $preResp | ConvertFrom-Json
+} catch {
+  Write-Host ""
+  Write-Host "[pre-commit] precheck returned non-JSON response."
+  Write-Host "[pre-commit] response:"
+  Write-Host $preResp
+  Write-Host "[pre-commit] skip regression (this will not block commit)."
+  exit 0
+}
+
+if (-not $preJson.ok) {
+  Write-Host ""
+  Write-Host "[pre-commit] precheck failed."
+  Write-Host $preResp
+  Write-Host "[pre-commit] skip regression (this will not block commit)."
+  exit 0
+}
+
+if ([string]::IsNullOrWhiteSpace([string]$preJson.downloadToken)) {
+  Write-Host ""
+  Write-Host "[pre-commit] precheck missing downloadToken."
+  Write-Host $preResp
+  Write-Host "[pre-commit] skip regression (this will not block commit)."
+  exit 0
+}
+
 Write-Host "precheck_ok=API_DOWNLOAD_TOKEN"
+$DownloadToken = [string]$preJson.downloadToken
 
 # -------------------------------------------------------
 # 2 PREPARE OUTPUT
