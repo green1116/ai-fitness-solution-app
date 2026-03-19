@@ -60,19 +60,19 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Node dependencies
-        run: npm ci
-
       - name: Install Python dependencies
         run: pip install pypdf
-
-      - name: Build app
-        run: npm run build
 
       - name: Start Next.js server
         shell: bash
