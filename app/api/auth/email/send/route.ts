@@ -31,6 +31,65 @@ function makeCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function sendWithRetry(
+  resend: Resend,
+  payload: {
+    from: string;
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+  }
+) {
+  let lastResp: any = null;
+  let lastErr: any = null;
+
+  for (let i = 0; i < 2; i++) {
+    try {
+      const resp = await resend.emails.send(payload);
+
+      if (!(resp as any)?.error) {
+        if (i > 0) {
+          console.log("[EMAIL_SEND] retry success on attempt", i + 1);
+        }
+        return resp;
+      }
+
+      lastResp = resp;
+      console.error(
+        "[EMAIL_SEND] resend error attempt",
+        i + 1,
+        "=",
+        (resp as any).error
+      );
+
+      if (i === 0) {
+        await sleep(1200);
+        continue;
+      }
+
+      return resp;
+    } catch (err) {
+      lastErr = err;
+      console.error("[EMAIL_SEND] exception attempt", i + 1, "=", err);
+
+      if (i === 0) {
+        await sleep(1200);
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  if (lastErr) throw lastErr;
+  return lastResp;
+}
+
 function getDomainFromEmail(email: string) {
   const parts = String(email || "").trim().toLowerCase().split("@");
   return parts.length === 2 ? parts[1] : "";
@@ -129,7 +188,7 @@ export async function POST(req: NextRequest) {
     `;
     const text = `您的验证码是：${code}，10分钟内有效。`;
 
-    const resp = await resend.emails.send({
+    const resp = await sendWithRetry(resend, {
       from,
       to: email,
       subject,
