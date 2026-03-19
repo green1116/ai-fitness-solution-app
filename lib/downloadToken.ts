@@ -1,7 +1,7 @@
 // DEPRECATED: use "@/lib/download-token" only
 import crypto from "crypto";
 import { jwtVerify, SignJWT } from "jose";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 type DownloadMode = "full" | "budget";
 
