@@ -1,3 +1,4 @@
+// DEPRECATED: use "@/lib/download-token" only
 // lib/pdfDownloadToken.ts
 import crypto from "crypto";
 import * as jwt from "jsonwebtoken";

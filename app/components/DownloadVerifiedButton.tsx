@@ -4,17 +4,16 @@ import React, { useState } from "react";
 
 type Props = {
   planId: string;
-  // endpoints can be overridden by URL
-  requestOtpUrl?: string;    // POST { email, planId? } -> { ok: true }
-  verifyOtpUrl?: string;     // POST { email, code, planId? } -> { ok: true, downloadToken }
-  downloadTokenUrl?: string; // optional: GET /api/download-token?planId=.. -> { downloadToken }
+  mode?: "full" | "budget";
+  requestOtpUrl?: string; // POST { email, planId? } -> { ok: true }
+  verifyOtpUrl?: string;  // POST { email, code, planId?, mode? } -> { ok: true, downloadToken }
 };
 
 export default function DownloadVerifiedButton({
   planId,
+  mode = "full",
   requestOtpUrl = "/api/auth/otp/request",
   verifyOtpUrl = "/api/auth/otp/verify",
-  downloadTokenUrl = "/api/download-token",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -42,7 +41,7 @@ export default function DownloadVerifiedButton({
 
       const j = await res.json().catch(() => ({}));
 
-      if (!res.ok) {
+      if (!res.ok || !j?.ok) {
         setError(j?.message || "验证码发送失败");
         return;
       }
@@ -84,48 +83,30 @@ export default function DownloadVerifiedButton({
           email: email.trim(),
           code: code.trim(),
           planId,
+          mode,
         }),
       });
 
       const data = await r.json().catch(() => ({}));
 
-      if (!r.ok) {
+      if (!r.ok || !data?.ok) {
         throw new Error(data?.message || "验证码校验失败");
       }
 
-      let downloadToken = data?.downloadToken;
-
-      if (!downloadToken && downloadTokenUrl) {
-        const tokenRes = await fetch(
-          `${downloadTokenUrl}?mode=full&planId=${encodeURIComponent(planId)}`,
-          { method: "GET" }
-        );
-        const tokenData = await tokenRes.json().catch(() => ({}));
-        if (tokenRes.ok) {
-          downloadToken = tokenData?.downloadToken;
-        }
-      }
-
-      const devToken =
-        typeof process !== "undefined" && process.env?.NODE_ENV !== "production"
-          ? "DEV_MODE_TOKEN"
-          : "";
-
-      const token = downloadToken || devToken;
-
-      if (!token) {
+      const downloadToken = String(data?.downloadToken || "").trim();
+      if (!downloadToken) {
         throw new Error("未获取到 downloadToken");
       }
 
       const pdfUrl =
         `/api/pdf?planId=${encodeURIComponent(planId)}` +
-        `&mode=full` +
+        `&mode=${encodeURIComponent(mode)}` +
         `&download=1` +
-        `&downloadToken=${encodeURIComponent(token)}`;
+        `&downloadToken=${encodeURIComponent(downloadToken)}`;
 
       const a = document.createElement("a");
       a.href = pdfUrl;
-      a.download = `${planId}.pdf`;
+      a.download = `${planId}-${mode}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

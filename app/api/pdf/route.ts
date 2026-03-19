@@ -18,7 +18,7 @@ import {
   type TenderLevel,
 } from "@/lib/pdf/presets";
 import { logPdfDownloadSafe, getReqIp } from "@/lib/audit/pdfLog";
-import { requireAndConsumeDownloadToken } from "@/lib/license";
+import { requireAndConsumeDownloadToken } from "@/lib/download-token";
 import { webcrypto } from "crypto";
 
 export const runtime = "nodejs";

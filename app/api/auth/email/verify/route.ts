@@ -1,80 +1,179 @@
-// app/api/auth/email/verify/route.ts
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { createSessionCookie } from "@/lib/session";
+import { NextRequest, NextResponse } from "next/server";
+import { SignJWT } from "jose";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function isEmail(s: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+type VerifyRecord = {
+  code: string;
+  expiresAt: number;
+  email: string;
+};
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __EMAIL_VERIFY_STORE__: Map<string, VerifyRecord> | undefined;
 }
 
-export async function POST(req: Request) {
+const store =
+  global.__EMAIL_VERIFY_STORE__ ||
+  (global.__EMAIL_VERIFY_STORE__ = new Map<string, VerifyRecord>());
+
+function j(status: number, body: any) {
+  return NextResponse.json(body, { status });
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isValidMode(mode: string) {
+  return ["full", "budget"].includes(mode);
+}
+
+function getSecret() {
+  return process.env.DOWNLOAD_TOKEN_SECRET?.trim() || "";
+}
+
+async function makeDownloadToken(params: {
+  planId: string;
+  mode: "full" | "budget";
+  email: string;
+}) {
+  const secret = getSecret();
+  if (!secret) {
+    throw new Error("DOWNLOAD_TOKEN_SECRET is missing");
+  }
+
+  const key = new TextEncoder().encode(secret);
+
+  return await new SignJWT({
+    scope: "pdf_download",
+    planId: params.planId,
+    mode: params.mode,
+    email: params.email,
+  })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setIssuedAt()
+    .setExpirationTime("30m")
+    .sign(key);
+}
+
+export async function POST(req: NextRequest) {
   try {
-    const { email, code } = await req.json();
+    const body = await req.json().catch(() => ({}));
 
-    const normalizedEmail = String(email || "").trim().toLowerCase();
-    const normalizedCode = String(code || "").trim();
+    const email = String(body?.email || "").trim().toLowerCase();
+    const code = String(body?.code || "").trim();
+    const planId = String(body?.planId || "").trim();
+    const mode = String(body?.mode || "full").trim().toLowerCase();
 
-    if (!normalizedEmail || !isEmail(normalizedEmail) || !normalizedCode) {
-      return NextResponse.json(
-        { ok: false, code: "BAD_REQUEST", message: "请输入有效的邮箱和验证码" },
-        { status: 400 }
-      );
-    }
-
-    // ✅ 只从数据库读 EmailOtp
-    const row = await (prisma as any).emailOtp.findUnique({
-      where: { email: normalizedEmail },
+    console.log("[EMAIL_VERIFY] request", {
+      email: email || "(empty)",
+      planId: planId || "(empty)",
+      mode,
+      hasCode: !!code,
     });
 
-    if (!row) {
-      return NextResponse.json(
-        { ok: false, code: "CODE_EXPIRED", message: "验证码不存在或已过期，请重新获取" },
-        { status: 403 }
-      );
+    if (!email) {
+      return j(400, {
+        ok: false,
+        code: "EMAIL_REQUIRED",
+        message: "email is required",
+      });
     }
 
-    if (new Date(row.expiresAt).getTime() <= Date.now()) {
-      await (prisma as any).emailOtp
-        .delete({ where: { email: normalizedEmail } })
-        .catch(() => {});
-      return NextResponse.json(
-        { ok: false, code: "CODE_EXPIRED", message: "验证码不存在或已过期，请重新获取" },
-        { status: 403 }
-      );
+    if (!isValidEmail(email)) {
+      return j(400, {
+        ok: false,
+        code: "EMAIL_INVALID",
+        message: "invalid email format",
+      });
     }
 
-    if (String(row.code).trim() !== normalizedCode) {
-      return NextResponse.json(
-        { ok: false, code: "INVALID_CODE", message: "验证码错误，请重试" },
-        { status: 403 }
-      );
+    if (!code) {
+      return j(400, {
+        ok: false,
+        code: "CODE_REQUIRED",
+        message: "code is required",
+      });
     }
 
-    // ✅ 一次性验证码：删除
-    await (prisma as any).emailOtp
-      .delete({ where: { email: normalizedEmail } })
-      .catch(() => {});
-
-    // ✅ 写 session cookie（注意：一定要用 NextResponse）
-    const res = NextResponse.json({ ok: true, message: "verified" });
-    
-    try {
-      await createSessionCookie(res, normalizedEmail, 30);
-    } catch (sessionError: any) {
-      console.error("[Verify] createSessionCookie failed:", sessionError?.message || sessionError);
-      console.error("[Verify] session error stack:", sessionError?.stack);
-      throw sessionError;
+    if (!planId) {
+      return j(400, {
+        ok: false,
+        code: "PLAN_ID_REQUIRED",
+        message: "planId is required",
+      });
     }
 
-    return res;
-  } catch (e: any) {
-    console.error("[Verify] failed:", e?.message || e);
-    console.error("[Verify] error stack:", e?.stack);
-    return NextResponse.json(
-      { ok: false, code: "VERIFY_FAILED", message: e?.message || "验证失败" },
-      { status: 500 }
-    );
+    if (!isValidMode(mode)) {
+      return j(400, {
+        ok: false,
+        code: "MODE_INVALID",
+        message: "mode must be full or budget",
+      });
+    }
+
+    const rec = store.get(email);
+
+    if (!rec) {
+      return j(400, {
+        ok: false,
+        code: "CODE_NOT_FOUND",
+        message: "verification code not found, please resend",
+      });
+    }
+
+    if (Date.now() > rec.expiresAt) {
+      store.delete(email);
+      return j(400, {
+        ok: false,
+        code: "CODE_EXPIRED",
+        message: "verification code expired, please resend",
+      });
+    }
+
+    if (rec.code !== code) {
+      return j(400, {
+        ok: false,
+        code: "CODE_INVALID",
+        message: "invalid verification code",
+      });
+    }
+
+    store.delete(email);
+
+    const downloadToken = await makeDownloadToken({
+      planId,
+      mode: mode as "full" | "budget",
+      email,
+    });
+
+    console.log("[EMAIL_VERIFY] success", {
+      email,
+      planId,
+      mode,
+    });
+
+    return j(200, {
+      ok: true,
+      code: "EMAIL_VERIFIED",
+      message: "email verified",
+      email,
+      planId,
+      mode,
+      downloadToken,
+    });
+  } catch (err: any) {
+    console.error("[EMAIL_VERIFY] FATAL", err);
+    console.error("[EMAIL_VERIFY] message =", err?.message);
+    console.error("[EMAIL_VERIFY] stack =", err?.stack);
+
+    return j(500, {
+      ok: false,
+      code: "EMAIL_VERIFY_FATAL",
+      message: err?.message || "internal error",
+    });
   }
 }
