@@ -448,7 +448,7 @@ async function renderBrand2Pages(
     const p = doc.addPage(A4);
     const W = p.getWidth();
 
-    let y = drawThemeHeader(p, theme, ctx.font, "企业健身空间预算提案", {
+    let y = drawThemeHeader(p, theme, ctx.font, "企业健身空间设备采购预算测算报告", {
       companyName: input.companyName || "示例企业",
       companySize: input.companySize,
       tierLabel: String(input.budgetTier).toUpperCase(),
@@ -457,7 +457,15 @@ async function renderBrand2Pages(
     });
 
     y = y + 6;
-    drawTextF(p, ctx.font, "（稳重专业版 / 对外报价参考）", M.l, y, theme.fontSizes.h2, theme.colors.sub);
+    drawTextF(
+      p,
+      ctx.font,
+      "（企业级测算版本 / 用于方案评审与预算沟通）",
+      M.l,
+      y,
+      theme.fontSizes.h2,
+      theme.colors.sub
+    );
     y -= 18;
 
     const recLine = `建议：按 ${String(input.budgetTier).toUpperCase()} 档位配置，可覆盖常规高频使用与基础扩展需求。`;
@@ -581,7 +589,7 @@ async function renderBrand2Pages(
     const W = p.getWidth();
     const H = p.getHeight();
 
-    drawTextF(p, ctx.fontBold, "设备明细清单（企业版 / 参考核算）", M.l, H - 76, 14);
+    drawTextF(p, ctx.fontBold, "设备采购明细及测算表", M.l, H - 76, 14);
     drawLine(p, M.l, H - 92, W - M.r, H - 92);
 
     const x0 = M.l;
@@ -633,7 +641,15 @@ async function renderBrand2Pages(
       y -= rowH;
     }
 
-    drawTextF(p, ctx.font, "备注：本清单为预算测算参考，最终清单与报价以供应商正式报价/合同为准。", M.l, 60, 9, rgb(0.35, 0.35, 0.35));
+    drawTextF(
+      p,
+      ctx.font,
+      "说明：本报告为预算测算依据文件，最终采购清单及价格以正式合同或供应商报价为准。",
+      M.l,
+      60,
+      9,
+      rgb(0.35, 0.35, 0.35)
+    );
 
     drawThemeFooter(p, theme, ctx.font, {
       planId: input.planId,

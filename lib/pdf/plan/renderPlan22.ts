@@ -183,7 +183,7 @@ export async function renderPlan22PdfBytes(planId: string): Promise<Uint8Array> 
     font,
     bridgeLayout,
     bridgeY,
-    "预算桥接信息（Budget Bridge）"
+    "预算测算说明（与预算报告一致）"
   );
 
   /**
@@ -215,11 +215,11 @@ export async function renderPlan22PdfBytes(planId: string): Promise<Uint8Array> 
   let y = box.y + box.h - 16;
   const x = box.x;
 
-  // ✅ 右侧列：详见预算书 + 验真码
+  // ✅ 右侧列：详见预算报告 + 报告校验码
   const rightX = box.x + 330;
   const rightY = box.y + box.h - 16;
 
-  page1.drawText("详见《预算明细书》", {
+  page1.drawText("详见《设备采购预算测算报告》", {
     x: rightX,
     y: rightY,
     size: 10,
@@ -227,7 +227,7 @@ export async function renderPlan22PdfBytes(planId: string): Promise<Uint8Array> 
     color: rgb(0.10, 0.12, 0.14),
   });
 
-  page1.drawText(`验真码：${short}`, {
+  page1.drawText(`报告校验码：${short}`, {
     x: rightX,
     y: rightY - 16,
     size: 10,
@@ -402,9 +402,9 @@ export async function renderPlan22PdfBytes(planId: string): Promise<Uint8Array> 
       const footH = 20;
 
       const items = [
-        "本方案适用于 200 人规模企业的办公健身空间。",
-        "建议 120m² 可落地基础有氧 + 力量配置。",
-        "预算建议控制在 10–20 万，优先保障商用耐用与安全。",
+        "本方案面向约 200 人规模企业的办公健身空间建设需求，具备良好的可实施性与通用性。",
+        "在约 120m² 场地条件下，可形成有氧、力量及基础拉伸功能的综合配置体系。",
+        "整体预算建议控制在 10–20 万区间，兼顾安全性、耐用性与长期使用价值。",
       ];
 
       const cardX = layout.left + 32;
