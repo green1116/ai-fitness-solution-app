@@ -1,0 +1,447 @@
+﻿{
+    "ts":  "2026-03-14T11:22:57.8385025+08:00",
+    "ok":  true,
+    "baseUrl":  "http://127.0.0.1:3000",
+    "failReason":  null,
+    "planId":  "attaguy-plan",
+    "cases":  [
+                  {
+                      "hashes":  {
+                                     "pages":  22,
+                                     "sha256_pdf":  "2c1adc87cefe74ee1a1279a70d783b42325bc64aa28414e33e77ac7bae455ccb",
+                                     "sha256_text":  "64d744061554419824bcb8e84e7e63b3054785d54d09401a5f63354212e2b572",
+                                     "page_text_sha256":  [
+                                                              "ee69cee11340c329f8afa8d6b959759ddf7394c0c10a3fccb7c441b7d7adc116",
+                                                              "a25c81018af7cbce36bb88503580c5f6930126425fcc9db9989b3939947a3b9b",
+                                                              "286df180ab2b0674c38f8efc3545a84fd7b0554b1521a230abb1de8a012bc6d9",
+                                                              "daa29dd3ed950e60fb1130077db2fe0d085ed285c5d1b171f375fc60c2c15659",
+                                                              "bf68fe26759175d763e632cb81cea6e2a81aaadacd79bdb037bae29b9bb0ed5d",
+                                                              "9a71998d3243ca3aa301284a1568fef61cd1d369b33178315071119246cc9627",
+                                                              "d4f19c22d9b16604f9a9bd7ce122007da64f139f9b3e0d99c2ead24a59ca19ff",
+                                                              "24bba09cc6228123d984cc10e684c6bde00d5de5eb6118ddb79f701ddf205009",
+                                                              "4174785e6b9d3816cdaa8ad11612dbb4cabfcdfd179dfa99a7f0f867d8238895",
+                                                              "590aaaa005fd6e4b1342c7a2a13be572f66519b3d1b8a4f3f8fa6524bae3bb17",
+                                                              "d8a56119ba2a3453d4725a68cbb4d74850e02c481719d278900e45b8dd786be9",
+                                                              "392a6d5e6241378a75e2b6f24f4b30d6078836da6c741f0eccc4634dc43e4fda",
+                                                              "a4c3d0103d7fc9b936e84e8e79d155ba46827639588e78aa8b38601c74572fc3",
+                                                              "a1cfcd3beea995e7a422b7f0b90f28ced72860cf7c4a1315bf09b9aebd0bd8e8",
+                                                              "f1a02304e5c3d606ac49163900953ac0e407993ddcc2cfe7687232ce2cf1a24d",
+                                                              "d4fe0e0107fe6f0c3bd7275d1f40c4f5e4ba266daa89beed2dd4677ff4f64a0e",
+                                                              "c56c4fe8a442308342721a03e2cfee1b22c85271b399834f88c4ce67f717c4e1",
+                                                              "ca834d4bc653baa34e7aa507379174f906e57d04fadc4f2f8b4c8e8d60cfc09b",
+                                                              "9de2d81618a6f1d744235543015b66762612b12cb99e6ff8ee0ec234df2c1c41",
+                                                              "d94a7af6ec7d1549f2d5d50c8198772659c3e14abd2bf8114156ca4088a2942e",
+                                                              "45bf5325fc43f7ba1e46231b09704981df45378e4a65d4702248bcbe7c80ba6f",
+                                                              "9316a43998f82392e316b4f0edea69f7fe3b7a36959ffda78e34af056738b5a7"
+                                                          ]
+                                 },
+                      "name":  "PLAN_FULL",
+                      "bytes":  5231406,
+                      "pages":  22,
+                      "ok":  true,
+                      "headers":  {
+                                      "x_tender":  "saas",
+                                      "x_engine_fp":  null,
+                                      "x_tender_no":  null,
+                                      "x_pack_theme":  null,
+                                      "x_pdf_mode":  "full",
+                                      "x_pack_ver":  null,
+                                      "x_theme":  "brand",
+                                      "x_pack_footer":  null,
+                                      "x_pack_skip":  null,
+                                      "x_reqsig":  "07adc6e02e8c",
+                                      "status":  200,
+                                      "x_docseq":  null,
+                                      "x_pack_pagination":  null,
+                                      "x_pack_tz":  null,
+                                      "x_pdf_version":  "PLAN_V1"
+                                  },
+                      "file":  ".\\_regress\\plan_full_attaguy-plan.pdf"
+                  },
+                  {
+                      "hashes":  {
+                                     "pages":  2,
+                                     "sha256_pdf":  "e5ff70b5786f005e8d9469c6c5da8ff41bf3cbec738c668797ae6df5ca1f0552",
+                                     "sha256_text":  "aa1fcabe493bc821ed579d5c7341bc1f4bf76a3bc051b1106bab18989628d104",
+                                     "page_text_sha256":  [
+                                                              "1066dddb209da176cc54b0664b1878b75e9c09771dac534403eb7ef58a7d0fea",
+                                                              "c566b12126874dadfd8774404a610f75575c8622bc741c81e5c49ac03ea62c28"
+                                                          ]
+                                 },
+                      "name":  "BUDGET_BRAND",
+                      "bytes":  31510,
+                      "pages":  2,
+                      "ok":  true,
+                      "headers":  {
+                                      "x_tender":  "saas",
+                                      "x_engine_fp":  "BUDGET_ENGINE_FP_GOV_BRAND_DUAL_20260228",
+                                      "x_tender_no":  null,
+                                      "x_pack_theme":  null,
+                                      "x_pdf_mode":  "budget",
+                                      "x_pack_ver":  null,
+                                      "x_theme":  "brand",
+                                      "x_pack_footer":  null,
+                                      "x_pack_skip":  null,
+                                      "x_reqsig":  "e2ec35895809",
+                                      "status":  200,
+                                      "x_docseq":  "00",
+                                      "x_pack_pagination":  null,
+                                      "x_pack_tz":  null,
+                                      "x_pdf_version":  "BUDGET_PDF_V_GOV_BRAND_DUAL_20260228"
+                                  },
+                      "file":  ".\\_regress\\budget_brand_attaguy-plan.pdf"
+                  },
+                  {
+                      "hashes":  {
+                                     "pages":  7,
+                                     "sha256_pdf":  "88d530024408c94486c2db1606976efea7b8377e1e1e4553814cd0c90a304ebb",
+                                     "sha256_text":  "ca1f4f6da6e7eb2bb1bca008d6b71aa2ab647b5e3485cb098167483f215a106c",
+                                     "page_text_sha256":  [
+                                                              "cb62f36466e0c4f392f84e9d71e7a917833bbd98fc0351dbd256ef79c9148768",
+                                                              "d77e091854e2f111c3dcc1593c2a261d454c51c4112d78eb72069274b1f5e309",
+                                                              "fd2cbb22fc5f65c8aee0765e6c31e435fec3f9704998077616b6a7a3d7fce410",
+                                                              "647b27ade4a1967a696bf4b94c3a2fd2fc7bbc52f69d202aefadefb07aa45554",
+                                                              "f8b2cce9de54566f0ec685881af26559aa757e0e979c71fec0b69c56e81a810f",
+                                                              "2064e0f80fea1144ddb37538bce1096bcce8985a19c15670f5b418f6c9e8abf0",
+                                                              "d3390672f2c96ab6e5f9230d63ca9c31ef4cf89541b4668b31cdf2bc91b857f4"
+                                                          ]
+                                 },
+                      "name":  "BUDGET_ENTERPRISE",
+                      "bytes":  48151,
+                      "pages":  7,
+                      "ok":  true,
+                      "headers":  {
+                                      "x_tender":  "enterprise",
+                                      "x_engine_fp":  "BUDGET_ENGINE_FP_GOV_BRAND_DUAL_20260228",
+                                      "x_tender_no":  null,
+                                      "x_pack_theme":  null,
+                                      "x_pdf_mode":  "budget",
+                                      "x_pack_ver":  null,
+                                      "x_theme":  "tender",
+                                      "x_pack_footer":  null,
+                                      "x_pack_skip":  null,
+                                      "x_reqsig":  "17946aeea8dd",
+                                      "status":  200,
+                                      "x_docseq":  "00",
+                                      "x_pack_pagination":  null,
+                                      "x_pack_tz":  null,
+                                      "x_pdf_version":  "BUDGET_PDF_V_GOV_BRAND_DUAL_20260228"
+                                  },
+                      "file":  ".\\_regress\\budget_enterprise_attaguy-plan.pdf"
+                  },
+                  {
+                      "headers":  {
+                                      "x_tender":  "government",
+                                      "x_engine_fp":  "BUDGET_ENGINE_FP_GOV_BRAND_DUAL_20260228",
+                                      "x_tender_no":  null,
+                                      "x_pack_theme":  null,
+                                      "x_pdf_mode":  "budget",
+                                      "x_pack_ver":  null,
+                                      "x_theme":  "brand",
+                                      "x_pack_footer":  null,
+                                      "x_pack_skip":  null,
+                                      "x_reqsig":  "90d7b0a35a1d",
+                                      "status":  200,
+                                      "x_docseq":  "01",
+                                      "x_pack_pagination":  null,
+                                      "x_pack_tz":  null,
+                                      "x_pdf_version":  "BUDGET_PDF_V_GOV_BRAND_DUAL_20260228"
+                                  },
+                      "file":  ".\\_regress\\budget_gov_attaguy-plan.pdf",
+                      "ok":  true,
+                      "name":  "BUDGET_GOV",
+                      "contains":  [
+                                       "AFS-GOV-",
+                                       "DOCNO:",
+                                       "SIG:"
+                                   ],
+                      "bytes":  41316,
+                      "pages":  5,
+                      "hashes":  {
+                                     "pages":  5,
+                                     "sha256_pdf":  "012c3e56cd488a14a593364acb5ea93b45d057d0362e190bbd007f5ae22f3268",
+                                     "sha256_text":  "c1eea61399ac3f05b9f4d74ff5577f7edebbee9780accf2306777854a0d3abc7",
+                                     "page_text_sha256":  [
+                                                              "af30172d790a0f9d66e9774c59c682b6ed0eeebc4c74b6376983c7eb3b89590a",
+                                                              "f94ae133e02badbf49e37f203aeb2c79aacf627de4400e9d33a44080187080ba",
+                                                              "368ebb40130be2e42b7dc95c3e8eeba0439f42dd0bb4c3e29de452fee97be0ee",
+                                                              "fa2fc95b995aa088c99d8cc6917de83d07f48c758e5b9e42ac1db2ec0868ce5e",
+                                                              "19ef8c08198762be5882e8515574a50b7d4df25e9c7da734f6af61e90fa0b11f"
+                                                          ]
+                                 }
+                  },
+                  {
+                      "headers":  {
+                                      "x_tender":  "enterprise",
+                                      "x_engine_fp":  null,
+                                      "x_tender_no":  "TENDER-attaguy-plan-20260313",
+                                      "x_pack_theme":  null,
+                                      "x_pdf_mode":  null,
+                                      "x_pack_ver":  "MERGED_TENDER_V7_REVIEWSTYLE_TOC",
+                                      "x_theme":  null,
+                                      "x_pack_footer":  "1",
+                                      "x_pack_skip":  "3",
+                                      "x_reqsig":  null,
+                                      "status":  200,
+                                      "x_docseq":  null,
+                                      "x_pack_pagination":  "1",
+                                      "x_pack_tz":  null,
+                                      "x_pdf_version":  null
+                                  },
+                      "file":  ".\\_regress\\pack_merged_attaguy-plan.pdf",
+                      "ok":  true,
+                      "url":  "http://127.0.0.1:3000/api/tender-pack?download=1\u0026downloadToken=DEV_MODE_TOKEN\u0026format=merged\u0026freezeTenderNo=TENDER-attaguy-plan-20260313\u0026freezeYmd=20260313\u0026includeCover=1\u0026includeDeclaration=1\u0026internal=1\u0026level=enterprise\u0026packFooter=1\u0026planId=attaguy-plan\u0026theme=tender\u0026watermark=0",
+                      "name":  "PACK_MERGED",
+                      "bytes":  5523277,
+                      "pages":  32,
+                      "hashes":  {
+                                     "pages":  32,
+                                     "sha256_pdf":  "d47853513b5facd1936d311cd5cf23bc6be59df3cb0ff8571d316de377577a83",
+                                     "sha256_text":  "4e6452ecf1062ab61628162d1145d292bd446e4e7a4f9b13b90c494fa53facbf",
+                                     "page_text_sha256":  [
+                                                              "279b6a34ce0ba2aef8a840a6f507fefb91f5ae30eb42069622945df929f0e0fa",
+                                                              "17825b383e72551781901427d4dcf47a1d76a5e394eda076b57e1f9caa3ef458",
+                                                              "2c5a5a2fd1ea6f2021003e6e9d6ce9d54df0e9cd950a80a433edb2ed32a1e745",
+                                                              "0f3e9e41b7b4fa21c0eb5102e0b8429d1266cc0c3de27ef92c9dac3e3499f06e",
+                                                              "9e69ab3c3c3787cd49cd7bcba474e7c93728737a1da07b71e090b70d8c8df530",
+                                                              "51cf928a847249729e650e72bc8f9be8dfaa930d0c16f411315c2203d36de6a7",
+                                                              "08a3a8d38a0a2afc3e77144eba09ca78513624138ab584ec8f73b426a8d9f66e",
+                                                              "c0a8f0f27fb308353abc173bdbfeda3afbda50cd76da513be07243080cf23b97",
+                                                              "b52e27db05d93993de1ff09989d35f04929e21cdeb5cbe600afdebbb44ec4d4b",
+                                                              "17efe8c116a42df732696f7bdbbb835a91e996afc7c69f804d50c8f6abe2dbc2",
+                                                              "0a4e85676637e96878a4372ce1b4291a70fcbc4e429e8406199be69450309682",
+                                                              "84913f46a7929cf56d1a23c6f37704b2951e6fb01b68bda6ba0236a942dd19ec",
+                                                              "7ff031d16c4c39fa3c3f27f33c74df0832589c6414da4ec9ef4c72a4b885c5e8",
+                                                              "ebfd7bcc42f8f4e517d5ea0953e9e206ac3311320bd3be3d64517c03f62c83d3",
+                                                              "37f6cc7e63b76b947818b53e84f48bf90e854fd063d8da8a6976dfb052716679",
+                                                              "673a3e184264ca98b0a950f23b9fd72f2ed38ea56954f3a2aab4728b4f139f2e",
+                                                              "8987b2735f95786b4d892a6059110a3dd7a67cab8be600c0fb4fa53b24b98958",
+                                                              "19d0c837f99c0836fd72b907c60f4a87b41b256b13956c8cff06f069fb9d69eb",
+                                                              "03cef77d2af577d784b9c18cf3f496d4034be463995adeb7c89811f62bb341b7",
+                                                              "590c8ba7f71cb3f2f2f794d6228f99af6da4dce3a959eb50cbb0811084b04eac",
+                                                              "14ea2038b5cbfe6e21a8b5f6d15cf56eafbf90f5328ce899cc3ea5280aab9c29",
+                                                              "3a155d22cba420c3b94e3a11ccd1eec7e6483c8d0fe703d8073df146f9284fd9",
+                                                              "d2b35d12dae8fe91645ade8edce82508c12599ef1446371ba3c8ce6c5c90ae5e",
+                                                              "faddae0189547689486b184afaccee422d079e4858ceb8bb8cb204fd2cbcc339",
+                                                              "9ba5ec88221ac4151cad11612b06640e1acb9eb1920595d6033d5f2bbe9fc5ea",
+                                                              "2cdfcf2a78a582763a950d007741b5e90476578b4102c01d914263a5303bfad2",
+                                                              "11f7cc10f395b12170330af4b27c0caebc908cfeca98fd18b2e3c8063e9567cb",
+                                                              "d8a93736aaead688fbebcbefd5930470c24cbfa15b9ce02069f38cbcb70efe2d",
+                                                              "bae1bef7ea006fc514bf27a64ba6acbe1c74bf4c482ca04fb8b8d2f3ec2e8006",
+                                                              "ddedc8a537aad8228d7793ec0241b611ce77c029277f3a6c56f21c250c164d56",
+                                                              "0328b1624033f866250018e8bf1671a68e085bb6793d6a7cb1dd8a3f8832c205",
+                                                              "75380e3c6ec6da40ab4c3fb99626c45468d2faeb25f291a3e40de7eee3565674"
+                                                          ]
+                                 }
+                  },
+                  {
+                      "headers":  {
+                                      "x_reqsig":  "a0d800642878",
+                                      "status":  200,
+                                      "x_pdf_version":  "BUDGET_PDF_V_GOV_BRAND_DUAL_20260228",
+                                      "x_pdf_mode":  "budget"
+                                  },
+                      "file":  ".\\_regress\\budget_invoke_brand_attaguy-plan.pdf",
+                      "ok":  true,
+                      "url":  "http://127.0.0.1:3000/api/pdf?download=1\u0026planId=attaguy-plan\u0026mode=budget\u0026level=brand\u0026companyName=Example%20Corp\u0026companySize=200\u0026budgetTier=mid\u0026tz=Asia%2FTokyo\u0026downloadToken=DEV_MODE_TOKEN",
+                      "name":  "BUDGET_BRAND_INVOKE",
+                      "bytes":  31403,
+                      "pages":  2,
+                      "hashes":  {
+                                     "pages":  2,
+                                     "sha256_pdf":  "899321acbebc8f87f7b5854262b546d34c1dfbb3b3f88698ebc036f1248081b3",
+                                     "sha256_text":  "723671fa4e3d2c7513f66b34e1fad9480354c86b7591ac99b9f740668ca36a28",
+                                     "page_text_sha256":  [
+                                                              "919ddb038d034899ad5d0fec1358806814d4fb7ee1e7eda55456414064655e4c",
+                                                              "c566b12126874dadfd8774404a610f75575c8622bc741c81e5c49ac03ea62c28"
+                                                          ]
+                                 }
+                  },
+                  {
+                      "name":  "TOKEN_QUOTA_FULL",
+                      "ok":  true,
+                      "second":  {
+                                     "headers":  {
+                                                     "x_tender":  null,
+                                                     "x_engine_fp":  null,
+                                                     "x_tender_no":  null,
+                                                     "x_pack_theme":  null,
+                                                     "x_pdf_mode":  null,
+                                                     "x_pack_ver":  null,
+                                                     "x_theme":  null,
+                                                     "x_pack_footer":  null,
+                                                     "x_pack_skip":  null,
+                                                     "x_reqsig":  null,
+                                                     "status":  403,
+                                                     "x_docseq":  null,
+                                                     "x_pack_pagination":  null,
+                                                     "x_pack_tz":  null,
+                                                     "x_pdf_version":  null
+                                                 },
+                                     "bodyFile":  ".\\_regress\\quota_full_2.body.json"
+                                 },
+                      "first":  {
+                                    "headers":  {
+                                                    "x_tender":  "enterprise",
+                                                    "x_engine_fp":  null,
+                                                    "x_tender_no":  null,
+                                                    "x_pack_theme":  null,
+                                                    "x_pdf_mode":  "full",
+                                                    "x_pack_ver":  null,
+                                                    "x_theme":  "tender",
+                                                    "x_pack_footer":  null,
+                                                    "x_pack_skip":  null,
+                                                    "x_reqsig":  "d19d14a3ccff",
+                                                    "status":  200,
+                                                    "x_docseq":  null,
+                                                    "x_pack_pagination":  null,
+                                                    "x_pack_tz":  null,
+                                                    "x_pdf_version":  "PLAN_V1"
+                                                },
+                                    "file":  ".\\_regress\\quota_full_1.pdf"
+                                },
+                      "url":  "http://127.0.0.1:3000/api/pdf?downloadToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InBkZl9kb3dubG9hZCIsInBsYW5JZCI6ImF0dGFndXktcGxhbiIsIm1vZGUiOiJmdWxsIiwiaWF0IjoxNzczNDU4ODU3LCJleHAiOjE3NzM0NjA2NTd9.GYK1ZktL0rQ-9E9clkCAizbEiOPjuFI5DXxj9eRuQN0\u0026level=enterprise\u0026mode=full\u0026pdfVersionPlan=PLAN_V1\u0026planId=attaguy-plan\u0026theme=tender",
+                      "headers":  {
+                                      "x_tender":  null,
+                                      "x_engine_fp":  null,
+                                      "x_tender_no":  null,
+                                      "x_pack_theme":  null,
+                                      "x_pdf_mode":  null,
+                                      "x_pack_ver":  null,
+                                      "x_theme":  null,
+                                      "x_pack_footer":  null,
+                                      "x_pack_skip":  null,
+                                      "x_reqsig":  null,
+                                      "status":  403,
+                                      "x_docseq":  null,
+                                      "x_pack_pagination":  null,
+                                      "x_pack_tz":  null,
+                                      "x_pdf_version":  null
+                                  }
+                  },
+                  {
+                      "name":  "TOKEN_QUOTA_BUDGET",
+                      "ok":  true,
+                      "second":  {
+                                     "headers":  {
+                                                     "x_tender":  null,
+                                                     "x_engine_fp":  null,
+                                                     "x_tender_no":  null,
+                                                     "x_pack_theme":  null,
+                                                     "x_pdf_mode":  null,
+                                                     "x_pack_ver":  null,
+                                                     "x_theme":  null,
+                                                     "x_pack_footer":  null,
+                                                     "x_pack_skip":  null,
+                                                     "x_reqsig":  null,
+                                                     "status":  403,
+                                                     "x_docseq":  null,
+                                                     "x_pack_pagination":  null,
+                                                     "x_pack_tz":  null,
+                                                     "x_pdf_version":  null
+                                                 },
+                                     "bodyFile":  ".\\_regress\\quota_budget_2.body.json"
+                                 },
+                      "first":  {
+                                    "headers":  {
+                                                    "x_tender":  "enterprise",
+                                                    "x_engine_fp":  "BUDGET_ENGINE_FP_GOV_BRAND_DUAL_20260228",
+                                                    "x_tender_no":  null,
+                                                    "x_pack_theme":  null,
+                                                    "x_pdf_mode":  "budget",
+                                                    "x_pack_ver":  null,
+                                                    "x_theme":  "tender",
+                                                    "x_pack_footer":  null,
+                                                    "x_pack_skip":  null,
+                                                    "x_reqsig":  "e3dc4ad66a39",
+                                                    "status":  200,
+                                                    "x_docseq":  "00",
+                                                    "x_pack_pagination":  null,
+                                                    "x_pack_tz":  null,
+                                                    "x_pdf_version":  "BUDGET_V1"
+                                                },
+                                    "file":  ".\\_regress\\quota_budget_1.pdf"
+                                },
+                      "url":  "http://127.0.0.1:3000/api/pdf?downloadToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InBkZl9kb3dubG9hZCIsInBsYW5JZCI6ImF0dGFndXktcGxhbiIsIm1vZGUiOiJidWRnZXQiLCJpYXQiOjE3NzM0NTg4NjksImV4cCI6MTc3MzQ2MDY2OX0.tvX_YaEohUdyQZZytbTI39X1fy5SpsaKSTXT3JNFir4\u0026level=enterprise\u0026mode=budget\u0026pdfVersionBudget=BUDGET_V1\u0026planId=attaguy-plan\u0026theme=tender",
+                      "headers":  {
+                                      "x_tender":  null,
+                                      "x_engine_fp":  null,
+                                      "x_tender_no":  null,
+                                      "x_pack_theme":  null,
+                                      "x_pdf_mode":  null,
+                                      "x_pack_ver":  null,
+                                      "x_theme":  null,
+                                      "x_pack_footer":  null,
+                                      "x_pack_skip":  null,
+                                      "x_reqsig":  null,
+                                      "status":  403,
+                                      "x_docseq":  null,
+                                      "x_pack_pagination":  null,
+                                      "x_pack_tz":  null,
+                                      "x_pdf_version":  null
+                                  }
+                  },
+                  {
+                      "name":  "TOKEN_QUOTA_PACK",
+                      "ok":  true,
+                      "second":  {
+                                     "headers":  {
+                                                     "x_tender":  null,
+                                                     "x_engine_fp":  null,
+                                                     "x_tender_no":  null,
+                                                     "x_pack_theme":  null,
+                                                     "x_pdf_mode":  null,
+                                                     "x_pack_ver":  null,
+                                                     "x_theme":  null,
+                                                     "x_pack_footer":  null,
+                                                     "x_pack_skip":  null,
+                                                     "x_reqsig":  null,
+                                                     "status":  403,
+                                                     "x_docseq":  null,
+                                                     "x_pack_pagination":  null,
+                                                     "x_pack_tz":  null,
+                                                     "x_pdf_version":  null
+                                                 },
+                                     "bodyFile":  ".\\_regress\\quota_pack_2.body.json"
+                                 },
+                      "first":  {
+                                    "headers":  {
+                                                    "x_tender":  "enterprise",
+                                                    "x_engine_fp":  null,
+                                                    "x_tender_no":  "TENDER-attaguy-plan-20260314",
+                                                    "x_pack_theme":  null,
+                                                    "x_pdf_mode":  null,
+                                                    "x_pack_ver":  "MERGED_TENDER_V7_REVIEWSTYLE_TOC",
+                                                    "x_theme":  null,
+                                                    "x_pack_footer":  "1",
+                                                    "x_pack_skip":  "3",
+                                                    "x_reqsig":  null,
+                                                    "status":  200,
+                                                    "x_docseq":  null,
+                                                    "x_pack_pagination":  "1",
+                                                    "x_pack_tz":  null,
+                                                    "x_pdf_version":  null
+                                                },
+                                    "file":  ".\\_regress\\quota_pack_1.pdf"
+                                },
+                      "url":  "http://127.0.0.1:3000/api/tender-pack?downloadToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzY29wZSI6InBkZl9kb3dubG9hZCIsInBsYW5JZCI6ImF0dGFndXktcGxhbiIsIm1vZGUiOiJwYWNrIiwiaWF0IjoxNzczNDU4ODgwLCJleHAiOjE3NzM0NjA2ODB9.4iNC7qpXfo60huNlXH31unBxdaOHukj0Fj6V1cGL2Rg\u0026format=merged\u0026level=enterprise\u0026planId=attaguy-plan\u0026theme=tender",
+                      "headers":  {
+                                      "x_tender":  null,
+                                      "x_engine_fp":  null,
+                                      "x_tender_no":  null,
+                                      "x_pack_theme":  null,
+                                      "x_pdf_mode":  null,
+                                      "x_pack_ver":  null,
+                                      "x_theme":  null,
+                                      "x_pack_footer":  null,
+                                      "x_pack_skip":  null,
+                                      "x_reqsig":  null,
+                                      "status":  403,
+                                      "x_docseq":  null,
+                                      "x_pack_pagination":  null,
+                                      "x_pack_tz":  null,
+                                      "x_pdf_version":  null
+                                  }
+                  }
+              ]
+}

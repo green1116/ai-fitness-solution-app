@@ -45,7 +45,7 @@ Write-Host "4) Downloading PDF and showing full HTTP Response (headers + body) .
 $downloadUrl = "$base/api/pdf?planId=$planId&mode=full&downloadToken=$token"
 Write-Host "  Download URL: $downloadUrl" -ForegroundColor Cyan
 # Use curl to save file and show response headers
-curl -i -L $downloadUrl -o out.pdf
+curl.exe --http1.1 -L -o full_attaguy-plan.pdf $downloadUrl
 
-Write-Host "`nCheck: Generated file out.pdf (in current directory), please try to open it." -ForegroundColor Green
+Write-Host "`nCheck: Generated file full_attaguy-plan.pdf (in current directory), please try to open it." -ForegroundColor Green
 Write-Host "If status is 403 or JSON response, please copy the full curl output above and paste it here." -ForegroundColor Yellow

@@ -1,19 +1,19 @@
-"use client";
+﻿"use client";
+
 import React, { useState } from "react";
 
 type Props = {
   planId: string;
-  // endpoints — 根据你项目调整 URL
-  requestOtpUrl?: string;        // POST { email, planId? } -> { ok: true }
-  verifyOtpUrl?: string;         // POST { email, code, planId? } -> { ok: true, downloadToken }
-  downloadTokenUrl?: string;     // optional: GET /api/download-token?plan_id=..  -> { downloadToken }
+  mode?: "full" | "budget";
+  requestOtpUrl?: string; // POST { email, planId? } -> { ok: true }
+  verifyOtpUrl?: string;  // POST { email, code, planId?, mode? } -> { ok: true, downloadToken }
 };
 
 export default function DownloadVerifiedButton({
   planId,
+  mode = "full",
   requestOtpUrl = "/api/auth/otp/request",
   verifyOtpUrl = "/api/auth/otp/verify",
-  downloadTokenUrl = "/api/download-token",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -23,49 +23,55 @@ export default function DownloadVerifiedButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // request OTP
   async function sendOtp() {
-    if (!email) {
-      setError("请输入邮箱");
+    if (!email.trim()) {
+      setError("请输入邮箱地址");
       return;
     }
+
     setError(null);
     setSending(true);
+
     try {
       const res = await fetch(requestOtpUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, planId }),
+        body: JSON.stringify({ email: email.trim(), planId }),
       });
+
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(j?.message || "获取验证码失败");
+
+      if (!res.ok || !j?.ok) {
+        setError(j?.message || "验证码发送失败");
         return;
       }
-      // start countdown
+
       setCountdown(60);
       const t = setInterval(() => {
         setCountdown((s) => {
-          if (s <= 1) { clearInterval(t); return 0; }
+          if (s <= 1) {
+            clearInterval(t);
+            return 0;
+          }
           return s - 1;
         });
       }, 1000);
-      // 成功提示可以显示在 UI 中，这里先清空错误
+
       setError(null);
     } catch (e: any) {
       console.error(e);
-      setError(e?.message || "请求出错，请稍后再试");
+      setError(e?.message || "请求发送验证码失败");
     } finally {
       setSending(false);
     }
   }
 
-  // verify OTP and download
   async function verifyAndDownload() {
-    if (!email || !code) {
-      setError("请输入邮箱与验证码");
+    if (!email.trim() || !code.trim()) {
+      setError("请输入邮箱和验证码");
       return;
     }
+
     setError(null);
     setLoading(true);
 
@@ -73,32 +79,43 @@ export default function DownloadVerifiedButton({
       const r = await fetch(verifyOtpUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code, planId }),
+        body: JSON.stringify({
+          email: email.trim(),
+          code: code.trim(),
+          planId,
+          mode,
+        }),
       });
-      const data = await r.json();
 
-      if (!r.ok) throw new Error(data?.message || "验证失败");
+      const data = await r.json().catch(() => ({}));
 
-      const downloadToken = data?.downloadToken;
-      if (!downloadToken) throw new Error("后端未返回 downloadToken");
+      if (!r.ok || !data?.ok) {
+        throw new Error(data?.message || "验证码校验失败");
+      }
 
-      // ✅ 成功：使用 downloadToken 下载 PDF
+      const downloadToken = String(data?.downloadToken || "").trim();
+      if (!downloadToken) {
+        throw new Error("未获取到 downloadToken");
+      }
+
       const pdfUrl =
         `/api/pdf?planId=${encodeURIComponent(planId)}` +
-        `&downloadToken=${encodeURIComponent(downloadToken)}` +
-        `&mode=full`;
+        `&mode=${encodeURIComponent(mode)}` +
+        `&download=1` +
+        `&downloadToken=${encodeURIComponent(downloadToken)}`;
 
       const a = document.createElement("a");
       a.href = pdfUrl;
-      a.download = `${planId}.pdf`;
+      a.download = `${planId}-${mode}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
 
-      // 关闭弹窗
       setOpen(false);
+      setCode("");
+      setError(null);
     } catch (e: any) {
-      setError(e?.message || "网络异常，请稍后再试");
+      setError(e?.message || "验证或下载失败");
     } finally {
       setLoading(false);
     }
@@ -108,44 +125,49 @@ export default function DownloadVerifiedButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-white bg-black px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+        className="rounded-lg bg-black px-6 py-3 font-semibold text-white transition-colors hover:bg-gray-800"
       >
-        下载完整版方案 PDF
+        验证后下载 PDF
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-[520px] rounded-2xl bg-white text-gray-900 shadow-2xl p-6">
-            <h3 className="text-xl font-semibold mb-4">验证邮箱以下载完整版 PDF</h3>
-            <div style={{ marginBottom: 12 }}>
-              <label className="block mb-2 text-sm font-medium">邮箱</label>
-              <input 
-                value={email} 
-                onChange={(e)=>setEmail(e.target.value)} 
+          <div className="w-[520px] rounded-2xl bg-white p-6 text-gray-900 shadow-2xl">
+            <h3 className="mb-4 text-xl font-semibold">邮箱验证后下载 PDF</h3>
+
+            <div className="mb-3">
+              <label className="mb-2 block text-sm font-medium">邮箱</label>
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-black focus:outline-none"
                 disabled={loading}
               />
             </div>
-            <div style={{ marginBottom: 12 }}>
-              <label className="block mb-2 text-sm font-medium">验证码</label>
+
+            <div className="mb-3">
+              <label className="mb-2 block text-sm font-medium">验证码</label>
               <div className="flex gap-2">
-                <input 
-                  value={code} 
-                  onChange={(e)=>setCode(e.target.value)} 
+                <input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
                   placeholder="请输入验证码"
                   className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-black focus:outline-none"
                   disabled={loading}
                 />
                 {(() => {
-                  const canSend = email.trim().length > 0 && countdown === 0 && !sending;
+                  const canSend =
+                    email.trim().length > 0 && countdown === 0 && !sending;
+
                   return (
-                    <button 
-                      disabled={!canSend} 
+                    <button
+                      type="button"
+                      disabled={!canSend}
                       onClick={sendOtp}
-                      className="rounded-lg bg-gray-100 px-4 py-2 text-gray-900 border border-gray-300 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="rounded-lg border border-gray-300 bg-gray-100 px-4 py-2 text-gray-900 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {countdown>0 ? `${countdown}s` : "获取验证码"}
+                      {countdown > 0 ? `${countdown}s` : "发送验证码"}
                     </button>
                   );
                 })()}
@@ -158,20 +180,23 @@ export default function DownloadVerifiedButton({
               </div>
             )}
 
-            <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-              <button 
-                onClick={verifyAndDownload} 
-                disabled={loading} 
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={verifyAndDownload}
+                disabled={loading}
                 className="flex-1 rounded-lg bg-black px-4 py-2 text-white disabled:opacity-50"
               >
-                {loading ? "验证中..." : "验证并下载"}
+                {loading ? "处理中..." : "验证并下载"}
               </button>
-              <button 
-                onClick={()=>{
+
+              <button
+                type="button"
+                onClick={() => {
                   setOpen(false);
                   setError(null);
-                }} 
-                className="rounded-lg bg-gray-100 px-4 py-2 text-gray-900 border border-gray-300 hover:bg-gray-200 disabled:opacity-50"
+                }}
+                className="rounded-lg border border-gray-300 bg-gray-100 px-4 py-2 text-gray-900 hover:bg-gray-200 disabled:opacity-50"
                 disabled={loading}
               >
                 取消
@@ -183,4 +208,3 @@ export default function DownloadVerifiedButton({
     </>
   );
 }
-

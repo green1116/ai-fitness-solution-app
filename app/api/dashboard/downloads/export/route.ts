@@ -42,15 +42,15 @@ export async function GET(req: Request) {
 
   for (const r of rows) {
     lines.push([
-      escCsv(r.createdAt.toISOString()),
+      escCsv(r.createdAt),
       escCsv(r.planId),
       escCsv(r.mode),
       escCsv(r.reason),
       escCsv(r.ok),
-      escCsv(r.email),
-      escCsv(r.licenseId),
+      escCsv(""),
+      escCsv(""),
       escCsv(r.ip),
-      escCsv(r.ua),
+      escCsv(r.ua ?? r.userAgent),
     ].join(","));
   }
 

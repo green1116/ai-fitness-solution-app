@@ -1,65 +1,238 @@
-// app/api/auth/email/send/route.ts
-export const runtime = "nodejs";
-
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
-import { maskEmail, maskToken } from "@/lib/mask";
-// import { sendEmail } from "@/lib/email"; // 你原来的发信方法（resend）保持不变即可
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function normalizeEmail(email: any) {
-  return String(email || "").trim().toLowerCase();
+type VerifyRecord = {
+  code: string;
+  expiresAt: number;
+  email: string;
+};
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __EMAIL_VERIFY_STORE__: Map<string, VerifyRecord> | undefined;
 }
-function isEmail(s: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+const store =
+  global.__EMAIL_VERIFY_STORE__ ||
+  (global.__EMAIL_VERIFY_STORE__ = new Map<string, VerifyRecord>());
+
+function j(status: number, body: any) {
+  return NextResponse.json(body, { status });
 }
 
-export async function POST(req: Request) {
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function makeCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function sendWithRetry(
+  resend: Resend,
+  payload: {
+    from: string;
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+  }
+) {
+  let lastResp: any = null;
+  let lastErr: any = null;
+
+  for (let i = 0; i < 2; i++) {
+    try {
+      const resp = await resend.emails.send(payload);
+
+      if (!(resp as any)?.error) {
+        if (i > 0) {
+          console.log("[EMAIL_SEND] retry success on attempt", i + 1);
+        }
+        return resp;
+      }
+
+      lastResp = resp;
+      console.error(
+        "[EMAIL_SEND] resend error attempt",
+        i + 1,
+        "=",
+        (resp as any).error
+      );
+
+      if (i === 0) {
+        await sleep(1200);
+        continue;
+      }
+
+      return resp;
+    } catch (err) {
+      lastErr = err;
+      console.error("[EMAIL_SEND] exception attempt", i + 1, "=", err);
+
+      if (i === 0) {
+        await sleep(1200);
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  if (lastErr) throw lastErr;
+  return lastResp;
+}
+
+function getDomainFromEmail(email: string) {
+  const parts = String(email || "").trim().toLowerCase().split("@");
+  return parts.length === 2 ? parts[1] : "";
+}
+
+function isBlockedSenderDomain(domain: string) {
+  const blocked = new Set([
+    "gmail.com",
+    "outlook.com",
+    "hotmail.com",
+    "live.com",
+    "qq.com",
+    "163.com",
+    "126.com",
+    "sina.com",
+    "yahoo.com",
+    "icloud.com",
+  ]);
+  return blocked.has(domain);
+}
+
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const email = normalizeEmail(body.email);
+    const email = String(body?.email || "").trim().toLowerCase();
 
-    if (!email || !isEmail(email)) {
-      return NextResponse.json({ ok: false, code: "BAD_EMAIL", message: "请输入有效邮箱" }, { status: 400 });
+    console.log("[EMAIL_SEND] request email =", email || "(empty)");
+
+    if (!email) {
+      return j(400, {
+        ok: false,
+        code: "EMAIL_REQUIRED",
+        message: "email is required",
+      });
     }
 
-    const code = String(Math.floor(100000 + Math.random() * 900000)); // 6位
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10分钟
+    if (!isValidEmail(email)) {
+      return j(400, {
+        ok: false,
+        code: "EMAIL_INVALID",
+        message: "invalid email format",
+      });
+    }
 
-    // ✅ 关键：写进数据库（稳定，不会因为热更新丢失）
-    await (prisma as any).emailOtp.upsert({
-      where: { email },
-      update: { code, expiresAt },
-      create: { email, code, expiresAt },
+    const apiKey = process.env.RESEND_API_KEY?.trim() || "";
+    const from = process.env.EMAIL_FROM?.trim() || "";
+    const fromDomain = getDomainFromEmail(from);
+
+    console.log("[EMAIL_SEND] env check", {
+      RESEND_API_KEY: !!apiKey,
+      EMAIL_FROM: !!from,
+      EMAIL_FROM_VALUE: from || "(empty)",
     });
 
-    // 发送邮件
-    console.log(`[Send] 发送验证码到: ${maskEmail(email)}, 验证码: ${maskToken(code)}`);
-    let emailId: string | undefined;
-    try {
-      const from = process.env.EMAIL_FROM || "Attaguy <noreply@mail.attaguy.net>";
-      const result = await resend.emails.send({
-        from,
-        to: email,
-        subject: "Attaguy 验证码（10分钟有效）",
-        html: `<p>你的验证码是：</p><h2 style="letter-spacing:2px">${code}</h2><p>10 分钟内有效。如非本人操作请忽略。</p>`,
+    if (!apiKey || !from) {
+      return j(500, {
+        ok: false,
+        code: "RESEND_NOT_CONFIGURED",
+        message: "Please set RESEND_API_KEY and EMAIL_FROM in .env.local",
       });
-
-      emailId = result.data?.id;
-      console.log(`[Resend] 邮件发送成功 - ID: ${emailId}, Email: ${maskEmail(email)}, Code: ${maskToken(code)}`);
-    } catch (resendError: any) {
-      console.error("[Resend] 邮件发送失败:", resendError?.message || resendError);
-      throw new Error(`Resend API 错误: ${resendError?.message || "unknown_error"}`);
     }
 
-    return NextResponse.json({ ok: true, message: "sent" });
-  } catch (e: any) {
-    console.error("[Send] 发送失败:", e?.message || e);
-    return NextResponse.json(
-      { ok: false, code: "SEND_FAILED", message: e?.message || "发送失败" },
-      { status: 500 }
-    );
+    if (!isValidEmail(from)) {
+      return j(500, {
+        ok: false,
+        code: "EMAIL_FROM_INVALID",
+        message: "EMAIL_FROM is invalid",
+      });
+    }
+
+    if (isBlockedSenderDomain(fromDomain) && from !== "onboarding@resend.dev") {
+      return j(500, {
+        ok: false,
+        code: "EMAIL_FROM_DOMAIN_NOT_ALLOWED",
+        message:
+          "EMAIL_FROM cannot use public mailbox domains like outlook.com/gmail.com. Please use onboarding@resend.dev for testing, or a sender address under your verified domain.",
+      });
+    }
+
+    const resend = new Resend(apiKey);
+
+    const code = makeCode();
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+
+    const subject = "AI Fitness Solution 邮箱验证码";
+    const html = `
+      <div style="font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;line-height:1.7;color:#111;">
+        <h2 style="margin:0 0 12px;">AI Fitness Solution</h2>
+        <p>您好，您的邮箱验证码为：</p>
+        <div style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0;">
+          ${code}
+        </div>
+        <p>该验证码 <strong>10 分钟内有效</strong>。</p>
+        <p>如非本人操作，请忽略此邮件。</p>
+      </div>
+    `;
+    const text = `您的验证码是：${code}，10分钟内有效。`;
+
+    const resp = await sendWithRetry(resend, {
+      from,
+      to: email,
+      subject,
+      html,
+      text,
+    });
+
+    if ((resp as any)?.error) {
+      console.error("[EMAIL_SEND] resend error =", (resp as any).error);
+      return j(500, {
+        ok: false,
+        code: "RESEND_SEND_FAILED",
+        message: (resp as any).error?.message || "resend send failed",
+      });
+    }
+
+    store.set(email, {
+      code,
+      expiresAt,
+      email,
+    });
+
+    console.log("[EMAIL_SEND] success", {
+      email,
+      resendId: (resp as any)?.data?.id,
+      expiresAt,
+    });
+
+    return j(200, {
+      ok: true,
+      code: "EMAIL_CODE_SENT",
+      message: "verification code sent",
+      email,
+      expiresInSec: 600,
+    });
+  } catch (err: any) {
+    console.error("[EMAIL_SEND] FATAL", err);
+    console.error("[EMAIL_SEND] message =", err?.message);
+    console.error("[EMAIL_SEND] stack =", err?.stack);
+
+    return j(500, {
+      ok: false,
+      code: "EMAIL_SEND_FATAL",
+      message: err?.message || "internal error",
+    });
   }
 }

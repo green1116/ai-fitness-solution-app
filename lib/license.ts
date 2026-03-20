@@ -1,8 +1,13 @@
 import crypto from "crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { logPdfDownloadSafe } from "@/lib/audit/pdfLog";
+import {
+  requireAndConsumeDownloadToken as requireAndConsumeDownloadTokenCore,
+  type DownloadTokenMode,
+} from "@/lib/download-token";
 
 function getSecret() {
-  // 如果你 env 目前不稳定，也能先跑：fallback 固定字符串（仅开发期）
   return process.env.LICENSE_HASH_SECRET || "dev_license_secret";
 }
 
@@ -16,9 +21,9 @@ export function generatePlainLicenseKey(prefix = "lic") {
 }
 
 export async function createLicenseKey(params: {
-  plainKey?: string;        // 你也可以自带 key
-  planId?: string | null;   // null/undefined = 全站
-  maxDownloads?: number;    // 0 = 不限
+  plainKey?: string;
+  planId?: string | null;
+  maxDownloads?: number;
   expiresAt?: Date | null;
   requireLogin?: boolean;
   note?: string | null;
@@ -37,7 +42,6 @@ export async function createLicenseKey(params: {
     },
   });
 
-  // 返回明文只在创建时给一次（DB 只存 hash）
   return { licenseId: row.id, plainKey: plain };
 }
 
@@ -69,10 +73,22 @@ export async function validateAndConsumeLicenseKey(params: {
   }
 
   if (lic.maxDownloads > 0 && lic.usedCount >= lic.maxDownloads) {
+    await logPdfDownloadSafe({
+      planId: params.planId,
+      mode: params.mode,
+      ok: false,
+      ip: params.ip ?? null,
+      ua: params.ua ?? null,
+      extra: {
+        license: { id: lic.id },
+        event: "LICENSE_DENY",
+        code: "QUOTA_EXCEEDED",
+      },
+    });
+
     return { ok: false as const, code: "QUOTA_EXCEEDED" as const, licenseId: lic.id };
   }
 
-  // 通过 -> 计数 + 打点（事务）
   const fp = [
     params.planId,
     params.mode,
@@ -80,27 +96,13 @@ export async function validateAndConsumeLicenseKey(params: {
     (params.ua || "noua").slice(0, 80),
   ].join("|");
 
-  const updated = await prisma.$transaction(async (tx) => {
-    // ✅ 幂等：同一 fingerprint 已消费过 -> 不再扣 usedCount
+  const { result, duplicate } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     try {
       await tx.licenseConsume.create({
         data: { licenseId: lic.id, planId: params.planId, fingerprint: fp },
       });
     } catch {
-      // 已存在：当作已成功（不重复扣次数）
-      await tx.pdfDownloadLog.create({
-        data: {
-          planId: params.planId,
-          mode: params.mode,
-          email: params.email ?? null,
-          licenseId: lic.id,
-          ip: params.ip ?? null,
-          ua: params.ua ?? null,
-          ok: true,
-          reason: "LICENSE_DUPLICATE_IGNORED",
-        },
-      });
-      return lic;
+      return { result: lic, duplicate: true } as const;
     }
 
     const updatedLic = await tx.licenseKey.update({
@@ -108,22 +110,34 @@ export async function validateAndConsumeLicenseKey(params: {
       data: { usedCount: { increment: 1 } },
     });
 
-    await tx.pdfDownloadLog.create({
-      data: {
-        planId: params.planId,
-        mode: params.mode,
-        email: params.email ?? null,
-        licenseId: lic.id,
-        ip: params.ip ?? null,
-        ua: params.ua ?? null,
-        ok: true,
-        reason: "LICENSE_OK",
-      },
-    });
-
-    return updatedLic;
+    return { result: updatedLic, duplicate: false } as const;
   });
 
-  return { ok: true as const, licenseId: updated.id, usedCount: updated.usedCount };
+  await logPdfDownloadSafe({
+    planId: params.planId,
+    mode: params.mode,
+    ok: true,
+    ip: params.ip ?? null,
+    ua: params.ua ?? null,
+    extra: {
+      license: { id: result.id },
+      event: duplicate ? "LICENSE_DUPLICATE_IGNORED" : "LICENSE_OK",
+    },
+  });
+
+  return { ok: true as const, licenseId: result.id, usedCount: result.usedCount };
 }
 
+// 兼容旧 import：真正逻辑已迁移到 "@/lib/download-token"
+export type { DownloadTokenMode };
+
+export async function requireAndConsumeDownloadToken(params: {
+  downloadToken: string;
+  planId: string;
+  mode: DownloadTokenMode;
+  fingerprint: string;
+  ip?: string | null;
+  ua?: string | null;
+}) {
+  return requireAndConsumeDownloadTokenCore(params);
+}

@@ -1,0 +1,10 @@
+name: pdf-regress-dev
+
+on:
+  workflow_dispatch:
+
+jobs:
+  regress:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "dev-only workflow disabled for PR/push"

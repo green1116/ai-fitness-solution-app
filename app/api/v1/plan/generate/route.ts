@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 import { jwtVerify } from "jose";
 import { buildPlanBundle } from "@/lib/plan/builder";
-import { renderBundlePdf } from "@/lib/pdf/render-bundle";
+import { renderBundle } from "@/lib/pdf/render-bundle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +17,7 @@ function json(status: number, body: any) {
 function readPlanFromPlansDir(planId: string) {
   const p = path.join(process.cwd(), "plans", `${planId}.json`);
   if (!fs.existsSync(p)) return null;
+
   try {
     const raw = fs.readFileSync(p, "utf-8");
     return JSON.parse(raw);
@@ -143,6 +144,7 @@ function extractCompanyFromStored(stored: any) {
     data.budgetMax,
     root.budget_max
   );
+
   if (!budgetRange && bMin && bMax) {
     budgetRange = `${bMin}-${bMax}万`;
   }
@@ -165,14 +167,57 @@ async function verifyDownloadTokenIfRequired(body: any) {
   }
 
   const key = new TextEncoder().encode(secret);
-
-  // 你现有系统里 download-token 的 scope/planId 可能不同，这里做“最小验证”
-  // ✅ 验签 + (可选) planId 对齐
   const { payload } = await jwtVerify(token, key);
+
   const tokenPlanId = String((payload as any)?.planId || "").trim();
   if (tokenPlanId && body?.planId && tokenPlanId !== body.planId) {
     throw new Error(`downloadToken planId 不匹配：token=${tokenPlanId}, body=${body.planId}`);
   }
+}
+
+function bundleToPdfSections(bundle: any): Array<{ title: string; body: string }> {
+  const candidates = [
+    bundle?.sections,
+    bundle?.pages,
+    bundle?.items,
+    bundle?.content,
+    bundle?.blocks,
+    bundle?.chapters,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate.map((s: any, idx: number) => ({
+        title: String(
+          s?.title ||
+            s?.heading ||
+            s?.name ||
+            s?.label ||
+            s?.chapterTitle ||
+            `Section ${idx + 1}`
+        ),
+        body: String(
+          s?.body ||
+            s?.content ||
+            s?.text ||
+            s?.markdown ||
+            s?.summary ||
+            ""
+        ),
+      }));
+    }
+  }
+
+  if (bundle && typeof bundle === "object") {
+    return [
+      {
+        title: String(bundle.title || bundle.name || "Plan Bundle"),
+        body: JSON.stringify(bundle, null, 2),
+      },
+    ];
+  }
+
+  return [{ title: "Plan Bundle", body: String(bundle ?? "") }];
 }
 
 export async function POST(req: NextRequest) {
@@ -181,7 +226,6 @@ export async function POST(req: NextRequest) {
     const options = body?.options || {};
     const company = body?.company || {};
 
-    // 可选：门禁校验（按钮会开启 requireToken=true）
     await verifyDownloadTokenIfRequired(body);
 
     const includePdf = Boolean(options.includePdf ?? true);
@@ -197,7 +241,6 @@ export async function POST(req: NextRequest) {
 
     let usedDefaults = false;
 
-    // 1) 若 company 不完整 → 尝试从 plans/<planId>.json 补齐
     if (!industry || !companySize || !areaSize || !budgetRange) {
       const stored = readPlanFromPlansDir(planId);
       if (stored) {
@@ -209,7 +252,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2) 仍缺 → 兜底默认值（不再 400 卡死）
     if (!industry || !companySize || !areaSize || !budgetRange) {
       usedDefaults = true;
       industry = industry || "互联网";
@@ -229,7 +271,8 @@ export async function POST(req: NextRequest) {
 
     let pdfBase64: string | null = null;
     if (includePdf) {
-      const pdfBytes = await renderBundlePdf(bundle);
+      const pdfSections = bundleToPdfSections(bundle as any);
+      const pdfBytes = await renderBundle(pdfSections);
       pdfBase64 = Buffer.from(pdfBytes).toString("base64");
     }
 

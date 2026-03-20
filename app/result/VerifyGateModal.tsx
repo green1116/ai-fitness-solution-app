@@ -1,15 +1,13 @@
-"use client";
-import React, { useEffect, useMemo, useState } from "react";
+﻿"use client";
+
+import React, { useEffect, useState } from "react";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   proposalNo: string;
-  // 如果你有订单号，就传进来（未来接 paid 校验）
   orderNo?: string;
-  // plan 数据（用于生成 PDF）
   plan?: any;
-  // 你的支付跳转（如 /pay?orderNo=xxx）
   onPay?: () => void;
   onVerified?: (emailToken: string) => void;
 };
@@ -32,7 +30,7 @@ export default function VerifyGateModal({
   const [downloading, setDownloading] = useState(false);
 
   const [cooldown, setCooldown] = useState(0);
-  const canSend = cooldown <= 0 && !!email;
+  const canSend = cooldown <= 0 && !!email.trim();
 
   useEffect(() => {
     if (!open) return;
@@ -50,40 +48,54 @@ export default function VerifyGateModal({
 
   async function sendCode() {
     if (!canSend) return;
+
     setSending(true);
     try {
       const res = await fetch("/api/auth/email/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim() }),
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || body?.msg || "send_failed");
+
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(body?.error || body?.msg || "send_failed");
+      }
+
       setCooldown(60);
-      alert("验证码已发送，请查收邮箱（可能需要几分钟才能送达，请检查收件箱和垃圾邮件文件夹，10分钟内有效）");
-    } catch (e: any) {
-      alert("发送失败：" + (e?.message || e));
+      alert("验证码已发送，请检查收件箱和垃圾邮件文件夹。验证码 10 分钟内有效。");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert("发送失败：" + message);
     } finally {
       setSending(false);
     }
   }
 
   async function verifyCode() {
-    if (!email || !code) return;
+    if (!email.trim() || !code.trim()) return;
+
     setVerifying(true);
     try {
       const res = await fetch("/api/auth/email/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ email: email.trim(), code: code.trim() }),
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || "verify_failed");
+
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(body?.error || "verify_failed");
+      }
+
       setEmailToken(body.emailToken);
       onVerified?.(body.emailToken);
-      alert("验证成功，可以下载完整版 PDF 了");
-    } catch (e: any) {
-      alert("验证失败：" + (e?.message || e));
+      alert("验证成功，现在可以下载完整版 PDF。");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert("验证失败：" + message);
     } finally {
       setVerifying(false);
     }
@@ -92,23 +104,22 @@ export default function VerifyGateModal({
   async function downloadPdf() {
     setDownloading(true);
     try {
-      // 下载 PDF（使用 session cookie）- 使用 fetch + blob 方式
       const proposalNoValue = proposalNo || "attaguy-plan";
 
       if (!plan) {
-        alert("缺少 plan 数据，无法生成 PDF");
+        alert("缺少 plan 数据，无法生成 PDF。");
         return;
       }
 
-      const pdfRes = await fetch(`/api/pdf`, {
+      const pdfRes = await fetch("/api/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proposalNo: proposalNoValue, plan }),
       });
 
       if (pdfRes.status === 402) {
-        const body = await pdfRes.json();
-        alert(body?.msg || "需要验证");
+        const body = await pdfRes.json().catch(() => ({}));
+        alert(body?.msg || "需要先完成验证或支付。");
         return;
       }
 
@@ -129,8 +140,9 @@ export default function VerifyGateModal({
       window.URL.revokeObjectURL(url);
 
       onClose();
-    } catch (e: any) {
-      alert("下载失败：" + (e?.message || e));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      alert("下载失败：" + message);
     } finally {
       setDownloading(false);
     }
@@ -140,13 +152,13 @@ export default function VerifyGateModal({
     <div style={styles.backdrop}>
       <div style={styles.modal}>
         <div style={styles.title}>需要验证</div>
-        <div style={styles.desc}>下载完整版 PDF 需要先支付或完成邮箱验证</div>
+        <div style={styles.desc}>下载完整版 PDF 前，请先完成支付或邮箱验证。</div>
 
         <button
           style={styles.payBtn}
-          onClick={() => (onPay ? onPay() : alert("请接入支付跳转"))}
+          onClick={() => (onPay ? onPay() : alert("请先接入支付跳转。"))}
         >
-          前往支付（¥499）
+          前往支付（￥499）
         </button>
 
         <div style={{ height: 16 }} />
@@ -159,7 +171,7 @@ export default function VerifyGateModal({
             onChange={(e) => setEmail(e.target.value)}
           />
           <button style={styles.smallBtn} onClick={sendCode} disabled={!canSend || sending}>
-            {cooldown > 0 ? `已发送(${cooldown}s)` : sending ? "发送中…" : "获取验证码"}
+            {cooldown > 0 ? `已发送（${cooldown}s）` : sending ? "发送中..." : "获取验证码"}
           </button>
         </div>
 
@@ -172,8 +184,12 @@ export default function VerifyGateModal({
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
-          <button style={styles.smallBtn} onClick={verifyCode} disabled={!email || !code || verifying}>
-            {verifying ? "验证中…" : "验证"}
+          <button
+            style={styles.smallBtn}
+            onClick={verifyCode}
+            disabled={!email.trim() || !code.trim() || verifying}
+          >
+            {verifying ? "验证中..." : "验证"}
           </button>
         </div>
 
@@ -187,11 +203,14 @@ export default function VerifyGateModal({
           onClick={downloadPdf}
           disabled={downloading}
         >
-          {downloading ? "下载中…" : "下载完整版 PDF"}
+          {downloading ? "下载中..." : "下载完整版 PDF"}
         </button>
 
         <div style={{ height: 10 }} />
-        <button style={styles.cancel} onClick={onClose}>取消</button>
+
+        <button style={styles.cancel} onClick={onClose}>
+          取消
+        </button>
       </div>
     </div>
   );
@@ -265,4 +284,3 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
 };
-

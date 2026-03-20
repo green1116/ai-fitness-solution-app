@@ -10,7 +10,7 @@ import {
 } from "@/lib/prompts/plan-prompt";
 import { prisma } from "@/lib/prisma";
 import { deepSnakeToCamel } from "@/lib/plan-utils";
-import { signDownloadToken } from "@/lib/download-token";
+import { signDownloadJwt } from "@/lib/download-token";
 
 export const runtime = "nodejs";
 
@@ -18,7 +18,7 @@ export const runtime = "nodejs";
  * Plan JSON Schema（Zod 验证）
  * 用于严格验证 LLM 输出的 JSON 格式
  */
-export const PlanSchema = z.object({
+const PlanSchema = z.object({
   meta: z.object({
     plan_id: z.string(),
     proposalNo: z.string().optional(), // 兼容旧字段
@@ -219,9 +219,9 @@ export async function POST(req: NextRequest) {
 
     // 生成下载 token 和下载链接
     const planId = planJson.meta.plan_id;
-    const token = await signDownloadToken({
+    const token = await signDownloadJwt({
       planId,
-      scope: "pdf_download",
+      mode: "full",
     });
     const downloadUrl =
       `/api/pdf?planId=${encodeURIComponent(planId)}` +

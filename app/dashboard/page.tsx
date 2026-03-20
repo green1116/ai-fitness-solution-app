@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -11,10 +11,12 @@ export default function DashboardPage() {
   useEffect(() => {
     const authed = localStorage.getItem("attaguy_authed");
     const e = localStorage.getItem("attaguy_email") || "";
+
     if (authed !== "1") {
       router.push("/login");
       return;
     }
+
     setEmail(e);
   }, [router]);
 
@@ -25,34 +27,37 @@ export default function DashboardPage() {
   };
 
   return (
-    <main className="min-h-screen bg-black text-white px-6 py-10">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold">我的方案（演示）</h1>
-        <p className="text-gray-300 text-sm">
-          已登录用户：<span className="text-white font-semibold">{email || "unknown"}</span>
+    <main className="min-h-screen bg-black px-6 py-10 text-white">
+      <div className="mx-auto max-w-2xl space-y-6">
+        <h1 className="text-3xl font-bold">用户控制台</h1>
+
+        <p className="text-sm text-gray-300">
+          当前登录邮箱：
+          <span className="font-semibold text-white">{email || "unknown"}</span>
         </p>
 
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-3">
-          <div className="text-lg font-semibold">下一步你可以做什么</div>
-          <ul className="list-disc pl-5 text-sm text-gray-300 space-y-1">
-            <li>下载完整 PDF（下一阶段接入）</li>
-            <li>保存/查看历史方案（下一阶段接入数据库）</li>
-            <li>联系顾问，代客下单（下一阶段接入商城）</li>
+        <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+          <div className="text-lg font-semibold">可用功能</div>
+
+          <ul className="list-disc space-y-1 pl-5 text-sm text-gray-300">
+            <li>创建企业健身空间方案，并生成 PDF 计划文档</li>
+            <li>提交需求参数，进入后续分析与自动化处理流程</li>
+            <li>查看下载入口、后续结果页及系统生成的相关输出</li>
           </ul>
 
-          <div className="flex flex-col md:flex-row gap-3 pt-2">
+          <div className="flex flex-col gap-3 pt-2 md:flex-row">
             <Link
               href="/plan"
-              className="flex-1 bg-white text-black rounded-xl py-4 font-semibold text-center hover:bg-gray-200 transition"
+              className="flex-1 rounded-xl bg-white py-4 text-center font-semibold text-black transition hover:bg-gray-200"
             >
-              再生成一份方案
+              开始创建方案
             </Link>
 
             <button
-              onClick={() => alert("下一阶段：这里接 PDF 下载接口")}
-              className="flex-1 rounded-xl py-4 font-semibold border border-zinc-700 hover:border-zinc-500 transition"
+              onClick={() => alert("PDF 下载入口正在整理中，请先进入方案页进行生成。")}
+              className="flex-1 rounded-xl border border-zinc-700 py-4 font-semibold transition hover:border-zinc-500"
             >
-              下载 PDF（占位）
+              查看 PDF 下载入口
             </button>
           </div>
         </section>

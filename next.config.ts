@@ -1,16 +1,42 @@
 import type { NextConfig } from "next";
-import path from "path";
+
+type WebpackLikeConfig = {
+  watchOptions?: {
+    ignored?: string | string[];
+  };
+};
 
 const nextConfig: NextConfig = {
-  reactStrictMode: true,
+  turbopack: {},
+  webpack: (config: WebpackLikeConfig) => {
+    const existingIgnored = config.watchOptions?.ignored;
 
-  // ✅ 关键：告诉 Next/Turbopack 项目根就是当前目录
-  turbopack: {
-    root: path.join(__dirname),
+    const ignored: string[] = [];
+
+    if (typeof existingIgnored === "string" && existingIgnored.trim()) {
+      ignored.push(existingIgnored);
+    } else if (Array.isArray(existingIgnored)) {
+      for (const item of existingIgnored) {
+        if (typeof item === "string" && item.trim()) {
+          ignored.push(item);
+        }
+      }
+    }
+
+    ignored.push(
+      "**/.git/**",
+      "**/.next/**",
+      "**/node_modules/**",
+      "**/_regress/**"
+    );
+
+    config.watchOptions = {
+      ...(config.watchOptions || {}),
+      ignored,
+    };
+
+    return config;
   },
-
-  // ✅ 额外保险：让文件追踪也以项目为根（减少诡异扫描）
-  outputFileTracingRoot: path.join(__dirname),
 };
 
 export default nextConfig;

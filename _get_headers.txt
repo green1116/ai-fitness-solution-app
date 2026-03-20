@@ -1,0 +1,15 @@
+HTTP/1.1 200 OK
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+cache-control: no-store
+content-disposition: inline; filename="budget-attaguy-plan.pdf"
+content-type: application/pdf
+x-pdf-kind: BUDGET
+x-pdf-version: __FORCE_TEST_999__
+x-renderbudget-exports: renderBudgetPdfBytes
+x-renderbudget-keys: header,table
+x-route: app/api/pdf/route.ts::DEBUG_OVERRIDE::GET_RENDERED::SECTIONS_PARAM
+Date: Fri, 20 Feb 2026 08:31:02 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Transfer-Encoding: chunked
+

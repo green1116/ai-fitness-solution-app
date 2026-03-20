@@ -21,6 +21,17 @@ export type BudgetLine = {
   note: string;
 };
 
+export type BudgetItem = {
+  category: string;
+  name: string;
+  qty: number;
+  unitMin: number;
+  unitMax: number;
+  subtotalMin: number;
+  subtotalMax: number;
+  remark?: string;
+};
+
 export type BudgetSummary = {
   tier: BudgetTier;
   companySize: CompanySize;
@@ -33,5 +44,6 @@ export type BudgetSummary = {
 
   lines: BudgetLine[];
   notes: string[];
+  items?: BudgetItem[];
 };
 

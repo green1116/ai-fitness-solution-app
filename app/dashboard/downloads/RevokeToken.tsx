@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 
@@ -14,6 +14,7 @@ export default function RevokeToken() {
       setMsg("请先粘贴 token");
       return;
     }
+
     setLoading(true);
     setMsg(null);
 
@@ -22,29 +23,40 @@ export default function RevokeToken() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token,
-          planId: planId || undefined,
-          reason,
+          token: token.trim(),
+          planId: planId.trim() || undefined,
+          reason: reason.trim() || "manual_revoke",
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
         setMsg(data?.message || "撤销失败");
       } else {
-        setMsg("✅ Token 已成功撤销");
+        setMsg("成功：Token 已撤销");
         setToken("");
       }
-    } catch (e: any) {
-      setMsg(e?.message || "网络错误");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "网络错误";
+      setMsg(message);
     } finally {
       setLoading(false);
     }
   }
 
+  const ok = !!msg && msg.startsWith("成功");
+
   return (
-    <div style={{ border: "1px solid #e5e5e5", padding: 16, borderRadius: 8, marginBottom: 24 }}>
-      <h3 style={{ fontWeight: 600, marginBottom: 8 }}>吊销下载 Token</h3>
+    <div
+      style={{
+        border: "1px solid #e5e5e5",
+        padding: 16,
+        borderRadius: 8,
+        marginBottom: 24,
+      }}
+    >
+      <h3 style={{ fontWeight: 600, marginBottom: 8 }}>撤销下载 Token</h3>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <textarea
@@ -67,12 +79,11 @@ export default function RevokeToken() {
         />
 
         <button onClick={submit} disabled={loading}>
-          {loading ? "处理中…" : "吊销 Token"}
+          {loading ? "处理中..." : "撤销 Token"}
         </button>
 
-        {msg && <div style={{ color: msg.startsWith("✅") ? "green" : "red" }}>{msg}</div>}
+        {msg && <div style={{ color: ok ? "green" : "red" }}>{msg}</div>}
       </div>
     </div>
   );
 }
-

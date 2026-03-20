@@ -1,5 +1,5 @@
-﻿import { NextResponse } from "next/server";
-import fulfillPaidOrderDefault, { fulfillPaidOrder as fulfillPaidOrderNamed } from "@/lib/pay/fulfill";
+import { NextResponse } from "next/server";
+import { fulfillPaidOrder } from "@/lib/pay/fulfill";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,12 +27,7 @@ export async function POST(req: Request) {
     if (!orderId) return json(400, { ok: false, code: "MISSING_ORDER_ID", message: "缺少 orderId" });
     if (event !== "payment_succeeded") return json(400, { ok: false, code: "UNSUPPORTED_EVENT", message: "不支持的 event" });
 
-    const fulfill = (fulfillPaidOrderNamed ?? fulfillPaidOrderDefault) as any;
-    if (typeof fulfill !== "function") {
-      return json(500, { ok: false, code: "FULFILL_EXPORT_INVALID", message: "fulfillPaidOrder 导出无效（不是函数）" });
-    }
-
-    const result = await fulfill(orderId);
+    const result = await fulfillPaidOrder(orderId);
     if (!result.ok) return json(400, result);
 
     return json(200, {

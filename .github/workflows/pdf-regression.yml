@@ -1,0 +1,150 @@
+name: PDF Regression
+
+on:
+  pull_request:
+    paths:
+      - "app/api/pdf/**"
+      - "app/api/tender-pack/**"
+      - "app/result/**"
+      - "app/components/**"
+      - "components/**"
+      - "lib/pdf/**"
+      - "lib/license/**"
+      - "lib/audit/**"
+      - "scripts/regress-pdf.ps1"
+      - "_golden/**"
+      - "package.json"
+      - "package-lock.json"
+      - "postcss.config.cjs"
+      - "app/globals.css"
+      - "app/layout.tsx"
+      - ".github/workflows/pdf-regression.yml"
+  push:
+    branches:
+      - main
+      - "ci/*"
+      - "feat/*"
+    paths:
+      - "app/api/pdf/**"
+      - "app/api/tender-pack/**"
+      - "app/result/**"
+      - "app/components/**"
+      - "components/**"
+      - "lib/pdf/**"
+      - "lib/license/**"
+      - "lib/audit/**"
+      - "scripts/regress-pdf.ps1"
+      - "_golden/**"
+      - "package.json"
+      - "package-lock.json"
+      - "postcss.config.cjs"
+      - "app/globals.css"
+      - "app/layout.tsx"
+      - ".github/workflows/pdf-regression.yml"
+
+jobs:
+  pdf-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      CI: "true"
+      PORT: "3000"
+      # 按你的仓库实际 secrets 保留/补齐
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      DOWNLOAD_TOKEN_SECRET: ${{ secrets.DOWNLOAD_TOKEN_SECRET }}
+      INTERNAL_PACK_SECRET: ${{ secrets.INTERNAL_PACK_SECRET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: pip install pypdf
+
+      - name: Start Next.js server
+        shell: bash
+        run: |
+          nohup npm run start > .next-start.log 2>&1 &
+          echo $! > .next-start.pid
+          echo "Started Next.js with PID $(cat .next-start.pid)"
+
+      - name: Wait for server
+        shell: bash
+        run: |
+          for i in {1..90}; do
+            if curl -sS "http://127.0.0.1:3000/api/download-token?mode=full&planId=attaguy-plan" > /dev/null; then
+              echo "Server ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server failed to start"
+          echo "===== .next-start.log ====="
+          if [ -f ".next-start.log" ]; then
+            tail -n 200 .next-start.log
+          fi
+          exit 1
+
+      - name: Run PDF regression
+        shell: pwsh
+        run: |
+          ./scripts/regress-pdf.ps1 `
+            -BaseUrl "http://127.0.0.1:3000" `
+            -PlanId "attaguy-plan" `
+            -Level "brand"
+
+      - name: Upload regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-regression-artifacts
+          path: |
+            _regress/**
+            _golden/**
+            .next-start.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Show regression outputs
+        if: always()
+        shell: bash
+        run: |
+          echo "===== _regress ====="
+          if [ -d "_regress" ]; then
+            find _regress -maxdepth 2 -type f | sort
+          fi
+
+          echo "===== .next-start.log ====="
+          if [ -f ".next-start.log" ]; then
+            tail -n 200 .next-start.log
+          fi
+
+      - name: Stop app
+        if: always()
+        shell: bash
+        run: |
+          if [ -f ".next-start.pid" ]; then
+            kill "$(cat .next-start.pid)" || true
+          fi

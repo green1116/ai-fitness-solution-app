@@ -1,40 +1,50 @@
 {
-  "name": "ai-solution-app",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev --webpack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@pdf-lib/fontkit": "^1.1.1",
-    "@prisma/client": "^6.19.2",
-    "@types/pdfkit": "^0.17.4",
-    "ioredis": "^5.9.2",
-    "jose": "^6.1.3",
-    "jsonwebtoken": "^9.0.3",
-    "next": "^16.1.6",
-    "pdf-lib": "^1.17.1",
-    "pdfkit": "^0.17.2",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "recharts": "^3.7.0",
-    "resend": "^6.8.0",
-    "zod": "^4.3.5"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/nodemailer": "^6.4.14",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.3",
-    "prisma": "^6.19.2",
-    "tailwindcss": "^4",
-    "tsx": "^4.21.0",
-    "typescript": "^5"
-  }
+    "name": "ai-solution-app",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev --webpack",
+        "build": "next build --webpack",
+        "start": "next start",
+        "postinstall": "prisma generate",
+        "lint": "next lint",
+        "prisma:pull": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma db pull --print",
+        "prisma:migrate:deploy": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate deploy",
+        "prisma:generate": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma generate"
+    },
+    "dependencies": {
+        "@pdf-lib/fontkit": "^1.1.1",
+        "@prisma/client": "^6.19.2",
+        "@tailwindcss/postcss": "^4.2.2",
+        "@types/pdfkit": "^0.17.4",
+        "autoprefixer": "^10.4.27",
+        "ioredis": "^5.9.2",
+        "jose": "^6.1.3",
+        "jsonwebtoken": "^9.0.3",
+        "jszip": "^3.10.1",
+        "next": "^16.1.6",
+        "nodemailer": "^8.0.2",
+        "pdf-lib": "^1.17.1",
+        "pdfkit": "^0.17.2",
+        "postcss": "^8.5.8",
+        "react": "19.2.3",
+        "react-dom": "19.2.3",
+        "recharts": "^3.7.0",
+        "resend": "^6.9.4",
+        "tailwindcss": "^4.2.2",
+        "zod": "^4.3.5"
+    },
+    "devDependencies": {
+        "@types/jsonwebtoken": "^9.0.10",
+        "@types/node": "^25.5.0",
+        "@types/nodemailer": "^6.4.23",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "cross-env": "^10.1.0",
+        "eslint": "^9",
+        "eslint-config-next": "16.1.3",
+        "prisma": "^6.19.2",
+        "tsx": "^4.21.0",
+        "typescript": "^5.9.3"
+    }
 }

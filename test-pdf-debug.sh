@@ -27,9 +27,9 @@ if [ -z "$DOWNLOAD_TOKEN" ]; then
 fi
 
 DOWNLOAD_URL="$BASE/api/pdf?planId=$PLANID&mode=full&downloadToken=$DOWNLOAD_TOKEN"
-echo "4) 使用 downloadToken 下载并保存 out.pdf（并在终端显示 HTTP headers）"
-curl -i -L "$DOWNLOAD_URL" -o out.pdf
+echo "4) 使用 downloadToken 下载并保存 full_attaguy-plan.pdf"
+curl -L -o full_attaguy-plan.pdf "$DOWNLOAD_URL"
 
 echo
-echo "检查：生成的文件 out.pdf（当前目录）请尝试打开。"
+echo "检查：生成的文件 full_attaguy-plan.pdf（当前目录）请尝试打开。"
 echo "如果 status 403 或 JSON 返回，请复制上面 curl 的完整输出并贴给我。"

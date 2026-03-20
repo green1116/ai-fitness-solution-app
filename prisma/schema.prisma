@@ -65,25 +65,32 @@ model LicenseKey {
 }
 
 model PdfDownloadLog {
-  id        String   @id @default(cuid())
-  planId    String
-
-  // ✅ 新增：用于“按用户+模式”计数/限额（都允许为空，兼容旧数据）
-  email     String?
-  mode      String?   // "budget" | "full" | "preview" ...
-
-  ip        String?
-  ok        Boolean
-  reason    String?
-  createdAt DateTime @default(now())
-  error     String?
-  userAgent String?
+  id            String   @id @default(cuid())
+  planId        String
+  ip            String?
+  ok            Boolean
+  reason        String?
+  createdAt     DateTime @default(now())
+  error         String?
+  userAgent     String?
+  route         String   @default("/api/pdf")
+  method        String   @default("GET")
+  mode          String?
+  level         String?
+  format        String?
+  theme         String?
+  pdfVersion    String?
+  planVersion   String?
+  budgetVersion String?
+  reqsig        String?
+  docSeq        String?
+  pages         Int?
+  bytes         Int?
+  ua            String?
+  extra         Json?
 
   @@index([planId, createdAt])
   @@index([createdAt])
-
-  // ✅ 新增：按 email + planId + mode 统计更快
-  @@index([email, planId, mode, createdAt])
 }
 
 model LicenseConsume {
@@ -121,4 +128,16 @@ model PdfDownloadTokenState {
 
   @@index([planId, createdAt])
   @@index([revoked, expAt])
+}
+
+model Lead {
+  id        String   @id @default(cuid())
+  email     String
+  planId    String?
+  intent    String   @default("contact_consultant")
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([planId, createdAt])
 }
