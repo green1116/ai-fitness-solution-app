@@ -1,4 +1,3 @@
-// components/DownloadPdfButton.tsx
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
@@ -15,9 +14,12 @@ type TokenResp =
   | { ok: true; downloadToken: string }
   | { ok: false; code?: string; message?: string; extra?: any };
 
-async function safeReadJsonOrText(res: Response): Promise<{ rawText: string; json: any | null }> {
+async function safeReadJsonOrText(
+  res: Response
+): Promise<{ rawText: string; json: any | null }> {
   const rawText = await res.text().catch(() => "");
   if (!rawText) return { rawText: "", json: null };
+
   try {
     return { rawText, json: JSON.parse(rawText) };
   } catch {
@@ -33,15 +35,18 @@ function getBrowserTz() {
   }
 }
 
-function buildPdfUrl(basePath: string, planId: string, mode: Mode, downloadToken: string) {
+function buildPdfUrl(
+  basePath: string,
+  planId: string,
+  mode: Mode,
+  downloadToken: string
+) {
   const u = new URL(basePath, window.location.origin);
   u.searchParams.set("planId", planId);
   u.searchParams.set("mode", mode);
   u.searchParams.set("downloadToken", downloadToken);
-
-  // ✅ 把用户时区带给后端
   u.searchParams.set("tz", getBrowserTz());
-
+  u.searchParams.set("download", "1");
   return u.toString();
 }
 
@@ -80,32 +85,46 @@ async function getDownloadToken(planId: string, mode: Mode) {
   return (data as any).downloadToken as string;
 }
 
+function triggerBrowserDownload(url: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 export default function DownloadPdfButton({
   planId,
   defaultMode = "full",
   showBudgetButton = true,
 }: Props) {
   const [loadingMode, setLoadingMode] = useState<Mode | null>(null);
+
   const canDownload = useMemo(() => Boolean(planId && planId.trim()), [planId]);
 
   const download = useCallback(
     async (mode: Mode) => {
       if (!canDownload) {
-        alert("缺少 planId，无法下载");
+        alert("缺少 planId，暂时无法下载。");
         return;
       }
 
       setLoadingMode(mode);
+
       try {
         const token = await getDownloadToken(planId, mode);
         const pdfUrl = buildPdfUrl("/api/pdf", planId, mode, token);
-        window.open(pdfUrl, "_blank", "noopener,noreferrer");
+        triggerBrowserDownload(pdfUrl);
       } catch (e: any) {
         const meta = e?.meta || {};
         console.error("[DownloadPdfButton] download failed:", e, meta);
+
         const status = meta.status ? `HTTP ${meta.status}` : "";
         const code = meta.code || "";
         const message = meta.message || e?.message || "Unknown error";
+
         alert([status, code, message].filter(Boolean).join(" - "));
       } finally {
         setLoadingMode(null);
@@ -115,24 +134,24 @@ export default function DownloadPdfButton({
   );
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-3">
       <button
         type="button"
-        className="px-4 py-2 rounded bg-black text-white disabled:opacity-50"
+        className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         disabled={!canDownload || loadingMode !== null}
         onClick={() => download(defaultMode)}
       >
-        {loadingMode === defaultMode ? "生成中…" : "下载方案 PDF"}
+        {loadingMode === defaultMode ? "正在生成方案..." : "下载方案 PDF"}
       </button>
 
       {showBudgetButton && (
         <button
           type="button"
-          className="px-4 py-2 rounded bg-zinc-200 text-black disabled:opacity-50"
+          className="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-black transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!canDownload || loadingMode !== null}
           onClick={() => download("budget")}
         >
-          {loadingMode === "budget" ? "生成中…" : "下载预算 PDF"}
+          {loadingMode === "budget" ? "正在生成预算..." : "下载预算 PDF"}
         </button>
       )}
     </div>
