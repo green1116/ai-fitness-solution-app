@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState } from "react";
 
@@ -8,8 +8,10 @@ type Props = {
   proposalNo: string;
   orderNo?: string;
   plan?: any;
+  planId: string;
+  mode: "full" | "budget";
   onPay?: () => void;
-  onVerified?: (emailToken: string) => void;
+  onVerified?: (downloadToken: string) => void;
 };
 
 export default function VerifyGateModal({
@@ -18,12 +20,14 @@ export default function VerifyGateModal({
   proposalNo,
   orderNo,
   plan,
+  planId,
+  mode,
   onPay,
   onVerified,
 }: Props) {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [emailToken, setEmailToken] = useState<string | null>(null);
+  const [downloadToken, setDownloadToken] = useState<string | null>(null);
 
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -35,7 +39,7 @@ export default function VerifyGateModal({
   useEffect(() => {
     if (!open) return;
     setCode("");
-    setEmailToken(null);
+    setDownloadToken(null);
   }, [open]);
 
   useEffect(() => {
@@ -54,7 +58,11 @@ export default function VerifyGateModal({
       const res = await fetch("/api/auth/email/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({
+          email: email.trim(),
+          mode,
+          planId,
+        }),
       });
 
       const body = await res.json().catch(() => ({}));
@@ -81,17 +89,23 @@ export default function VerifyGateModal({
       const res = await fetch("/api/auth/email/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), code: code.trim() }),
+        body: JSON.stringify({
+          email: email.trim(),
+          code: code.trim(),
+          mode,
+          planId,
+        }),
       });
 
       const body = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(body?.error || "verify_failed");
+        throw new Error(body?.message || body?.error || "verify_failed");
       }
 
-      setEmailToken(body.emailToken);
-      onVerified?.(body.emailToken);
+      const token = body.downloadToken;
+      setDownloadToken(token);
+      onVerified?.(token);
       alert("验证成功，现在可以下载完整版 PDF。");
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
@@ -198,7 +212,7 @@ export default function VerifyGateModal({
         <button
           style={{
             ...styles.downloadBtn,
-            opacity: emailToken || orderNo ? 1 : 0.6,
+            opacity: downloadToken || orderNo ? 1 : 0.6,
           }}
           onClick={downloadPdf}
           disabled={downloading}

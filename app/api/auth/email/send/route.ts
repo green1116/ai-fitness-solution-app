@@ -1,23 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type VerifyRecord = {
-  code: string;
-  expiresAt: number;
-  email: string;
-};
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __EMAIL_VERIFY_STORE__: Map<string, VerifyRecord> | undefined;
-}
-
-const store =
-  global.__EMAIL_VERIFY_STORE__ ||
-  (global.__EMAIL_VERIFY_STORE__ = new Map<string, VerifyRecord>());
 
 function j(status: number, body: any) {
   return NextResponse.json(body, { status });
@@ -111,12 +97,18 @@ function isBlockedSenderDomain(domain: string) {
   return blocked.has(domain);
 }
 
+function isValidMode(mode: string) {
+  return ["full", "budget"].includes(mode);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const email = String(body?.email || "").trim().toLowerCase();
+    const mode = String(body?.mode || "full").trim().toLowerCase();
+    const planId = String(body?.planId || "").trim();
 
-    console.log("[EMAIL_SEND] request email =", email || "(empty)");
+    console.log("[EMAIL_SEND] request email =", email || "(empty)", "mode =", mode, "planId =", planId || "(empty)");
 
     if (!email) {
       return j(400, {
@@ -131,6 +123,22 @@ export async function POST(req: NextRequest) {
         ok: false,
         code: "EMAIL_INVALID",
         message: "invalid email format",
+      });
+    }
+
+    if (!planId) {
+      return j(400, {
+        ok: false,
+        code: "PLAN_ID_REQUIRED",
+        message: "planId is required",
+      });
+    }
+
+    if (!isValidMode(mode)) {
+      return j(400, {
+        ok: false,
+        code: "MODE_INVALID",
+        message: "mode must be full or budget",
       });
     }
 
@@ -172,7 +180,26 @@ export async function POST(req: NextRequest) {
     const resend = new Resend(apiKey);
 
     const code = makeCode();
-    const expiresAt = Date.now() + 10 * 60 * 1000;
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await prisma.emailVerifyCode.deleteMany({
+      where: {
+        email,
+        mode,
+        planId,
+        usedAt: null,
+      },
+    });
+
+    await prisma.emailVerifyCode.create({
+      data: {
+        email,
+        code,
+        mode,
+        planId,
+        expiresAt,
+      },
+    });
 
     const subject = "AI Fitness Solution 邮箱验证码";
     const html = `
@@ -204,12 +231,6 @@ export async function POST(req: NextRequest) {
         message: (resp as any).error?.message || "resend send failed",
       });
     }
-
-    store.set(email, {
-      code,
-      expiresAt,
-      email,
-    });
 
     console.log("[EMAIL_SEND] success", {
       email,
