@@ -366,10 +366,12 @@ export default function AnalysisClient() {
         proposalNo={proposalNo}
         orderNo={orderNo || undefined}
         plan={data}
+        planId={proposalNo}
+        mode="full"
         onPay={() => router.push("/pay")}
-        onVerified={(emailToken: string) => {
+        onVerified={(downloadToken: string) => {
           const { maskToken } = require("@/lib/mask");
-          console.log("邮箱验证成功，token:", maskToken(emailToken));
+          console.log("邮箱验证成功，token:", maskToken(downloadToken));
         }}
       />
     </>

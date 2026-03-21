@@ -265,12 +265,21 @@ export default function ResultPage() {
 
   async function sendCode() {
     if (!email.trim()) return;
+    const pid = String(planId || "").trim();
+    if (!pid || !downloadMode) {
+      alert("请先选择下载类型");
+      return;
+    }
     try {
       setSendingCode(true);
       const res = await fetch("/api/auth/email/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({
+          email: email.trim(),
+          planId: pid,
+          mode: downloadMode,
+        }),
       });
       const body = await res.json().catch(() => ({} as any));
       if (!res.ok) throw new Error(body?.error || body?.msg || "send_failed");

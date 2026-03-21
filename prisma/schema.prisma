@@ -141,3 +141,17 @@ model Lead {
   @@index([email, createdAt])
   @@index([planId, createdAt])
 }
+
+model EmailVerifyCode {
+  id        String    @id @default(cuid())
+  email     String
+  code      String
+  mode      String
+  planId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email, mode, planId])
+  @@index([expiresAt])
+}

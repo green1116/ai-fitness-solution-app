@@ -1,23 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SignJWT } from "jose";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type VerifyRecord = {
-  code: string;
-  expiresAt: number;
-  email: string;
-};
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __EMAIL_VERIFY_STORE__: Map<string, VerifyRecord> | undefined;
-}
-
-const store =
-  global.__EMAIL_VERIFY_STORE__ ||
-  (global.__EMAIL_VERIFY_STORE__ = new Map<string, VerifyRecord>());
 
 function j(status: number, body: any) {
   return NextResponse.json(body, { status });
@@ -115,9 +101,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const rec = store.get(email);
+    const record = await prisma.emailVerifyCode.findFirst({
+      where: {
+        email,
+        code,
+        mode,
+        planId,
+        usedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-    if (!rec) {
+    if (!record) {
       return j(400, {
         ok: false,
         code: "CODE_NOT_FOUND",
@@ -125,8 +120,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (Date.now() > rec.expiresAt) {
-      store.delete(email);
+    if (record.expiresAt.getTime() < Date.now()) {
       return j(400, {
         ok: false,
         code: "CODE_EXPIRED",
@@ -134,15 +128,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (rec.code !== code) {
-      return j(400, {
-        ok: false,
-        code: "CODE_INVALID",
-        message: "invalid verification code",
-      });
-    }
-
-    store.delete(email);
+    await prisma.emailVerifyCode.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    });
 
     const downloadToken = await makeDownloadToken({
       planId,
