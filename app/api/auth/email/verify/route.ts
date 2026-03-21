@@ -128,12 +128,25 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await prisma.emailVerifyCode.update({
-      where: { id: record.id },
-      data: { usedAt: new Date() },
-    });
+await prisma.emailVerifyCode.update({
+  where: { id: record.id },
+  data: { usedAt: new Date() },
+});
 
-    const downloadToken = await makeDownloadToken({
+await prisma.lead.create({
+  data: {
+    email,
+    planId,
+    intent: mode === "budget" ? "download_budget_verified" : "download_full_verified",
+    payload: {
+      source: "email_verify",
+      mode,
+      verifiedAt: new Date().toISOString(),
+    },
+  },
+});
+
+const downloadToken = await makeDownloadToken({
       planId,
       mode: mode as "full" | "budget",
       email,
