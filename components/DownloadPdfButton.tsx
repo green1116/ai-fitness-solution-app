@@ -177,25 +177,19 @@ export default function DownloadPdfButton({
     const v = email.trim().toLowerCase();
 
     if (!v) {
-      setLeadMessage("请输入邮箱。");
+      setLeadMessage("请输入邮箱");
       return;
     }
 
     if (!isValidEmail(v)) {
-      setLeadMessage("请输入正确的邮箱格式。");
+      setLeadMessage("请输入正确的邮箱格式");
       return;
     }
 
     setSubmittingLead(true);
-    setLeadMessage("");
+    setLeadMessage("正在提交并生成下载...");
 
     try {
-      await fetch("/api/unlock-intent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId }),
-      }).catch(() => null);
-
       const res = await fetch("/api/lead/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -206,16 +200,21 @@ export default function DownloadPdfButton({
         }),
       });
 
-      const { rawText, json } = await safeReadJsonOrText(res);
+      const data = await res.json().catch(() => ({}));
 
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.message || rawText || "提交失败");
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.message || "提交失败");
       }
 
-      setLeadMessage("已提交成功，我们会优先通知您完整版上线。");
-      setEmail("");
+      const downloadUrl = String(data?.downloadUrl || "").trim();
+      if (!downloadUrl) {
+        throw new Error("后端未返回下载地址");
+      }
+
+      setLeadMessage("已提交，正在开始下载...");
+      triggerBrowserDownload(new URL(downloadUrl, window.location.origin).toString());
     } catch (e: any) {
-      setLeadMessage(e?.message || "提交失败，请稍后重试。");
+      setLeadMessage(e?.message || "提交失败，请稍后重试");
     } finally {
       setSubmittingLead(false);
     }
@@ -265,9 +264,9 @@ export default function DownloadPdfButton({
       {unlockOpen && (
         <div className="rounded-2xl border border-white/15 bg-white/5 p-4 sm:p-5">
           <div className="mb-2 text-sm font-medium text-white">解锁 Pro 完整版</div>
-          <p className="mb-3 text-xs leading-5 text-white/65">
-            留下邮箱后，我们将优先通知您完整版上线，并用于后续正式交付或报价沟通。
-          </p>
+          <div className="mb-3 text-sm text-zinc-300">
+            留下邮箱后将立即生成可下载的 Pro 版本，同时用于后续商务沟通。
+          </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
@@ -284,13 +283,13 @@ export default function DownloadPdfButton({
               disabled={submittingLead}
               className="rounded-xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:opacity-90 disabled:opacity-60"
             >
-              {submittingLead ? "提交中..." : "提交解锁申请"}
+              {submittingLead ? "处理中..." : "提交解锁申请"}
             </button>
           </div>
 
-          {!!leadMessage && (
-            <div className="mt-3 text-sm text-white/85">{leadMessage}</div>
-          )}
+          {leadMessage ? (
+            <div className="mt-3 text-sm text-zinc-300">{leadMessage}</div>
+          ) : null}
         </div>
       )}
     </div>
