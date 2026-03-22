@@ -50,10 +50,13 @@ function buildPdfUrl(
   return u.toString();
 }
 
+const ACCESS_LEVEL: "free" | "pro" = "free";
+
 async function getDownloadToken(planId: string, mode: Mode) {
   const u = new URL("/api/download-token", window.location.origin);
   u.searchParams.set("planId", planId);
   u.searchParams.set("mode", mode);
+  u.searchParams.set("level", ACCESS_LEVEL);
 
   const res = await fetch(u.toString(), {
     method: "GET",
@@ -67,7 +70,7 @@ async function getDownloadToken(planId: string, mode: Mode) {
     const code = json?.code || `HTTP_${res.status}`;
     const message = json?.message || rawText || res.statusText || "Request failed";
     const err = new Error(`${code}: ${message}`);
-    // @ts-expect-error attach meta
+    // @ts-expect-error meta
     err.meta = { status: res.status, code, message, rawText, json };
     throw err;
   }
@@ -77,7 +80,7 @@ async function getDownloadToken(planId: string, mode: Mode) {
     const code = (data as any)?.code || "BAD_TOKEN_RESPONSE";
     const message = (data as any)?.message || "Invalid token response";
     const err = new Error(`${code}: ${message}`);
-    // @ts-expect-error attach meta
+    // @ts-expect-error meta
     err.meta = { status: res.status, code, message, rawText, json };
     throw err;
   }
@@ -95,64 +98,200 @@ function triggerBrowserDownload(url: string) {
   a.remove();
 }
 
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export default function DownloadPdfButton({
   planId,
   defaultMode = "full",
   showBudgetButton = true,
 }: Props) {
   const [loadingMode, setLoadingMode] = useState<Mode | null>(null);
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [submittingLead, setSubmittingLead] = useState(false);
+  const [leadMessage, setLeadMessage] = useState("");
 
   const canDownload = useMemo(() => Boolean(planId && planId.trim()), [planId]);
 
-  const download = useCallback(
-    async (mode: Mode) => {
-      if (!canDownload) {
-        alert("缺少 planId，暂时无法下载。");
-        return;
+  const handlePreviewDownload = useCallback(async () => {
+    if (!canDownload) {
+      alert("缺少 planId，暂时无法下载。");
+      return;
+    }
+
+    setLoadingMode(defaultMode === "budget" ? "budget" : "full");
+
+    try {
+      const mode: Mode = defaultMode === "budget" ? "budget" : "full";
+      const token = await getDownloadToken(planId, mode);
+      const pdfUrl = buildPdfUrl("/api/pdf", planId, mode, token);
+      triggerBrowserDownload(pdfUrl);
+    } catch (e: any) {
+      const meta = e?.meta || {};
+      console.error("[DownloadPdfButton] preview download failed:", e, meta);
+
+      const status = meta.status ? `HTTP ${meta.status}` : "";
+      const code = meta.code || "";
+      const message = meta.message || e?.message || "Unknown error";
+
+      alert([status, code, message].filter(Boolean).join(" - "));
+    } finally {
+      setLoadingMode(null);
+    }
+  }, [canDownload, defaultMode, planId]);
+
+  const handleBudgetPreview = useCallback(async () => {
+    if (!canDownload) {
+      alert("缺少 planId，暂时无法下载。");
+      return;
+    }
+
+    setLoadingMode("budget");
+
+    try {
+      const token = await getDownloadToken(planId, "budget");
+      const pdfUrl = buildPdfUrl("/api/pdf", planId, "budget", token);
+      triggerBrowserDownload(pdfUrl);
+    } catch (e: any) {
+      const meta = e?.meta || {};
+      console.error("[DownloadPdfButton] budget download failed:", e, meta);
+
+      const status = meta.status ? `HTTP ${meta.status}` : "";
+      const code = meta.code || "";
+      const message = meta.message || e?.message || "Unknown error";
+
+      alert([status, code, message].filter(Boolean).join(" - "));
+    } finally {
+      setLoadingMode(null);
+    }
+  }, [canDownload, planId]);
+
+  const handleUnlockPro = useCallback(() => {
+    setLeadMessage("");
+    setUnlockOpen(true);
+  }, []);
+
+  const submitLead = useCallback(async () => {
+    const v = email.trim().toLowerCase();
+
+    if (!v) {
+      setLeadMessage("请输入邮箱。");
+      return;
+    }
+
+    if (!isValidEmail(v)) {
+      setLeadMessage("请输入正确的邮箱格式。");
+      return;
+    }
+
+    setSubmittingLead(true);
+    setLeadMessage("");
+
+    try {
+      await fetch("/api/unlock-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId }),
+      }).catch(() => null);
+
+      const res = await fetch("/api/lead/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: v,
+          planId,
+          intent: "unlock_pro",
+        }),
+      });
+
+      const { rawText, json } = await safeReadJsonOrText(res);
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || rawText || "提交失败");
       }
 
-      setLoadingMode(mode);
-
-      try {
-        const token = await getDownloadToken(planId, mode);
-        const pdfUrl = buildPdfUrl("/api/pdf", planId, mode, token);
-        triggerBrowserDownload(pdfUrl);
-      } catch (e: any) {
-        const meta = e?.meta || {};
-        console.error("[DownloadPdfButton] download failed:", e, meta);
-
-        const status = meta.status ? `HTTP ${meta.status}` : "";
-        const code = meta.code || "";
-        const message = meta.message || e?.message || "Unknown error";
-
-        alert([status, code, message].filter(Boolean).join(" - "));
-      } finally {
-        setLoadingMode(null);
-      }
-    },
-    [canDownload, planId]
-  );
+      setLeadMessage("已提交成功，我们会优先通知您完整版上线。");
+      setEmail("");
+    } catch (e: any) {
+      setLeadMessage(e?.message || "提交失败，请稍后重试。");
+    } finally {
+      setSubmittingLead(false);
+    }
+  }, [email, planId]);
 
   return (
-    <div className="flex flex-wrap gap-3">
-      <button
-        type="button"
-        className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={!canDownload || loadingMode !== null}
-        onClick={() => download(defaultMode)}
-      >
-        {loadingMode === defaultMode ? "正在生成方案..." : "下载方案 PDF"}
-      </button>
-
-      {showBudgetButton && (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-black transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center justify-center rounded-xl border border-white/20 px-4 py-3 text-sm text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!canDownload || loadingMode !== null}
-          onClick={() => download("budget")}
+          onClick={handlePreviewDownload}
         >
-          {loadingMode === "budget" ? "正在生成预算..." : "下载预算 PDF"}
+          {loadingMode === "full"
+            ? "正在生成预览..."
+            : defaultMode === "budget"
+              ? "下载预算预览版"
+              : "下载预览版"}
         </button>
+
+        <button
+          type="button"
+          className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!canDownload || loadingMode !== null}
+          onClick={handleUnlockPro}
+        >
+          解锁 Pro 完整版
+        </button>
+
+        {showBudgetButton && defaultMode !== "budget" && (
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-black transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!canDownload || loadingMode !== null}
+            onClick={handleBudgetPreview}
+          >
+            {loadingMode === "budget" ? "正在生成预算预览..." : "下载预算预览版"}
+          </button>
+        )}
+      </div>
+
+      <p className="text-xs leading-5 text-white/65">
+        预览版用于快速查看核心内容。完整版将提供完整方案、完整预算信息、无预览限制的正式 PDF 文档。
+      </p>
+
+      {unlockOpen && (
+        <div className="rounded-2xl border border-white/15 bg-white/5 p-4 sm:p-5">
+          <div className="mb-2 text-sm font-medium text-white">解锁 Pro 完整版</div>
+          <p className="mb-3 text-xs leading-5 text-white/65">
+            留下邮箱后，我们将优先通知您完整版上线，并用于后续正式交付或报价沟通。
+          </p>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="请输入邮箱"
+              className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/35"
+            />
+
+            <button
+              type="button"
+              onClick={submitLead}
+              disabled={submittingLead}
+              className="rounded-xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:opacity-90 disabled:opacity-60"
+            >
+              {submittingLead ? "提交中..." : "提交解锁申请"}
+            </button>
+          </div>
+
+          {!!leadMessage && (
+            <div className="mt-3 text-sm text-white/85">{leadMessage}</div>
+          )}
+        </div>
       )}
     </div>
   );
