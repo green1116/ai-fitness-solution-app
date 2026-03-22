@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import DownloadPdfButton from "@/components/DownloadPdfButton";
 
 type Mode = "client" | "engine";
 type BudgetLevel = "brand" | "enterprise" | "government";
@@ -151,13 +152,6 @@ export default function ResultPage() {
   const [tenderPackHeadErr, setTenderPackHeadErr] = useState<string>("");
   const [tenderPackHead, setTenderPackHead] = useState<Record<string, string>>({});
 
-  const [downloadMode, setDownloadMode] = useState<null | "full" | "budget">(null);
-  const [verifyOpen, setVerifyOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [sendingCode, setSendingCode] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-
   const companySizeTier = useMemo(() => headcountToSizeTier(headcount), [headcount]);
   const participationRate = useMemo(
     () => intensityToParticipation(usageIntensity),
@@ -176,34 +170,7 @@ export default function ResultPage() {
   const canUseEnterprise = mode === "engine" ? true : userPlan === "pro" || userPlan === "tender";
   const canUseGovernment = mode === "engine" ? true : userPlan === "tender";
 
-  const planPdfUrl = useMemo(() => {
-    return buildUrl("/api/pdf", {
-      planId,
-      mode: "full",
-      download: 1,
-      companyName,
-      companySize: headcount,
-      participationRate,
-      spaceSqm,
-      budgetTier,
-      buildType,
-      preferSmart: preferSmart ? "1" : "0",
-      preferQuiet: preferQuiet ? "1" : "0",
-      tz: "Asia/Shanghai",
-    });
-  }, [
-    planId,
-    companyName,
-    headcount,
-    participationRate,
-    spaceSqm,
-    budgetTier,
-    buildType,
-    preferSmart,
-    preferQuiet,
-  ]);
-
-  const budgetPdfUrl = useMemo(() => {
+  const budgetInspectUrl = useMemo(() => {
     const params: Record<string, any> = {
       planId,
       mode: "budget",
@@ -220,11 +187,7 @@ export default function ResultPage() {
       sections: sections.join(","),
       tz: "Asia/Shanghai",
     };
-
-    if (budgetLevel === "government") {
-      params.docSeq = "01";
-    }
-
+    if (budgetLevel === "government") params.docSeq = "01";
     return buildUrl("/api/pdf", params);
   }, [
     planId,
@@ -258,94 +221,6 @@ export default function ResultPage() {
     });
   }, [planId, budgetLevel, companyName, headcount]);
 
-  function requestDownload(targetMode: "full" | "budget") {
-    setDownloadMode(targetMode);
-    setVerifyOpen(true);
-  }
-
-  async function sendCode() {
-    if (!email.trim()) return;
-    const pid = String(planId || "").trim();
-    if (!pid || !downloadMode) {
-      alert("请先选择下载类型");
-      return;
-    }
-    try {
-      setSendingCode(true);
-      const res = await fetch("/api/auth/email/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim(),
-          planId: pid,
-          mode: downloadMode,
-        }),
-      });
-      const body = await res.json().catch(() => ({} as any));
-      if (!res.ok) throw new Error(body?.error || body?.msg || "send_failed");
-      alert("验证码已发送，请检查收件箱（含垃圾邮件）。");
-    } catch (e) {
-      alert("发送失败：" + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setSendingCode(false);
-    }
-  }
-
-  async function verifyAndDownload() {
-    try {
-      const pid = String(planId || "").trim();
-      if (!pid) {
-        alert("缺少 planId，无法下载");
-        return;
-      }
-      if (!downloadMode) {
-        alert("未选择下载类型");
-        return;
-      }
-      if (!email.trim() || !code.trim()) {
-        alert("请先输入邮箱和验证码");
-        return;
-      }
-
-      setVerifying(true);
-
-      const verifyRes = await fetch("/api/auth/email/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim(),
-          code: code.trim(),
-          mode: downloadMode,
-          planId: pid,
-        }),
-        credentials: "include",
-      });
-      const verifyBody = await verifyRes.json().catch(() => ({} as any));
-      if (!verifyRes.ok || !verifyBody?.ok || !verifyBody?.downloadToken) {
-        throw new Error(verifyBody?.message || verifyBody?.error || "verify failed");
-      }
-
-      const token = String(verifyBody.downloadToken || "").trim();
-      if (!token) {
-        throw new Error("download token missing");
-      }
-
-      const url =
-        `/api/pdf?download=1` +
-        `&downloadToken=${encodeURIComponent(token)}` +
-        `&mode=${encodeURIComponent(downloadMode)}` +
-        `&planId=${encodeURIComponent(pid)}`;
-      window.location.href = url;
-    } catch (e) {
-      alert("验证或下载失败：" + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setVerifying(false);
-      setVerifyOpen(false);
-      setDownloadMode(null);
-      setCode("");
-    }
-  }
-
   useEffect(() => {
     if (mode !== "engine") return;
 
@@ -356,7 +231,7 @@ export default function ResultPage() {
         setBudgetHeadLoading(true);
         setBudgetHeadErr("");
 
-        const res = await fetch(budgetPdfUrl, { method: "HEAD" });
+        const res = await fetch(budgetInspectUrl, { method: "HEAD" });
 
         if (!res.ok) {
           throw new Error(`HEAD ${res.status} ${res.statusText}`);
@@ -399,7 +274,7 @@ export default function ResultPage() {
     return () => {
       cancelled = true;
     };
-  }, [mode, budgetPdfUrl]);
+  }, [mode, budgetInspectUrl]);
 
   useEffect(() => {
     if (mode !== "engine") return;
@@ -535,7 +410,7 @@ export default function ResultPage() {
       `budgetSections: ${packSections || "(空)"}`,
       "",
       "— URLs —",
-      `Budget: ${budgetPdfUrl}`,
+      `Budget: ${budgetInspectUrl}`,
       `TenderPack: ${tenderPackUrl}`,
       "",
     ].join("\n");
@@ -546,7 +421,7 @@ export default function ResultPage() {
     spaceSqm,
     budgetTier,
     buildType,
-    budgetPdfUrl,
+    budgetInspectUrl,
     tenderPackUrl,
     budgetHead,
     tenderPackHead,
@@ -871,32 +746,20 @@ export default function ResultPage() {
                     当前套餐：
                     <b style={{ color: "rgba(255,255,255,0.85)" }}>{userPlan.toUpperCase()}</b>
                     <span style={{ marginLeft: 10 }}>
-                      {userPlan === "free" && "（Pro 解锁企业评审版；Tender 解锁政府评审版）"}
-                      {userPlan === "pro" && "（Tender 解锁政府评审版）"}
-                      {userPlan === "tender" && "（已解锁全部版本）"}
+                    {userPlan === "free" && "（当前可下载预览版；Pro 解锁完整企业评审版，Tender 解锁政府评审版）"}
+                    {userPlan === "pro" && "（Tender 解锁政府评审版）"}
+                    {userPlan === "tender" && "（已解锁全部版本）"}
                     </span>
                   </div>
                 )}
               </div>
 
               <div className="mt-2 flex flex-wrap gap-4">
-                <button
-                  type="button"
-                  onClick={() => requestDownload("full")}
-                  disabled={downloadMode !== null || sendingCode || verifying}
-                  className="inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black disabled:opacity-60"
-                >
-                  {downloadMode === "full" ? "下载中..." : "下载方案 PDF"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => requestDownload("budget")}
-                  disabled={downloadMode !== null || sendingCode || verifying}
-                  className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
-                >
-                  {downloadMode === "budget" ? "下载中..." : "下载预算 PDF"}
-                </button>
+                <DownloadPdfButton
+                  planId={planId}
+                  defaultMode="full"
+                  showBudgetButton={true}
+                />
 
                 {mode === "engine" && (
                   <a
@@ -908,63 +771,6 @@ export default function ResultPage() {
                   </a>
                 )}
               </div>
-
-              {verifyOpen && (
-                <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-4">
-                  <div className="text-sm font-semibold text-white/85">邮箱验证后下载</div>
-                  <div className="mt-1 text-xs text-white/55">
-                    当前下载：{downloadMode === "full" ? "方案 PDF" : downloadMode === "budget" ? "预算 PDF" : "-"}
-                  </div>
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <input
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="邮箱"
-                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30"
-                    />
-                    <div className="flex gap-2">
-                      <input
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                        placeholder="验证码"
-                        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30"
-                      />
-                      <button
-                        type="button"
-                        onClick={sendCode}
-                        disabled={sendingCode || !email.trim()}
-                        className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 disabled:opacity-50"
-                      >
-                        {sendingCode ? "发送中..." : "发送验证码"}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={verifyAndDownload}
-                      disabled={verifying || !email.trim() || !code.trim() || !downloadMode}
-                      className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-60"
-                    >
-                      {verifying ? "验证中..." : "验证并下载"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setVerifyOpen(false);
-                        setDownloadMode(null);
-                        setCode("");
-                      }}
-                      className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80"
-                    >
-                      取消
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {mode === "engine" && (
                 <CollapsiblePanel
@@ -987,7 +793,7 @@ export default function ResultPage() {
                     ) : null}
                   </div>
 
-                  <div className="mb-3 break-all text-xs text-white/60">url：{budgetPdfUrl}</div>
+                  <div className="mb-3 break-all text-xs text-white/60">url：{budgetInspectUrl}</div>
 
                   {budgetHeadLoading ? (
                     <div className="text-xs text-white/60">读取中...</div>
