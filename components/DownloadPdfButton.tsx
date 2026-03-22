@@ -121,10 +121,10 @@ export default function DownloadPdfButton({
       return;
     }
 
-    setLoadingMode(defaultMode === "budget" ? "budget" : "full");
+    setLoadingMode(defaultMode === "budget" ? "budget" : "preview");
 
     try {
-      const mode: Mode = defaultMode === "budget" ? "budget" : "full";
+      const mode: Mode = defaultMode === "budget" ? "budget" : "preview";
       const token = await getDownloadToken(planId, mode);
       const pdfUrl = buildPdfUrl("/api/pdf", planId, mode, token);
       triggerBrowserDownload(pdfUrl);
@@ -229,7 +229,7 @@ export default function DownloadPdfButton({
           disabled={!canDownload || loadingMode !== null}
           onClick={handlePreviewDownload}
         >
-          {loadingMode === "full"
+          {loadingMode === "preview"
             ? "正在生成预览..."
             : defaultMode === "budget"
               ? "下载预算预览版"
