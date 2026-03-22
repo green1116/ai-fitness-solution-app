@@ -20,39 +20,18 @@ function sha256Hex(s: string) {
 }
 
 type Mode = "full" | "preview" | "budget" | "pack";
+
 function parseMode(x: string | null): Mode {
-  if (x === "preview" || x === "full" || x === "budget" || x === "pack") return x;
+  const modeRaw = String(x || "full").trim().toLowerCase();
+  if (
+    modeRaw === "full" ||
+    modeRaw === "preview" ||
+    modeRaw === "budget" ||
+    modeRaw === "pack"
+  ) {
+    return modeRaw;
+  }
   return "full";
-}
-
-async function upsertTokenState(opts: {
-  downloadToken: string;
-  planId: string;
-  mode: Mode;
-  expAt: Date;
-  maxUses: number;
-}) {
-  const tokenHash = sha256Hex(opts.downloadToken);
-
-  return prisma.pdfDownloadTokenState.upsert({
-    where: { tokenHash },
-    update: {
-      planId: opts.planId,
-      mode: opts.mode,
-      expAt: opts.expAt,
-      maxUses: opts.maxUses,
-      revoked: false,
-    },
-    create: {
-      tokenHash,
-      planId: opts.planId,
-      mode: opts.mode,
-      expAt: opts.expAt,
-      maxUses: opts.maxUses,
-      usedCount: 0,
-      revoked: false,
-    },
-  });
 }
 
 export async function GET(req: NextRequest) {
@@ -64,49 +43,63 @@ export async function GET(req: NextRequest) {
 
     const mode = parseMode(searchParams.get("mode"));
 
-    // ---------------- DEV ----------------
+    const levelRaw = String(searchParams.get("level") || "pro")
+      .trim()
+      .toLowerCase();
+    const level: "free" | "pro" = levelRaw === "free" ? "free" : "pro";
+
     if (DEV_MODE) {
       return NextResponse.json({
         ok: true,
         downloadToken: "DEV_MODE_TOKEN",
         planId,
         mode,
+        level,
       });
     }
 
-    // ---------------- PROD ----------------
     const secret = (process.env.DOWNLOAD_TOKEN_SECRET || "").trim();
-    if (!secret)
+    if (!secret) {
       return json(500, "TOKEN_SECRET_MISSING", "未配置 DOWNLOAD_TOKEN_SECRET");
+    }
 
-    const ttlSec = 1800; // 30分钟
+    const ttlSecRaw = Number(
+      process.env.DOWNLOAD_TOKEN_EXPIRES_IN_SECONDS || "1800"
+    );
+    const ttlSec =
+      Number.isFinite(ttlSecRaw) && ttlSecRaw > 0
+        ? Math.floor(ttlSecRaw)
+        : 1800;
 
     const key = new TextEncoder().encode(secret);
     const now = Math.floor(Date.now() / 1000);
     const exp = now + ttlSec;
 
-    const downloadToken = await new SignJWT({
+    const payload = {
       scope: "pdf_download",
       planId,
       mode,
+      level,
+    };
+
+    const downloadToken = await new SignJWT({
+      ...payload,
       iat: now,
       exp,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .sign(key);
 
-    // ✅ 关键：落库 tokenState（用于扣次/撤销/过期控制）
     const tokenHash = sha256Hex(downloadToken);
 
-    // 默认 maxUses=1（或可配置）：按环境变量优先，没配就 1
     const maxUsesRaw = Number(process.env.DOWNLOAD_TOKEN_MAX_USES || "1");
     const maxUses =
-      Number.isFinite(maxUsesRaw) && maxUsesRaw > 0 ? Math.floor(maxUsesRaw) : 1;
+      Number.isFinite(maxUsesRaw) && maxUsesRaw > 0
+        ? Math.floor(maxUsesRaw)
+        : 1;
 
-    // expAt：用 JWT exp 秒转 Date
     const expAt = new Date(exp * 1000);
 
-    // upsert：重复签发同 token（几乎不会）也不怕
     await prisma.pdfDownloadTokenState.upsert({
       where: { tokenHash },
       update: {
@@ -130,6 +123,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       downloadToken,
+      planId,
+      mode,
+      level,
+      expiresIn: ttlSec,
+      maxUses,
     });
   } catch (e: any) {
     return json(500, "INTERNAL_ERROR", e?.message || "Internal Error");
