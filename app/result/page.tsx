@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import DownloadPdfButton from "@/components/DownloadPdfButton";
+import DownloadTenderPackButton from "@/components/DownloadTenderPackButton";
 
 type Mode = "client" | "engine";
 type BudgetLevel = "brand" | "enterprise" | "government";
@@ -760,6 +761,7 @@ export default function ResultPage() {
                   defaultMode="full"
                   showBudgetButton={true}
                 />
+                <DownloadTenderPackButton planId={planId} />
 
                 {mode === "engine" && (
                   <a
