@@ -1,25 +1,8 @@
 // lib/pdf/render.ts
-import { PDFDocument } from "pdf-lib";
+import { buildPreviewWithCTA } from "@/lib/pdf/buildPreviewWithCTA";
 import { renderPlan22PdfBytes } from "@/lib/pdf/plan/renderPlan22";
 
 type Mode = "preview" | "full" | "budget";
-
-async function buildPreviewFromFull(
-  fullBytes: Uint8Array,
-  keepPages = 5
-): Promise<Uint8Array> {
-  const src = await PDFDocument.load(fullBytes);
-  const out = await PDFDocument.create();
-
-  const total = src.getPageCount();
-  const count = Math.min(keepPages, total);
-  const indexes = Array.from({ length: count }, (_, i) => i);
-
-  const pages = await out.copyPages(src, indexes);
-  pages.forEach((p) => out.addPage(p));
-
-  return await out.save();
-}
 
 export async function renderPdf(
   planId: string,
@@ -37,7 +20,7 @@ export async function renderPdf(
   console.log("[renderPdf] FULL_READY", { bytes: fullBytes.length });
 
   if (mode === "preview") {
-    const previewBytes = await buildPreviewFromFull(fullBytes, 5);
+    const previewBytes = await buildPreviewWithCTA(fullBytes);
     console.log("[renderPdf] PREVIEW_READY", { bytes: previewBytes.length });
     return previewBytes;
   }
