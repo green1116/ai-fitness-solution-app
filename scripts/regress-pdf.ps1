@@ -240,10 +240,62 @@ Assert-HeaderContains $planHead "x-reqsig:" "PLAN FULL"
 
 Write-Host "Saved: $planFile"
 Assert-IsPdf $planFile
-Check-PdfPagesExact $planFile 22 "PLAN FULL"
+$fullPages = python -c "from pypdf import PdfReader; r=PdfReader(r'$planFile'); print(len(r.pages))"
+$fullPages = [int]("$fullPages".Trim())
+
+Write-Host "pages= $fullPages"
+
+if ($fullPages -ne 22) {
+  throw "FULL_PAGE_COUNT_INVALID: expected 22, got $fullPages"
+}
 
 # -------------------------------------------------------
-# 5 BUDGET
+# 5 PLAN PREVIEW
+# -------------------------------------------------------
+
+Write-Host ""
+Write-Host "===================="
+Write-Host "PLAN PREVIEW (expected < 22 pages)"
+Write-Host "===================="
+
+$previewTokenUrl = "$BaseUrl/api/download-token?mode=preview&planId=$PlanId"
+Write-Host "token_url=$previewTokenUrl"
+
+$previewTokenResp = curl.exe --http1.1 -s "$previewTokenUrl"
+if (-not $previewTokenResp) {
+  throw "PREVIEW_TOKEN_EMPTY"
+}
+
+$previewTokenJson = $previewTokenResp | ConvertFrom-Json
+$previewToken = [string]$previewTokenJson.downloadToken
+
+if (-not $previewToken) {
+  throw "PREVIEW_TOKEN_MISSING"
+}
+
+$previewUrl = "$BaseUrl/api/pdf?download=1&downloadToken=$previewToken&mode=preview&planId=$PlanId"
+Write-Host "URL: $previewUrl"
+
+$previewOut = Join-Path $OutDir "plan_preview_$PlanId.pdf"
+curl.exe --http1.1 -L -o "$previewOut" "$previewUrl"
+
+$previewPages = python -c "from pypdf import PdfReader; r=PdfReader(r'$previewOut'); print(len(r.pages))"
+$previewPages = [int]("$previewPages".Trim())
+
+Write-Host "pages= $previewPages"
+
+if ($previewPages -ge 22) {
+  throw "PREVIEW_PAGE_COUNT_INVALID: expected < 22, got $previewPages"
+}
+
+if ($previewPages -le 0) {
+  throw "PREVIEW_PAGE_COUNT_INVALID: expected > 0, got $previewPages"
+}
+
+Write-Host "preview_ok=YES"
+
+# -------------------------------------------------------
+# 6 BUDGET
 # -------------------------------------------------------
 
 Write-Section "BUDGET PDF (expected 2 pages)"
@@ -262,10 +314,17 @@ Assert-HeaderContains $budgetHead "x-reqsig:" "BUDGET PDF"
 
 Write-Host "Saved: $budgetFile"
 Assert-IsPdf $budgetFile
-Check-PdfPagesExact $budgetFile 2 "BUDGET PDF"
+$budgetPages = python -c "from pypdf import PdfReader; r=PdfReader(r'$budgetFile'); print(len(r.pages))"
+$budgetPages = [int]("$budgetPages".Trim())
+
+Write-Host "pages= $budgetPages"
+
+if ($budgetPages -ne 2) {
+  throw "BUDGET_PAGE_COUNT_INVALID: expected 2, got $budgetPages"
+}
 
 # -------------------------------------------------------
-# 6 TENDER PACK MERGED
+# 7 TENDER PACK MERGED
 # -------------------------------------------------------
 
 Write-Section "TENDER PACK MERGED (soft/strict hybrid)"
@@ -320,7 +379,7 @@ if (-not $tenderToken) {
 }
 
 # -------------------------------------------------------
-# 7 SUMMARY
+# 8 SUMMARY
 # -------------------------------------------------------
 
 Write-Section "SUMMARY"
