@@ -2,56 +2,41 @@
 
 import { useState } from "react";
 
-type Props = {
-  planId: string;
-  className?: string;
-  label?: string;
-};
-
 export default function DownloadTenderPackButton({
   planId,
-  className = "",
-  label = "下载企业招标版（32页）",
-}: Props) {
+}: {
+  planId: string;
+}) {
   const [loading, setLoading] = useState(false);
 
-  async function onClick() {
+  async function handleDownload() {
     if (!planId || loading) return;
 
     try {
       setLoading(true);
 
-      const tokenUrl = new URL("/api/download-token", window.location.origin);
-      tokenUrl.searchParams.set("mode", "pack");
-      tokenUrl.searchParams.set("planId", planId);
+      // ✅ 第一步：获取 token
+      const tokenRes = await fetch(
+        `/api/download-token?mode=pack&planId=${planId}`,
+        { cache: "no-store" }
+      );
 
-      const r = await fetch(tokenUrl.toString(), {
-        method: "GET",
-        cache: "no-store",
-      });
+      const tokenData = await tokenRes.json();
 
-      const data = await r.json().catch(() => null);
-
-      if (!r.ok || !data?.ok || !data?.token) {
-        alert(data?.message || "获取企业招标版下载凭证失败");
-        return;
+      if (!tokenData?.ok || !tokenData?.token) {
+        throw new Error("TOKEN_FETCH_FAILED");
       }
 
-      const pdfUrl = new URL("/api/tender-pack", window.location.origin);
-      pdfUrl.searchParams.set("planId", planId);
-      pdfUrl.searchParams.set("format", "merged");
-      pdfUrl.searchParams.set("level", "enterprise");
-      pdfUrl.searchParams.set("theme", "tender");
-      pdfUrl.searchParams.set("watermark", "0");
-      pdfUrl.searchParams.set("includeCover", "1");
-      pdfUrl.searchParams.set("includeDeclaration", "1");
-      pdfUrl.searchParams.set("packFooter", "1");
-      pdfUrl.searchParams.set("downloadToken", data.token);
+      const token = tokenData.token;
 
-      window.location.href = pdfUrl.toString();
+      // ✅ 第二步：拼接下载 URL
+      const url = `/api/tender-pack?planId=${planId}&format=merged&level=enterprise&theme=tender&watermark=0&includeCover=1&includeDeclaration=1&packFooter=1&downloadToken=${token}`;
+
+      // ✅ 第三步：触发下载
+      window.location.href = url;
     } catch (err) {
-      console.error("DOWNLOAD_TENDER_PACK_FAILED", err);
-      alert("下载企业招标版失败，请稍后重试");
+      console.error(err);
+      alert("获取企业招标版下载凭证失败");
     } finally {
       setLoading(false);
     }
@@ -59,15 +44,11 @@ export default function DownloadTenderPackButton({
 
   return (
     <button
-      type="button"
-      onClick={onClick}
+      onClick={handleDownload}
       disabled={loading}
-      className={
-        className ||
-        "w-full rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
-      }
+      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white hover:bg-white/10 disabled:opacity-50"
     >
-      {loading ? "正在生成企业招标版..." : label}
+      {loading ? "正在生成企业招标版..." : "下载企业招标版（32页）"}
     </button>
   );
 }
