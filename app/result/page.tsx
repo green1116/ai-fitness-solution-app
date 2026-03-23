@@ -761,7 +761,9 @@ export default function ResultPage() {
                   defaultMode="full"
                   showBudgetButton={true}
                 />
-                <DownloadTenderPackButton planId={planId} />
+                {(userPlan === "tender" || mode === "engine") && (
+                  <DownloadTenderPackButton planId={planId} />
+                )}
 
                 {mode === "engine" && (
                   <a
