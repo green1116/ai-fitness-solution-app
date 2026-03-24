@@ -8,6 +8,21 @@ import { getBudgetSummary } from "@/lib/services/budgetService";
 import { BUDGET_PDF_VERSION } from "@/lib/pdf/budgetRender";
 import { computeBrandLayout, drawBrandHeader, drawBrandFooter, drawSectionTitle, TYPE, drawH1, drawKicker, drawDivider } from "@/lib/pdf/brand";
 import { THEMES, drawFooter, drawHR, drawHeaderSlim, type PdfTheme, type HeaderMeta } from "@/lib/pdf/theme";
+import { renderV4Sections } from "@/lib/pdf/plan/v4Sections";
+
+type PdfVariant = "sales" | "tender";
+
+export function getSectionFlags(variant: PdfVariant) {
+  return {
+    showToc: variant === "tender",
+    showDecisionSummary: variant === "sales",
+    showBudgetLogic: true,
+    showValuePage: variant === "sales",
+    showPhases: true,
+    showBusinessNotes: true,
+    showNextSteps: variant === "sales",
+  };
+}
 
 /**
  * ✅ A方案：22页"金样板"回放引擎（桥接页）
@@ -110,7 +125,12 @@ function deriveTier(budgetRange: string): "low" | "mid" | "high" {
   return "high";
 }
 
-export async function renderPlan22PdfBytes(planId: string): Promise<Uint8Array> {
+export async function renderPlan22PdfBytes(
+  planId: string,
+  opts?: { variant?: PdfVariant }
+): Promise<Uint8Array> {
+  const variant: PdfVariant = opts?.variant || "sales";
+  const flags = getSectionFlags(variant);
   const p = resolveGoldenPath(planId);
   const buf = await fs.readFile(p);
 
@@ -285,8 +305,8 @@ export async function renderPlan22PdfBytes(planId: string): Promise<Uint8Array> 
   const TOC_PAGE_INDEX = 1; // 如果你的目录在第3页，就改成 2
   const DRAW_PLAN_HEADER = true; // ✅ 打开 Slim Header 叠加
 
-  // ✅ 统一主题系统
-  const theme = THEMES["brand"]; // 可以根据需要切换为 "tender"
+  // ✅ 统一主题系统：theme 与 variant 对齐
+  const theme = variant === "tender" ? THEMES["tender"] : THEMES["brand"];
   const planEngineFP = "PLAN22_ENGINE_V1";
 
   for (let i = 0; i < pageTotal; i++) {
@@ -336,7 +356,7 @@ export async function renderPlan22PdfBytes(planId: string): Promise<Uint8Array> 
       fp: planEngineFP,
     });
 
-    if (i === TOC_PAGE_INDEX) {
+    if (flags.showToc && i === TOC_PAGE_INDEX) {
       const contentW = layout.width - layout.left - layout.right;
 
       // =============================
@@ -488,6 +508,76 @@ export async function renderPlan22PdfBytes(planId: string): Promise<Uint8Array> 
         color: rgb(0.45, 0.50, 0.55),
       });
     }
+  }
+
+  // ✅ V4：新增 6 个页面模块（追加到 golden 之后）
+  const tierLabel = String(budgetTier).toUpperCase();
+  const budgetRangeDisplay = inputBudgetRange
+    ? (inputBudgetRange.startsWith("¥") ? inputBudgetRange : `¥${inputBudgetRange}`)
+    : (bs ? `¥${fmtMoney(bs.overallTotal.min)}-${fmtMoney(bs.overallTotal.max)}` : "¥10-20万");
+
+  const v4Ctx = {
+    doc,
+    font,
+    fontBold: font,
+    companyName,
+    budgetRange: budgetRangeDisplay,
+    budgetTier: tierLabel,
+  };
+  const v4Pages = renderV4Sections(v4Ctx, {
+    showDecisionSummary: flags.showDecisionSummary,
+    showBudgetLogic: flags.showBudgetLogic,
+    showValuePage: flags.showValuePage,
+    showPhases: flags.showPhases,
+    showBusinessNotes: flags.showBusinessNotes,
+    showNextSteps: flags.showNextSteps,
+  });
+
+  const allPages = doc.getPages();
+  const newPageTotal = allPages.length;
+
+  for (const p of v4Pages) {
+    const layout = computeBrandLayout(p);
+
+    if (DRAW_PLAN_HEADER) {
+      const H = p.getHeight();
+      p.drawRectangle({
+        x: 0,
+        y: H - 34,
+        width: layout.width,
+        height: 34,
+        color: rgb(1, 1, 1),
+        borderWidth: 0,
+      });
+      drawHeaderSlim(p, theme, font, {
+        companyName,
+        companySize,
+        tierLabel,
+        planId,
+        dateYmd: ymd,
+      });
+    }
+
+    p.drawRectangle({
+      x: 0,
+      y: 0,
+      width: layout.width,
+      height: layout.bottom + 8,
+      color: rgb(1, 1, 1),
+      borderWidth: 0,
+    });
+  }
+
+  for (let i = pageTotal; i < newPageTotal; i++) {
+    const p = allPages[i];
+    drawFooter(p, theme, font, {
+      planId,
+      dateYmd: ymd,
+      pageNo: i + 1,
+      pageTotal: newPageTotal,
+      sig: reqSig?.slice(0, 12),
+      fp: planEngineFP,
+    });
   }
 
   const modifiedBytes = await doc.save();

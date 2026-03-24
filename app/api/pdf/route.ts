@@ -32,6 +32,7 @@ function isInternalPack(req: NextRequest) {
 }
 
 type Mode = "preview" | "full" | "budget";
+type PdfVariant = "sales" | "tender";
 
 function json(status: number, code: string, message: string, extra?: any) {
   return NextResponse.json(
@@ -57,6 +58,10 @@ function toInt(v: any, fallback: number) {
   if (!Number.isFinite(n)) return fallback;
   const i = Math.floor(n);
   return i > 0 ? i : fallback;
+}
+
+function parseVariant(v: any): PdfVariant {
+  return String(v || "").trim().toLowerCase() === "tender" ? "tender" : "sales";
 }
 
 function normalizePdfBytes(out: any): Uint8Array | null {
@@ -97,6 +102,7 @@ async function shortSigHex(payload: string) {
  * ✅ 统一下载鉴权（Plan/Budget 共用）
  * - 缺 token / token 不合法：返回 403（不会变成 500）
  * - internal/internal-pack：直接放行
+ * - V6: 可选校验 variant（plan 需与 query 一致）
  */
 async function guardDownloadOr403(opts: {
   req: NextRequest;
@@ -104,9 +110,10 @@ async function guardDownloadOr403(opts: {
   downloadToken: string;
   planId: string;
   mode: Mode;
+  variant?: "sales" | "tender";
   fingerprint: string;
 }) {
-  const { req, internal, downloadToken, planId, mode, fingerprint } = opts;
+  const { req, internal, downloadToken, planId, mode, variant, fingerprint } = opts;
   if (internal) return null;
 
   const ip = getReqIp(req as any);
@@ -116,6 +123,7 @@ async function guardDownloadOr403(opts: {
     downloadToken,
     planId,
     mode,
+    variant,
     fingerprint,
     ip,
     ua,
@@ -398,6 +406,14 @@ export async function GET(req: NextRequest) {
 
     const watermarkPlan = safeStr(searchParams.get("watermark"), "0");
     const tzPlan = safeStr(searchParams.get("tz"), "Asia/Tokyo");
+
+    // 未显式传 variant 时，theme=tender 或 enterprise 自动落到 tender
+    const variantParam = searchParams.get("variant");
+    const variant: PdfVariant =
+      variantParam
+        ? parseVariant(variantParam)
+        : (resolvedThemePlan === "tender" || levelPlan === "enterprise" ? "tender" : "sales");
+
     const download = safeStr(searchParams.get("download"), "1");
 
     const sigPayloadPlan = JSON.stringify({
@@ -408,10 +424,11 @@ export async function GET(req: NextRequest) {
       theme: resolvedThemePlan,
       watermark: watermarkPlan,
       tz: tzPlan,
+      variant,
     });
     const reqSigPlan = await shortSigHex(sigPayloadPlan);
 
-    // ✅ plan 鉴权（统一为 guardDownloadOr403）
+    // ✅ plan 鉴权（统一为 guardDownloadOr403，V6 校验 variant）
     {
       const ip = getReqIp(req as any);
       const ua = req.headers.get("user-agent") || "";
@@ -433,12 +450,13 @@ export async function GET(req: NextRequest) {
         downloadToken,
         planId,
         mode,
+        variant,
         fingerprint: fp,
       });
       if (deny) return deny;
     }
 
-    const planResult = await renderPdf(planId, { mode });
+    const planResult = await renderPdf(planId, { mode, variant });
     const bytesPlan =
       typeof planResult === "object" &&
       planResult !== null &&
@@ -490,6 +508,7 @@ export async function GET(req: NextRequest) {
         "X-THEME": resolvedThemePlan,
         "X-WATERMARK": watermarkPlan === "1" ? "1" : "0",
         "X-TZ": tzPlan,
+        "X-PDF-VARIANT": variant,
         ...(download === "1"
           ? { "Content-Disposition": `attachment; filename="${fname}"` }
           : { "Content-Disposition": `inline; filename="${fname}"` }),
@@ -631,6 +650,13 @@ export async function HEAD(req: NextRequest) {
     const watermarkPlan = safeStr(searchParams.get("watermark"), "0");
     const tzPlan = safeStr(searchParams.get("tz"), "Asia/Tokyo");
 
+    // 未显式传 variant 时，theme=tender 或 enterprise 自动落到 tender
+    const variantParam = searchParams.get("variant");
+    const variant: PdfVariant =
+      variantParam
+        ? parseVariant(variantParam)
+        : (resolvedThemePlan === "tender" || levelPlan === "enterprise" ? "tender" : "sales");
+
     const sigPayloadPlan = JSON.stringify({
       planId,
       mode,
@@ -639,6 +665,7 @@ export async function HEAD(req: NextRequest) {
       theme: resolvedThemePlan,
       watermark: watermarkPlan,
       tz: tzPlan,
+      variant,
     });
     const reqSigPlan = await shortSigHex(sigPayloadPlan);
 
@@ -654,6 +681,7 @@ export async function HEAD(req: NextRequest) {
         "X-THEME": resolvedThemePlan,
         "X-WATERMARK": watermarkPlan === "1" ? "1" : "0",
         "X-TZ": tzPlan,
+        "X-PDF-VARIANT": variant,
       },
     });
   } catch {
