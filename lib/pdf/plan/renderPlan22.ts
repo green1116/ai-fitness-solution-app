@@ -13,14 +13,26 @@ import { renderV4Sections } from "@/lib/pdf/plan/v4Sections";
 type PdfVariant = "sales" | "tender";
 
 export function getSectionFlags(variant: PdfVariant) {
+  if (variant === "tender") {
+    return {
+      showToc: true,
+      showDecisionSummary: true,
+      showBudgetLogic: true,
+      showValuePage: true,
+      showPhases: true,
+      showBusinessNotes: true,
+      showNextSteps: true,
+    };
+  }
+
   return {
-    showToc: variant === "tender",
-    showDecisionSummary: variant === "sales",
+    showToc: false,
+    showDecisionSummary: true,
     showBudgetLogic: true,
-    showValuePage: variant === "sales",
+    showValuePage: true,
     showPhases: true,
     showBusinessNotes: true,
-    showNextSteps: variant === "sales",
+    showNextSteps: true,
   };
 }
 
@@ -532,6 +544,11 @@ export async function renderPlan22PdfBytes(
     showBusinessNotes: flags.showBusinessNotes,
     showNextSteps: flags.showNextSteps,
   });
+
+  if (variant === "tender") {
+    const { drawTenderCompliancePage } = await import("./tenderSections");
+    v4Pages.push(drawTenderCompliancePage(v4Ctx));
+  }
 
   const allPages = doc.getPages();
   const newPageTotal = allPages.length;

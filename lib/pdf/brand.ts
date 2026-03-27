@@ -2,6 +2,15 @@
 import { PDFPage, PDFFont, rgb } from "pdf-lib";
 import { sig8 } from "@/lib/pdf/engine/sig";
 
+// ✅ 页边距常量（企业级排版）
+export const PAGE_TOP_OFFSET = 60;
+export const PAGE_BOTTOM_SAFE = 60;
+
+// ✅ 统一段落间距（消灭内容密度不均）
+export const GAP_SM = 10;
+export const GAP_MD = 16;
+export const GAP_LG = 24;
+
 export type BrandLayout = {
   left: number;
   right: number;
@@ -9,10 +18,15 @@ export type BrandLayout = {
   bottom: number;
   width: number;
   contentTop: number; // ✅ 内容起始 y（安全区）
+  pageTop: number;    // 正文起始 y（PAGE_TOP）
+  pageBottom: number; // 底部安全区 y（PAGE_BOTTOM）
 };
 
 export function computeBrandLayout(page: PDFPage): BrandLayout {
   const { width, height } = page.getSize();
+
+  const pageTop = height - PAGE_TOP_OFFSET;
+  const pageBottom = PAGE_BOTTOM_SAFE;
 
   // ✅ 把 header 整体略上移，同时给内容留出 32pt 安全区
   const top = height - 40;         // 原来 -56 太靠下，线会压到大标题
@@ -25,6 +39,8 @@ export function computeBrandLayout(page: PDFPage): BrandLayout {
     bottom: 54,
     width,
     contentTop,
+    pageTop,
+    pageBottom,
   };
 }
 
@@ -96,6 +112,42 @@ export function drawSectionTitle(
     font,
     color: rgb(0.50, 0.55, 0.60),
   });
+}
+
+/** 预估高度不足时需换页（避免半页空白） */
+export function needNewPage(
+  currentY: number,
+  needHeight: number,
+  pageBottom: number = PAGE_BOTTOM_SAFE
+): boolean {
+  return currentY - needHeight < pageBottom;
+}
+
+/** 统一 section 标题（中文 + 英文，标题和内容一致） */
+export function drawSectionHeader(
+  page: PDFPage,
+  font: PDFFont,
+  layout: BrandLayout,
+  y: number,
+  titleCN: string,
+  titleEN: string
+): number {
+  page.drawText(titleCN, {
+    x: layout.left,
+    y,
+    size: 16,
+    font,
+    color: rgb(0.10, 0.12, 0.14),
+  });
+  y -= 20;
+  page.drawText(titleEN, {
+    x: layout.left,
+    y,
+    size: 10,
+    font,
+    color: rgb(0.50, 0.55, 0.60),
+  });
+  return y - GAP_LG;
 }
 
 // ---- Typography Tokens (Plan22 overlays) ----

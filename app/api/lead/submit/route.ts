@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
-import { SignJWT } from "jose";
 import { prisma } from "@/lib/prisma";
+import { issueStatefulDownloadToken } from "@/lib/download-token";
+import { signUnlockToken } from "@/lib/unlock-token";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,15 +10,7 @@ function json(status: number, body: any) {
   return NextResponse.json(body, { status });
 }
 
-function mustEnv(name: string) {
-  const v = process.env[name];
-  if (!v || !String(v).trim()) {
-    throw new Error(`ENV_MISSING:${name}`);
-  }
-  return String(v).trim();
-}
-
-function pickModeByIntent(intent: string) {
+function pickModeByIntent(intent: string): "full" | "budget" | "pack" {
   switch (intent) {
     case "unlock_pro":
       return "full";
@@ -31,48 +23,16 @@ function pickModeByIntent(intent: string) {
   }
 }
 
-async function signDownloadToken(params: {
-  planId: string;
-  mode: string;
-  email?: string;
-}) {
-  const secret = mustEnv("DOWNLOAD_TOKEN_SECRET");
-  const expiresInSec = Number(
-    process.env.DOWNLOAD_TOKEN_EXPIRES_IN_SECONDS || 1800
-  );
-
-  const key = new TextEncoder().encode(secret);
-  const now = Math.floor(Date.now() / 1000);
-
-  const reqsig = crypto
-    .createHash("sha256")
-    .update(`${params.planId}|${params.mode}|${params.email || ""}|${now}`)
-    .digest("hex")
-    .slice(0, 12);
-
-  const token = await new SignJWT({
-    scope: "pdf_download",
-    planId: params.planId,
-    mode: params.mode,
-    level: "pro",
-    email: params.email || "",
-    reqsig,
-  })
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setIssuedAt(now)
-    .setExpirationTime(now + expiresInSec)
-    .sign(key);
-
-  return { token, reqsig, expiresInSec };
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => null);
 
     const email = String(body?.email || "").trim().toLowerCase();
     const planId = String(body?.planId || "").trim();
-    const intent = String(body?.intent || "unlock_pro").trim();
+    const intent = String(body?.intent || "unlock_pro").trim() as
+      | "unlock_pro"
+      | "unlock_budget"
+      | "unlock_tender";
 
     if (!email) {
       return json(400, {
@@ -100,12 +60,14 @@ export async function POST(req: NextRequest) {
     }
 
     const mode = pickModeByIntent(intent);
+    const variant = intent === "unlock_tender" ? "tender" : "sales";
 
     console.log("[LEAD_SUBMIT]", {
       email,
       planId,
       intent,
       mode,
+      variant,
       at: new Date().toISOString(),
     });
 
@@ -121,37 +83,63 @@ export async function POST(req: NextRequest) {
         planId: planId || null,
         intent,
         payload: {
-          source: "unlock_pro",
+          source: "unlock",
           ip,
           ua,
         },
       },
     });
 
-    const signed = await signDownloadToken({
+    // V6: 签发 download token（带 variant）
+    const downloadToken = await issueStatefulDownloadToken({
       planId,
       mode,
+      variant,
       email,
+      ttlSec: Number(process.env.DOWNLOAD_TOKEN_EXPIRES_IN_SECONDS || "1800"),
+      maxUses: 1,
     });
 
-    const downloadUrl =
-      `/api/pdf?download=1` +
-      `&planId=${encodeURIComponent(planId)}` +
-      `&mode=${encodeURIComponent(mode)}` +
-      `&downloadToken=${encodeURIComponent(signed.token)}`;
+    // V6: 签发 unlockToken（24h 有效，用于后续申请更多 download token）
+    const unlockToken = await signUnlockToken({
+      planId,
+      email,
+      intent,
+    });
+
+    // 构建下载 URL
+    let downloadUrl = "";
+    if (mode === "pack") {
+      downloadUrl =
+        `/api/tender-pack?format=merged` +
+        `&planId=${encodeURIComponent(planId)}` +
+        `&level=enterprise` +
+        `&theme=tender` +
+        `&variant=tender` +
+        `&downloadToken=${encodeURIComponent(downloadToken)}`;
+    } else {
+      downloadUrl =
+        `/api/pdf?download=1` +
+        `&planId=${encodeURIComponent(planId)}` +
+        `&mode=${encodeURIComponent(mode)}` +
+        `&variant=${encodeURIComponent(variant)}` +
+        `&downloadToken=${encodeURIComponent(downloadToken)}`;
+    }
 
     return json(200, {
       ok: true,
+      verified: true,
       code: "LEAD_CAPTURED_AND_TOKEN_ISSUED",
       message: "lead captured and token issued",
       planId,
       intent,
       mode,
+      variant,
       email,
-      downloadToken: signed.token,
+      downloadToken,
       downloadUrl,
-      reqsig: signed.reqsig,
-      expiresInSec: signed.expiresInSec,
+      unlockToken,
+      expiresInSec: Number(process.env.DOWNLOAD_TOKEN_EXPIRES_IN_SECONDS || "1800"),
     });
   } catch (err: any) {
     console.error("[LEAD_SUBMIT_ERROR]", err);

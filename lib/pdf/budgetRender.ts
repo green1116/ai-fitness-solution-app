@@ -8,6 +8,8 @@ import { getBudgetSummary } from "@/lib/services/budgetService";
 import type { BudgetSummary } from "@/lib/pdf/contracts/budgetSummary";
 import { wrapTextCN } from "@/lib/pdf/engine/text";
 import { THEMES, drawHeader as drawThemeHeader, drawFooter as drawThemeFooter } from "@/lib/pdf/theme";
+import { PAGE_BOTTOM_SAFE, GAP_SM, GAP_MD, GAP_LG } from "@/lib/pdf/brand";
+import { TOKENS } from "@/lib/pdf/tokens";
 
 export type BudgetPdfInput = {
   planId: string;
@@ -466,7 +468,7 @@ async function renderBrand2Pages(
       theme.fontSizes.h2,
       theme.colors.sub
     );
-    y -= 18;
+    y -= GAP_MD;
 
     const recLine = `建议：按 ${String(input.budgetTier).toUpperCase()} 档位配置，可覆盖常规高频使用与基础扩展需求。`;
     const recLines = wrapTextCN(`• ${recLine}`, {
@@ -484,7 +486,7 @@ async function renderBrand2Pages(
     const totalMin = strict.total.min;
     const totalMax = strict.total.max;
 
-    y -= 10;
+    y -= GAP_SM;
     drawBox(p, M.l, y - 6, W - M.l - M.r, 92, rgb(0.82, 0.82, 0.82));
     drawTextF(p, ctx.fontBold, "建议预算区间（CNY）", M.l + 14, y + 60, 12);
     drawTextF(p, ctx.fontBold, `${fmtMoney(totalMin)}  -  ${fmtMoney(totalMax)}`, M.l + 14, y + 22, 22);
@@ -530,19 +532,40 @@ async function renderBrand2Pages(
     const x2 = x0 + colCat + colMin;
 
     drawTextF(p, ctx.fontBold, "分项预算汇总", M.l, y + 18, 12);
-    y -= 8;
+    y -= GAP_SM;
 
-    drawBox(p, x0, y, tableW, rowH, rgb(0.75, 0.75, 0.75));
+    p.drawRectangle({
+      x: x0,
+      y,
+      width: tableW,
+      height: rowH,
+      color: TOKENS.colorBrand,
+      borderWidth: 0,
+    });
     drawVLines(p, [x1, x2], y, rowH);
-    drawTextF(p, ctx.fontBold, "类别", x0 + 8, y + 8, 10);
-    drawTextF(p, ctx.fontBold, "最低估算", x1 + 8, y + 8, 10);
-    drawTextF(p, ctx.fontBold, "最高估算", x2 + 8, y + 8, 10);
+    drawTextF(p, ctx.fontBold, "类别", x0 + 8, y + 8, 10, rgb(1, 1, 1));
+    const minLblW = ctx.fontBold.widthOfTextAtSize("最低估算", 10);
+    const maxLblW = ctx.fontBold.widthOfTextAtSize("最高估算", 10);
+    drawTextF(p, ctx.fontBold, "最低估算", x2 - 8 - minLblW, y + 8, 10, rgb(1, 1, 1));
+    drawTextF(p, ctx.fontBold, "最高估算", x0 + tableW - 8 - maxLblW, y + 8, 10, rgb(1, 1, 1));
 
     y -= rowH;
 
-    for (const [k, v] of rows) {
-      if (y < 185) break;
-      drawBox(p, x0, y, tableW, rowH);
+    rows.forEach(([k, v], idx) => {
+      if (y < PAGE_BOTTOM_SAFE + 125) return;
+      const alt = idx % 2 === 1;
+      if (alt) {
+        p.drawRectangle({
+          x: x0,
+          y,
+          width: tableW,
+          height: rowH,
+          color: TOKENS.colorBrandLight,
+          borderWidth: 0,
+        });
+      } else {
+        drawBox(p, x0, y, tableW, rowH);
+      }
       drawVLines(p, [x1, x2], y, rowH);
 
       drawTextF(p, ctx.font, ellipsisToWidth(k, ctx.font, 10, colCat - 14), x0 + 8, y + 8, 10);
@@ -555,15 +578,15 @@ async function renderBrand2Pages(
       drawTextF(p, ctx.font, maxText, x0 + tableW - 8 - maxW, y + 8, 10);
 
       y -= rowH;
-    }
+    });
 
     const scope = [
       "仅含设备采购及基础交付费用；不含装修/强弱电/消防。",
       "运动地板/力量区橡胶地垫可作为可选项单列。",
     ];
-    y -= 18;
+    y -= GAP_MD;
     drawTextF(p, ctx.fontBold, "预算口径", M.l, y, 11);
-    y -= 18;
+    y -= GAP_MD;
     for (const s of scope) {
       const lines = wrapTextCN(`• ${s}`, { font: ctx.font, fontSize: 10, maxWidth: W - M.l - M.r, maxLines: 2 });
       for (const line of lines) {
@@ -604,22 +627,67 @@ async function renderBrand2Pages(
     const rowH = 22;
     let y = H - 130;
 
-    drawBox(p, x0, y, tableW, rowH, rgb(0.75, 0.75, 0.75));
+    p.drawRectangle({
+      x: x0,
+      y,
+      width: tableW,
+      height: rowH,
+      color: TOKENS.colorBrand,
+      borderWidth: 0,
+    });
     const xs = [x0 + cCat, x0 + cCat + cName, x0 + cCat + cName + cQty, x0 + cCat + cName + cQty + cPrice];
     drawVLines(p, xs, y, rowH);
 
-    drawTextF(p, ctx.fontBold, "类别", x0 + 6, y + 6, 9);
-    drawTextF(p, ctx.fontBold, "设备", x0 + cCat + 6, y + 6, 9);
-    drawTextF(p, ctx.fontBold, "数量区间", x0 + cCat + cName + 6, y + 6, 9);
-    drawTextF(p, ctx.fontBold, "单价区间", x0 + cCat + cName + cQty + 6, y + 6, 9);
-    drawTextF(p, ctx.fontBold, "小计区间", x0 + cCat + cName + cQty + cPrice + 6, y + 6, 9);
+    drawTextF(p, ctx.fontBold, "类别", x0 + 6, y + 6, 9, rgb(1, 1, 1));
+    drawTextF(p, ctx.fontBold, "设备", x0 + cCat + 6, y + 6, 9, rgb(1, 1, 1));
+    const qtyW = ctx.fontBold.widthOfTextAtSize("数量区间", 9);
+    const priceW = ctx.fontBold.widthOfTextAtSize("单价区间", 9);
+    const subW = ctx.fontBold.widthOfTextAtSize("小计区间", 9);
+    drawTextF(
+      p,
+      ctx.fontBold,
+      "数量区间",
+      x0 + cCat + cName + cQty - 6 - qtyW,
+      y + 6,
+      9,
+      rgb(1, 1, 1)
+    );
+    drawTextF(
+      p,
+      ctx.fontBold,
+      "单价区间",
+      x0 + cCat + cName + cQty + cPrice - 6 - priceW,
+      y + 6,
+      9,
+      rgb(1, 1, 1)
+    );
+    drawTextF(
+      p,
+      ctx.fontBold,
+      "小计区间",
+      x0 + tableW - 6 - subW,
+      y + 6,
+      9,
+      rgb(1, 1, 1)
+    );
 
     y -= rowH;
 
-    for (const it of strict.items) {
-      if (y < 90) break;
-
-      drawBox(p, x0, y, tableW, rowH);
+    strict.items.forEach((it, idx) => {
+      if (y < PAGE_BOTTOM_SAFE + 30) return;
+      const alt = idx % 2 === 1;
+      if (alt) {
+        p.drawRectangle({
+          x: x0,
+          y,
+          width: tableW,
+          height: rowH,
+          color: TOKENS.colorBrandLight,
+          borderWidth: 0,
+        });
+      } else {
+        drawBox(p, x0, y, tableW, rowH);
+      }
       drawVLines(p, xs, y, rowH);
 
       const cat = ellipsisToWidth(it.categoryName || it.category || "", ctx.font, 9, cCat - 10);
@@ -639,7 +707,7 @@ async function renderBrand2Pages(
       drawTextF(p, ctx.font, subText, x0 + tableW - 6 - subW, y + 6, 9);
 
       y -= rowH;
-    }
+    });
 
     drawTextF(
       p,
@@ -817,7 +885,7 @@ async function renderGovernment5Pages(
     y -= rowH;
 
     for (const [k, v] of rows) {
-      if (y < 120) break;
+      if (y < PAGE_BOTTOM_SAFE + 60) break;
       drawBox(p, x0, y, tableW, rowH);
       drawVLines(p, [xCol1, xCol2], y, rowH);
 
