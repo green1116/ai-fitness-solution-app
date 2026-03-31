@@ -4,6 +4,7 @@ import { jwtVerify, SignJWT } from "jose";
 import { prisma } from "@/lib/prisma";
 
 export type DownloadTokenMode = "preview" | "full" | "budget" | "pack";
+export type DownloadTokenVariant = "sales" | "tender";
 
 function getDownloadSecret() {
   const s = (process.env.DOWNLOAD_TOKEN_SECRET || "").trim();
@@ -22,15 +23,18 @@ function sha256HexRaw(s: string) {
 export async function signDownloadJwt(input: {
   planId: string;
   mode: DownloadTokenMode;
+  variant?: DownloadTokenVariant;
   email?: string;
   ttlSec?: number;
 }) {
   const ttlSec = Math.max(60, Number(input.ttlSec || 1800));
+  const variant = input.variant === "tender" ? "tender" : "sales";
 
   return await new SignJWT({
     scope: "pdf_download",
     planId: input.planId,
     mode: input.mode,
+    variant,
     email: input.email || "",
   })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
@@ -46,6 +50,7 @@ export async function verifyDownloadJwt(token: string) {
     scope: String(payload.scope || ""),
     planId: String(payload.planId || ""),
     mode: String(payload.mode || ""),
+    variant: String(payload.variant || "sales") as DownloadTokenVariant,
     email: String(payload.email || ""),
     exp: Number(payload.exp || 0),
     iat: Number(payload.iat || 0),
@@ -55,6 +60,7 @@ export async function verifyDownloadJwt(token: string) {
 export async function issueStatefulDownloadToken(input: {
   planId: string;
   mode: DownloadTokenMode;
+  variant?: DownloadTokenVariant;
   email?: string;
   ttlSec?: number;
   maxUses?: number;
@@ -62,6 +68,7 @@ export async function issueStatefulDownloadToken(input: {
   const token = await signDownloadJwt({
     planId: input.planId,
     mode: input.mode,
+    variant: input.variant,
     email: input.email,
     ttlSec: input.ttlSec,
   });
@@ -102,6 +109,7 @@ export async function requireAndConsumeDownloadToken(params: {
   downloadToken: string;
   planId: string;
   mode: DownloadTokenMode;
+  variant?: DownloadTokenVariant;
   fingerprint: string;
   ip?: string | null;
   ua?: string | null;
@@ -147,6 +155,18 @@ export async function requireAndConsumeDownloadToken(params: {
         code: "TOKEN_MODE_MISMATCH" as const,
         tokenMode: payload.mode,
       };
+    }
+
+    // V6: variant 校验（tender-pack 必须 variant=tender）
+    if (params.variant !== undefined && params.variant !== null) {
+      const tokenVariant = (payload.variant || "sales") as DownloadTokenVariant;
+      if (tokenVariant !== params.variant) {
+        return {
+          ok: false as const,
+          code: "TOKEN_VARIANT_MISMATCH" as const,
+          tokenVariant,
+        };
+      }
     }
 
     const tokenHash = sha256HexRaw(token);

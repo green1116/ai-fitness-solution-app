@@ -8,6 +8,7 @@ type WebpackLikeConfig = {
 
 const nextConfig: NextConfig = {
   turbopack: {},
+  allowedDevOrigins: ["127.0.0.1"],
   webpack: (config: WebpackLikeConfig) => {
     const existingIgnored = config.watchOptions?.ignored;
 

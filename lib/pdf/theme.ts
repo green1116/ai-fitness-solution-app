@@ -147,7 +147,7 @@ export function drawHeader(
   return bodyStartY - 18;
 }
 
-// 统一页脚：PlanID/日期/页码 + SIG/FP（弱化技术味）
+// 统一页脚：三段式对齐（左 投标人 | 中 REQSIG | 右 页码）+ 分割线
 export function drawFooter(
   page: PDFPage,
   theme: PdfTheme,
@@ -159,21 +159,19 @@ export function drawFooter(
     pageTotal: number; 
     sig?: string; 
     fp?: string;
-    cover?: boolean; // ✅ 新增：是否先盖白底（默认 true）
+    cover?: boolean; // 是否先盖白底（默认 true）
   }
 ) {
   const cover = meta.cover !== false;
-
   const M = theme.margin;
   const W = page.getWidth();
-  const y = M.b;
-  const h = 18; // 页脚带高度
+  const footerY = 30;
+  const h = 18;
 
-  // ✅ 关键：先盖一条白底"擦除带"（覆盖旧页脚）
   if (cover) {
     page.drawRectangle({
       x: 0,
-      y: y - 4,
+      y: footerY - 4,
       width: W,
       height: h,
       color: rgb(1, 1, 1),
@@ -181,27 +179,48 @@ export function drawFooter(
     });
   }
 
-  const left = `Plan ID: ${meta.planId || "-"} | ${meta.dateYmd || "-"} | ${meta.pageNo}/${meta.pageTotal}`;
-  page.drawText(left, {
+  // 分割线
+  page.drawLine({
+    start: { x: 40, y: 45 },
+    end: { x: W - 40, y: 45 },
+    thickness: 0.5,
+    color: theme.colors.line,
+  });
+
+  const size = theme.fontSizes.footer;
+
+  // 左：投标人
+  page.drawText("投标人：AI Fitness Solution", {
     x: M.l,
-    y,
-    size: theme.fontSizes.footer,
+    y: footerY,
+    size,
     font,
     color: theme.colors.sub,
   });
 
-  const right = `${meta.fp ? meta.fp : ""}${meta.sig ? `  SIG:${meta.sig}` : ""}`.trim();
-  if (right) {
-    // 右对齐
-    const w = font.widthOfTextAtSize(right, theme.fontSizes.footer);
-    page.drawText(right, {
-      x: W - M.r - w,
-      y,
-      size: theme.fontSizes.footer,
+  // 中：REQSIG
+  if (meta.sig) {
+    const centerText = `REQSIG: ${meta.sig}`;
+    const cw = font.widthOfTextAtSize(centerText, size);
+    page.drawText(centerText, {
+      x: W / 2 - cw / 2,
+      y: footerY,
+      size,
       font,
       color: theme.colors.sub,
     });
   }
+
+  // 右：第 X 页 / 共 Y 页
+  const rightText = `第 ${meta.pageNo} 页 / 共 ${meta.pageTotal} 页`;
+  const rw = font.widthOfTextAtSize(rightText, size);
+  page.drawText(rightText, {
+    x: W - M.r - rw,
+    y: footerY,
+    size,
+    font,
+    color: theme.colors.sub,
+  });
 }
 // ✅ Slim Header：用于 Plan22 golden 回放（不画右侧信息框，避免压内容）
 export const drawHeaderSlim = (

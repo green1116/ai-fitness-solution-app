@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs/promises";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb } from "pdf-lib";
+import { TOKENS } from "@/lib/pdf/tokens";
 import { parseTenderLevel, type TenderLevel } from "@/lib/pdf/presets";
 import { scanTocAnchors } from "@/lib/pdf/tocAnchors";
 import { logPdfDownloadSafe, getReqIp } from "@/lib/audit/pdfLog";
@@ -98,6 +99,10 @@ function parseBool01(v: string | null, fallback: boolean) {
   if (s === "0") return false;
   if (s === "1") return true;
   return fallback;
+}
+
+function parseVariant(v: string | null): "sales" | "tender" {
+  return String(v || "").trim().toLowerCase() === "sales" ? "sales" : "tender";
 }
 
 async function mergePdfBuffers(buffers: Buffer[]): Promise<Buffer> {
@@ -429,6 +434,7 @@ async function buildCoverAndTocPdfV7(opts: {
   watermark: string;
   tz: string;
   level: TenderLevel;
+  variant: "sales" | "tender";
   tenderNo: string;
   freezeYmd?: string;
 
@@ -451,6 +457,7 @@ async function buildCoverAndTocPdfV7(opts: {
     watermark,
     tz,
     level,
+    variant,
     tenderNo,
     freezeYmd,
     pdfVersionPlan,
@@ -476,88 +483,87 @@ async function buildCoverAndTocPdfV7(opts: {
   const dateYMD = resolvePackDateYmd(freezeYmd);
   const dateHuman = resolvePackDateHuman(freezeYmd);
 
-  // -------- 封面页 --------
+  // -------- 封面页 V3 投标风格 --------
   const cover = doc.addPage([A4_W, A4_H]);
-  const marginX = 60;
-  let y = A4_H - 80;
+  const marginX = TOKENS.marginX;
+  const M = marginX;
 
-  if (logo) {
-    drawLogoTopLeft({
-      page: cover,
-      logo,
-      marginX: LOGO_MARGIN_X,
-      topY: LOGO_TOP_Y,
-      maxW: LOGO_MAX_W,
-    });
-  }
-
-  // ✅ V7：技术标风格封面标题
-  cover.drawText("企业健身房建设项目投标文件（技术部分）", {
-    x: marginX,
-    y: A4_H - 160, // ✅ 和 topY= A4_H-60 搭配，留足空间
-    size: 24,
-    font,
-    color: rgb(0.1, 0.1, 0.1),
+  // 上半区：品牌色块 + 主副标题
+  cover.drawRectangle({
+    x: 0,
+    y: A4_H - 140,
+    width: A4_W,
+    height: 140,
+    color: TOKENS.colorBrand,
   });
 
-  const unitLine =
-    companyName && companyName.trim()
-      ? `招标单位：${companyName.trim()}`
-      : `招标单位：${planId}`;
-  cover.drawText(unitLine, {
-    x: marginX,
-    y: y - 140,
-    size: 14,
+  const coverTitle =
+    variant === "tender" ? "企业健身空间建设投标方案" : "企业健身空间建设方案";
+  const coverSubTitle =
+    variant === "tender"
+      ? "Enterprise Fitness Solution Tender Proposal"
+      : "Enterprise Fitness Solution Proposal";
+
+  cover.drawText(coverTitle, {
+    x: 56,
+    y: A4_H - 88,
+    size: 26,
     font,
-    color: rgb(0.15, 0.15, 0.15),
+    color: rgb(1, 1, 1),
   });
 
-  cover.drawText(`投标人：${(bidderName || "AI Fitness Solution").trim()}`, {
-    x: marginX,
-    y: y - 168,
-    size: 14,
+  cover.drawText(coverSubTitle, {
+    x: 56,
+    y: A4_H - 112,
+    size: 11,
     font,
-    color: rgb(0.15, 0.15, 0.15),
+    color: rgb(0.92, 0.95, 1),
   });
 
-  const infoY = y - 235;
-  const lines: Array<[string, string]> = [
-    ["标书编号", tenderNo],
-    ["生成日期", dateYMD],
-    ["投标级别", level],
-    ["主题", theme || "brand"],
-    ["水印", watermark === "1" ? "启用" : "关闭"],
-    ["时区", tz || "Asia/Tokyo"],
-    ["方案版本", pdfVersionPlan],
-    ["预算版本", pdfVersionBudget],
-    ["方案页数", `共 ${planPages} 页`],
-    ["预算页数", `共 ${budgetPages} 页`],
-    ["声明函", includeDeclaration ? `包含（${declarationPages} 页）` : "不包含"],
+  // 中段：两列信息
+  let infoY = A4_H - 200;
+  const col1X = M;
+  const col2X = A4_W / 2 + 20;
+  const rowH = 24;
+  const infoPairs: Array<[string, string][]> = [
+    [
+      ["委托单位", companyName?.trim() ? companyName.trim() : planId],
+      ["企业规模", `${planId}（详见正文）`],
+      ["场地面积", "约 120m²（详见正文）"],
+    ],
+    [
+      ["预算范围", "详见预算报告"],
+      ["报告日期", dateYMD],
+      ["文档版本", `${pdfVersionPlan} / ${pdfVersionBudget}`],
+    ],
   ];
 
-  let infoLineY = infoY;
-  for (const [k, v] of lines) {
-    cover.drawText(`${k}：`, {
-      x: marginX,
-      y: infoLineY,
-      size: 11,
-      font,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-    cover.drawText(v, {
-      x: marginX + 90,
-      y: infoLineY,
-      size: 11,
-      font,
-      color: rgb(0.2, 0.2, 0.2),
-    });
-    infoLineY -= 18;
+  for (let col = 0; col < 2; col++) {
+    const baseX = col === 0 ? col1X : col2X;
+    let yy = infoY;
+    for (const [label, value] of infoPairs[col]) {
+      cover.drawText(`${label}：`, {
+        x: baseX,
+        y: yy,
+        size: TOKENS.fsBody,
+        font,
+        color: TOKENS.colorSubtle,
+      });
+      cover.drawText(value, {
+        x: baseX + 80,
+        y: yy,
+        size: TOKENS.fsBody,
+        font,
+        color: TOKENS.colorText,
+      });
+      yy -= rowH;
+    }
   }
 
   // 签章区
   const boxW = 240;
   const boxH = 150;
-  const boxX = A4_W - 60 - boxW;
+  const boxX = A4_W - M - boxW;
   const boxY = 105;
 
   cover.drawRectangle({
@@ -566,117 +572,60 @@ async function buildCoverAndTocPdfV7(opts: {
     width: boxW,
     height: boxH,
     borderWidth: 1,
-    borderColor: rgb(0.6, 0.6, 0.6),
+    borderColor: TOKENS.colorLine,
   });
 
   cover.drawText("签章区（盖章处）", {
     x: boxX + 12,
     y: boxY + boxH - 26,
-    size: 12,
+    size: TOKENS.fsH3,
     font,
-    color: rgb(0.2, 0.2, 0.2),
+    color: TOKENS.colorText,
   });
 
   cover.drawLine({
     start: { x: boxX, y: boxY + boxH - 34 },
     end: { x: boxX + boxW, y: boxY + boxH - 34 },
     thickness: 1,
-    color: rgb(0.85, 0.85, 0.85),
+    color: TOKENS.colorLine,
   });
 
   let sy = boxY + boxH - 62;
-  const labelSize = 11;
-  const lineGap = 24;
   const stampLines: Array<[string, string]> = [
     ["投标人（盖章）：", "__________________"],
     ["授权代表：", "__________________"],
-    ["日期：", `${dateHuman}`],
+    ["日期：", dateHuman],
   ];
   for (const [k, v] of stampLines) {
-    cover.drawText(k, {
-      x: boxX + 12,
-      y: sy,
-      size: labelSize,
-      font,
-      color: rgb(0.25, 0.25, 0.25),
-    });
-    cover.drawText(v, {
-      x: boxX + 92,
-      y: sy,
-      size: labelSize,
-      font,
-      color: rgb(0.25, 0.25, 0.25),
-    });
-    sy -= lineGap;
+    cover.drawText(k, { x: boxX + 12, y: sy, size: 11, font, color: TOKENS.colorSubtle });
+    cover.drawText(v, { x: boxX + 92, y: sy, size: 11, font, color: TOKENS.colorText });
+    sy -= 24;
   }
 
-  // ✅ V7.1：规范信息栏（评审/政府采购常用格式）
-const infoBoxX = marginX;
-const infoBoxW = A4_W - marginX * 2;
-const infoBoxH = 170;
-const infoBoxY = 290; // 位置可微调：越大越靠上
-
-cover.drawRectangle({
-  x: infoBoxX,
-  y: infoBoxY,
-  width: infoBoxW,
-  height: infoBoxH,
-  borderWidth: 1,
-  borderColor: rgb(0.82, 0.82, 0.82),
-});
-
-cover.drawText("项目信息（填写/确认）", {
-  x: infoBoxX + 12,
-  y: infoBoxY + infoBoxH - 24,
-  size: 12,
-  font,
-  color: rgb(0.18, 0.18, 0.18),
-});
-
-cover.drawLine({
-  start: { x: infoBoxX, y: infoBoxY + infoBoxH - 32 },
-  end: { x: infoBoxX + infoBoxW, y: infoBoxY + infoBoxH - 32 },
-  thickness: 1,
-  color: rgb(0.9, 0.9, 0.9),
-});
-
-let iy = infoBoxY + infoBoxH - 58;
-const rowGap = 22;
-
-const f = (label: string, value: string) => {
-  cover.drawText(label, {
-    x: infoBoxX + 14,
-    y: iy,
-    size: 11,
+  // 下半区：机密 + 出具单位
+  cover.drawText("机密 / Confidential", {
+    x: M,
+    y: 75,
+    size: TOKENS.fsSmall,
     font,
-    color: rgb(0.22, 0.22, 0.22),
+    color: TOKENS.colorSubtle,
   });
-  cover.drawText(value, {
-    x: infoBoxX + 120,
-    y: iy,
-    size: 11,
+
+  cover.drawText("出具单位：AI Fitness Solution", {
+    x: M,
+    y: 55,
+    size: TOKENS.fsSmall,
     font,
-    color: rgb(0.22, 0.22, 0.22),
+    color: TOKENS.colorSubtle,
   });
-  iy -= rowGap;
-};
 
-const projectName = "企业健身房建设项目（技术标）";
-f("项目名称：", projectName);
-f("招标单位：", companyName?.trim() ? companyName.trim() : planId);
-f("投标人：", (bidderName || "AI Fitness Solution").trim());
-f("联系人：", "________________________");
-f("联系电话：", "________________________");
-f("联系地址：", "______________________________________________");
-
-// ✅ V7.1：封面备注（更正式）
-cover.drawText("说明：本文件为系统生成稿，正式递交前请核对项目信息、版本号与签章。", {
-  x: marginX,
-  y: 70,
-  size: 10.2,
-  font,
-  color: rgb(0.38, 0.38, 0.38),
-});
+  cover.drawText("说明：本文件为系统生成稿，正式递交前请核对项目信息、版本号与签章。", {
+    x: M,
+    y: 35,
+    size: 9,
+    font,
+    color: TOKENS.colorSubtle,
+  });
 
   // -------- 目录页 --------
   const toc = doc.addPage([A4_W, A4_H]);
@@ -736,6 +685,118 @@ cover.drawText("说明：本文件为系统生成稿，正式递交前请核对�
     font,
     color: rgb(0.35, 0.35, 0.35),
   });
+
+  const bytes = await doc.save();
+  return Buffer.from(bytes);
+}
+
+/**
+ * V3 结论与建议页（1页）- 落版页
+ */
+async function buildConclusionPdf(opts: {
+  planId: string;
+  companyName: string;
+}) {
+  const { planId, companyName } = opts;
+
+  const doc = await PDFDocument.create();
+  const { font } = await loadBrandAssets(doc);
+
+  const fontBold = font;
+  const A4_W = 595.28;
+  const A4_H = 841.89;
+  const M = TOKENS.marginX;
+  let y = A4_H - 80;
+
+  const page = doc.addPage([A4_W, A4_H]);
+
+  // 标题
+  page.drawRectangle({
+    x: M,
+    y: y - 8,
+    width: 6,
+    height: 22,
+    color: TOKENS.colorBrand,
+  });
+  page.drawText("结论与建议", {
+    x: M + 14,
+    y,
+    size: TOKENS.fsH2,
+    font: fontBold,
+    color: TOKENS.colorText,
+  });
+  y -= 40;
+
+  page.drawText("项目结论", {
+    x: M,
+    y,
+    size: TOKENS.fsH3,
+    font: fontBold,
+    color: TOKENS.colorText,
+  });
+  y -= 20;
+
+  const conclusionText =
+    `综合企业规模、场地条件与预算区间，${companyName || planId} 适合建设企业健身空间。本方案在约 120m² 场地条件下，可形成有氧、力量及基础拉伸功能的综合配置体系，兼顾安全性、耐用性与长期使用价值。`;
+  page.drawText(conclusionText, {
+    x: M,
+    y,
+    size: TOKENS.fsBody,
+    font,
+    color: TOKENS.colorText,
+  });
+  y -= 50;
+
+  page.drawText("推荐实施路径", {
+    x: M,
+    y,
+    size: TOKENS.fsH3,
+    font: fontBold,
+    color: TOKENS.colorText,
+  });
+  y -= 22;
+
+  const phases = [
+    "第一期：基础建设 — 场地规划、设备采购与安装",
+    "第二期：设备补充 — 根据实际使用情况优化配置",
+    "第三期：运营优化 — 维护、培训与持续改进",
+  ];
+  for (const p of phases) {
+    page.drawText(`• ${p}`, {
+      x: M + 12,
+      y,
+      size: TOKENS.fsBody,
+      font,
+      color: TOKENS.colorText,
+    });
+    y -= 22;
+  }
+  y -= 20;
+
+  page.drawText("风险与说明", {
+    x: M,
+    y,
+    size: TOKENS.fsH3,
+    font: fontBold,
+    color: TOKENS.colorText,
+  });
+  y -= 22;
+
+  const risks = [
+    "最终预算以现场复尺为准",
+    "运输与安装按地区调整",
+    "品牌可替换为同档次型号",
+  ];
+  for (const r of risks) {
+    page.drawText(`• ${r}`, {
+      x: M + 12,
+      y,
+      size: TOKENS.fsBody,
+      font,
+      color: TOKENS.colorText,
+    });
+    y -= 22;
+  }
 
   const bytes = await doc.save();
   return Buffer.from(bytes);
@@ -959,6 +1020,7 @@ export async function GET(req: NextRequest) {
     const pdfVersionBudget = (sp.get("pdfVersionBudget") || "BUDGET_V1").trim();
 
     const level = parseTenderLevel(sp.get("level"));
+    const variant = parseVariant(sp.get("variant"));
 
     const packFooter = parseBool01(sp.get("packFooter"), true);
 
@@ -995,6 +1057,7 @@ export async function GET(req: NextRequest) {
       watermark,
       tz,
       level,
+      variant,
     };
     // ✅ 不把 downloadToken 透传给 /api/pdf，pack 内部 fetch 走 X-INTERNAL-PACK 信任头
 
@@ -1020,6 +1083,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         level,
+        variant,
         tenderNo,
         includeCover,
         includeDeclaration,
@@ -1048,10 +1112,12 @@ export async function GET(req: NextRequest) {
       (ua || "noua").slice(0, 80),
     ].join("|");
 
+    // V6: pack 必须 mode=pack + variant=tender
     const c = await requireAndConsumeDownloadToken({
       downloadToken,
       planId,
       mode: "pack",
+      variant: "tender",
       fingerprint: fp,
       ip,
       ua,
@@ -1123,8 +1189,11 @@ export async function GET(req: NextRequest) {
       tocLines.push({ level: 2, title: `2.${idx}  ${label}`, page });
     }
 
-    // ✅ 合并阅读顺序总页数（最后一页页码）
-    const totalPages = coverPages + declPages + planPages + budgetPages;
+    // ✅ V3：结论页（1页）
+    const conclusionPages = 1;
+    // ✅ 合并阅读顺序总页数（含结论页）
+    const totalPages =
+      coverPages + declPages + planPages + budgetPages + conclusionPages;
 
     // ✅ merged
     if (format === "merged") {
@@ -1139,6 +1208,7 @@ export async function GET(req: NextRequest) {
           watermark,
           tz,
           level,
+          variant,
           tenderNo,
           freezeYmd,
           pdfVersionPlan,
@@ -1169,6 +1239,12 @@ export async function GET(req: NextRequest) {
       }
 
       buffers.push(planBytes, budgetBytes);
+
+      const conclusionBytes = await buildConclusionPdf({
+        planId,
+        companyName: companyName || planId,
+      });
+      buffers.push(conclusionBytes);
 
       let mergedBytes = await mergePdfBuffers(buffers);
 
@@ -1241,6 +1317,7 @@ export async function GET(req: NextRequest) {
           "X-PACK-PAGINATION": packFooter ? "1" : "0",
           "X-PACK-SKIP-FIRST": String(skipFirstPages),
           "X-PACK-FOOTER": packFooter ? "1" : "0",
+          "X-PACK-VARIANT": variant,
         },
       });
     }
@@ -1258,6 +1335,7 @@ export async function GET(req: NextRequest) {
         watermark,
         tz,
         level,
+        variant,
         tenderNo,
         freezeYmd,
         pdfVersionPlan,
@@ -1309,6 +1387,7 @@ export async function GET(req: NextRequest) {
         `includeDeclaration=${includeDeclaration ? "1" : "0"}`,
         `packBudgetSections=${packBudgetSections}`,
         `packFooter(merged-only)=${packFooter ? "1" : "0"}`,
+        `variant=${variant}`,
         `generatedAt=${new Date().toISOString()}`,
       ].join("\n")
     );
@@ -1368,6 +1447,7 @@ export async function GET(req: NextRequest) {
         "X-INCLUDE-COVER": includeCover ? "1" : "0",
         "X-INCLUDE-DECLARATION": includeDeclaration ? "1" : "0",
         "X-PACK-BUDGET-SECTIONS": packBudgetSections,
+        "X-PACK-VARIANT": variant,
       },
     });
   } catch (e: any) {
@@ -1400,6 +1480,7 @@ export async function HEAD(req: NextRequest) {
     const pdfVersionBudget = (sp.get("pdfVersionBudget") || "BUDGET_V1").trim();
 
     const level = parseTenderLevel(sp.get("level"));
+    const variant = parseVariant(sp.get("variant"));
     const packFooter = parseBool01(sp.get("packFooter"), true);
 
     const includeCoverDefault = level === "saas" ? "0" : "1";
@@ -1463,6 +1544,7 @@ export async function HEAD(req: NextRequest) {
         "X-PACK-PAGINATION": packFooter ? "1" : "0",
         "X-PACK-SKIP-FIRST": String(skipFirstPages),
         "X-PACK-FOOTER": packFooter ? "1" : "0",
+        "X-PACK-VARIANT": variant,
 
         // 可选：把 theme/watermark/tz 也暴露给验收面板（不会影响现有 GET）
         "X-PACK-THEME": theme || "brand",

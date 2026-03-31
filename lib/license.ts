@@ -135,6 +135,7 @@ export async function requireAndConsumeDownloadToken(params: {
   downloadToken: string;
   planId: string;
   mode: DownloadTokenMode;
+  variant?: "sales" | "tender";
   fingerprint: string;
   ip?: string | null;
   ua?: string | null;
