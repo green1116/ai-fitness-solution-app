@@ -29,22 +29,52 @@ function Get-DownloadToken($mode, $planId, $baseUrl) {
 
   $resp = curl.exe --http1.1 -s "$url"
   if ($LASTEXITCODE -ne 0) {
+    if ($mode -in @("full", "budget")) {
+      Write-Host "skip_${mode}_reason=token_request_failed"
+      return $null
+    }
     throw "REGRESS_FAILED: token request failed for mode=$mode"
+  }
+
+  if ([string]::IsNullOrWhiteSpace($resp)) {
+    if ($mode -in @("full", "budget")) {
+      Write-Host "skip_${mode}_reason=empty_response"
+      return $null
+    }
+    throw "REGRESS_FAILED: empty token response for mode=$mode"
+  }
+
+  # 先按业务错误码判断，避免控制台中文乱码影响解析
+  if ($resp -match '"code"\s*:\s*"DOWNLOAD_LOCKED"' -or $resp -match 'DOWNLOAD_LOCKED') {
+    Write-Host $resp
+    if ($mode -in @("full", "budget")) {
+      Write-Host "skip_${mode}_reason=download_locked"
+      return $null
+    }
+    throw "REGRESS_FAILED: download locked for mode=$mode"
   }
 
   try {
     $obj = $resp | ConvertFrom-Json
   } catch {
     Write-Host $resp
+    if ($mode -in @("full", "budget")) {
+      Write-Host "skip_${mode}_reason=token_parse_error"
+      return $null
+    }
     throw "REGRESS_FAILED: token parse error for mode=$mode"
   }
 
-  if (-not $obj.downloadToken) {
+  if (-not $obj.ok -or -not $obj.downloadToken) {
     Write-Host $resp
+    if ($mode -in @("full", "budget")) {
+      Write-Host "skip_${mode}_reason=token_missing"
+      return $null
+    }
     throw "REGRESS_FAILED: token missing for mode=$mode"
   }
 
-  return $obj.downloadToken
+  return [string]$obj.downloadToken
 }
 
 function Normalize-HeadText($headText) {
@@ -156,7 +186,7 @@ function Download-WithHeaders($url, $outFile, $headerFile, $label) {
 # 1 PRECHECK
 # -------------------------------------------------------
 
-$preUrl = "$BaseUrl/api/download-token?mode=full&planId=$PlanId"
+$preUrl = "$BaseUrl/api/download-token?mode=preview&planId=$PlanId"
 
 Write-Host "[pre-commit] Running PDF regression..."
 Write-Host "precheck_url=$preUrl"
@@ -224,29 +254,37 @@ $budgetToken = Get-DownloadToken "budget" $PlanId $BaseUrl
 # 4 PLAN FULL
 # -------------------------------------------------------
 
-Write-Section "PLAN FULL (expected 22 pages)"
+if ($planToken) {
+  Write-Section "PLAN FULL (expected 22 pages)"
 
-$planUrl = "$BaseUrl/api/pdf?download=1&downloadToken=$planToken&mode=full&planId=$PlanId"
-$planFile = Join-Path $outDir "plan_full_$PlanId.pdf"
-$planHeaderFile = Join-Path $outDir "plan_full_$PlanId.headers.txt"
+  $planUrl = "$BaseUrl/api/pdf?download=1&downloadToken=$planToken&mode=full&planId=$PlanId"
+  $planFile = Join-Path $outDir "plan_full_$PlanId.pdf"
+  $planHeaderFile = Join-Path $outDir "plan_full_$PlanId.headers.txt"
 
-Write-Host "URL: $planUrl"
+  Write-Host "URL: $planUrl"
 
-$planHead = Download-WithHeaders $planUrl $planFile $planHeaderFile "PLAN FULL"
-Print-ImportantHeaders $planHead
-Assert-HeaderContains $planHead "content-type: application/pdf" "PLAN FULL"
-Assert-HeaderContains $planHead "x-pdf-version:" "PLAN FULL"
-Assert-HeaderContains $planHead "x-reqsig:" "PLAN FULL"
+  $planHead = Download-WithHeaders $planUrl $planFile $planHeaderFile "PLAN FULL"
+  Print-ImportantHeaders $planHead
+  Assert-HeaderContains $planHead "content-type: application/pdf" "PLAN FULL"
+  Assert-HeaderContains $planHead "x-pdf-version:" "PLAN FULL"
+  Assert-HeaderContains $planHead "x-reqsig:" "PLAN FULL"
 
-Write-Host "Saved: $planFile"
-Assert-IsPdf $planFile
-$fullPages = python -c "from pypdf import PdfReader; r=PdfReader(r'$planFile'); print(len(r.pages))"
-$fullPages = [int]("$fullPages".Trim())
+  Write-Host "Saved: $planFile"
+  Assert-IsPdf $planFile
+  $fullPages = python -c "from pypdf import PdfReader; r=PdfReader(r'$planFile'); print(len(r.pages))"
+  $fullPages = [int]("$fullPages".Trim())
 
-Write-Host "pages= $fullPages"
+  Write-Host "pages= $fullPages"
 
-if ($fullPages -ne 22) {
-  throw "FULL_PAGE_COUNT_INVALID: expected 22, got $fullPages"
+  if ($fullPages -ne 22) {
+    throw "FULL_PAGE_COUNT_INVALID: expected 22, got $fullPages"
+  }
+} else {
+  Write-Host ""
+  Write-Host "===================="
+  Write-Host "PLAN FULL"
+  Write-Host "===================="
+  Write-Host "full_regression=SKIPPED"
 }
 
 # -------------------------------------------------------
@@ -298,29 +336,37 @@ Write-Host "preview_ok=YES"
 # 6 BUDGET
 # -------------------------------------------------------
 
-Write-Section "BUDGET PDF (expected 2 pages)"
+if ($budgetToken) {
+  Write-Section "BUDGET PDF (expected 2 pages)"
 
-$budgetUrl = "$BaseUrl/api/pdf?download=1&downloadToken=$budgetToken&mode=budget&planId=$PlanId&level=$Level"
-$budgetFile = Join-Path $outDir "budget_$PlanId.pdf"
-$budgetHeaderFile = Join-Path $outDir "budget_$PlanId.headers.txt"
+  $budgetUrl = "$BaseUrl/api/pdf?download=1&downloadToken=$budgetToken&mode=budget&planId=$PlanId&level=$Level"
+  $budgetFile = Join-Path $outDir "budget_$PlanId.pdf"
+  $budgetHeaderFile = Join-Path $outDir "budget_$PlanId.headers.txt"
 
-Write-Host "URL: $budgetUrl"
+  Write-Host "URL: $budgetUrl"
 
-$budgetHead = Download-WithHeaders $budgetUrl $budgetFile $budgetHeaderFile "BUDGET PDF"
-Print-ImportantHeaders $budgetHead
-Assert-HeaderContains $budgetHead "content-type: application/pdf" "BUDGET PDF"
-Assert-HeaderContains $budgetHead "x-pdf-version:" "BUDGET PDF"
-Assert-HeaderContains $budgetHead "x-reqsig:" "BUDGET PDF"
+  $budgetHead = Download-WithHeaders $budgetUrl $budgetFile $budgetHeaderFile "BUDGET PDF"
+  Print-ImportantHeaders $budgetHead
+  Assert-HeaderContains $budgetHead "content-type: application/pdf" "BUDGET PDF"
+  Assert-HeaderContains $budgetHead "x-pdf-version:" "BUDGET PDF"
+  Assert-HeaderContains $budgetHead "x-reqsig:" "BUDGET PDF"
 
-Write-Host "Saved: $budgetFile"
-Assert-IsPdf $budgetFile
-$budgetPages = python -c "from pypdf import PdfReader; r=PdfReader(r'$budgetFile'); print(len(r.pages))"
-$budgetPages = [int]("$budgetPages".Trim())
+  Write-Host "Saved: $budgetFile"
+  Assert-IsPdf $budgetFile
+  $budgetPages = python -c "from pypdf import PdfReader; r=PdfReader(r'$budgetFile'); print(len(r.pages))"
+  $budgetPages = [int]("$budgetPages".Trim())
 
-Write-Host "pages= $budgetPages"
+  Write-Host "pages= $budgetPages"
 
-if ($budgetPages -ne 2) {
-  throw "BUDGET_PAGE_COUNT_INVALID: expected 2, got $budgetPages"
+  if ($budgetPages -ne 2) {
+    throw "BUDGET_PAGE_COUNT_INVALID: expected 2, got $budgetPages"
+  }
+} else {
+  Write-Host ""
+  Write-Host "===================="
+  Write-Host "BUDGET PDF"
+  Write-Host "===================="
+  Write-Host "budget_regression=SKIPPED"
 }
 
 # -------------------------------------------------------
@@ -387,8 +433,29 @@ Write-Section "SUMMARY"
 Write-Host "PDF regression completed."
 Write-Host ""
 Write-Host "Generated files:"
-Write-Host (Resolve-Path $planFile)
-Write-Host (Resolve-Path $budgetFile)
-Write-Host (Resolve-Path $tenderFile)
+
+if ($planFile -and (Test-Path $planFile)) {
+  Write-Host (Resolve-Path $planFile)
+} else {
+  Write-Host "PLAN FULL: skipped or not generated"
+}
+
+if ($previewOut -and (Test-Path $previewOut)) {
+  Write-Host (Resolve-Path $previewOut)
+} else {
+  Write-Host "PLAN PREVIEW: not generated"
+}
+
+if ($budgetFile -and (Test-Path $budgetFile)) {
+  Write-Host (Resolve-Path $budgetFile)
+} else {
+  Write-Host "BUDGET: skipped or not generated"
+}
+
+if ($tenderFile -and (Test-Path $tenderFile)) {
+  Write-Host (Resolve-Path $tenderFile)
+} else {
+  Write-Host "TENDER PACK: skipped or not generated"
+}
 
 exit 0

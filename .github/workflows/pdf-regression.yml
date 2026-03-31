@@ -1,4 +1,4 @@
-name: PDF Regression
+﻿name: PDF Regression
 
 on:
   pull_request:
@@ -50,7 +50,7 @@ jobs:
     env:
       CI: "true"
       PORT: "3000"
-      # 按你的仓库实际 secrets 保留/补齐
+      # 鎸変綘鐨勪粨搴撳疄闄?secrets 淇濈暀/琛ラ綈
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
       NEXTAUTH_URL: http://127.0.0.1:3000
@@ -94,7 +94,7 @@ jobs:
         shell: bash
         run: |
           for i in {1..90}; do
-            if curl -sS "http://127.0.0.1:3000/api/download-token?mode=full&planId=attaguy-plan" > /dev/null; then
+            if curl -sS "http://127.0.0.1:3000/api/download-token?mode=preview&planId=attaguy-plan" > /dev/null; then
               echo "Server ready"
               exit 0
             fi
