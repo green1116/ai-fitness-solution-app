@@ -3,6 +3,8 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import DownloadPdfButton from "@/components/DownloadPdfButton";
+import DownloadEnterpriseMergedButton from "@/components/DownloadEnterpriseMergedButton";
+import DownloadEnterpriseZipButton from "@/components/DownloadEnterpriseZipButton";
 import DownloadTenderPackButton from "@/components/DownloadTenderPackButton";
 
 type Mode = "client" | "engine";
@@ -153,6 +155,91 @@ export default function ResultPage() {
   const [tenderPackHeadErr, setTenderPackHeadErr] = useState<string>("");
   const [tenderPackHead, setTenderPackHead] = useState<Record<string, string>>({});
 
+  const [tenderRawText, setTenderRawText] = useState("");
+  const [tenderFileName, setTenderFileName] = useState("");
+  const [uploadingTenderFile, setUploadingTenderFile] = useState(false);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  async function safeReadJsonOrText(
+    res: Response
+  ): Promise<{ rawText: string; json: any | null }> {
+    const rawText = await res.text().catch(() => "");
+    if (!rawText) return { rawText: "", json: null };
+
+    try {
+      return {
+        rawText,
+        json: JSON.parse(rawText),
+      };
+    } catch {
+      return {
+        rawText,
+        json: null,
+      };
+    }
+  }
+
+  const handleTenderFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingTenderFile(true);
+
+      const lowerName = file.name.toLowerCase();
+      setTenderFileName(file.name);
+
+      if (
+        lowerName.endsWith(".txt") ||
+        lowerName.endsWith(".md") ||
+        lowerName.endsWith(".csv")
+      ) {
+        const text = await file.text();
+        setTenderRawText(text);
+        return;
+      }
+
+      if (lowerName.endsWith(".pdf") || lowerName.endsWith(".docx")) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch("/api/tender-upload-parse", {
+          method: "POST",
+          body: formData,
+        });
+
+        const { json, rawText } = await safeReadJsonOrText(res);
+
+        if (!res.ok || !json?.ok) {
+          throw new Error(
+            json?.message ||
+              json?.code ||
+              rawText ||
+              `upload parse failed: ${res.status}`
+          );
+        }
+
+        setTenderRawText(String(json?.rawText || ""));
+        setTenderFileName(String(json?.sourceName || file.name));
+        return;
+      }
+
+      throw new Error("暂不支持该文件类型，请上传 txt / pdf / docx");
+    } catch (err: any) {
+      console.error("[handleTenderFileChange] failed", err);
+      alert(err?.message || "文件上传失败，请稍后重试");
+    } finally {
+      setUploadingTenderFile(false);
+      e.target.value = "";
+    }
+  };
+
   const companySizeTier = useMemo(() => headcountToSizeTier(headcount), [headcount]);
   const participationRate = useMemo(
     () => intensityToParticipation(usageIntensity),
@@ -164,9 +251,9 @@ export default function ResultPage() {
     return Math.max(0, v);
   }, [headcount, participationRate]);
 
-  const mode: Mode = modeFromUrl;
-
-  const userPlan: UserPlan = userPlanFromUrl;
+  // 与 SSR 首帧一致：挂载前不读 URL，避免 canUseEnterprise / radio 等与服务器 HTML 不一致导致 hydration mismatch
+  const mode: Mode = mounted ? modeFromUrl : "client";
+  const userPlan: UserPlan = mounted ? userPlanFromUrl : "free";
 
   const canUseEnterprise = mode === "engine" ? true : userPlan === "pro" || userPlan === "tender";
   const canUseGovernment = mode === "engine" ? true : userPlan === "tender";
@@ -755,13 +842,82 @@ export default function ResultPage() {
                 )}
               </div>
 
+              <div className="mt-6">
+                <label className="mb-2 block text-sm font-medium">
+                  招标文本（测试入口）
+                </label>
+
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+                  <input
+                    type="file"
+                    accept=".txt,.md,.csv,.pdf,.docx"
+                    onChange={handleTenderFileChange}
+                    className="block text-sm"
+                  />
+
+                  {uploadingTenderFile ? (
+                    <span className="text-sm opacity-70">解析中...</span>
+                  ) : null}
+
+                  {tenderFileName ? (
+                    <span className="text-sm opacity-70">已载入：{tenderFileName}</span>
+                  ) : null}
+
+                  {!!tenderRawText && !uploadingTenderFile ? (
+                    <span className="text-sm opacity-70">
+                      文本长度：{tenderRawText.length} 字
+                    </span>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTenderRawText("");
+                      setTenderFileName("");
+                    }}
+                    className="rounded-lg border px-3 py-1 text-sm"
+                  >
+                    清空
+                  </button>
+                </div>
+
+                <textarea
+                  value={tenderRawText}
+                  onChange={(e) => setTenderRawText(e.target.value)}
+                  placeholder="可直接粘贴招标文件正文，或上传 txt / pdf / docx 文件后自动填充..."
+                  className="w-full min-h-[220px] rounded-xl border p-3"
+                />
+              </div>
+
               <div className="mt-2 flex flex-wrap gap-4">
                 <DownloadPdfButton
                   planId={planId}
                   defaultMode="full"
                   showBudgetButton={true}
                 />
-                {(userPlan === "tender" || mode === "engine") && (
+                {canUseEnterprise && (
+                  <div className="w-full min-w-[240px] max-w-md space-y-3">
+                    <DownloadEnterpriseMergedButton
+                      planId={planId}
+                      tenderRawText={tenderRawText}
+                      tenderFileName={tenderFileName || "manual-input.txt"}
+                      internalDebug={process.env.NODE_ENV !== "production"}
+                      className="w-full rounded-xl bg-white px-4 py-3 text-black"
+                    >
+                      下载企业投标包 PDF（合并版）
+                    </DownloadEnterpriseMergedButton>
+                    <DownloadEnterpriseZipButton
+                      planId={planId}
+                      tenderRawText={tenderRawText}
+                      tenderFileName={tenderFileName}
+                      internalDebug={process.env.NODE_ENV !== "production"}
+                      className="w-full rounded-xl border px-4 py-3"
+                    >
+                      下载企业投标包 ZIP（结构版）
+                    </DownloadEnterpriseZipButton>
+                  </div>
+                )}
+                {(canUseGovernment || mode === "engine") && (
                   <DownloadTenderPackButton planId={planId} />
                 )}
 

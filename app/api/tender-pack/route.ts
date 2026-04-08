@@ -1,15 +1,39 @@
 // app/api/tender-pack/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
 import JSZip from "jszip";
 import path from "path";
-import fs from "fs/promises";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb } from "pdf-lib";
-import { TOKENS } from "@/lib/pdf/tokens";
 import { parseTenderLevel, type TenderLevel } from "@/lib/pdf/presets";
-import { scanTocAnchors } from "@/lib/pdf/tocAnchors";
+import { renderTenderCoverPdf } from "@/lib/pdf/cover";
 import { logPdfDownloadSafe, getReqIp } from "@/lib/audit/pdfLog";
 import { requireAndConsumeDownloadToken } from "@/lib/license";
+import { DEFAULT_GYM_TECHNICAL_REQUIREMENTS } from "@/lib/pdf/tender/technical-response/presets";
+import { buildTechnicalResponseRows } from "@/lib/pdf/tender/technical-response/buildTechnicalResponseRows";
+import { renderTechnicalResponsePdf } from "@/lib/pdf/tender/renderTechnicalResponsePdf";
+import type { TechnicalEvidenceBlock } from "@/lib/pdf/tender/types";
+import { DEFAULT_GYM_BUSINESS_REQUIREMENTS } from "@/lib/pdf/tender/business-response/presets";
+import { buildBusinessResponseRows } from "@/lib/pdf/tender/business-response/buildBusinessResponseRows";
+import { renderBusinessResponsePdf } from "@/lib/pdf/tender/renderBusinessResponsePdf";
+import { buildTechnicalDeviationRows } from "@/lib/pdf/tender/deviation/buildTechnicalDeviationRows";
+import { buildBusinessDeviationRows } from "@/lib/pdf/tender/deviation/buildBusinessDeviationRows";
+import { renderDeviationTablePdf } from "@/lib/pdf/tender/renderDeviationTablePdf";
+import type { BusinessResponseRow, TechnicalResponseRow } from "@/lib/pdf/tender/types";
+import { DEFAULT_GYM_SCORE_CRITERIA } from "@/lib/pdf/tender/score/presets";
+import { buildScoreMappingRows } from "@/lib/pdf/tender/score/buildScoreMappingRows";
+import { renderScoreMappingPdf } from "@/lib/pdf/tender/renderScoreMappingPdf";
+import { buildParsedTenderResult } from "@/lib/tender-parser/buildParsedTenderResult";
+import type {
+  ParsedBusinessRequirement,
+  ParsedScoreCriterion,
+  ParsedTechnicalRequirement,
+} from "@/lib/tender-parser/types";
+import type {
+  BusinessRequirement,
+  ScoreCriterion,
+  TenderRequirement,
+} from "@/lib/pdf/tender/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,32 +91,6 @@ function ymdTokyo() {
   return `${y}${m}${d}`;
 }
 
-function ymdHumanTokyo() {
-  const fmt = new Intl.DateTimeFormat("zh-CN", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = fmt.formatToParts(new Date());
-  const y = parts.find((p) => p.type === "year")?.value ?? "0000";
-  const m = parts.find((p) => p.type === "month")?.value ?? "00";
-  const d = parts.find((p) => p.type === "day")?.value ?? "00";
-  return `${y}年${m}月${d}日`;
-}
-
-function resolvePackDateYmd(freezeYmd?: string) {
-  return freezeYmd && freezeYmd.trim() ? freezeYmd.trim() : ymdTokyo();
-}
-
-function resolvePackDateHuman(freezeYmd?: string) {
-  const ymd = resolvePackDateYmd(freezeYmd);
-  if (/^\d{8}$/.test(ymd)) {
-    return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`;
-  }
-  return ymdHumanTokyo();
-}
-
 function parseBool01(v: string | null, fallback: boolean) {
   const s = (v ?? "").trim();
   if (!s) return fallback;
@@ -101,21 +99,687 @@ function parseBool01(v: string | null, fallback: boolean) {
   return fallback;
 }
 
-function parseVariant(v: string | null): "sales" | "tender" {
-  return String(v || "").trim().toLowerCase() === "sales" ? "sales" : "tender";
+function budgetSectionsForPack(level: TenderLevel) {
+  if (level === "saas") {
+    return ["header", "overall", "table"].join(",");
+  }
+  if (level === "enterprise") {
+    return [
+      "header",
+      "overall",
+      "table",
+      "pricing_terms",
+      "delivery_terms",
+      "payment_terms",
+      "after_sales",
+      "sign_seal",
+    ].join(",");
+  }
+  return ["header", "overall", "table_lines", "table_items", "remarks"].join(",");
 }
 
-async function mergePdfBuffers(buffers: Buffer[]): Promise<Buffer> {
-  const merged = await PDFDocument.create();
+async function appendDocByCopy(
+  merged: PDFDocument,
+  buf: Uint8Array | Buffer
+) {
+  const src = await PDFDocument.load(buf, { ignoreEncryption: true });
+  const pages = await merged.copyPages(src, src.getPageIndices());
+  for (const p of pages) merged.addPage(p);
+}
 
-  for (const buf of buffers) {
-    const doc = await PDFDocument.load(buf);
-    const pages = await merged.copyPages(doc, doc.getPageIndices());
-    pages.forEach((p) => merged.addPage(p));
+async function appendDocByCropRedraw(
+  merged: PDFDocument,
+  buf: Uint8Array | Buffer,
+  cutBottom = 60
+) {
+  const src = await PDFDocument.load(buf, { ignoreEncryption: true });
+  const srcPages = src.getPages();
+
+  for (const srcPage of srcPages) {
+    const { width, height } = srcPage.getSize();
+    const newPage = merged.addPage([width, height]);
+    const embeddedPage = await merged.embedPage(srcPage);
+
+    newPage.drawPage(embeddedPage, {
+      x: 0,
+      y: cutBottom,
+      width,
+      height: height - cutBottom,
+    });
+  }
+}
+
+const PACK_CROP_BOTTOM = 60;
+
+type MergePart = {
+  name: string;
+  buf: Uint8Array | Buffer;
+  mode: "copy" | "crop";
+  cutBottom?: number;
+};
+
+async function mergePdfBuffers(opts: {
+  parts: MergePart[];
+}): Promise<Buffer> {
+  const merged = await PDFDocument.create();
+  console.log(
+    "[mergePdfBuffers]",
+    opts.parts.map((p, i) => `${i}:${p.name}:${p.mode}`).join(" | ")
+  );
+  for (const part of opts.parts) {
+    if (part.mode === "copy") {
+      await appendDocByCopy(merged, part.buf);
+    } else {
+      await appendDocByCropRedraw(
+        merged,
+        part.buf,
+        part.cutBottom ?? PACK_CROP_BOTTOM
+      );
+    }
+  }
+  return Buffer.from(await merged.save({ useObjectStreams: true }));
+}
+
+function getPackFontPath() {
+  return path.join(process.cwd(), "public", "fonts", "NotoSansSC-Regular.ttf");
+}
+
+function readPackFontBytes() {
+  const fontPath = getPackFontPath();
+  if (!fs.existsSync(fontPath)) {
+    throw new Error(`PACK_FOOTER_FONT_NOT_FOUND: ${fontPath}`);
+  }
+  return fs.readFileSync(fontPath);
+}
+
+async function embedPackFont(doc: PDFDocument) {
+  doc.registerFontkit(fontkit);
+  return await doc.embedFont(readPackFontBytes(), { subset: true });
+}
+
+type GovSectionInput = {
+  planId: string;
+  companyName?: string;
+  projectName?: string;
+  tenderNo?: string;
+  issueDate?: string;
+};
+
+type GovTocEntry = {
+  id: string;
+  title: string;
+  startPage: number;
+};
+
+function drawParagraphLines(
+  page: any,
+  font: any,
+  lines: string[],
+  x: number,
+  startY: number,
+  size = 11,
+  step = 18
+) {
+  let y = startY;
+  for (const line of lines) {
+    page.drawText(line, {
+      x,
+      y,
+      size,
+      font,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+    y -= step;
+  }
+  return y;
+}
+
+async function buildGovSectionShellPdf(opts: {
+  title: string;
+  subtitle?: string;
+  blocks?: string[];
+  input: GovSectionInput;
+}): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([595.28, 841.89]);
+  const font = await embedPackFont(pdf);
+  const { width, height } = page.getSize();
+  const M = 56;
+
+  page.drawText(opts.title, {
+    x: M,
+    y: height - 72,
+    size: 20,
+    font,
+    color: rgb(0.12, 0.12, 0.12),
+  });
+
+  if (opts.subtitle) {
+    page.drawText(opts.subtitle, {
+      x: M,
+      y: height - 98,
+      size: 10,
+      font,
+      color: rgb(0.45, 0.45, 0.45),
+    });
   }
 
-  const bytes = await merged.save();
-  return Buffer.from(bytes);
+  let y = height - 140;
+  const metaLines = [
+    `项目名称：${opts.input.projectName || "-"}`,
+    `投标编号：${opts.input.tenderNo || "-"}`,
+    `投标单位：${opts.input.companyName || "-"}`,
+    `方案编号：${opts.input.planId || "-"}`,
+    `日期：${opts.input.issueDate || "-"}`,
+  ];
+
+  y = drawParagraphLines(page, font, metaLines, M, y, 11, 20);
+  y -= 10;
+
+  for (const block of opts.blocks || []) {
+    const lines = String(block).split("\n");
+    y = drawParagraphLines(page, font, lines, M, y, 11, 18);
+    y -= 14;
+  }
+
+  page.drawLine({
+    start: { x: M, y: 72 },
+    end: { x: width - M, y: 72 },
+    thickness: 0.8,
+    color: rgb(0.86, 0.86, 0.86),
+  });
+
+  return await pdf.save();
+}
+
+async function buildBidLetterPdf(input: GovSectionInput): Promise<Uint8Array> {
+  return buildGovSectionShellPdf({
+    title: "投标函与响应声明",
+    subtitle: "Government Review V2",
+    input,
+    blocks: [
+      "致：招标人/采购人",
+      "我方已认真研究招标文件及相关资料，愿意按照招标文件要求参加本项目投标。",
+      "我方承诺：所提交文件真实、完整、有效，并对响应内容承担相应责任。",
+      "我方同意在中标后按约定完成供货、实施、培训及交付工作。",
+      "",
+      "投标单位（盖章）：",
+      "法定代表人或授权代表：",
+    ],
+  });
+}
+
+function buildBusinessEvidenceBlocks(): TechnicalEvidenceBlock[] {
+  return [
+    {
+      key: "budget.pricing_terms",
+      title: "报价说明",
+      category: "budget",
+      text: "报价口径、配置依据与预算说明。",
+      sectionId: "pricing_terms",
+      pageLabel: "预算与报价相关页",
+      tags: ["报价", "报价说明", "报价依据"],
+    },
+    {
+      key: "budget.payment_terms",
+      title: "付款条款",
+      category: "budget",
+      text: "付款方式与结算安排。",
+      sectionId: "payment_terms",
+      pageLabel: "预算与报价相关页",
+      tags: ["付款方式", "结算", "支付"],
+    },
+    {
+      key: "budget.delivery_terms",
+      title: "交付条款",
+      category: "budget",
+      text: "交付周期与实施安排说明。",
+      sectionId: "delivery_terms",
+      pageLabel: "预算与报价相关页",
+      tags: ["交付周期", "交付安排", "实施周期"],
+    },
+    {
+      key: "budget.after_sales",
+      title: "售后服务条款",
+      category: "service",
+      text: "售后维保与保障措施。",
+      sectionId: "after_sales",
+      pageLabel: "预算与报价相关页",
+      tags: ["售后服务", "维保", "保障"],
+    },
+    {
+      key: "budget.table",
+      title: "预算配置表",
+      category: "budget",
+      text: "配置明细、数量及预算区间。",
+      sectionId: "table",
+      pageLabel: "预算与报价相关页",
+      tags: ["配置明细", "预算", "设备清单"],
+    },
+  ];
+}
+
+function toTenderRequirement(
+  item: ParsedTechnicalRequirement,
+  idx: number
+): TenderRequirement {
+  return {
+    id: item.id || `TR-PARSED-${String(idx + 1).padStart(3, "0")}`,
+    chapter: item.sectionTitle || undefined,
+    category: item.requirementType || "other",
+    text: item.text,
+    requirementType: item.requirementType || "other",
+    priority: item.priority || "must",
+    keywords: item.keywords?.length ? item.keywords : [],
+  };
+}
+
+function toBusinessRequirement(
+  item: ParsedBusinessRequirement,
+  idx: number
+): BusinessRequirement {
+  const requirementType: BusinessRequirement["requirementType"] =
+    item.requirementType === "pricing" ||
+    item.requirementType === "payment" ||
+    item.requirementType === "delivery" ||
+    item.requirementType === "service"
+      ? item.requirementType
+      : "other";
+
+  return {
+    id: item.id || `BR-PARSED-${String(idx + 1).padStart(3, "0")}`,
+    text: item.text,
+    requirementType,
+    priority: item.priority || "must",
+    keywords: item.keywords?.length ? item.keywords : [],
+  };
+}
+
+function toScoreCriterion(
+  item: ParsedScoreCriterion,
+  idx: number
+): ScoreCriterion {
+  const category: ScoreCriterion["category"] =
+    item.category === "technical" ||
+    item.category === "business" ||
+    item.category === "service" ||
+    item.category === "implementation" ||
+    item.category === "price"
+      ? item.category
+      : "other";
+
+  return {
+    id: item.id || `SC-PARSED-${String(idx + 1).padStart(3, "0")}`,
+    scoreItem: item.scoreItem,
+    criteria: item.criteria,
+    keywords: item.keywords?.length ? item.keywords : [],
+    category,
+  };
+}
+
+function buildBusinessRows(input?: {
+  parsedBusinessRequirements?: ParsedBusinessRequirement[];
+}): BusinessResponseRow[] {
+  const requirements =
+    input?.parsedBusinessRequirements?.length
+      ? input.parsedBusinessRequirements.map(toBusinessRequirement)
+      : DEFAULT_GYM_BUSINESS_REQUIREMENTS;
+
+  return buildBusinessResponseRows({
+    requirements,
+    evidenceBlocks: buildBusinessEvidenceBlocks(),
+  });
+}
+
+function buildTechnicalEvidenceBlocks(input: GovSectionInput): TechnicalEvidenceBlock[] {
+  return [
+    {
+      key: "plan.overall",
+      title: "项目概述",
+      category: "space",
+      text: `${input.projectName || "企业健身房建设项目"}整体方案与功能分区规划。`,
+      sectionId: "overall",
+      pageLabel: "建设方案相关页",
+      tags: ["空间规划", "有氧区", "力量区", "自由训练区"],
+    },
+    {
+      key: "plan.implementation",
+      title: "实施安排",
+      category: "implementation",
+      text: "实施步骤、交付安排与落地建议。",
+      sectionId: "implementation",
+      pageLabel: "建设方案相关页",
+      tags: ["实施安排", "交付计划", "落地建议"],
+    },
+    {
+      key: "plan.after_sales",
+      title: "售后服务",
+      category: "service",
+      text: "售后服务、运维支持和后续保障机制。",
+      sectionId: "after_sales",
+      pageLabel: "建设方案相关页",
+      tags: ["售后服务", "运维支持", "保障方案"],
+    },
+    {
+      key: "budget.table",
+      title: "预算配置表",
+      category: "budget",
+      text: "设备配置、数量与预算测算区间。",
+      sectionId: "table",
+      pageLabel: "预算与报价相关页",
+      tags: ["设备清单", "配置明细", "预算"],
+    },
+  ];
+}
+
+function buildTechnicalRows(input: GovSectionInput & {
+  parsedTechnicalRequirements?: ParsedTechnicalRequirement[];
+}): TechnicalResponseRow[] {
+  const requirements =
+    input.parsedTechnicalRequirements?.length
+      ? input.parsedTechnicalRequirements.map(toTenderRequirement)
+      : DEFAULT_GYM_TECHNICAL_REQUIREMENTS;
+
+  return buildTechnicalResponseRows({
+    requirements,
+    evidenceBlocks: buildTechnicalEvidenceBlocks(input),
+  });
+}
+
+async function buildBusinessTermsResponsePdf(
+  rows: BusinessResponseRow[]
+): Promise<Uint8Array> {
+  console.log("[business-response] rows=", rows.length);
+
+  const rendered = await renderBusinessResponsePdf({
+    title: "商务响应表",
+    rows: rows.map((r) => ({
+      clause: r.clause,
+      response: r.response,
+      status: r.status,
+    })),
+  });
+  console.log("[business-response] pages=", rendered.pageCount);
+  return rendered.bytes;
+}
+
+async function buildTechnicalResponsePdf(
+  rows: TechnicalResponseRow[]
+): Promise<Uint8Array> {
+  console.log("[technical-response] rows=", rows.length);
+
+  const rendered = await renderTechnicalResponsePdf({
+    title: "技术响应表",
+    rows: rows.map((r) => ({
+      requirement: r.requirement,
+      response: r.response,
+      proof: r.proof,
+      status: r.status,
+    })),
+  });
+  console.log("[technical-response] pages=", rendered.pageCount);
+  return rendered.bytes;
+}
+
+async function buildBusinessDeviationPdf(
+  rows: BusinessResponseRow[]
+): Promise<Uint8Array> {
+  const deviationRows = buildBusinessDeviationRows(rows);
+  const rendered = await renderDeviationTablePdf({
+    title: "商务偏离表",
+    rows: deviationRows.map((r) => ({
+      clause: r.clause,
+      responseSummary: r.responseSummary,
+      deviationStatus: r.deviationStatus,
+      deviationType: r.deviationType,
+    })),
+  });
+  console.log("[business-deviation] rows=", deviationRows.length, "pages=", rendered.pageCount);
+  return rendered.bytes;
+}
+
+async function buildTechnicalDeviationPdf(
+  rows: TechnicalResponseRow[]
+): Promise<Uint8Array> {
+  const deviationRows = buildTechnicalDeviationRows(rows);
+  const rendered = await renderDeviationTablePdf({
+    title: "技术偏离表",
+    rows: deviationRows.map((r) => ({
+      clause: r.clause,
+      responseSummary: r.responseSummary,
+      deviationStatus: r.deviationStatus,
+      deviationType: r.deviationType,
+    })),
+  });
+  console.log("[technical-deviation] rows=", deviationRows.length, "pages=", rendered.pageCount);
+  return rendered.bytes;
+}
+
+async function buildScoreMappingPdf(input: {
+  technicalRows: TechnicalResponseRow[];
+  businessRows: BusinessResponseRow[];
+  parsedScoreCriteria?: ParsedScoreCriterion[];
+}): Promise<Uint8Array> {
+  const criteria =
+    input.parsedScoreCriteria?.length
+      ? input.parsedScoreCriteria.map(toScoreCriterion)
+      : DEFAULT_GYM_SCORE_CRITERIA;
+
+  const scoreRows = buildScoreMappingRows({
+    criteria,
+    technicalRows: input.technicalRows,
+    businessRows: input.businessRows,
+  });
+  console.log("[score-mapping] rows=", scoreRows.length);
+
+  const rendered = await renderScoreMappingPdf({
+    title: "评分对照页",
+    rows: scoreRows.map((r) => ({
+      scoreItem: r.scoreItem,
+      criteria: r.criteria,
+      proof: r.proof,
+      responseSummary: r.responseSummary,
+    })),
+  });
+  console.log("[score-mapping] pages=", rendered.pageCount);
+  return rendered.bytes;
+}
+
+async function buildAttachmentIndexPdf(
+  input: GovSectionInput
+): Promise<Uint8Array> {
+  return buildGovSectionShellPdf({
+    title: "附件索引页",
+    subtitle: "Government Review V2",
+    input,
+    blocks: [
+      "本页为附件索引骨架页。",
+      "",
+      "建议附件目录：",
+      "1. 公司营业执照/资质证明",
+      "2. 法定代表人身份证明",
+      "3. 授权委托书",
+      "4. 类似项目业绩证明",
+      "5. 产品说明书/检测报告",
+      "6. 实施方案与售后服务承诺",
+    ],
+  });
+}
+
+/** 企业投标包 · brand 主题：目录中的「商务说明」单页 */
+async function buildEnterpriseBrandBusinessNotePdf(
+  input: GovSectionInput
+): Promise<Uint8Array> {
+  return buildGovSectionShellPdf({
+    title: "商务说明",
+    subtitle: "Enterprise Pack · Brand",
+    input,
+    blocks: [
+      "本页为企业投标包（品牌主题）商务说明概要。",
+      "报价范围、交付周期、付款与质保等以双方确认的版本为准。",
+      "如需补充公司资质与案例，可在本页后随附件提供。",
+    ],
+  });
+}
+
+async function buildGovernmentTocPdf(
+  input: GovSectionInput,
+  entries: GovTocEntry[],
+  tocOpts?: { tocTitle?: string }
+): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([595.28, 841.89]);
+  const font = await embedPackFont(pdf);
+  const { width, height } = page.getSize();
+  const M = 56;
+
+  const tocTitle = tocOpts?.tocTitle?.trim() || "政府评审版目录";
+
+  page.drawText(tocTitle, {
+    x: M,
+    y: height - 72,
+    size: 20,
+    font,
+    color: rgb(0.12, 0.12, 0.12),
+  });
+
+  page.drawText(`项目：${input.projectName || "-"}`, {
+    x: M,
+    y: height - 100,
+    size: 10,
+    font,
+    color: rgb(0.45, 0.45, 0.45),
+  });
+
+  let y = height - 150;
+  for (const entry of entries) {
+    page.drawText(entry.title, {
+      x: M,
+      y,
+      size: 11,
+      font,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+
+    const pageText = String(entry.startPage);
+    const w = font.widthOfTextAtSize(pageText, 11);
+    page.drawText(pageText, {
+      x: width - M - w,
+      y,
+      size: 11,
+      font,
+      color: rgb(0.2, 0.2, 0.2),
+    });
+    y -= 24;
+  }
+
+  return await pdf.save();
+}
+
+async function restampPackPagination(
+  mergedBytes: Uint8Array,
+  opts: {
+    level: TenderLevel;
+    planId: string;
+  }
+): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(mergedBytes, { ignoreEncryption: true });
+  doc.registerFontkit(fontkit);
+
+  const fontPath = path.join(
+    process.cwd(),
+    "public",
+    "fonts",
+    "NotoSansSC-Regular.ttf"
+  );
+
+  if (!fs.existsSync(fontPath)) {
+    throw new Error(`PACK_FOOTER_FONT_NOT_FOUND: ${fontPath}`);
+  }
+
+  const fontBytes = fs.readFileSync(fontPath);
+  const font = await doc.embedFont(fontBytes, { subset: true });
+  const pages = doc.getPages();
+  const total = pages.length;
+
+  const label =
+    opts.level === "government"
+      ? "政府评审版"
+      : opts.level === "enterprise"
+        ? "企业投标版"
+        : "专业版";
+
+  const footerFontSize = 9;
+  const footerColor = rgb(0.42, 0.42, 0.42);
+
+  for (let i = 0; i < total; i++) {
+    const page = pages[i];
+    const { width, height } = page.getSize();
+
+    const coverX = 0;
+    const coverY = 0;
+    const coverW = width;
+    const coverH = 110;
+
+    page.drawRectangle({
+      x: coverX,
+      y: coverY,
+      width: coverW,
+      height: coverH,
+      color: rgb(1, 1, 1),
+      borderWidth: 0,
+    });
+
+    page.drawRectangle({
+      x: 0,
+      y: 0,
+      width,
+      height: 110,
+      color: rgb(1, 1, 1),
+      opacity: 1,
+      borderWidth: 0,
+    });
+
+    page.drawRectangle({
+      x: 0,
+      y: 0,
+      width,
+      height: 110,
+      color: rgb(1, 1, 1),
+      borderWidth: 0,
+    });
+
+    page.drawLine({
+      start: { x: 28, y: 70 },
+      end: { x: width - 28, y: 70 },
+      thickness: 0.8,
+      color: rgb(0.85, 0.85, 0.85),
+    });
+
+    const leftText = `AI Fitness Solution · ${label}`;
+    const rightText = `第 ${i + 1} 页 / 共 ${total} 页`;
+    const leftSize = font.widthOfTextAtSize(leftText, footerFontSize);
+    const rightSize = font.widthOfTextAtSize(rightText, footerFontSize);
+    const footerY = 50;
+
+    page.drawText(leftText, {
+      x: 28,
+      y: footerY,
+      size: footerFontSize,
+      font,
+      color: footerColor,
+    });
+
+    page.drawText(rightText, {
+      x: width - 28 - rightSize,
+      y: footerY,
+      size: footerFontSize,
+      font,
+      color: footerColor,
+    });
+  }
+
+  return await doc.save();
 }
 
 function getInternalPackHeaders(): Record<string, string> {
@@ -148,37 +812,21 @@ async function fetchPdfBytes(url: string, timeoutMs = 45000) {
         // ignore
       }
       throw new Error(
-        `Upstream /api/pdf failed: ${res.status} ${res.statusText}${
+        `Upstream PDF failed: ${res.status} ${res.statusText}${
           errText ? ` | ${errText.slice(0, 1200)}` : ""
         }`
       );
     }
 
-    const ab = await res.arrayBuffer();
-    return Buffer.from(ab);
+    return Buffer.from(await res.arrayBuffer());
   } finally {
     clearTimeout(t);
   }
 }
 
-async function fetchReqSigHead(url: string) {
-  const internalHeaders = getInternalPackHeaders();
-  const res = await fetch(url, {
-    method: "HEAD",
-    cache: "no-store",
-    headers: { Accept: "application/pdf", ...internalHeaders },
-  });
-  if (!res.ok) return null;
-  const sig = (res.headers.get("x-reqsig") || res.headers.get("X-REQSIG") || "").trim();
-  return sig || null;
-}
-
-async function tryReadFile(p: string) {
-  try {
-    return await fs.readFile(p);
-  } catch {
-    return null;
-  }
+async function getPageCount(bytes: Uint8Array | Buffer) {
+  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  return doc.getPageCount();
 }
 
 async function assertPdfOk(bytes: Buffer, name: string) {
@@ -186,8 +834,7 @@ async function assertPdfOk(bytes: Buffer, name: string) {
     throw new Error(`${name} too small (${bytes?.length ?? 0} bytes)`);
   }
   try {
-    const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
-    const pages = doc.getPageCount();
+    const pages = await getPageCount(bytes);
     if (!pages || pages <= 0) throw new Error("0 pages");
     return pages;
   } catch (e: any) {
@@ -195,906 +842,166 @@ async function assertPdfOk(bytes: Buffer, name: string) {
   }
 }
 
-async function loadBrandAssets(doc: PDFDocument) {
-  doc.registerFontkit(fontkit);
+type TenderPackExtra = Record<string, never>;
 
-  const fontPath = path.join(
-    process.cwd(),
-    "public",
-    "fonts",
-    "NotoSansSC-Regular.ttf"
-  );
-  const fontBytes = await fs.readFile(fontPath);
-  const font = await doc.embedFont(fontBytes, { subset: true });
-
-  const logoPath = path.join(process.cwd(), "public", "brand", "logo.png");
-  const logoBytes = await tryReadFile(logoPath);
-  const logo = logoBytes ? await doc.embedPng(logoBytes) : null;
-
-  return { font, logo };
-}
-
-/**
- * ✅ pack 预算 sections（预算不输出 footer，避免 merged 后双页码）
- */
-function budgetSectionsForPack(level: TenderLevel) {
-  if (level === "saas") {
-    return ["header", "overall", "table"].join(",");
-  }
-  if (level === "enterprise") {
-    return [
-      "header",
-      "overall",
-      "table",
-      "pricing_terms",
-      "delivery_terms",
-      "payment_terms",
-      "after_sales",
-      "sign_seal",
-    ].join(",");
-  }
-  return [
-    "header",
-    "overall",
-    "table",
-    "pricing_terms",
-    "delivery_terms",
-    "payment_terms",
-    "after_sales",
-    "sign_seal",
-    "attachments",
-  ].join(",");
-}
-
-/**
- * ✅ V7：merged 后统一重打页码（packFooter=0 可关闭）
- * 页脚格式：左侧标书编号与投标人；右侧第 X 页 / 共 Y 页
- */
-async function stampMergedPageNumbers(opts: {
-  bytes: Buffer;
-  skipFirstPages: number;
-  footerLeft?: string;
-  footerSigShort?: string; // ✅ 新增
-}) {
-  const { bytes, skipFirstPages, footerLeft, footerSigShort } = opts;
-
-  const doc = await PDFDocument.load(bytes);
-  doc.registerFontkit(fontkit);
-
-  const fontPath = path.join(
-    process.cwd(),
-    "public",
-    "fonts",
-    "NotoSansSC-Regular.ttf"
-  );
-  const fontBytes = await fs.readFile(fontPath);
-  const font = await doc.embedFont(fontBytes, { subset: true });
-
-  const pages = doc.getPages();
-  const total = pages.length;
-
-  for (let i = 0; i < pages.length; i++) {
-    const pageIndex1 = i + 1;
-    if (pageIndex1 <= skipFirstPages) continue;
-
-    const p = pages[i];
-    const { width } = p.getSize();
-
-    const text = `第 ${pageIndex1} 页 / 共 ${total} 页`;
-    const size = 9;
-    const y = 18;
-    const leftX = 60;
-    const rightX = width - 60;
-
-    if (footerLeft) {
-      p.drawText(footerLeft, {
-        x: leftX,
-        y,
-        size,
-        font,
-        color: rgb(0.35, 0.35, 0.35),
-      });
-    }
-
-    const tw = font.widthOfTextAtSize(text, size);
-    p.drawText(text, {
-      x: rightX - tw,
-      y,
-      size,
-      font,
-      color: rgb(0.35, 0.35, 0.35),
-    });
-
-    // ✅ 验真码：放在页码左侧
-    const sigShort = (footerSigShort || "").trim();
-    if (sigShort) {
-      const sigText = `验真码：${sigShort}`;
-      const sw = font.widthOfTextAtSize(sigText, size);
-      // 放在页码左侧一点点
-      p.drawText(sigText, {
-        x: rightX - tw - 18 - sw,
-        y,
-        size,
-        font,
-        color: rgb(0.35, 0.35, 0.35),
-      });
-    }
-  }
-
-  const out = await doc.save();
-  return Buffer.from(out);
-}
-
-/**
- * ✅ V7：目录行（支持 L1/L2 字体层级、缩进、点线引导）
- */
-function drawTocRowV7(opts: {
-  page: any;
-  font: any;
-  x: number;
-  y: number;
-  left: string;
-  right: string;
-  maxWidth: number;
-  level: 1 | 2;
-}) {
-  const { page, font, x, y, left, right, maxWidth, level } = opts;
-
-  const leftText = left.trim();
-  const rightText = right.trim();
-
-  const sizeLeft = level === 1 ? 14 : 12;
-  const sizeRight = 12;
-
-  const indent = level === 1 ? 0 : 18;
-  const xL = x + indent;
-
-  const leftW = font.widthOfTextAtSize(leftText, sizeLeft);
-  const rightW = font.widthOfTextAtSize(rightText, sizeRight);
-
-  // 右侧页码贴右
-  const rightX = x + maxWidth - rightW;
-  page.drawText(rightText, {
-    x: rightX,
-    y,
-    size: sizeRight,
-    font,
-    color: rgb(0.2, 0.2, 0.2),
-  });
-
-  // 左侧标题
-  page.drawText(leftText, {
-    x: xL,
-    y,
-    size: sizeLeft,
-    font,
-    color: rgb(0.12, 0.12, 0.12),
-  });
-
-  // L2 才画点线引导（L1 不画，避免“像目录树”）
-  if (level === 2) {
-    const dotsStartX = xL + leftW + 10;
-    const dotsEndX = rightX - 10;
-    if (dotsEndX > dotsStartX) {
-      const dotChar = "·";
-      const dotW = font.widthOfTextAtSize(dotChar, sizeLeft);
-      const maxDots = Math.floor((dotsEndX - dotsStartX) / dotW);
-      const dots = dotChar.repeat(Math.max(0, Math.min(maxDots, 220)));
-      page.drawText(dots, {
-        x: dotsStartX,
-        y,
-        size: sizeLeft,
-        font,
-        color: rgb(0.68, 0.68, 0.68),
-      });
-    }
-  }
-}
-
-type TocLine = {
-  level: 1 | 2;
-  title: string;
-  page: number; // 统一合并页码（1-based）
+type TenderParseInput = {
+  tenderRawText: string;
+  tenderFileName: string;
 };
 
-/**
- * Helper: 统一 LOGO 顶部对齐绘制（封面/声明/目录都调用，保证同一基线与缩放）
- */
-function drawLogoTopLeft(opts: {
-  page: any;
-  logo: any; // PDFImage (embedPng返回)
-  marginX: number; // 左边距（你现在用 60）
-  topY: number; // 距离页面顶部的"基线"位置（推荐 A4_H - 80）
-  maxW: number; // 最大宽度（推荐 150~170）
-}) {
-  const { page, logo, marginX, topY, maxW } = opts;
-  if (!logo) return;
-
-  // 保持等比缩放，以 maxW 为宽上限
-  const scale = Math.min(1, maxW / logo.width);
-  const w = logo.width * scale;
-  const h = logo.height * scale;
-
-  // ✅ 统一基线：topY 是 logo 顶边位置，而不是 bottom
-  const y = topY - h;
-  page.drawImage(logo, { x: marginX, y, width: w, height: h });
+function cleanInputText(v: unknown): string {
+  return String(v ?? "").replace(/\u0000/g, "").trim();
 }
 
-/**
- * ✅ V7：封面 + 目录（2页）
- * - 封面标题更像“技术标”
- * - 目录自动编号（1.1/1.2/2.1/2.2）
- * - 字体层级：L1 14；L2 12
- */
-async function buildCoverAndTocPdfV7(opts: {
-  planId: string;
-  companyName: string;
-  bidderName: string;
-  theme: string;
-  watermark: string;
-  tz: string;
-  level: TenderLevel;
-  variant: "sales" | "tender";
-  tenderNo: string;
-  freezeYmd?: string;
+async function tryReadJsonBody(req: NextRequest): Promise<any | null> {
+  const method = (req.method || "GET").toUpperCase();
+  if (method === "GET" || method === "HEAD") return null;
 
-  pdfVersionPlan: string;
-  pdfVersionBudget: string;
-  planPages: number;
-  budgetPages: number;
+  const contentType = req.headers.get("content-type") || "";
+  console.log("[tryReadJsonBody]", { method, contentType });
 
-  includeDeclaration: boolean;
-  declarationPages: number;
+  if (!contentType.includes("application/json")) return null;
 
-  tocLines: TocLine[];
-  totalPages: number; // 合并阅读顺序总页数（最后一页的页码）
-}) {
-  const {
-    planId,
-    companyName,
-    bidderName,
-    theme,
-    watermark,
-    tz,
-    level,
-    variant,
-    tenderNo,
-    freezeYmd,
-    pdfVersionPlan,
-    pdfVersionBudget,
-    planPages,
-    budgetPages,
-    includeDeclaration,
-    declarationPages,
-    tocLines,
-    totalPages,
-  } = opts;
-
-  const doc = await PDFDocument.create();
-  const { font, logo } = await loadBrandAssets(doc);
-
-  const A4_W = 595.28;
-  const A4_H = 841.89;
-
-  const LOGO_MARGIN_X = 60;
-  const LOGO_TOP_Y = A4_H - 70;
-  const LOGO_MAX_W = 150;
-
-  const dateYMD = resolvePackDateYmd(freezeYmd);
-  const dateHuman = resolvePackDateHuman(freezeYmd);
-
-  // -------- 封面页 V3 投标风格 --------
-  const cover = doc.addPage([A4_W, A4_H]);
-  const marginX = TOKENS.marginX;
-  const M = marginX;
-
-  // 上半区：品牌色块 + 主副标题
-  cover.drawRectangle({
-    x: 0,
-    y: A4_H - 140,
-    width: A4_W,
-    height: 140,
-    color: TOKENS.colorBrand,
-  });
-
-  const coverTitle =
-    variant === "tender" ? "企业健身空间建设投标方案" : "企业健身空间建设方案";
-  const coverSubTitle =
-    variant === "tender"
-      ? "Enterprise Fitness Solution Tender Proposal"
-      : "Enterprise Fitness Solution Proposal";
-
-  cover.drawText(coverTitle, {
-    x: 56,
-    y: A4_H - 88,
-    size: 26,
-    font,
-    color: rgb(1, 1, 1),
-  });
-
-  cover.drawText(coverSubTitle, {
-    x: 56,
-    y: A4_H - 112,
-    size: 11,
-    font,
-    color: rgb(0.92, 0.95, 1),
-  });
-
-  // 中段：两列信息
-  let infoY = A4_H - 200;
-  const col1X = M;
-  const col2X = A4_W / 2 + 20;
-  const rowH = 24;
-  const infoPairs: Array<[string, string][]> = [
-    [
-      ["委托单位", companyName?.trim() ? companyName.trim() : planId],
-      ["企业规模", `${planId}（详见正文）`],
-      ["场地面积", "约 120m²（详见正文）"],
-    ],
-    [
-      ["预算范围", "详见预算报告"],
-      ["报告日期", dateYMD],
-      ["文档版本", `${pdfVersionPlan} / ${pdfVersionBudget}`],
-    ],
-  ];
-
-  for (let col = 0; col < 2; col++) {
-    const baseX = col === 0 ? col1X : col2X;
-    let yy = infoY;
-    for (const [label, value] of infoPairs[col]) {
-      cover.drawText(`${label}：`, {
-        x: baseX,
-        y: yy,
-        size: TOKENS.fsBody,
-        font,
-        color: TOKENS.colorSubtle,
-      });
-      cover.drawText(value, {
-        x: baseX + 80,
-        y: yy,
-        size: TOKENS.fsBody,
-        font,
-        color: TOKENS.colorText,
-      });
-      yy -= rowH;
-    }
-  }
-
-  // 签章区
-  const boxW = 240;
-  const boxH = 150;
-  const boxX = A4_W - M - boxW;
-  const boxY = 105;
-
-  cover.drawRectangle({
-    x: boxX,
-    y: boxY,
-    width: boxW,
-    height: boxH,
-    borderWidth: 1,
-    borderColor: TOKENS.colorLine,
-  });
-
-  cover.drawText("签章区（盖章处）", {
-    x: boxX + 12,
-    y: boxY + boxH - 26,
-    size: TOKENS.fsH3,
-    font,
-    color: TOKENS.colorText,
-  });
-
-  cover.drawLine({
-    start: { x: boxX, y: boxY + boxH - 34 },
-    end: { x: boxX + boxW, y: boxY + boxH - 34 },
-    thickness: 1,
-    color: TOKENS.colorLine,
-  });
-
-  let sy = boxY + boxH - 62;
-  const stampLines: Array<[string, string]> = [
-    ["投标人（盖章）：", "__________________"],
-    ["授权代表：", "__________________"],
-    ["日期：", dateHuman],
-  ];
-  for (const [k, v] of stampLines) {
-    cover.drawText(k, { x: boxX + 12, y: sy, size: 11, font, color: TOKENS.colorSubtle });
-    cover.drawText(v, { x: boxX + 92, y: sy, size: 11, font, color: TOKENS.colorText });
-    sy -= 24;
-  }
-
-  // 下半区：机密 + 出具单位
-  cover.drawText("机密 / Confidential", {
-    x: M,
-    y: 75,
-    size: TOKENS.fsSmall,
-    font,
-    color: TOKENS.colorSubtle,
-  });
-
-  cover.drawText("出具单位：AI Fitness Solution", {
-    x: M,
-    y: 55,
-    size: TOKENS.fsSmall,
-    font,
-    color: TOKENS.colorSubtle,
-  });
-
-  cover.drawText("说明：本文件为系统生成稿，正式递交前请核对项目信息、版本号与签章。", {
-    x: M,
-    y: 35,
-    size: 9,
-    font,
-    color: TOKENS.colorSubtle,
-  });
-
-  // -------- 目录页 --------
-  const toc = doc.addPage([A4_W, A4_H]);
-
-  toc.drawText("目录", {
-    x: marginX,
-    y: A4_H - 90,
-    size: 22,
-    font,
-    color: rgb(0.1, 0.1, 0.1),
-  });
-
-  toc.drawText(`文件页码（合并阅读顺序）：总计 ${totalPages} 页`, {
-    x: marginX,
-    y: A4_H - 120,
-    size: 11.5,
-    font,
-    color: rgb(0.35, 0.35, 0.35),
-  });
-
-  const tocX = marginX;
-  const tocW = A4_W - marginX * 2;
-  let ty = A4_H - 170;
-
-  const rowH_L1 = 28;
-  const rowH_L2 = 24;
-
-  for (const line of tocLines) {
-    drawTocRowV7({
-      page: toc,
-      font,
-      x: tocX,
-      y: ty,
-      left: line.title,
-      right: String(line.page),
-      maxWidth: tocW,
-      level: line.level,
-    });
-    ty -= line.level === 1 ? rowH_L1 : rowH_L2;
-
-    // 防止溢出：如果超出页面，宁可截断（你当前目录很短，不会触发）
-    if (ty < 110) break;
-  }
-
- // ✅ V7.1：页码口径说明（评审关心）
-  toc.drawText("页码说明：本目录页码为“合并阅读顺序”的统一页码，用于评审引用与对照。", {
-    x: marginX,
-    y: 92,
-    size: 10.5,
-    font,
-    color: rgb(0.35, 0.35, 0.35),
-  });
-  toc.drawText("目录仅展示二级结构；章节内细项请在正文相应小节中查阅。", {
-    x: marginX,
-    y: 70,
-    size: 10.5,
-    font,
-    color: rgb(0.35, 0.35, 0.35),
-  });
-
-  const bytes = await doc.save();
-  return Buffer.from(bytes);
-}
-
-/**
- * V3 结论与建议页（1页）- 落版页
- */
-async function buildConclusionPdf(opts: {
-  planId: string;
-  companyName: string;
-}) {
-  const { planId, companyName } = opts;
-
-  const doc = await PDFDocument.create();
-  const { font } = await loadBrandAssets(doc);
-
-  const fontBold = font;
-  const A4_W = 595.28;
-  const A4_H = 841.89;
-  const M = TOKENS.marginX;
-  let y = A4_H - 80;
-
-  const page = doc.addPage([A4_W, A4_H]);
-
-  // 标题
-  page.drawRectangle({
-    x: M,
-    y: y - 8,
-    width: 6,
-    height: 22,
-    color: TOKENS.colorBrand,
-  });
-  page.drawText("结论与建议", {
-    x: M + 14,
-    y,
-    size: TOKENS.fsH2,
-    font: fontBold,
-    color: TOKENS.colorText,
-  });
-  y -= 40;
-
-  page.drawText("项目结论", {
-    x: M,
-    y,
-    size: TOKENS.fsH3,
-    font: fontBold,
-    color: TOKENS.colorText,
-  });
-  y -= 20;
-
-  const conclusionText =
-    `综合企业规模、场地条件与预算区间，${companyName || planId} 适合建设企业健身空间。本方案在约 120m² 场地条件下，可形成有氧、力量及基础拉伸功能的综合配置体系，兼顾安全性、耐用性与长期使用价值。`;
-  page.drawText(conclusionText, {
-    x: M,
-    y,
-    size: TOKENS.fsBody,
-    font,
-    color: TOKENS.colorText,
-  });
-  y -= 50;
-
-  page.drawText("推荐实施路径", {
-    x: M,
-    y,
-    size: TOKENS.fsH3,
-    font: fontBold,
-    color: TOKENS.colorText,
-  });
-  y -= 22;
-
-  const phases = [
-    "第一期：基础建设 — 场地规划、设备采购与安装",
-    "第二期：设备补充 — 根据实际使用情况优化配置",
-    "第三期：运营优化 — 维护、培训与持续改进",
-  ];
-  for (const p of phases) {
-    page.drawText(`• ${p}`, {
-      x: M + 12,
-      y,
-      size: TOKENS.fsBody,
-      font,
-      color: TOKENS.colorText,
-    });
-    y -= 22;
-  }
-  y -= 20;
-
-  page.drawText("风险与说明", {
-    x: M,
-    y,
-    size: TOKENS.fsH3,
-    font: fontBold,
-    color: TOKENS.colorText,
-  });
-  y -= 22;
-
-  const risks = [
-    "最终预算以现场复尺为准",
-    "运输与安装按地区调整",
-    "品牌可替换为同档次型号",
-  ];
-  for (const r of risks) {
-    page.drawText(`• ${r}`, {
-      x: M + 12,
-      y,
-      size: TOKENS.fsBody,
-      font,
-      color: TOKENS.colorText,
-    });
-    y -= 22;
-  }
-
-  const bytes = await doc.save();
-  return Buffer.from(bytes);
-}
-
-/**
- * 声明与承诺函（1页）
- */
-async function buildDeclarationPdf(opts: {
-  planId: string;
-  companyName: string;
-  bidderName: string;
-  tenderNo: string;
-  freezeYmd?: string;
-  pdfVersionPlan: string;
-  pdfVersionBudget: string;
-  planPages: number;
-  budgetPages: number;
-}) {
-  const {
-    planId,
-    companyName,
-    bidderName,
-    tenderNo,
-    freezeYmd,
-    pdfVersionPlan,
-    pdfVersionBudget,
-    planPages,
-    budgetPages,
-  } = opts;
-
-  const doc = await PDFDocument.create();
-  const { font, logo } = await loadBrandAssets(doc);
-
-  const A4_W = 595.28;
-  const A4_H = 841.89;
-  const marginX = 60;
-
-  const LOGO_MARGIN_X = 60;
-  const LOGO_TOP_Y = A4_H - 70;
-  const LOGO_MAX_W = 150;
-
-  const dateHuman = resolvePackDateHuman(freezeYmd);
-
-  const page = doc.addPage([A4_W, A4_H]);
-
-  if (logo) {
-    drawLogoTopLeft({
-      page,
-      logo,
-      marginX: LOGO_MARGIN_X,
-      topY: LOGO_TOP_Y,
-      maxW: LOGO_MAX_W,
-    });
-  }
-
-  page.drawText("投标声明与承诺函", {
-    x: marginX,
-    y: A4_H - 140,
-    size: 22,
-    font,
-    color: rgb(0.1, 0.1, 0.1),
-  });
-
-  const unit = companyName?.trim() ? companyName.trim() : planId;
-  const bidder = (bidderName || "AI Fitness Solution").trim();
-
-  let y = A4_H - 190;
-
-  page.drawText(`致：${unit}`, {
-    x: marginX,
-    y,
-    size: 12.5,
-    font,
-    color: rgb(0.15, 0.15, 0.15),
-  });
-  y -= 26;
-
-  const bodyLines = [
-    `我们（投标人：${bidder}）就“企业健身房建设项目”投标事宜，郑重声明并承诺如下：`,
-    "1. 我方已充分理解并接受贵方对本项目的相关要求，所提交资料真实、完整、有效。",
-    "2. 我方保证投标文件中所列配置、报价及说明均为客观陈述，不含虚假或误导性内容。",
-    "3. 若我方中标，将严格按约定组织实施，确保质量、安全与交付节点，接受贵方监督管理。",
-    "4. 我方承诺遵守有关法律法规及贵方合规要求，承担相应责任与义务。",
-    "",
-    `附件文件版本：方案 ${pdfVersionPlan}（${planPages} 页），预算 ${pdfVersionBudget}（${budgetPages} 页）`,
-    `标书编号：${tenderNo}`,
-  ];
-
-  const lineH = 18;
-  for (const line of bodyLines) {
-    page.drawText(line, {
-      x: marginX,
-      y,
-      size: 11.5,
-      font,
-      color: rgb(0.18, 0.18, 0.18),
-    });
-    y -= lineH;
-  }
-
-  const boxW = 420;
-  const boxH = 160;
-  const boxX = marginX;
-  const boxY = 110;
-
-  page.drawRectangle({
-    x: boxX,
-    y: boxY,
-    width: boxW,
-    height: boxH,
-    borderWidth: 1,
-    borderColor: rgb(0.6, 0.6, 0.6),
-  });
-
-  page.drawText("签章与确认", {
-    x: boxX + 12,
-    y: boxY + boxH - 26,
-    size: 12,
-    font,
-    color: rgb(0.2, 0.2, 0.2),
-  });
-
-  page.drawLine({
-    start: { x: boxX, y: boxY + boxH - 34 },
-    end: { x: boxX + boxW, y: boxY + boxH - 34 },
-    thickness: 1,
-    color: rgb(0.85, 0.85, 0.85),
-  });
-
-  const leftX = boxX + 16;
-  const rightX = boxX + 220;
-  const startY = boxY + boxH - 64;
-
-  page.drawText("投标人（盖章）：__________________", {
-    x: leftX,
-    y: startY,
-    size: 11.5,
-    font,
-    color: rgb(0.25, 0.25, 0.25),
-  });
-  page.drawText("法定代表人/授权代表：______________", {
-    x: leftX,
-    y: startY - 26,
-    size: 11.5,
-    font,
-    color: rgb(0.25, 0.25, 0.25),
-  });
-  page.drawText(`日期：${dateHuman}`, {
-    x: leftX,
-    y: startY - 52,
-    size: 11.5,
-    font,
-    color: rgb(0.25, 0.25, 0.25),
-  });
-
-  page.drawRectangle({
-    x: rightX,
-    y: boxY + 18,
-    width: boxX + boxW - 16 - rightX,
-    height: 95,
-    borderWidth: 1,
-    borderColor: rgb(0.85, 0.85, 0.85),
-  });
-  page.drawText("（盖章区）", {
-    x: rightX + 12,
-    y: boxY + 18 + 95 - 22,
-    size: 11,
-    font,
-    color: rgb(0.55, 0.55, 0.55),
-  });
-
-  page.drawText("注：本承诺函为投标文件组成部分。", {
-    x: marginX,
-    y: 70,
-    size: 10.5,
-    font,
-    color: rgb(0.4, 0.4, 0.4),
-  });
-
-  const bytes = await doc.save();
-  return Buffer.from(bytes);
-}
-
-/**
- * ✅ V7：目录键（评审习惯：目录只到二级）
- * - 你只改这里的“显示文案”，不会影响 anchors
- */
-const planKeysV7: Array<[string, string]> = [
-  ["PLAN.EXEC_SUMMARY", "一、执行摘要"],
-  ["PLAN.COMPARE", "二、方案总体对比说明"],
-  ["PLAN.LITE", "三、方案一（基础型配置方案）"],
-  ["PLAN.STANDARD", "四、方案二（推荐型配置方案）"],
-  ["PLAN.PRO", "五、方案三（强化型配置方案）"],
-  ["PLAN.APPENDIX_A", "附录 A：器材明细表"],
-  ["PLAN.APPENDIX_B", "附录 B：品牌建议说明"],
-  ["PLAN.APPENDIX_C", "附录 C：补充说明"],
-  ["PLAN.APPENDIX_D", "附录 D：其他说明"],
-];
-
-const budgetKeysV7: Array<[string, string]> = [
-  ["BUDGET.OVERVIEW", "一、整体预算区间（参考）"],
-  ["BUDGET.BREAKDOWN", "二、分品类预算明细表"],
-];
-
-export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const sp = url.searchParams;
+    const data = await req.json();
+    console.log("[tryReadJsonBody] ok", {
+      hasRawText: !!data?.rawText,
+      rawTextLength: String(data?.rawText || "").length,
+      sourceName: data?.sourceName || null,
+    });
+    return data;
+  } catch (e: any) {
+    console.log("[tryReadJsonBody] failed", e?.message || String(e));
+    return null;
+  }
+}
+
+async function resolveTenderParseInput(
+  req: NextRequest,
+  sp: URLSearchParams
+): Promise<TenderParseInput> {
+  const body = await tryReadJsonBody(req);
+
+  const bodyRawText = cleanInputText(body?.rawText);
+  const bodyFileName = cleanInputText(body?.sourceName || body?.tenderFileName);
+
+  const queryRawText = cleanInputText(
+    sp.get("rawText") || sp.get("tenderRawText") || sp.get("tenderText")
+  );
+  const queryFileName = cleanInputText(
+    sp.get("sourceName") || sp.get("tenderFileName")
+  );
+
+  const tenderRawText = bodyRawText || queryRawText || "";
+  const tenderFileName = bodyFileName || queryFileName || "tender-source.txt";
+
+  return { tenderRawText, tenderFileName };
+}
+
+function buildPlanPdfUrl(
+  origin: string,
+  args: {
+    planId: string;
+    theme: string;
+    watermark: string;
+    tz: string;
+    level: TenderLevel;
+    pdfVersionPlan: string;
+    variant: "sales" | "tender";
+  }
+) {
+  const url = new URL(`${origin}/api/pdf`);
+  url.searchParams.set("planId", args.planId);
+  url.searchParams.set("mode", "full");
+  url.searchParams.set("theme", args.theme);
+  url.searchParams.set("watermark", args.watermark);
+  url.searchParams.set("tz", args.tz);
+  url.searchParams.set("level", args.level);
+  url.searchParams.set("variant", args.variant);
+  url.searchParams.set("pdfVersionPlan", args.pdfVersionPlan);
+  url.searchParams.set("pdfVersion", args.pdfVersionPlan);
+  return url;
+}
+
+function buildBudgetPdfUrl(
+  origin: string,
+  args: {
+    planId: string;
+    theme: string;
+    watermark: string;
+    tz: string;
+    level: "saas" | "enterprise" | "government";
+    pdfVersionBudget: string;
+    companyName: string;
+    companySize: string;
+    sections: string;
+  }
+) {
+  const url = new URL(`${origin}/api/pdf`);
+  url.searchParams.set("planId", args.planId);
+  url.searchParams.set("mode", "budget");
+  url.searchParams.set("theme", args.theme);
+  url.searchParams.set("watermark", args.watermark);
+  url.searchParams.set("tz", args.tz);
+  url.searchParams.set("level", args.level);
+  url.searchParams.set("pdfVersionBudget", args.pdfVersionBudget);
+  url.searchParams.set("pdfVersion", args.pdfVersionBudget);
+  url.searchParams.set("companyName", args.companyName);
+  url.searchParams.set("companySize", args.companySize);
+  url.searchParams.set("sections", args.sections);
+  url.searchParams.set("showStandalonePageNumber", "0");
+  return url;
+}
+
+async function runTenderPack(
+  req: NextRequest,
+  sp: URLSearchParams,
+  _extra: TenderPackExtra
+): Promise<Response> {
+  try {
+    const { tenderRawText, tenderFileName } = await resolveTenderParseInput(
+      req,
+      sp
+    );
+    const parsedTender = tenderRawText
+      ? buildParsedTenderResult({
+          sourceName: tenderFileName || "tender-source",
+          rawText: tenderRawText,
+        })
+      : null;
+    console.log("[TENDER_PARSE]", {
+      sourceName: parsedTender?.sourceName || null,
+      rawTextLength: tenderRawText.length,
+      technicalCount: parsedTender?.technicalRequirements?.length || 0,
+      businessCount: parsedTender?.businessRequirements?.length || 0,
+      scoreCount: parsedTender?.scoreCriteria?.length || 0,
+      warnings: parsedTender?.warnings || [],
+    });
+    console.log("[TENDER_PARSE_SOURCE]", {
+      usingParsedTechnical: !!parsedTender?.technicalRequirements?.length,
+      usingParsedBusiness: !!parsedTender?.businessRequirements?.length,
+      usingParsedScore: !!parsedTender?.scoreCriteria?.length,
+    });
+
+    if (sp.get("parseOnly") === "1") {
+      return NextResponse.json({
+        ok: true,
+        mode: "parse-only",
+        tenderFileName,
+        rawTextLength: tenderRawText.length,
+        rawTextPreview: tenderRawText.slice(0, 300),
+        parsed: parsedTender,
+      });
+    }
+
+    const requestUrl = new URL(req.url);
+    const origin = requestUrl.origin;
 
     const planId = (sp.get("planId") || "").trim();
     if (!planId) return json(400, "MISSING_PLAN_ID", "Missing planId");
 
-    const format = (sp.get("format") || "links").trim().toLowerCase();
-
-    const theme = (sp.get("theme") || "brand").trim();
-    const watermark = (sp.get("watermark") || "0").trim();
-    const tz = (sp.get("tz") || "Asia/Tokyo").trim();
-
-    const pdfVersionPlan = (sp.get("pdfVersionPlan") || "PLAN_V1").trim();
-    const pdfVersionBudget = (sp.get("pdfVersionBudget") || "BUDGET_V1").trim();
-
-    const level = parseTenderLevel(sp.get("level"));
-    const variant = parseVariant(sp.get("variant"));
-
-    const packFooter = parseBool01(sp.get("packFooter"), true);
-
-    const includeCoverDefault = level === "saas" ? "0" : "1";
-    const includeDeclarationDefault = level === "saas" ? "0" : "1";
-
-    const includeCover =
-      (sp.get("includeCover") || includeCoverDefault).trim() !== "0";
-    const includeDeclarationRaw =
-      (sp.get("includeDeclaration") || includeDeclarationDefault).trim() !== "0";
-    const includeDeclaration =
-      level === "government" ? true : includeDeclarationRaw;
-
-    const companyName = (sp.get("companyName") || "").trim();
-    const bidderName = (sp.get("bidderName") || "AI Fitness Solution").trim();
-
-    const downloadToken = (sp.get("downloadToken") || "").trim();
-
-    const internal = isInternalRequest(req, sp);
-    const freezeYmdRaw = sp.get("freezeYmd") || "";
-    const freezeTenderNoRaw = sp.get("freezeTenderNo") || "";
-    const freezeYmd = internal ? normFreezeYmd(freezeYmdRaw) : "";
-    const freezeTenderNo = internal ? normFreezeTenderNo(freezeTenderNoRaw) : "";
-
-    const origin = url.origin;
-
-    const date = resolvePackDateYmd(freezeYmd);
-    const tenderNo =
-      freezeTenderNo || `TENDER-${asciiSafeFilename(planId)}-${date}`;
-
-    const baseCommon: Record<string, string> = {
-      planId,
-      theme,
-      watermark,
-      tz,
-      level,
-      variant,
-    };
-    // ✅ 不把 downloadToken 透传给 /api/pdf，pack 内部 fetch 走 X-INTERNAL-PACK 信任头
-
-    const planPdfUrl = new URL(`${origin}/api/pdf`);
-    Object.entries({
-      ...baseCommon,
-      mode: "full",
-      pdfVersionPlan,
-      pdfVersion: pdfVersionPlan, // backward compat
-    }).forEach(([k, v]) => planPdfUrl.searchParams.set(k, v));
-
-    const packBudgetSections = budgetSectionsForPack(level);
-    const budgetPdfUrl = new URL(`${origin}/api/pdf`);
-    Object.entries({
-      ...baseCommon,
-      mode: "budget",
-      sections: packBudgetSections,
-      pdfVersionBudget,
-      pdfVersion: pdfVersionBudget, // backward compat
-    }).forEach(([k, v]) => budgetPdfUrl.searchParams.set(k, v));
-
-    if (format === "links") {
-      return NextResponse.json({
-        ok: true,
-        level,
-        variant,
-        tenderNo,
-        includeCover,
-        includeDeclaration,
-        packFooter,
-        plan: planPdfUrl.toString(),
-        budget: budgetPdfUrl.toString(),
-        budgetSections: packBudgetSections,
-      });
-    }
-
-    if (format !== "zip" && format !== "merged") {
+    const format = (sp.get("format") || "merged").trim().toLowerCase();
+    if (!["links", "zip", "merged"].includes(format)) {
       return json(
         400,
         "BAD_FORMAT",
@@ -1102,292 +1009,655 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // ✅ 包级别扣一次：只校验/消耗 pack token，失败即 403
+    const level = parseTenderLevel(sp.get("level"));
+    const theme = (
+      sp.get("theme") || (level === "government" ? "tender" : "brand")
+    ).trim();
+    const watermark = (sp.get("watermark") || "0").trim();
+    console.log("[tender-pack request flags]", {
+      planId,
+      format,
+      level,
+      theme,
+      watermark,
+    });
+    const tz = (sp.get("tz") || "Asia/Tokyo").trim();
+    const includeCover = (sp.get("includeCover") || "1").trim() !== "0";
+    const packFooter = parseBool01(sp.get("packFooter"), true);
+    const companyName = (sp.get("companyName") || "示例企业").trim();
+    const companySize = (sp.get("companySize") || "200").trim();
+    const downloadToken = (sp.get("downloadToken") || "").trim();
+    const pdfVersionPlan = (sp.get("pdfVersionPlan") || "PLAN_V1").trim();
+    const pdfVersionBudget = (sp.get("pdfVersionBudget") || "BUDGET_V1").trim();
+
+    const internal = isInternalRequest(req, sp);
+    const freezeYmdRaw = sp.get("freezeYmd") || "";
+    const freezeTenderNoRaw = sp.get("freezeTenderNo") || "";
+    const freezeYmd = internal ? normFreezeYmd(freezeYmdRaw) : "";
+    const freezeTenderNo = internal ? normFreezeTenderNo(freezeTenderNoRaw) : "";
+
+    const date = freezeYmd || ymdTokyo();
+    const tenderNo =
+      freezeTenderNo || `TENDER-${asciiSafeFilename(planId)}-${date}`;
+
+    const planVariant = level === "government" ? "tender" : "sales";
+    const packVariant = level === "government" ? "tender" : "enterprise";
+    const budgetLevel =
+      level === "government"
+        ? "government"
+        : level === "enterprise"
+          ? "enterprise"
+          : "saas";
+    const isEnterpriseBrand =
+      level === "enterprise" && theme.toLowerCase() === "brand";
+    const baseBudgetSections = budgetSectionsForPack(level);
+    const packBudgetSections = isEnterpriseBrand
+      ? baseBudgetSections
+          .split(",")
+          .filter((s) => s !== "sign_seal")
+          .join(",")
+      : baseBudgetSections;
+    console.log("[tender-pack enterprise check]", {
+      level,
+      theme,
+      isEnterpriseBrand,
+      baseBudgetSections,
+      packBudgetSections,
+    });
+
+    const planPdfUrl = buildPlanPdfUrl(origin, {
+      planId,
+      theme,
+      watermark,
+      tz,
+      level,
+      pdfVersionPlan,
+      variant: planVariant,
+    });
+
+    const budgetPdfUrl = buildBudgetPdfUrl(origin, {
+      planId,
+      theme,
+      watermark,
+      tz,
+      level: budgetLevel,
+      pdfVersionBudget,
+      companyName,
+      companySize,
+      sections: packBudgetSections,
+    });
+    console.log("[tender-pack budget url]", budgetPdfUrl.toString());
+
+    if (format === "links") {
+      return NextResponse.json({
+        ok: true,
+        level,
+        variant: packVariant,
+        tenderNo,
+        includeCover,
+        packFooter,
+        plan: planPdfUrl.toString(),
+        budget: budgetPdfUrl.toString(),
+        budgetSections: packBudgetSections,
+        governmentSections:
+          level === "government" || level === "enterprise"
+            ? isEnterpriseBrand
+              ? ["toc", "plan", "budget", "business-note"]
+              : [
+                  "toc",
+                  "bid-letter",
+                  "business-terms-response",
+                  "technical-response",
+                  "business-deviation",
+                  "technical-deviation",
+                  "attachment-index",
+                  "plan",
+                  "budget",
+                ]
+            : [],
+      });
+    }
+
     const ip = getReqIp(req as any);
     const ua = req.headers.get("user-agent") || "";
-    const fp = [
-      planId,
-      "pack",
-      (ip || "noip").split(",")[0].trim(),
-      (ua || "noua").slice(0, 80),
-    ].join("|");
 
-    // V6: pack 必须 mode=pack + variant=tender
-    const c = await requireAndConsumeDownloadToken({
-      downloadToken,
-      planId,
-      mode: "pack",
-      variant: "tender",
-      fingerprint: fp,
-      ip,
-      ua,
-    });
-    if (!c.ok) return json(403, c.code, `download token rejected: ${c.code}`, c);
+    if (internal) {
+      console.log("[tender-pack internal bypass]", {
+        internal,
+        planId,
+        method: req.method,
+      });
+    } else {
+      const fingerprint = [
+        planId,
+        "pack",
+        (ip || "noip").split(",")[0].trim(),
+        (ua || "noua").slice(0, 80),
+      ].join("|");
+
+      const tokenResult = await requireAndConsumeDownloadToken({
+        downloadToken,
+        planId,
+        mode: "pack",
+        variant: packVariant,
+        fingerprint,
+        ip,
+        ua,
+      });
+
+      if (!tokenResult.ok) {
+        return json(
+          403,
+          tokenResult.code || "TOKEN_INVALID",
+          `download token rejected: ${tokenResult.code || "TOKEN_INVALID"}`,
+          tokenResult
+        );
+      }
+    }
 
     const [planBytes, budgetBytes] = await Promise.all([
       fetchPdfBytes(planPdfUrl.toString()),
       fetchPdfBytes(budgetPdfUrl.toString()),
     ]);
 
-    // ✅ 从上游 HEAD 读取验真码（优先预算）
-    const [planReqSig, budgetReqSig] = await Promise.all([
-      fetchReqSigHead(planPdfUrl.toString()),
-      fetchReqSigHead(budgetPdfUrl.toString()),
-    ]);
-
-    const sig = (budgetReqSig || planReqSig || "").trim();
-    const sigShort = sig ? sig.slice(0, 8).toUpperCase() : "";
-
     const [planPages, budgetPages] = await Promise.all([
       assertPdfOk(planBytes, "plan"),
       assertPdfOk(budgetBytes, "budget"),
     ]);
 
-    const declarationPages = includeDeclaration ? 1 : 0;
-    const coverPages = includeCover ? 2 : 0; // ✅ V7 仍然固定 2 页：封面+目录
-    const declPages = includeDeclaration ? 1 : 0;
-
-    // ✅ 合并阅读顺序的起始页码
-    const planStartPage = coverPages + declPages + 1;
-    const budgetStartPage = planStartPage + planPages;
-
-    // ✅ 分别扫描 anchors（更稳，不做 probe 合并）
-    const planDoc = await PDFDocument.load(planBytes);
-    const budgetDoc = await PDFDocument.load(budgetBytes);
-    const planAnchorLocal = scanTocAnchors(planDoc); // {key: page(1-based-in-plan)}
-    const budgetAnchorLocal = scanTocAnchors(budgetDoc);
-
-    const absPageOf = (part: "plan" | "budget", key: string, fallback: number) => {
-      if (part === "plan") {
-        const p = (planAnchorLocal as any)?.[key];
-        return typeof p === "number" && p > 0 ? (planStartPage - 1 + p) : fallback;
-      }
-      const p = (budgetAnchorLocal as any)?.[key];
-      return typeof p === "number" && p > 0 ? (budgetStartPage - 1 + p) : fallback;
-    };
-
-    // ✅ V7：组装目录行（L1/L2）+ 自动编号（1.* / 2.*）
-    const tocLines: TocLine[] = [];
-
-    // L1：技术方案部分
-    tocLines.push({ level: 1, title: "1  技术方案部分", page: planStartPage });
-
-    // L2：方案二级条目（已经是“一、二、三…”风格）
-    for (const [k, label] of planKeysV7) {
-      const page = absPageOf("plan", k, planStartPage);
-      tocLines.push({ level: 2, title: `1.${tocLines.filter((t) => t.level === 2 && t.title.startsWith("1.")).length + 1}  ${label}`, page });
-    }
-
-    // L1：预算与报价
-    tocLines.push({ level: 1, title: "2  预算与报价", page: budgetStartPage });
-
-    // L2：预算二级条目
-    const startCount2 = tocLines.filter((t) => t.level === 2 && t.title.startsWith("2.")).length;
-    for (const [k, label] of budgetKeysV7) {
-      const page = absPageOf("budget", k, budgetStartPage);
-      const idx = tocLines.filter((t) => t.level === 2 && t.title.startsWith("2.")).length + 1;
-      tocLines.push({ level: 2, title: `2.${idx}  ${label}`, page });
-    }
-
-    // ✅ V3：结论页（1页）
-    const conclusionPages = 1;
-    // ✅ 合并阅读顺序总页数（含结论页）
-    const totalPages =
-      coverPages + declPages + planPages + budgetPages + conclusionPages;
-
-    // ✅ merged
-    if (format === "merged") {
-      const buffers: Buffer[] = [];
-
-      if (includeCover) {
-        const coverBytes = await buildCoverAndTocPdfV7({
-          planId,
-          companyName: companyName || planId,
-          bidderName,
-          theme,
-          watermark,
-          tz,
-          level,
-          variant,
-          tenderNo,
-          freezeYmd,
-          pdfVersionPlan,
-          pdfVersionBudget,
-          planPages,
-          budgetPages,
-          includeDeclaration,
-          declarationPages,
-          tocLines,
-          totalPages,
-        });
-        buffers.push(coverBytes);
-      }
-
-      if (includeDeclaration) {
-        const declBytes = await buildDeclarationPdf({
-          planId,
-          companyName: companyName || planId,
-          bidderName,
-          tenderNo,
-          freezeYmd,
-          pdfVersionPlan,
-          pdfVersionBudget,
-          planPages,
-          budgetPages,
-        });
-        buffers.push(declBytes);
-      }
-
-      buffers.push(planBytes, budgetBytes);
-
-      const conclusionBytes = await buildConclusionPdf({
+    let coverBytes: Uint8Array | null = null;
+    let coverPages = 0;
+    if (includeCover) {
+      coverBytes = await renderTenderCoverPdf({
+        companyName,
         planId,
-        companyName: companyName || planId,
+        reportDate: date,
+        tenderNo,
+        projectName:
+          (sp.get("projectName") || "").trim() || "企业健身房建设项目",
       });
-      buffers.push(conclusionBytes);
+      coverPages = await assertPdfOk(Buffer.from(coverBytes), "cover");
+    }
 
-      let mergedBytes = await mergePdfBuffers(buffers);
+    let govTocBytes: Uint8Array | null = null;
+    let bidLetterBytes: Uint8Array | null = null;
+    let businessTermsResponseBytes: Uint8Array | null = null;
+    let technicalResponseBytes: Uint8Array | null = null;
+    let businessDeviationBytes: Uint8Array | null = null;
+    let technicalDeviationBytes: Uint8Array | null = null;
+    let scoreBytes: Uint8Array | null = null;
+    let attachmentIndexBytes: Uint8Array | null = null;
+    let enterpriseBizNoteBytes: Uint8Array | null = null;
+    let govTocPages = 0;
+    let bidLetterPages = 0;
+    let businessTermsResponsePages = 0;
+    let technicalResponsePages = 0;
+    let businessDeviationPages = 0;
+    let technicalDeviationPages = 0;
+    let scorePages = 0;
+    let attachmentIndexPages = 0;
+    let enterpriseBizNotePages = 0;
+    let govTocEntries: GovTocEntry[] = [];
+    const shouldBuildTenderExtras =
+      level === "government" || level === "enterprise";
 
-      const skipFirstPages = (includeCover ? 2 : 0) + (includeDeclaration ? 1 : 0);
+    if (shouldBuildTenderExtras) {
+      const govInput: GovSectionInput = {
+        planId,
+        companyName,
+        projectName: sp.get("projectName") || "企业健身房建设项目",
+        tenderNo,
+        issueDate: `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`,
+      };
 
-      if (packFooter) {
-        mergedBytes = await stampMergedPageNumbers({
-          bytes: mergedBytes,
-          skipFirstPages,
-          footerLeft: `标书编号：${tenderNo} · 投标人：${bidderName || "AI Fitness Solution"}`,
-          footerSigShort: sigShort,
+      if (isEnterpriseBrand) {
+        enterpriseBizNoteBytes =
+          await buildEnterpriseBrandBusinessNotePdf(govInput);
+        enterpriseBizNotePages = await assertPdfOk(
+          Buffer.from(enterpriseBizNoteBytes),
+          "business-note"
+        );
+
+        govTocPages = 1;
+        let currentPage = coverPages + govTocPages + 1;
+        govTocEntries = [];
+
+        govTocEntries.push({
+          id: "plan",
+          title: "建设方案",
+          startPage: currentPage,
+        });
+        currentPage += planPages;
+
+        govTocEntries.push({
+          id: "budget",
+          title: "预算与报价",
+          startPage: currentPage,
+        });
+        currentPage += budgetPages;
+
+        govTocEntries.push({
+          id: "business-note",
+          title: "商务说明",
+          startPage: currentPage,
+        });
+
+        govTocBytes = await buildGovernmentTocPdf(govInput, govTocEntries, {
+          tocTitle: "企业投标包目录",
+        });
+        govTocPages = await assertPdfOk(
+          Buffer.from(govTocBytes),
+          "enterprise-toc"
+        );
+      } else {
+        const businessRows = buildBusinessRows({
+          parsedBusinessRequirements: parsedTender?.businessRequirements,
+        });
+        const technicalRows = buildTechnicalRows({
+          ...govInput,
+          parsedTechnicalRequirements: parsedTender?.technicalRequirements,
+        });
+
+        [
+          bidLetterBytes,
+          businessTermsResponseBytes,
+          technicalResponseBytes,
+          businessDeviationBytes,
+          technicalDeviationBytes,
+          scoreBytes,
+          attachmentIndexBytes,
+        ] = await Promise.all([
+          buildBidLetterPdf(govInput),
+          buildBusinessTermsResponsePdf(businessRows),
+          buildTechnicalResponsePdf(technicalRows),
+          buildBusinessDeviationPdf(businessRows),
+          buildTechnicalDeviationPdf(technicalRows),
+          buildScoreMappingPdf({
+            technicalRows,
+            businessRows,
+            parsedScoreCriteria: parsedTender?.scoreCriteria,
+          }),
+          buildAttachmentIndexPdf(govInput),
+        ]);
+
+        [
+          bidLetterPages,
+          businessTermsResponsePages,
+          technicalResponsePages,
+          businessDeviationPages,
+          technicalDeviationPages,
+          scorePages,
+          attachmentIndexPages,
+        ] = await Promise.all([
+          assertPdfOk(Buffer.from(bidLetterBytes!), "bid-letter"),
+          assertPdfOk(
+            Buffer.from(businessTermsResponseBytes!),
+            "business-terms-response"
+          ),
+          assertPdfOk(
+            Buffer.from(technicalResponseBytes!),
+            "technical-response"
+          ),
+          assertPdfOk(
+            Buffer.from(businessDeviationBytes!),
+            "business-deviation"
+          ),
+          assertPdfOk(
+            Buffer.from(technicalDeviationBytes!),
+            "technical-deviation"
+          ),
+          assertPdfOk(Buffer.from(scoreBytes!), "score"),
+          assertPdfOk(
+            Buffer.from(attachmentIndexBytes!),
+            "attachment-index"
+          ),
+        ]);
+
+        govTocPages = 1;
+        let currentPage = coverPages + govTocPages + 1;
+        govTocEntries = [];
+
+        if (bidLetterBytes) {
+          govTocEntries.push({
+            id: "bid-letter",
+            title: "投标函与响应声明",
+            startPage: currentPage,
+          });
+          currentPage += bidLetterPages || 1;
+        }
+
+        if (businessTermsResponseBytes) {
+          govTocEntries.push({
+            id: "business-terms-response",
+            title: "商务条款响应表",
+            startPage: currentPage,
+          });
+          currentPage += businessTermsResponsePages || 1;
+        }
+
+        if (technicalResponseBytes) {
+          govTocEntries.push({
+            id: "technical-response",
+            title: "技术响应表",
+            startPage: currentPage,
+          });
+          currentPage += technicalResponsePages || 1;
+        }
+
+        if (businessDeviationBytes) {
+          govTocEntries.push({
+            id: "business-deviation",
+            title: "商务偏离表",
+            startPage: currentPage,
+          });
+          currentPage += businessDeviationPages || 1;
+        }
+
+        if (technicalDeviationBytes) {
+          govTocEntries.push({
+            id: "technical-deviation",
+            title: "技术偏离表",
+            startPage: currentPage,
+          });
+          currentPage += technicalDeviationPages || 1;
+        }
+
+        if (scoreBytes) {
+          govTocEntries.push({
+            id: "score",
+            title: "评分对照页",
+            startPage: currentPage,
+          });
+          currentPage += scorePages || 1;
+        }
+
+        if (attachmentIndexBytes) {
+          govTocEntries.push({
+            id: "attachment-index",
+            title: "附件索引页",
+            startPage: currentPage,
+          });
+          currentPage += attachmentIndexPages || 1;
+        }
+
+        govTocEntries.push({
+          id: "plan",
+          title: "建设方案",
+          startPage: currentPage,
+        });
+        currentPage += planPages;
+        govTocEntries.push({
+          id: "budget",
+          title: "预算与报价",
+          startPage: currentPage,
+        });
+        govTocBytes = await buildGovernmentTocPdf(govInput, govTocEntries);
+        govTocPages = await assertPdfOk(
+          Buffer.from(govTocBytes),
+          "government-toc"
+        );
+      }
+    }
+
+    const totalPages =
+      coverPages +
+      govTocPages +
+      (isEnterpriseBrand
+        ? planPages + budgetPages + enterpriseBizNotePages
+        : bidLetterPages +
+          businessTermsResponsePages +
+          technicalResponsePages +
+          businessDeviationPages +
+          technicalDeviationPages +
+          scorePages +
+          attachmentIndexPages +
+          planPages +
+          budgetPages);
+
+    console.log("[tender-pack page counts]", {
+      coverPages,
+      govTocPages,
+      planPages,
+      budgetPages,
+      enterpriseBizNotePages,
+      totalPages,
+    });
+
+    if (format === "merged") {
+      const parts: MergePart[] = [];
+      if (coverBytes) parts.push({ name: "cover", buf: coverBytes, mode: "copy" });
+      if (govTocBytes) parts.push({ name: "toc", buf: govTocBytes, mode: "copy" });
+
+      if (isEnterpriseBrand) {
+        parts.push({
+          name: "plan",
+          buf: planBytes,
+          mode: "copy",
+        });
+        parts.push({
+          name: "budget",
+          buf: budgetBytes,
+          mode: "crop",
+          cutBottom: PACK_CROP_BOTTOM,
+        });
+        if (enterpriseBizNoteBytes) {
+          parts.push({
+            name: "business-note",
+            buf: enterpriseBizNoteBytes,
+            mode: "copy",
+          });
+        }
+      } else {
+        if (bidLetterBytes) {
+          parts.push({ name: "bid-letter", buf: bidLetterBytes, mode: "copy" });
+        }
+        if (businessTermsResponseBytes) {
+          parts.push({
+            name: "business-terms-response",
+            buf: businessTermsResponseBytes,
+            mode: "copy",
+          });
+        }
+        if (technicalResponseBytes) {
+          parts.push({
+            name: "technical-response",
+            buf: technicalResponseBytes,
+            mode: "copy",
+          });
+        }
+        if (businessDeviationBytes) {
+          parts.push({
+            name: "business-deviation",
+            buf: businessDeviationBytes,
+            mode: "copy",
+          });
+        }
+        if (technicalDeviationBytes) {
+          parts.push({
+            name: "technical-deviation",
+            buf: technicalDeviationBytes,
+            mode: "copy",
+          });
+        }
+        if (scoreBytes) {
+          parts.push({
+            name: "score",
+            buf: scoreBytes,
+            mode: "copy",
+          });
+        }
+        if (attachmentIndexBytes) {
+          parts.push({
+            name: "attachment-index",
+            buf: attachmentIndexBytes,
+            mode: "copy",
+          });
+        }
+        parts.push({
+          name: "plan",
+          buf: planBytes,
+          mode: "copy",
+        });
+        parts.push({
+          name: "budget",
+          buf: budgetBytes,
+          mode: "crop",
+          cutBottom: PACK_CROP_BOTTOM,
         });
       }
 
-      const safePlanId = asciiSafeFilename(planId);
-      const filename = `AI_Fitness_Solution_Tender_Merged-${level}-${safePlanId}-${date}.pdf`;
+      console.log(
+        "[tender-pack parts]",
+        parts.map((p, i) => ({
+          idx: i,
+          name: p.name,
+          mode: p.mode,
+          cutBottom: p.cutBottom ?? null,
+          size: p.buf.length,
+        }))
+      );
 
-      // ✅ 日志记录（仅 GET）
-      if (req.method === "GET") {
-        const ip = getReqIp(req as any);
-        const ua = req.headers.get("user-agent") || null;
+      const mergedBytes = await mergePdfBuffers({ parts });
+      const mergedPages = await assertPdfOk(Buffer.from(mergedBytes), "merged-check");
+      console.log("[tender-pack merged check]", { mergedPages });
+      const finalBytes = packFooter
+        ? await restampPackPagination(mergedBytes, { level, planId })
+        : mergedBytes;
+      const mergedFilename = `AI_Fitness_Solution_Tender_Merged-${level}-${asciiSafeFilename(planId)}-${date}.pdf`;
 
-        await logPdfDownloadSafe({
+      if (req.method === "GET" || req.method === "POST") {
+        void logPdfDownloadSafe({
           planId,
+          ok: true,
           route: "/api/tender-pack",
-          method: "GET",
+          method: req.method,
           mode: null,
           level,
-          format: "merged",
+          format,
           theme,
           pdfVersion: null,
           planVersion: pdfVersionPlan,
           budgetVersion: pdfVersionBudget,
-          reqsig: sig || null,
+          reqsig: null,
           docSeq: null,
-          pages: totalPages || null,
+          pages: mergedPages,
           bytes: mergedBytes.length,
           ip,
           ua,
+          reason: null,
           extra: {
             tenderNo,
             includeCover,
-            includeDeclaration,
             packFooter,
             packBudgetSections,
             watermark,
             tz,
+            packVariant,
           },
         });
       }
 
-      return new NextResponse(new Uint8Array(mergedBytes), {
+      return new NextResponse(new Uint8Array(finalBytes), {
         status: 200,
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${asciiSafeFilename(filename)}"`,
+          "Content-Disposition": `attachment; filename="${asciiSafeFilename(mergedFilename)}"`,
           "Cache-Control": "no-store",
-
-          // ✅ V7 指纹
-          "X-TENDER-PACK": "MERGED_TENDER_V7_REVIEWSTYLE_TOC",
+          "X-TENDER-PACK": "MERGED_TENDER_V10_SIMPLE",
           "X-TENDER-LEVEL": level,
           "X-TENDER-NO": tenderNo,
           "X-PLAN-VERSION": pdfVersionPlan,
           "X-BUDGET-VERSION": pdfVersionBudget,
           "X-PLAN-PAGES": String(planPages),
           "X-BUDGET-PAGES": String(budgetPages),
+          "X-COVER-PAGES": String(coverPages),
+          "X-TOC-PAGES": String(govTocPages),
+          "X-GOV-BID-LETTER-PAGES": String(bidLetterPages),
+          "X-GOV-BIZ-RESPONSE-PAGES": String(businessTermsResponsePages),
+          "X-GOV-TECH-RESPONSE-PAGES": String(technicalResponsePages),
+          "X-GOV-BIZ-DEVIATION-PAGES": String(businessDeviationPages),
+          "X-GOV-TECH-DEVIATION-PAGES": String(technicalDeviationPages),
+          "X-GOV-SCORE-PAGES": String(scorePages),
+          "X-GOV-ATTACHMENT-INDEX-PAGES": String(attachmentIndexPages),
+          "X-TOTAL-PAGES": String(totalPages),
           "X-INCLUDE-COVER": includeCover ? "1" : "0",
-          "X-INCLUDE-DECLARATION": includeDeclaration ? "1" : "0",
           "X-PACK-BUDGET-SECTIONS": packBudgetSections,
           "X-PACK-PAGINATION": packFooter ? "1" : "0",
-          "X-PACK-SKIP-FIRST": String(skipFirstPages),
           "X-PACK-FOOTER": packFooter ? "1" : "0",
-          "X-PACK-VARIANT": variant,
+          "X-PACK-VARIANT": packVariant,
+          "X-PACK-THEME": theme || "brand",
+          "X-PACK-WATERMARK": watermark === "1" ? "1" : "0",
+          "X-PACK-TZ": tz,
         },
       });
     }
 
-    // ✅ zip（独立文件不重打页码）
     const zip = new JSZip();
-    const safePlanId = asciiSafeFilename(planId);
+    let zipN = 0;
+    const zipAddPart = (id: string, buf: Uint8Array) => {
+      const n = String(zipN++).padStart(2, "0");
+      zip.file(`${n}-${id}.pdf`, buf);
+    };
 
-    if (includeCover) {
-      const coverBytes = await buildCoverAndTocPdfV7({
-        planId,
-        companyName: companyName || planId,
-        bidderName,
-        theme,
-        watermark,
-        tz,
-        level,
-        variant,
-        tenderNo,
-        freezeYmd,
-        pdfVersionPlan,
-        pdfVersionBudget,
-        planPages,
-        budgetPages,
-        includeDeclaration,
-        declarationPages,
-        tocLines,
-        totalPages,
-      });
-      zip.file(`00-封面与目录-${level}-${safePlanId}-${date}.pdf`, coverBytes);
-    }
-
-    zip.file(`01-技术方案-${level}-${safePlanId}-${date}.pdf`, planBytes);
-    zip.file(`02-预算与报价-${level}-${safePlanId}-${date}.pdf`, budgetBytes);
-
-    if (includeDeclaration) {
-      const declBytes = await buildDeclarationPdf({
-        planId,
-        companyName: companyName || planId,
-        bidderName,
-        tenderNo,
-        freezeYmd,
-        pdfVersionPlan,
-        pdfVersionBudget,
-        planPages,
-        budgetPages,
-      });
-      zip.file(`03-投标声明与承诺函-${level}-${safePlanId}-${date}.pdf`, declBytes);
+    if (coverBytes) zipAddPart("cover", coverBytes);
+    if (govTocBytes) zipAddPart("toc", govTocBytes);
+    if (isEnterpriseBrand) {
+      zipAddPart("plan", planBytes);
+      zipAddPart("budget", budgetBytes);
+      if (enterpriseBizNoteBytes) {
+        zipAddPart("business-note", enterpriseBizNoteBytes);
+      }
+    } else {
+      if (bidLetterBytes) zipAddPart("bid-letter", bidLetterBytes);
+      if (businessTermsResponseBytes) {
+        zipAddPart("business-terms-response", businessTermsResponseBytes);
+      }
+      if (technicalResponseBytes) {
+        zipAddPart("technical-response", technicalResponseBytes);
+      }
+      if (businessDeviationBytes) {
+        zipAddPart("business-deviation", businessDeviationBytes);
+      }
+      if (technicalDeviationBytes) {
+        zipAddPart("technical-deviation", technicalDeviationBytes);
+      }
+      if (scoreBytes) {
+        zipAddPart("score", scoreBytes);
+      }
+      if (attachmentIndexBytes) {
+        zipAddPart("attachment-index", attachmentIndexBytes);
+      }
+      zipAddPart("plan", planBytes);
+      zipAddPart("budget", budgetBytes);
     }
 
     zip.file(
       "MANIFEST.txt",
       [
         `planId=${planId}`,
-        `companyName=${companyName || ""}`,
-        `bidderName=${bidderName}`,
+        `companyName=${companyName}`,
         `level=${level}`,
+        `variant=${packVariant}`,
         `tenderNo=${tenderNo}`,
         `theme=${theme}`,
         `watermark=${watermark}`,
         `tz=${tz}`,
-        `pdfVersionPlan=${pdfVersionPlan}`,
-        `pdfVersionBudget=${pdfVersionBudget}`,
+        `includeCover=${includeCover ? "1" : "0"}`,
+        `packFooter=${packFooter ? "1" : "0"}`,
+        `tocPages=${govTocPages}`,
+        `bidLetterPages=${bidLetterPages}`,
+        `businessTermsResponsePages=${businessTermsResponsePages}`,
+        `technicalResponsePages=${technicalResponsePages}`,
+        `businessDeviationPages=${businessDeviationPages}`,
+        `technicalDeviationPages=${technicalDeviationPages}`,
+        `scorePages=${scorePages}`,
+        `attachmentIndexPages=${attachmentIndexPages}`,
+        `enterpriseBizNotePages=${enterpriseBizNotePages}`,
         `planPages=${planPages}`,
         `budgetPages=${budgetPages}`,
-        `includeCover=${includeCover ? "1" : "0"}`,
-        `includeDeclaration=${includeDeclaration ? "1" : "0"}`,
-        `packBudgetSections=${packBudgetSections}`,
-        `packFooter(merged-only)=${packFooter ? "1" : "0"}`,
-        `variant=${variant}`,
+        `coverPages=${coverPages}`,
+        `totalPages=${totalPages}`,
+        `budgetSections=${packBudgetSections}`,
         `generatedAt=${new Date().toISOString()}`,
       ].join("\n")
     );
@@ -1397,36 +1667,36 @@ export async function GET(req: NextRequest) {
       compression: "DEFLATE",
       compressionOptions: { level: 6 },
     });
+    const zipFilename = `AI_Fitness_Solution_Tender_Pack-${level}-${asciiSafeFilename(planId)}-${date}.zip`;
 
-    const zipFilename = `AI_Fitness_Solution_Tender_Pack-${level}-${safePlanId}-${date}.zip`;
-
-    // ✅ 日志记录（仅 GET）
-    if (req.method === "GET") {
-      const ip = getReqIp(req as any);
-      const ua = req.headers.get("user-agent") || null;
-
-      await logPdfDownloadSafe({
+    if (req.method === "GET" || req.method === "POST") {
+      void logPdfDownloadSafe({
         planId,
+        ok: true,
         route: "/api/tender-pack",
-        method: "GET",
+        method: req.method,
         mode: null,
         level,
-        format: "zip",
+        format,
         theme,
         pdfVersion: null,
         planVersion: pdfVersionPlan,
         budgetVersion: pdfVersionBudget,
-        reqsig: sig || null,
+        reqsig: null,
         docSeq: null,
         pages: totalPages || null,
         bytes: zipBytes.length,
         ip,
         ua,
+        reason: null,
         extra: {
           tenderNo,
           includeCover,
-          includeDeclaration,
+          packFooter,
           packBudgetSections,
+          watermark,
+          tz,
+          packVariant,
         },
       });
     }
@@ -1437,17 +1707,21 @@ export async function GET(req: NextRequest) {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${asciiSafeFilename(zipFilename)}"`,
         "Cache-Control": "no-store",
-        "X-TENDER-PACK": "ZIP_TENDER_V7_REVIEWSTYLE_TOC",
+        "X-TENDER-PACK": "ZIP_TENDER_V10_SIMPLE",
         "X-TENDER-LEVEL": level,
         "X-TENDER-NO": tenderNo,
         "X-PLAN-VERSION": pdfVersionPlan,
         "X-BUDGET-VERSION": pdfVersionBudget,
         "X-PLAN-PAGES": String(planPages),
         "X-BUDGET-PAGES": String(budgetPages),
+        "X-COVER-PAGES": String(coverPages),
+        "X-TOTAL-PAGES": String(totalPages),
         "X-INCLUDE-COVER": includeCover ? "1" : "0",
-        "X-INCLUDE-DECLARATION": includeDeclaration ? "1" : "0",
         "X-PACK-BUDGET-SECTIONS": packBudgetSections,
-        "X-PACK-VARIANT": variant,
+        "X-PACK-VARIANT": packVariant,
+        "X-PACK-THEME": theme || "brand",
+        "X-PACK-WATERMARK": watermark === "1" ? "1" : "0",
+        "X-PACK-TZ": tz,
       },
     });
   } catch (e: any) {
@@ -1458,11 +1732,18 @@ export async function GET(req: NextRequest) {
   }
 }
 
+export async function GET(req: NextRequest) {
+  return runTenderPack(req, new URL(req.url).searchParams, {});
+}
+
+export async function POST(req: NextRequest) {
+  return runTenderPack(req, new URL(req.url).searchParams, {});
+}
+
 export async function HEAD(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const sp = url.searchParams;
-
     const planId = (sp.get("planId") || "").trim();
     if (!planId) {
       return new NextResponse(null, {
@@ -1471,48 +1752,30 @@ export async function HEAD(req: NextRequest) {
       });
     }
 
-    const format = (sp.get("format") || "links").trim().toLowerCase();
-    const theme = (sp.get("theme") || "brand").trim();
+    const format = (sp.get("format") || "merged").trim().toLowerCase();
+    const level = parseTenderLevel(sp.get("level"));
+    const theme = (
+      sp.get("theme") || (level === "enterprise" ? "tender" : "brand")
+    ).trim();
     const watermark = (sp.get("watermark") || "0").trim();
     const tz = (sp.get("tz") || "Asia/Tokyo").trim();
-
     const pdfVersionPlan = (sp.get("pdfVersionPlan") || "PLAN_V1").trim();
     const pdfVersionBudget = (sp.get("pdfVersionBudget") || "BUDGET_V1").trim();
-
-    const level = parseTenderLevel(sp.get("level"));
-    const variant = parseVariant(sp.get("variant"));
+    const includeCover = (sp.get("includeCover") || "1").trim() !== "0";
     const packFooter = parseBool01(sp.get("packFooter"), true);
-
-    const includeCoverDefault = level === "saas" ? "0" : "1";
-    const includeDeclarationDefault = level === "saas" ? "0" : "1";
-
-    const includeCover =
-      (sp.get("includeCover") || includeCoverDefault).trim() !== "0";
-    const includeDeclarationRaw =
-      (sp.get("includeDeclaration") || includeDeclarationDefault).trim() !== "0";
-    const includeDeclaration =
-      level === "government" ? true : includeDeclarationRaw;
-
     const internal = isInternalRequest(req, sp);
-    const freezeYmdRaw = sp.get("freezeYmd") || "";
-    const freezeTenderNoRaw = sp.get("freezeTenderNo") || "";
-    const freezeYmd = internal ? normFreezeYmd(freezeYmdRaw) : "";
-    const freezeTenderNo = internal ? normFreezeTenderNo(freezeTenderNoRaw) : "";
-
-    const date = resolvePackDateYmd(freezeYmd);
+    const freezeYmd = internal ? normFreezeYmd(sp.get("freezeYmd") || "") : "";
+    const freezeTenderNo = internal
+      ? normFreezeTenderNo(sp.get("freezeTenderNo") || "")
+      : "";
+    const date = freezeYmd || ymdTokyo();
     const tenderNo =
       freezeTenderNo || `TENDER-${asciiSafeFilename(planId)}-${date}`;
-
+    const packVariant = level === "government" ? "tender" : "enterprise";
     const packBudgetSections = budgetSectionsForPack(level);
 
-    // 这里不做任何 fetch，所以 planPages/budgetPages/skipFirst 无法精确
-    // ✅ 但 Engine 验收的关键是：编号、级别、sections、分页开关、包含项等
-    const skipFirstPages = (includeCover ? 2 : 0) + (includeDeclaration ? 1 : 0);
-
-    // content-type / disposition：按 format 返回
     let contentType = "application/json";
     let filename = `AI_Fitness_Solution_Tender_Pack-${level}-${asciiSafeFilename(planId)}-${date}.json`;
-
     if (format === "merged") {
       contentType = "application/pdf";
       filename = `AI_Fitness_Solution_Tender_Merged-${level}-${asciiSafeFilename(planId)}-${date}.pdf`;
@@ -1527,32 +1790,27 @@ export async function HEAD(req: NextRequest) {
         "Content-Type": contentType,
         "Content-Disposition": `attachment; filename="${asciiSafeFilename(filename)}"`,
         "Cache-Control": "no-store",
-
-        // ✅ 与 GET 对齐的验收 headers（轻量版）
-        "X-TENDER-PACK": format === "merged"
-          ? "MERGED_TENDER_V7_REVIEWSTYLE_TOC"
-          : format === "zip"
-            ? "ZIP_TENDER_V7_REVIEWSTYLE_TOC"
-            : "LINKS_TENDER_V7_REVIEWSTYLE_TOC",
+        "X-TENDER-PACK":
+          format === "merged"
+            ? "MERGED_TENDER_V10_SIMPLE"
+            : format === "zip"
+              ? "ZIP_TENDER_V10_SIMPLE"
+              : "LINKS_TENDER_V10_SIMPLE",
         "X-TENDER-LEVEL": level,
         "X-TENDER-NO": tenderNo,
         "X-PLAN-VERSION": pdfVersionPlan,
         "X-BUDGET-VERSION": pdfVersionBudget,
         "X-INCLUDE-COVER": includeCover ? "1" : "0",
-        "X-INCLUDE-DECLARATION": includeDeclaration ? "1" : "0",
         "X-PACK-BUDGET-SECTIONS": packBudgetSections,
         "X-PACK-PAGINATION": packFooter ? "1" : "0",
-        "X-PACK-SKIP-FIRST": String(skipFirstPages),
         "X-PACK-FOOTER": packFooter ? "1" : "0",
-        "X-PACK-VARIANT": variant,
-
-        // 可选：把 theme/watermark/tz 也暴露给验收面板（不会影响现有 GET）
+        "X-PACK-VARIANT": packVariant,
         "X-PACK-THEME": theme || "brand",
         "X-PACK-WATERMARK": watermark === "1" ? "1" : "0",
         "X-PACK-TZ": tz,
       },
     });
-  } catch (e: any) {
+  } catch {
     return new NextResponse(null, { status: 500 });
   }
 }
