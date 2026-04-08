@@ -28,6 +28,10 @@ import {
   writeTenderResponses,
   type ParsedTenderClause,
 } from "@/lib/tender/responseWriter";
+import {
+  summarizeTenderResponses,
+  buildTenderResponseFootnote,
+} from "@/lib/tender/summary";
 import type {
   ParsedBusinessRequirement,
   ParsedScoreCriterion,
@@ -432,7 +436,7 @@ function toTechnicalStatus(input: any): TechnicalStatus {
     case "部分满足":
     case "偏离":
     case "无此项":
-      return s;
+      return s as TechnicalStatus;
     default:
       return "无此项";
   }
@@ -558,6 +562,16 @@ async function buildBusinessTermsResponsePdf(
   rows: BusinessResponseRow[]
 ): Promise<Uint8Array> {
   console.log("[business-response] rows=", rows.length);
+  const businessSummary = summarizeTenderResponses(
+    rows.map((r) => ({
+      status: r.status,
+      requirement: r.clause,
+      response: r.response,
+      note: r.note,
+    }))
+  );
+  const businessDigest = `本表共 ${businessSummary.total} 项：满足 ${businessSummary.satisfied} 项，响应 ${businessSummary.responded} 项，待确认 ${businessSummary.pending} 项，部分满足 ${businessSummary.partial} 项，偏离 ${businessSummary.deviated} 项。`;
+  const businessFootnote = `${businessDigest} ${buildTenderResponseFootnote("business", businessSummary)}`;
 
   const rendered = await renderBusinessResponsePdf({
     title: "商务响应表",
@@ -566,6 +580,7 @@ async function buildBusinessTermsResponsePdf(
       response: r.response,
       status: r.status,
     })),
+    footnote: businessFootnote,
   });
   console.log("[business-response] pages=", rendered.pageCount);
   return rendered.bytes;
@@ -575,6 +590,16 @@ async function buildTechnicalResponsePdf(
   rows: TechnicalResponseRow[]
 ): Promise<Uint8Array> {
   console.log("[technical-response] rows=", rows.length);
+  const technicalSummary = summarizeTenderResponses(
+    rows.map((r) => ({
+      status: r.status,
+      requirement: r.requirement,
+      response: r.response,
+      note: r.note,
+    }))
+  );
+  const technicalDigest = `本表共 ${technicalSummary.total} 项：满足 ${technicalSummary.satisfied} 项，响应 ${technicalSummary.responded} 项，待确认 ${technicalSummary.pending} 项，部分满足 ${technicalSummary.partial} 项，偏离 ${technicalSummary.deviated} 项。`;
+  const technicalFootnote = `${technicalDigest} ${buildTenderResponseFootnote("technical", technicalSummary)}`;
 
   const rendered = await renderTechnicalResponsePdf({
     title: "技术响应表",
@@ -584,6 +609,7 @@ async function buildTechnicalResponsePdf(
       proof: r.proof,
       status: r.status,
     })),
+    footnote: technicalFootnote,
   });
   console.log("[technical-response] pages=", rendered.pageCount);
   return rendered.bytes;
