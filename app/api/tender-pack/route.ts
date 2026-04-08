@@ -36,6 +36,7 @@ import type {
 import type {
   BusinessRequirement,
   ScoreCriterion,
+  TechnicalStatus,
   TenderRequirement,
 } from "@/lib/pdf/tender/types";
 
@@ -421,6 +422,22 @@ function toScoreCriterion(
   };
 }
 
+function toTechnicalStatus(input: any): TechnicalStatus {
+  const s = String(input || "").trim();
+
+  switch (s) {
+    case "满足":
+    case "响应":
+    case "待确认":
+    case "部分满足":
+    case "偏离":
+    case "无此项":
+      return s;
+    default:
+      return "无此项";
+  }
+}
+
 function buildBusinessRows(input?: {
   parsedBusinessRequirements?: ParsedBusinessRequirement[];
 }): BusinessResponseRow[] {
@@ -440,14 +457,7 @@ function buildBusinessRows(input?: {
       id: x.id || `BWR-${String(i + 1).padStart(3, "0")}`,
       clause: x.requirement,
       response: x.response,
-      status:
-        x.status === "满足"
-          ? "满足"
-          : x.status === "偏离"
-            ? "偏离"
-            : x.status === "部分满足"
-              ? "部分满足"
-              : "无此项",
+      status: toTechnicalStatus(x.status),
       matchedEvidenceKeys: [],
       confidence: x.risk === "high" ? 0.4 : x.risk === "medium" ? 0.65 : 0.85,
       note: x.remark,
@@ -524,14 +534,7 @@ function buildTechnicalRows(input: GovSectionInput & {
     return writtenTechnicalResponses.map((x, i) => ({
       id: x.id || `TWR-${String(i + 1).padStart(3, "0")}`,
       requirement: x.requirement,
-      status:
-        x.status === "满足"
-          ? "满足"
-          : x.status === "偏离"
-            ? "偏离"
-            : x.status === "部分满足"
-              ? "部分满足"
-              : "无此项",
+      status: toTechnicalStatus(x.status),
       response: x.response,
       proof: x.clauseNo || x.section || "见对应投标附件",
       matchedEvidenceKeys: [],
