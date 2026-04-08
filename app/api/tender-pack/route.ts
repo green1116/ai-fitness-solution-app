@@ -24,6 +24,10 @@ import { DEFAULT_GYM_SCORE_CRITERIA } from "@/lib/pdf/tender/score/presets";
 import { buildScoreMappingRows } from "@/lib/pdf/tender/score/buildScoreMappingRows";
 import { renderScoreMappingPdf } from "@/lib/pdf/tender/renderScoreMappingPdf";
 import { buildParsedTenderResult } from "@/lib/tender-parser/buildParsedTenderResult";
+import {
+  writeTenderResponses,
+  type ParsedTenderClause,
+} from "@/lib/tender/responseWriter";
 import type {
   ParsedBusinessRequirement,
   ParsedScoreCriterion,
@@ -420,6 +424,36 @@ function toScoreCriterion(
 function buildBusinessRows(input?: {
   parsedBusinessRequirements?: ParsedBusinessRequirement[];
 }): BusinessResponseRow[] {
+  if (input?.parsedBusinessRequirements?.length) {
+    const businessInput: ParsedTenderClause[] = input.parsedBusinessRequirements.map(
+      (item: any, idx: number) => ({
+        id: item.id || `biz-${idx + 1}`,
+        kind: "business",
+        section: item.section || item.sectionTitle || "商务条款",
+        clauseNo: item.clauseNo || item.no || "",
+        text: item.text || item.requirement || item.content || "",
+      })
+    );
+    const writtenBusinessResponses = writeTenderResponses(businessInput);
+
+    return writtenBusinessResponses.map((x, i) => ({
+      id: x.id || `BWR-${String(i + 1).padStart(3, "0")}`,
+      clause: x.requirement,
+      response: x.response,
+      status:
+        x.status === "满足"
+          ? "满足"
+          : x.status === "偏离"
+            ? "偏离"
+            : x.status === "部分满足"
+              ? "部分满足"
+              : "无此项",
+      matchedEvidenceKeys: [],
+      confidence: x.risk === "high" ? 0.4 : x.risk === "medium" ? 0.65 : 0.85,
+      note: x.remark,
+    }));
+  }
+
   const requirements =
     input?.parsedBusinessRequirements?.length
       ? input.parsedBusinessRequirements.map(toBusinessRequirement)
@@ -475,6 +509,37 @@ function buildTechnicalEvidenceBlocks(input: GovSectionInput): TechnicalEvidence
 function buildTechnicalRows(input: GovSectionInput & {
   parsedTechnicalRequirements?: ParsedTechnicalRequirement[];
 }): TechnicalResponseRow[] {
+  if (input.parsedTechnicalRequirements?.length) {
+    const technicalInput: ParsedTenderClause[] = input.parsedTechnicalRequirements.map(
+      (item: any, idx: number) => ({
+        id: item.id || `tech-${idx + 1}`,
+        kind: "technical",
+        section: item.section || item.sectionTitle || "技术要求",
+        clauseNo: item.clauseNo || item.no || "",
+        text: item.text || item.requirement || item.content || "",
+      })
+    );
+    const writtenTechnicalResponses = writeTenderResponses(technicalInput);
+
+    return writtenTechnicalResponses.map((x, i) => ({
+      id: x.id || `TWR-${String(i + 1).padStart(3, "0")}`,
+      requirement: x.requirement,
+      status:
+        x.status === "满足"
+          ? "满足"
+          : x.status === "偏离"
+            ? "偏离"
+            : x.status === "部分满足"
+              ? "部分满足"
+              : "无此项",
+      response: x.response,
+      proof: x.clauseNo || x.section || "见对应投标附件",
+      matchedEvidenceKeys: [],
+      confidence: x.risk === "high" ? 0.4 : x.risk === "medium" ? 0.65 : 0.85,
+      note: x.remark,
+    }));
+  }
+
   const requirements =
     input.parsedTechnicalRequirements?.length
       ? input.parsedTechnicalRequirements.map(toTenderRequirement)
