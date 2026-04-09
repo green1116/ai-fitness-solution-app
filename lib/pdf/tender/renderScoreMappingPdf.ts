@@ -3,7 +3,7 @@ import type { TenderSectionPageRefs } from "@/lib/pdf/tender/pageRefs";
 import { renderTenderTablePdf } from "@/lib/pdf/tender/renderTenderTablePdf";
 import {
   formatEvidenceWithAttachments,
-  formatSectionWithPage,
+  formatSectionWithPageAndRefs,
   SCORE_MAPPING_PAGE_FOOTNOTE,
   SCORE_MAPPING_PAGE_SUBTITLE,
   type TenderScoreMappingRow,
@@ -72,8 +72,8 @@ export async function renderScoreMappingPdf(
   );
 
   const rows: ScoreV2Row[] = (input.rows || []).map((r) => ({
-    scoreItem: r.scoreItem,
-    responseSection: formatSectionWithPage(r, pageRefs),
+    scoreItem: r.scoreId ? `${r.scoreId}  ${r.scoreItem}` : r.scoreItem,
+    responseSection: formatSectionWithPageAndRefs(r, pageRefs),
     evidence: formatEvidenceWithAttachments(r, attachmentRefs),
     risk: r.risk,
   }));

@@ -16,17 +16,24 @@ import type { TechnicalEvidenceBlock } from "@/lib/pdf/tender/types";
 import { DEFAULT_GYM_BUSINESS_REQUIREMENTS } from "@/lib/pdf/tender/business-response/presets";
 import { buildBusinessResponseRows } from "@/lib/pdf/tender/business-response/buildBusinessResponseRows";
 import { renderBusinessResponsePdf } from "@/lib/pdf/tender/renderBusinessResponsePdf";
-import { buildTechnicalDeviationRows } from "@/lib/pdf/tender/deviation/buildTechnicalDeviationRows";
-import { buildBusinessDeviationRows } from "@/lib/pdf/tender/deviation/buildBusinessDeviationRows";
 import { renderDeviationTablePdf } from "@/lib/pdf/tender/renderDeviationTablePdf";
+import {
+  buildBusinessResponseRefs,
+  isDeviationLikeStatus,
+  buildScoreRefs,
+  buildTechnicalResponseRefs,
+} from "@/lib/pdf/tender/refBuilder";
+import { withRefPrefix } from "@/lib/pdf/tender/refFormat";
 import type { BusinessResponseRow, TechnicalResponseRow } from "@/lib/pdf/tender/types";
 import { DEFAULT_GYM_SCORE_CRITERIA } from "@/lib/pdf/tender/score/presets";
 import { buildScoreMappingRows } from "@/lib/pdf/tender/score/buildScoreMappingRows";
 import { renderScoreMappingPdf } from "@/lib/pdf/tender/renderScoreMappingPdf";
 import {
-  buildDefaultTenderAttachmentRefs,
+  buildDefaultTenderAttachmentIndexRows,
+  mapAttachmentIndexRowsToRefs,
   type TenderAttachmentRefMap,
-} from "@/lib/pdf/tender/attachmentRefs";
+} from "@/lib/pdf/tender/attachmentIndex";
+import { renderAttachmentIndexPagePdf } from "@/lib/pdf/tender/attachmentIndexPage";
 import { buildTenderSectionPageRefsFromPackLayout } from "@/lib/pdf/tender/pageRefs";
 import type { TenderSectionPageRefs } from "@/lib/pdf/tender/pageRefs";
 import {
@@ -569,7 +576,8 @@ function buildTechnicalRows(input: GovSectionInput & {
 }
 
 async function buildBusinessTermsResponsePdf(
-  rows: BusinessResponseRow[]
+  rows: Array<BusinessResponseRow & { refId?: string }>,
+  attachmentRefs?: TenderAttachmentRefMap
 ): Promise<Uint8Array> {
   console.log("[business-response] rows=", rows.length);
   const businessSummary = summarizeTenderResponses(
@@ -587,19 +595,21 @@ async function buildBusinessTermsResponsePdf(
     title: "商务响应表",
     rows: rows.map((r, i) => ({
       no: String(i + 1),
-      requirement: r.clause,
+      requirement: withRefPrefix(r.refId, r.clause),
       status: r.status || "无此项",
       response: r.response,
       note: r.note || "",
     })),
     footnote: businessFootnote,
+    attachmentRefs,
   });
   console.log("[business-response] pages=", rendered.pageCount);
   return rendered.bytes;
 }
 
 async function buildTechnicalResponsePdf(
-  rows: TechnicalResponseRow[]
+  rows: Array<TechnicalResponseRow & { refId?: string }>,
+  attachmentRefs?: TenderAttachmentRefMap
 ): Promise<Uint8Array> {
   console.log("[technical-response] rows=", rows.length);
   const technicalSummary = summarizeTenderResponses(
@@ -617,54 +627,69 @@ async function buildTechnicalResponsePdf(
     title: "技术响应表",
     rows: rows.map((r, i) => ({
       no: String(i + 1),
-      requirement: r.requirement,
+      requirement: withRefPrefix(r.refId, r.requirement),
       status: r.status || "无此项",
       response: r.response,
       note: r.note || "",
     })),
     footnote: technicalFootnote,
+    attachmentRefs,
   });
   console.log("[technical-response] pages=", rendered.pageCount);
   return rendered.bytes;
 }
 
 async function buildBusinessDeviationPdf(
-  rows: BusinessResponseRow[]
+  rows: Array<BusinessResponseRow & { refId?: string }>,
+  attachmentRefs?: TenderAttachmentRefMap
 ): Promise<Uint8Array> {
-  const deviationRows = buildBusinessDeviationRows(rows);
+  const deviationRows = (rows || [])
+    .filter((r) => isDeviationLikeStatus(r.status))
+    .map((r) => ({
+      refId: r.refId,
+      clause: r.clause,
+      status: r.status || "无此项",
+      deviation: String(r.note || r.response || "").trim() || "请结合商务响应内容进一步核查。",
+      adviceAttachments: "",
+    }));
+
   const rendered = await renderDeviationTablePdf({
     title: "商务偏离表",
-    rows: deviationRows.map((r) => ({
-      clause: r.clause,
-      responseSummary: r.responseSummary,
-      deviationStatus: r.deviationStatus,
-      deviationType: r.deviationType,
-    })),
+    scene: "business_deviation",
+    rows: deviationRows,
+    attachmentRefs,
   });
   console.log("[business-deviation] rows=", deviationRows.length, "pages=", rendered.pageCount);
   return rendered.bytes;
 }
 
 async function buildTechnicalDeviationPdf(
-  rows: TechnicalResponseRow[]
+  rows: Array<TechnicalResponseRow & { refId?: string }>,
+  attachmentRefs?: TenderAttachmentRefMap
 ): Promise<Uint8Array> {
-  const deviationRows = buildTechnicalDeviationRows(rows);
+  const deviationRows = (rows || [])
+    .filter((r) => isDeviationLikeStatus(r.status))
+    .map((r) => ({
+      refId: r.refId,
+      clause: r.requirement,
+      status: r.status || "无此项",
+      deviation: String(r.note || r.response || "").trim() || "请结合技术响应内容进一步核查。",
+      adviceAttachments: "",
+    }));
+
   const rendered = await renderDeviationTablePdf({
     title: "技术偏离表",
-    rows: deviationRows.map((r) => ({
-      clause: r.clause,
-      responseSummary: r.responseSummary,
-      deviationStatus: r.deviationStatus,
-      deviationType: r.deviationType,
-    })),
+    scene: "technical_deviation",
+    rows: deviationRows,
+    attachmentRefs,
   });
   console.log("[technical-deviation] rows=", deviationRows.length, "pages=", rendered.pageCount);
   return rendered.bytes;
 }
 
 async function buildScoreMappingPdf(input: {
-  technicalRows: TechnicalResponseRow[];
-  businessRows: BusinessResponseRow[];
+  technicalRows: Array<TechnicalResponseRow & { refId?: string }>;
+  businessRows: Array<BusinessResponseRow & { refId?: string }>;
   parsedScoreCriteria?: ParsedScoreCriterion[];
   pageRefs?: TenderSectionPageRefs;
   attachmentRefs?: TenderAttachmentRefMap;
@@ -686,9 +711,25 @@ async function buildScoreMappingPdf(input: {
       ? scoreRows.map(mapScoreMappingToTenderRow)
       : buildDefaultTenderScoreMappings();
 
+  const techRefIds = input.technicalRows.map((r) => r.refId).filter(Boolean) as string[];
+  const bizRefIds = input.businessRows.map((r) => r.refId).filter(Boolean) as string[];
+  const scoredRows = buildScoreRefs(
+    v2Rows.map((r) => {
+      if (r.responseRefIds?.length) return r;
+      const blob = `${r.scoreItem} ${r.responseSection} ${r.evidence}`;
+      if (/技术|参数|设备|配置|系统/.test(blob)) {
+        return { ...r, responseRefIds: techRefIds.slice(0, 4) };
+      }
+      if (/商务|售后|服务|交付|报价|预算|付款/.test(blob)) {
+        return { ...r, responseRefIds: bizRefIds.slice(0, 4) };
+      }
+      return r;
+    })
+  );
+
   const rendered = await renderScoreMappingPdf({
     title: "评分项对照页",
-    rows: v2Rows,
+    rows: scoredRows,
     pageRefs: input.pageRefs,
     attachmentRefs: input.attachmentRefs,
   });
@@ -698,25 +739,14 @@ async function buildScoreMappingPdf(input: {
 
 async function buildAttachmentIndexPdf(
   input: GovSectionInput,
-  attachmentRefs: TenderAttachmentRefMap
+  attachmentIndexRows = buildDefaultTenderAttachmentIndexRows()
 ): Promise<Uint8Array> {
-  const rows = Object.values(attachmentRefs).filter(
-    (x): x is NonNullable<typeof x> => !!x
-  );
-  const sorted = rows.sort((a, b) => a.code.localeCompare(b.code, "zh-CN"));
-  const attachmentLines = sorted.map((item) => `${item.code} ${item.name}`);
-
-  return buildGovSectionShellPdf({
+  const rendered = await renderAttachmentIndexPagePdf({
     title: "附件索引页",
-    subtitle: "Government Review V2",
-    input,
-    blocks: [
-      "本页为附件索引骨架页。",
-      "",
-      "建议附件目录：",
-      ...(attachmentLines.length ? attachmentLines : ["A-01 营业执照"]),
-    ],
+    subtitle: `项目：${input.projectName || "-"} · 投标单位：${input.companyName || "-"}`,
+    rows: attachmentIndexRows,
   });
+  return rendered.bytes;
 }
 
 /** 企业投标包 · brand 主题：目录中的「商务说明」单页 */
@@ -1363,7 +1393,8 @@ async function runTenderPack(
           "enterprise-toc"
         );
       } else {
-        const attachmentRefs = buildDefaultTenderAttachmentRefs();
+        const attachmentIndexRows = buildDefaultTenderAttachmentIndexRows();
+        const attachmentRefs = mapAttachmentIndexRowsToRefs(attachmentIndexRows);
         const businessRows = buildBusinessRows({
           parsedBusinessRequirements: parsedTender?.businessRequirements,
         });
@@ -1371,6 +1402,8 @@ async function runTenderPack(
           ...govInput,
           parsedTechnicalRequirements: parsedTender?.technicalRequirements,
         });
+        const businessRowsWithRefs = buildBusinessResponseRefs(businessRows);
+        const technicalRowsWithRefs = buildTechnicalResponseRefs(technicalRows);
 
         [
           bidLetterBytes,
@@ -1381,11 +1414,11 @@ async function runTenderPack(
           attachmentIndexBytes,
         ] = await Promise.all([
           buildBidLetterPdf(govInput),
-          buildBusinessTermsResponsePdf(businessRows),
-          buildTechnicalResponsePdf(technicalRows),
-          buildBusinessDeviationPdf(businessRows),
-          buildTechnicalDeviationPdf(technicalRows),
-          buildAttachmentIndexPdf(govInput, attachmentRefs),
+          buildBusinessTermsResponsePdf(businessRowsWithRefs, attachmentRefs),
+          buildTechnicalResponsePdf(technicalRowsWithRefs, attachmentRefs),
+          buildBusinessDeviationPdf(businessRowsWithRefs, attachmentRefs),
+          buildTechnicalDeviationPdf(technicalRowsWithRefs, attachmentRefs),
+          buildAttachmentIndexPdf(govInput, attachmentIndexRows),
         ]);
 
         [
@@ -1435,8 +1468,8 @@ async function runTenderPack(
             budgetPages,
           });
           scoreBytes = await buildScoreMappingPdf({
-            technicalRows,
-            businessRows,
+            technicalRows: technicalRowsWithRefs,
+            businessRows: businessRowsWithRefs,
             parsedScoreCriteria: parsedTender?.scoreCriteria,
             pageRefs,
             attachmentRefs,

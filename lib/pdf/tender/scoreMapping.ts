@@ -5,13 +5,16 @@ import type {
   TenderAttachmentRefMap,
 } from "@/lib/pdf/tender/attachmentRefs";
 import type { TenderSectionPageRefs } from "@/lib/pdf/tender/pageRefs";
+import { formatResponseRefs } from "@/lib/pdf/tender/refFormat";
 
 export type TenderScoreMappingSectionKey = keyof TenderSectionPageRefs;
 
 export type TenderScoreMappingRow = {
+  scoreId?: string;
   scoreItem: string;
   responseSection: string;
   responseSectionKey?: TenderScoreMappingSectionKey;
+  responseRefIds?: string[];
   evidence: string;
   evidenceAttachmentKeys?: TenderAttachmentRefKey[];
   risk: string;
@@ -27,6 +30,16 @@ export function formatSectionWithPage(
   const pageNo = refs[key];
   if (!pageNo || !Number.isFinite(pageNo)) return base;
   return `${base}（第 ${pageNo} 页）`;
+}
+
+export function formatSectionWithPageAndRefs(
+  row: TenderScoreMappingRow,
+  refs?: TenderSectionPageRefs
+) {
+  const base = formatSectionWithPage(row, refs);
+  const refText = formatResponseRefs(row.responseRefIds);
+  if (!refText) return base;
+  return `${base} / ${refText}`;
 }
 
 export function buildDefaultTenderScoreMappings(): TenderScoreMappingRow[] {
@@ -51,6 +64,7 @@ export function buildDefaultTenderScoreMappings(): TenderScoreMappingRow[] {
       scoreItem: "技术参数响应程度",
       responseSection: "技术响应表",
       responseSectionKey: "technicalResponse",
+      responseRefIds: ["T-01", "T-02", "T-03"],
       evidence: "技术响应表、参数说明、产品资料",
       evidenceAttachmentKeys: ["product_datasheet", "test_report"],
       risk: "存在待确认或偏离项时，需重点补充佐证",
@@ -59,6 +73,7 @@ export function buildDefaultTenderScoreMappings(): TenderScoreMappingRow[] {
       scoreItem: "商务条款响应程度",
       responseSection: "商务条款响应表",
       responseSectionKey: "businessResponse",
+      responseRefIds: ["B-01", "B-02"],
       evidence: "商务响应表、服务承诺、交付与售后说明",
       evidenceAttachmentKeys: ["service_commitment", "delivery_plan"],
       risk: "商务条件表述不完整时，可能影响符合性判断",
@@ -75,6 +90,7 @@ export function buildDefaultTenderScoreMappings(): TenderScoreMappingRow[] {
       scoreItem: "售后服务与运维保障",
       responseSection: "商务条款响应表",
       responseSectionKey: "businessResponse",
+      responseRefIds: ["B-03"],
       evidence: "售后承诺、服务机制、质保与维保说明",
       evidenceAttachmentKeys: ["service_commitment"],
       risk: "售后响应机制不明确时，容易丢分",
@@ -146,6 +162,7 @@ export function mapScoreMappingToTenderRow(r: ScoreMappingRow): TenderScoreMappi
     scoreItem: r.scoreItem,
     responseSection,
     responseSectionKey,
+    responseRefIds: hasTech ? ["T-01", "T-02"] : hasBiz ? ["B-01", "B-02"] : undefined,
     evidence,
     evidenceAttachmentKeys,
     risk,
