@@ -23,6 +23,8 @@ import type { BusinessResponseRow, TechnicalResponseRow } from "@/lib/pdf/tender
 import { DEFAULT_GYM_SCORE_CRITERIA } from "@/lib/pdf/tender/score/presets";
 import { buildScoreMappingRows } from "@/lib/pdf/tender/score/buildScoreMappingRows";
 import { renderScoreMappingPdf } from "@/lib/pdf/tender/renderScoreMappingPdf";
+import { buildTenderSectionPageRefsFromPackLayout } from "@/lib/pdf/tender/pageRefs";
+import type { TenderSectionPageRefs } from "@/lib/pdf/tender/pageRefs";
 import {
   buildDefaultTenderScoreMappings,
   mapScoreMappingToTenderRow,
@@ -660,6 +662,7 @@ async function buildScoreMappingPdf(input: {
   technicalRows: TechnicalResponseRow[];
   businessRows: BusinessResponseRow[];
   parsedScoreCriteria?: ParsedScoreCriterion[];
+  pageRefs?: TenderSectionPageRefs;
 }): Promise<Uint8Array> {
   const criteria =
     input.parsedScoreCriteria?.length
@@ -681,6 +684,7 @@ async function buildScoreMappingPdf(input: {
   const rendered = await renderScoreMappingPdf({
     title: "评分项对照页",
     rows: v2Rows,
+    pageRefs: input.pageRefs,
   });
   console.log("[score-mapping] pages=", rendered.pageCount);
   return rendered.bytes;
@@ -1365,7 +1369,6 @@ async function runTenderPack(
           technicalResponseBytes,
           businessDeviationBytes,
           technicalDeviationBytes,
-          scoreBytes,
           attachmentIndexBytes,
         ] = await Promise.all([
           buildBidLetterPdf(govInput),
@@ -1373,11 +1376,6 @@ async function runTenderPack(
           buildTechnicalResponsePdf(technicalRows),
           buildBusinessDeviationPdf(businessRows),
           buildTechnicalDeviationPdf(technicalRows),
-          buildScoreMappingPdf({
-            technicalRows,
-            businessRows,
-            parsedScoreCriteria: parsedTender?.scoreCriteria,
-          }),
           buildAttachmentIndexPdf(govInput),
         ]);
 
@@ -1387,7 +1385,6 @@ async function runTenderPack(
           technicalResponsePages,
           businessDeviationPages,
           technicalDeviationPages,
-          scorePages,
           attachmentIndexPages,
         ] = await Promise.all([
           assertPdfOk(Buffer.from(bidLetterBytes!), "bid-letter"),
@@ -1407,12 +1404,37 @@ async function runTenderPack(
             Buffer.from(technicalDeviationBytes!),
             "technical-deviation"
           ),
-          assertPdfOk(Buffer.from(scoreBytes!), "score"),
           assertPdfOk(
             Buffer.from(attachmentIndexBytes!),
             "attachment-index"
           ),
         ]);
+
+        let scorePagesEstimate = 1;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const pageRefs = buildTenderSectionPageRefsFromPackLayout({
+            coverPages,
+            govTocPages: 1,
+            bidLetterPages,
+            businessTermsResponsePages,
+            technicalResponsePages,
+            businessDeviationPages,
+            technicalDeviationPages,
+            scorePages: scorePagesEstimate,
+            attachmentIndexPages,
+            planPages,
+            budgetPages,
+          });
+          scoreBytes = await buildScoreMappingPdf({
+            technicalRows,
+            businessRows,
+            parsedScoreCriteria: parsedTender?.scoreCriteria,
+            pageRefs,
+          });
+          scorePages = await assertPdfOk(Buffer.from(scoreBytes), "score");
+          if (scorePages === scorePagesEstimate) break;
+          scorePagesEstimate = scorePages;
+        }
 
         govTocPages = 1;
         let currentPage = coverPages + govTocPages + 1;
