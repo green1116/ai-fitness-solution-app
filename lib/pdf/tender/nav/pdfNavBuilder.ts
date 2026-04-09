@@ -19,6 +19,7 @@ export function buildTenderNavMap(input: {
   businessResponseRows?: ResponseRow[];
   scoreRows?: ScoreRow[];
   attachmentRows?: AttachmentRow[];
+  preciseRefPages?: Record<string, number>;
 }): TenderNavMap {
   const map: TenderNavMap = {};
   const {
@@ -40,10 +41,11 @@ export function buildTenderNavMap(input: {
     };
     for (const row of technicalResponseRows) {
       if (!row.refId) continue;
+      const precisePage = input.preciseRefPages?.[row.refId];
       map[row.refId] = {
         key: row.refId,
         kind: "responseRef",
-        page: sectionStarts.technicalResponse,
+        page: precisePage || sectionStarts.technicalResponse,
       };
     }
   }
@@ -55,10 +57,11 @@ export function buildTenderNavMap(input: {
     };
     for (const row of businessResponseRows) {
       if (!row.refId) continue;
+      const precisePage = input.preciseRefPages?.[row.refId];
       map[row.refId] = {
         key: row.refId,
         kind: "responseRef",
-        page: sectionStarts.businessResponse,
+        page: precisePage || sectionStarts.businessResponse,
       };
     }
   }
@@ -86,7 +89,12 @@ export function buildTenderNavMap(input: {
 
   for (const row of scoreRows) {
     if (!row.scoreId || !sectionStarts.score) continue;
-    map[row.scoreId] = { key: row.scoreId, kind: "scoreRef", page: sectionStarts.score };
+    const precisePage = input.preciseRefPages?.[row.scoreId];
+    map[row.scoreId] = {
+      key: row.scoreId,
+      kind: "scoreRef",
+      page: precisePage || sectionStarts.score,
+    };
   }
   for (const row of attachmentRows) {
     if (!row.code || !sectionStarts.attachmentIndex) continue;

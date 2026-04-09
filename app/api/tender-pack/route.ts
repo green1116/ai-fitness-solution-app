@@ -26,6 +26,7 @@ import {
 import { withRefPrefix } from "@/lib/pdf/tender/refs/refFormat";
 import { buildTenderNavMap, type TenderSectionStartPages } from "@/lib/pdf/tender/nav/pdfNavBuilder";
 import { applyTenderNavLinks } from "@/lib/pdf/tender/nav/pdfNavApply";
+import { mergeRefPageMaps, offsetRefPageMap, type TenderRefPageMap } from "@/lib/pdf/tender/nav/refPageMap";
 import type { TenderNavRect } from "@/lib/pdf/tender/nav/pdfNavTypes";
 import type { BusinessResponseRow, TechnicalResponseRow } from "@/lib/pdf/tender/types";
 import { DEFAULT_GYM_SCORE_CRITERIA } from "@/lib/pdf/tender/score/presets";
@@ -586,7 +587,7 @@ function buildTechnicalRows(input: GovSectionInput & {
 async function buildBusinessTermsResponsePdf(
   rows: Array<BusinessResponseRow & { refId?: string }>,
   attachmentRefs?: TenderAttachmentRefMap
-): Promise<Uint8Array> {
+): Promise<{ bytes: Uint8Array; refPageMap: TenderRefPageMap }> {
   console.log("[business-response] rows=", rows.length);
   const businessSummary = summarizeTenderResponses(
     rows.map((r) => ({
@@ -612,13 +613,13 @@ async function buildBusinessTermsResponsePdf(
     attachmentRefs,
   });
   console.log("[business-response] pages=", rendered.pageCount);
-  return rendered.bytes;
+  return { bytes: rendered.bytes, refPageMap: rendered.refPageMap };
 }
 
 async function buildTechnicalResponsePdf(
   rows: Array<TechnicalResponseRow & { refId?: string }>,
   attachmentRefs?: TenderAttachmentRefMap
-): Promise<Uint8Array> {
+): Promise<{ bytes: Uint8Array; refPageMap: TenderRefPageMap }> {
   console.log("[technical-response] rows=", rows.length);
   const technicalSummary = summarizeTenderResponses(
     rows.map((r) => ({
@@ -644,7 +645,7 @@ async function buildTechnicalResponsePdf(
     attachmentRefs,
   });
   console.log("[technical-response] pages=", rendered.pageCount);
-  return rendered.bytes;
+  return { bytes: rendered.bytes, refPageMap: rendered.refPageMap };
 }
 
 async function buildBusinessDeviationPdf(
@@ -701,7 +702,11 @@ async function buildScoreMappingPdf(input: {
   parsedScoreCriteria?: ParsedScoreCriterion[];
   pageRefs?: TenderSectionPageRefs;
   attachmentRefs?: TenderAttachmentRefMap;
-}): Promise<{ bytes: Uint8Array; scoreRows: Array<{ scoreId?: string }> }> {
+}): Promise<{
+  bytes: Uint8Array;
+  scoreRows: Array<{ scoreId?: string }>;
+  refPageMap: TenderRefPageMap;
+}> {
   const criteria =
     input.parsedScoreCriteria?.length
       ? input.parsedScoreCriteria.map(toScoreCriterion)
@@ -742,7 +747,11 @@ async function buildScoreMappingPdf(input: {
     attachmentRefs: input.attachmentRefs,
   });
   console.log("[score-mapping] pages=", rendered.pageCount);
-  return { bytes: rendered.bytes, scoreRows: scoredRows };
+  return {
+    bytes: rendered.bytes,
+    scoreRows: scoredRows,
+    refPageMap: rendered.refPageMap,
+  };
 }
 
 async function buildAttachmentIndexPdf(
@@ -1412,6 +1421,9 @@ async function runTenderPack(
     let businessRowsForNav: Array<{ refId?: string }> = [];
     let scoreRowsForNav: Array<{ scoreId?: string }> = [];
     let attachmentRowsForNav: Array<{ code?: string }> = [];
+    let technicalRefPageMap: TenderRefPageMap = {};
+    let businessRefPageMap: TenderRefPageMap = {};
+    let scoreRefPageMap: TenderRefPageMap = {};
     const shouldBuildTenderExtras =
       level === "government" || level === "enterprise";
 
@@ -1481,13 +1493,13 @@ async function runTenderPack(
         technicalRowsForNav = technicalRowsWithRefs;
         attachmentRowsForNav = attachmentIndexRows;
 
-        [
-          bidLetterBytes,
-          businessTermsResponseBytes,
-          technicalResponseBytes,
-          businessDeviationBytes,
-          technicalDeviationBytes,
-          attachmentIndexBytes,
+        const [
+          bidLetterResult,
+          businessResponseResult,
+          technicalResponseResult,
+          businessDeviationResult,
+          technicalDeviationResult,
+          attachmentIndexResult,
         ] = await Promise.all([
           buildBidLetterPdf(govInput),
           buildBusinessTermsResponsePdf(businessRowsWithRefs, attachmentRefs),
@@ -1496,6 +1508,14 @@ async function runTenderPack(
           buildTechnicalDeviationPdf(technicalRowsWithRefs, attachmentRefs),
           buildAttachmentIndexPdf(govInput, attachmentIndexRows),
         ]);
+        bidLetterBytes = bidLetterResult;
+        businessTermsResponseBytes = businessResponseResult.bytes;
+        technicalResponseBytes = technicalResponseResult.bytes;
+        businessDeviationBytes = businessDeviationResult;
+        technicalDeviationBytes = technicalDeviationResult;
+        attachmentIndexBytes = attachmentIndexResult;
+        businessRefPageMap = businessResponseResult.refPageMap || {};
+        technicalRefPageMap = technicalResponseResult.refPageMap || {};
 
         [
           bidLetterPages,
@@ -1552,6 +1572,7 @@ async function runTenderPack(
           });
           scoreBytes = scoreResult.bytes;
           scoreRowsForNav = scoreResult.scoreRows;
+          scoreRefPageMap = scoreResult.refPageMap || {};
           scorePages = await assertPdfOk(Buffer.from(scoreBytes), "score");
           if (scorePages === scorePagesEstimate) break;
           scorePagesEstimate = scorePages;
@@ -1772,12 +1793,27 @@ async function runTenderPack(
 
       if (!isEnterpriseBrand && govTocEntries.length > 0 && govTocLinkRects.length > 0) {
         const sectionStarts = buildTenderSectionStartPages(govTocEntries);
+        const mergedRefPageMap = mergeRefPageMaps(
+          offsetRefPageMap(
+            scoreRefPageMap,
+            Math.max((sectionStarts.score || 1) - 1, 0)
+          ),
+          offsetRefPageMap(
+            technicalRefPageMap,
+            Math.max((sectionStarts.technicalResponse || 1) - 1, 0)
+          ),
+          offsetRefPageMap(
+            businessRefPageMap,
+            Math.max((sectionStarts.businessResponse || 1) - 1, 0)
+          )
+        );
         const navMap = buildTenderNavMap({
           sectionStarts,
           technicalResponseRows: technicalRowsForNav,
           businessResponseRows: businessRowsForNav,
           scoreRows: scoreRowsForNav,
           attachmentRows: attachmentRowsForNav,
+          preciseRefPages: mergedRefPageMap,
         });
         const tocRectsInMerged = govTocLinkRects.map((r) => ({
           ...r,
