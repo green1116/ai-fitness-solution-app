@@ -2,7 +2,10 @@ import fs from "fs";
 import path from "path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
-import { drawStatusBadge } from "@/lib/pdf/tender/statusStyle";
+import {
+  drawStatusBadge,
+  normalizeTenderDisplayStatus,
+} from "@/lib/pdf/tender/statusStyle";
 
 export type TenderTableColumn<T extends Record<string, string>> = {
   key: keyof T;
@@ -42,6 +45,7 @@ const COLORS = {
   border: rgb(0.75, 0.78, 0.82),
   headerBg: rgb(0.93, 0.95, 0.98),
   title: rgb(0.1, 0.2, 0.42),
+  statusCellBorder: rgb(0.82, 0.82, 0.82),
 };
 
 function safeText(v: unknown): string {
@@ -174,42 +178,52 @@ function drawRow<T extends Record<string, string>>(
   const y = yTop - rowHeight;
   let x = MARGIN_LEFT;
   for (const col of columns) {
-    drawRect(page, x, y, col.width, rowHeight);
     if (col.cellKind === "status-badge") {
+      page.drawRectangle({
+        x,
+        y,
+        width: col.width,
+        height: rowHeight,
+        borderWidth: 0.6,
+        borderColor: COLORS.statusCellBorder,
+      });
       drawStatusBadge({
         page,
-        statusText: safeText(row[col.key]),
-        cellX: x,
-        cellY: y,
-        cellW: col.width,
-        cellH: rowHeight,
+        status: normalizeTenderDisplayStatus(row[col.key]),
+        x,
+        y,
+        w: col.width,
+        h: rowHeight,
         font,
         fontSize: BODY_FONT_SIZE,
       });
-    } else if (col.cellKind === "center-text") {
-      const line = (wrapped[col.key] || [safeText(row[col.key])])[0] || "";
-      const tw = font.widthOfTextAtSize(line, BODY_FONT_SIZE);
-      const tx = x + Math.max(CELL_PAD_X, (col.width - tw) / 2);
-      const ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE;
-      page.drawText(line, {
-        x: tx,
-        y: ly,
-        size: BODY_FONT_SIZE,
-        font,
-        color: COLORS.text,
-      });
     } else {
-      const lines = wrapped[col.key] || [safeText(row[col.key])];
-      let ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE;
-      for (const line of lines) {
-        page.drawText(line || "", {
-          x: x + CELL_PAD_X,
+      drawRect(page, x, y, col.width, rowHeight);
+      if (col.cellKind === "center-text") {
+        const line = (wrapped[col.key] || [safeText(row[col.key])])[0] || "";
+        const tw = font.widthOfTextAtSize(line, BODY_FONT_SIZE);
+        const tx = x + Math.max(CELL_PAD_X, (col.width - tw) / 2);
+        const ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE;
+        page.drawText(line, {
+          x: tx,
           y: ly,
           size: BODY_FONT_SIZE,
           font,
           color: COLORS.text,
         });
-        ly -= LINE_HEIGHT;
+      } else {
+        const lines = wrapped[col.key] || [safeText(row[col.key])];
+        let ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE;
+        for (const line of lines) {
+          page.drawText(line || "", {
+            x: x + CELL_PAD_X,
+            y: ly,
+            size: BODY_FONT_SIZE,
+            font,
+            color: COLORS.text,
+          });
+          ly -= LINE_HEIGHT;
+        }
       }
     }
     x += col.width;

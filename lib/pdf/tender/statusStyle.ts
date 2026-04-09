@@ -1,5 +1,4 @@
-import type { PDFFont, PDFPage } from "pdf-lib";
-import { rgb } from "pdf-lib";
+import { rgb, type PDFFont, type PDFPage } from "pdf-lib";
 
 export type TenderDisplayStatus =
   | "满足"
@@ -9,20 +8,42 @@ export type TenderDisplayStatus =
   | "偏离"
   | "无此项";
 
-export function normalizeDisplayStatus(raw: string): TenderDisplayStatus {
-  const s = String(raw || "").trim();
+export function normalizeTenderDisplayStatus(v: unknown): TenderDisplayStatus {
+  const s = String(v || "").trim();
+
   switch (s) {
     case "满足":
+    case "完全满足":
+      return "满足";
+
     case "响应":
+    case "已响应":
+      return "响应";
+
     case "待确认":
+    case "待补充":
+      return "待确认";
+
     case "部分满足":
+    case "基本满足":
+      return "部分满足";
+
     case "偏离":
+    case "不满足":
+      return "偏离";
+
     case "无此项":
-      return s;
+    case "不适用":
+      return "无此项";
+
     default:
       return "无此项";
   }
 }
+
+/** @deprecated 使用 normalizeTenderDisplayStatus */
+export const normalizeDisplayStatus = (raw: string) =>
+  normalizeTenderDisplayStatus(raw);
 
 export function getTenderStatusStyle(status: TenderDisplayStatus) {
   switch (status) {
@@ -60,36 +81,23 @@ export function getTenderStatusStyle(status: TenderDisplayStatus) {
   }
 }
 
-/** 状态列：浅底胶囊 + 居中文字，不铺满整格 */
 export function drawStatusBadge(params: {
   page: PDFPage;
-  statusText: string;
-  cellX: number;
-  cellY: number;
-  cellW: number;
-  cellH: number;
+  status: TenderDisplayStatus;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
   font: PDFFont;
   fontSize?: number;
 }) {
-  const {
-    page,
-    statusText,
-    cellX,
-    cellY,
-    cellW,
-    cellH,
-    font,
-    fontSize = 8.5,
-  } = params;
-
-  const status = normalizeDisplayStatus(statusText);
-  const label = status;
+  const { page, status, x, y, w, h, font, fontSize = 8.5 } = params;
   const { textColor, fillColor } = getTenderStatusStyle(status);
 
-  const badgeW = Math.min(40, Math.max(28, cellW - 12));
+  const badgeW = Math.min(40, Math.max(28, w - 12));
   const badgeH = 14;
-  const bx = cellX + (cellW - badgeW) / 2;
-  const by = cellY + (cellH - badgeH) / 2;
+  const bx = x + (w - badgeW) / 2;
+  const by = y + (h - badgeH) / 2;
 
   page.drawRectangle({
     x: bx,
@@ -100,11 +108,11 @@ export function drawStatusBadge(params: {
     borderWidth: 0,
   });
 
-  const tw = font.widthOfTextAtSize(label, fontSize);
-  const tx = bx + Math.max(0, (badgeW - tw) / 2);
+  const tw = font.widthOfTextAtSize(status, fontSize);
+  const tx = bx + (badgeW - tw) / 2;
   const ty = by + (badgeH - fontSize) / 2 + 1.5;
 
-  page.drawText(label, {
+  page.drawText(status, {
     x: tx,
     y: ty,
     size: fontSize,

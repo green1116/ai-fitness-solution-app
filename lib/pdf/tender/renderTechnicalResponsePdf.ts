@@ -1,15 +1,13 @@
 import { renderTenderTablePdf } from "@/lib/pdf/tender/renderTenderTablePdf";
+import {
+  TECHNICAL_RESPONSE_TABLE_COLS,
+  type TechnicalResponseTableRow,
+} from "@/lib/pdf/tender/technicalResponse";
 
-type TechnicalTableRow = {
-  no: string;
-  requirement: string;
-  status: string;
-  response: string;
-  note: string;
-};
+export type { TechnicalResponseTableRow };
 
 export type RenderTechnicalResponsePdfInput = {
-  rows: TechnicalTableRow[];
+  rows: TechnicalResponseTableRow[];
   title?: string;
   footnote?: string;
 };
@@ -19,22 +17,13 @@ export type RenderTechnicalResponsePdfResult = {
   pageCount: number;
 };
 
-const TABLE_COLS = [
-  { key: "no", title: "序号", width: 34, cellKind: "center-text" as const },
-  { key: "requirement", title: "招标要求", width: 150 },
-  { key: "status", title: "响应情况", width: 54, cellKind: "status-badge" as const },
-  { key: "response", title: "投标响应", width: 190 },
-  { key: "note", title: "备注", width: 64 },
-] as const;
-
 export async function renderTechnicalResponsePdf(
   input: RenderTechnicalResponsePdfInput
 ): Promise<RenderTechnicalResponsePdfResult> {
-  return renderTenderTablePdf<TechnicalTableRow>({
+  return renderTenderTablePdf<TechnicalResponseTableRow>({
     title: input.title || "技术响应表",
     rows: input.rows || [],
-    columns: [...TABLE_COLS],
+    columns: [...TECHNICAL_RESPONSE_TABLE_COLS],
     footnote: input.footnote,
   });
 }
-
