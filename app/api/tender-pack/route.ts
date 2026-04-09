@@ -24,6 +24,9 @@ import {
   buildTechnicalResponseRefs,
 } from "@/lib/pdf/tender/refBuilder";
 import { withRefPrefix } from "@/lib/pdf/tender/refFormat";
+import { buildTenderNavMap, type TenderSectionStartPages } from "@/lib/pdf/tender/pdfNavBuilder";
+import { applyTenderNavLinks } from "@/lib/pdf/tender/pdfNavApply";
+import type { TenderNavRect } from "@/lib/pdf/tender/pdfNavTypes";
 import type { BusinessResponseRow, TechnicalResponseRow } from "@/lib/pdf/tender/types";
 import { DEFAULT_GYM_SCORE_CRITERIA } from "@/lib/pdf/tender/score/presets";
 import { buildScoreMappingRows } from "@/lib/pdf/tender/score/buildScoreMappingRows";
@@ -235,6 +238,11 @@ type GovTocEntry = {
   id: string;
   title: string;
   startPage: number;
+};
+
+type GovTocPdfResult = {
+  bytes: Uint8Array;
+  linkRects: TenderNavRect[];
 };
 
 function drawParagraphLines(
@@ -693,7 +701,7 @@ async function buildScoreMappingPdf(input: {
   parsedScoreCriteria?: ParsedScoreCriterion[];
   pageRefs?: TenderSectionPageRefs;
   attachmentRefs?: TenderAttachmentRefMap;
-}): Promise<Uint8Array> {
+}): Promise<{ bytes: Uint8Array; scoreRows: Array<{ scoreId?: string }> }> {
   const criteria =
     input.parsedScoreCriteria?.length
       ? input.parsedScoreCriteria.map(toScoreCriterion)
@@ -734,7 +742,7 @@ async function buildScoreMappingPdf(input: {
     attachmentRefs: input.attachmentRefs,
   });
   console.log("[score-mapping] pages=", rendered.pageCount);
-  return rendered.bytes;
+  return { bytes: rendered.bytes, scoreRows: scoredRows };
 }
 
 async function buildAttachmentIndexPdf(
@@ -765,11 +773,57 @@ async function buildEnterpriseBrandBusinessNotePdf(
   });
 }
 
+function resolveTocTargetKey(entryId: string) {
+  switch (entryId) {
+    case "score":
+      return "score-page";
+    case "technical-response":
+      return "technical-response";
+    case "business-terms-response":
+      return "business-response";
+    case "technical-deviation":
+      return "technical-deviation";
+    case "business-deviation":
+      return "business-deviation";
+    case "attachment-index":
+      return "attachment-index";
+    default:
+      return "";
+  }
+}
+
+function buildTenderSectionStartPages(entries: GovTocEntry[]): TenderSectionStartPages {
+  const out: TenderSectionStartPages = {};
+  for (const entry of entries || []) {
+    switch (entry.id) {
+      case "score":
+        out.score = entry.startPage;
+        break;
+      case "technical-response":
+        out.technicalResponse = entry.startPage;
+        break;
+      case "business-terms-response":
+        out.businessResponse = entry.startPage;
+        break;
+      case "technical-deviation":
+        out.technicalDeviation = entry.startPage;
+        break;
+      case "business-deviation":
+        out.businessDeviation = entry.startPage;
+        break;
+      case "attachment-index":
+        out.attachmentIndex = entry.startPage;
+        break;
+    }
+  }
+  return out;
+}
+
 async function buildGovernmentTocPdf(
   input: GovSectionInput,
   entries: GovTocEntry[],
   tocOpts?: { tocTitle?: string }
-): Promise<Uint8Array> {
+): Promise<GovTocPdfResult> {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([595.28, 841.89]);
   const font = await embedPackFont(pdf);
@@ -795,6 +849,7 @@ async function buildGovernmentTocPdf(
   });
 
   let y = height - 150;
+  const linkRects: TenderNavRect[] = [];
   for (const entry of entries) {
     page.drawText(entry.title, {
       x: M,
@@ -813,10 +868,21 @@ async function buildGovernmentTocPdf(
       font,
       color: rgb(0.2, 0.2, 0.2),
     });
+    const targetKey = resolveTocTargetKey(entry.id);
+    if (targetKey) {
+      linkRects.push({
+        page: 1,
+        x: M,
+        y: y - 3,
+        width: width - M * 2,
+        height: 18,
+        targetKey,
+      });
+    }
     y -= 24;
   }
 
-  return await pdf.save();
+  return { bytes: await pdf.save(), linkRects };
 }
 
 async function restampPackPagination(
@@ -1323,6 +1389,7 @@ async function runTenderPack(
     }
 
     let govTocBytes: Uint8Array | null = null;
+    let govTocLinkRects: TenderNavRect[] = [];
     let bidLetterBytes: Uint8Array | null = null;
     let businessTermsResponseBytes: Uint8Array | null = null;
     let technicalResponseBytes: Uint8Array | null = null;
@@ -1341,6 +1408,10 @@ async function runTenderPack(
     let attachmentIndexPages = 0;
     let enterpriseBizNotePages = 0;
     let govTocEntries: GovTocEntry[] = [];
+    let technicalRowsForNav: Array<{ refId?: string }> = [];
+    let businessRowsForNav: Array<{ refId?: string }> = [];
+    let scoreRowsForNav: Array<{ scoreId?: string }> = [];
+    let attachmentRowsForNav: Array<{ code?: string }> = [];
     const shouldBuildTenderExtras =
       level === "government" || level === "enterprise";
 
@@ -1385,9 +1456,11 @@ async function runTenderPack(
           startPage: currentPage,
         });
 
-        govTocBytes = await buildGovernmentTocPdf(govInput, govTocEntries, {
+        const tocResult = await buildGovernmentTocPdf(govInput, govTocEntries, {
           tocTitle: "企业投标包目录",
         });
+        govTocBytes = tocResult.bytes;
+        govTocLinkRects = tocResult.linkRects;
         govTocPages = await assertPdfOk(
           Buffer.from(govTocBytes),
           "enterprise-toc"
@@ -1404,6 +1477,9 @@ async function runTenderPack(
         });
         const businessRowsWithRefs = buildBusinessResponseRefs(businessRows);
         const technicalRowsWithRefs = buildTechnicalResponseRefs(technicalRows);
+        businessRowsForNav = businessRowsWithRefs;
+        technicalRowsForNav = technicalRowsWithRefs;
+        attachmentRowsForNav = attachmentIndexRows;
 
         [
           bidLetterBytes,
@@ -1467,13 +1543,15 @@ async function runTenderPack(
             planPages,
             budgetPages,
           });
-          scoreBytes = await buildScoreMappingPdf({
+          const scoreResult = await buildScoreMappingPdf({
             technicalRows: technicalRowsWithRefs,
             businessRows: businessRowsWithRefs,
             parsedScoreCriteria: parsedTender?.scoreCriteria,
             pageRefs,
             attachmentRefs,
           });
+          scoreBytes = scoreResult.bytes;
+          scoreRowsForNav = scoreResult.scoreRows;
           scorePages = await assertPdfOk(Buffer.from(scoreBytes), "score");
           if (scorePages === scorePagesEstimate) break;
           scorePagesEstimate = scorePages;
@@ -1557,7 +1635,9 @@ async function runTenderPack(
           title: "预算与报价",
           startPage: currentPage,
         });
-        govTocBytes = await buildGovernmentTocPdf(govInput, govTocEntries);
+        const tocResult = await buildGovernmentTocPdf(govInput, govTocEntries);
+        govTocBytes = tocResult.bytes;
+        govTocLinkRects = tocResult.linkRects;
         govTocPages = await assertPdfOk(
           Buffer.from(govTocBytes),
           "government-toc"
@@ -1686,9 +1766,27 @@ async function runTenderPack(
       const mergedBytes = await mergePdfBuffers({ parts });
       const mergedPages = await assertPdfOk(Buffer.from(mergedBytes), "merged-check");
       console.log("[tender-pack merged check]", { mergedPages });
-      const finalBytes = packFooter
+      let finalBytes = packFooter
         ? await restampPackPagination(mergedBytes, { level, planId })
         : mergedBytes;
+
+      if (!isEnterpriseBrand && govTocEntries.length > 0 && govTocLinkRects.length > 0) {
+        const sectionStarts = buildTenderSectionStartPages(govTocEntries);
+        const navMap = buildTenderNavMap({
+          sectionStarts,
+          technicalResponseRows: technicalRowsForNav,
+          businessResponseRows: businessRowsForNav,
+          scoreRows: scoreRowsForNav,
+          attachmentRows: attachmentRowsForNav,
+        });
+        const tocRectsInMerged = govTocLinkRects.map((r) => ({
+          ...r,
+          page: r.page + coverPages,
+        }));
+        const navDoc = await PDFDocument.load(finalBytes, { ignoreEncryption: true });
+        applyTenderNavLinks(navDoc, navMap, tocRectsInMerged);
+        finalBytes = await navDoc.save();
+      }
       const mergedFilename = `AI_Fitness_Solution_Tender_Merged-${level}-${asciiSafeFilename(planId)}-${date}.pdf`;
 
       if (req.method === "GET" || req.method === "POST") {
