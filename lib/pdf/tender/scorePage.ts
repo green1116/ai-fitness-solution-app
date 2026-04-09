@@ -5,6 +5,7 @@ export { renderScoreMappingPdf as renderScorePagePdf } from "@/lib/pdf/tender/re
 export type { RenderScoreMappingPdfInput as RenderScorePagePdfInput } from "@/lib/pdf/tender/renderScoreMappingPdf";
 export {
   buildDefaultTenderScoreMappings,
+  formatEvidenceWithAttachments,
   formatSectionWithPage,
   mapScoreMappingToTenderRow,
   SCORE_MAPPING_PAGE_FOOTNOTE,
@@ -12,6 +13,12 @@ export {
   type TenderScoreMappingRow,
   type TenderScoreMappingSectionKey,
 } from "@/lib/pdf/tender/scoreMapping";
+export {
+  buildDefaultTenderAttachmentRefs,
+  type TenderAttachmentRefItem,
+  type TenderAttachmentRefKey,
+  type TenderAttachmentRefMap,
+} from "@/lib/pdf/tender/attachmentRefs";
 export {
   buildTenderSectionPageRefs,
   buildTenderSectionPageRefsFromPackLayout,

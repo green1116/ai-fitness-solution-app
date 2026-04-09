@@ -1,6 +1,8 @@
+import type { TenderAttachmentRefMap } from "@/lib/pdf/tender/attachmentRefs";
 import type { TenderSectionPageRefs } from "@/lib/pdf/tender/pageRefs";
 import { renderTenderTablePdf } from "@/lib/pdf/tender/renderTenderTablePdf";
 import {
+  formatEvidenceWithAttachments,
   formatSectionWithPage,
   SCORE_MAPPING_PAGE_FOOTNOTE,
   SCORE_MAPPING_PAGE_SUBTITLE,
@@ -22,6 +24,7 @@ export type RenderScoreMappingPdfInput = {
   footnote?: string;
   rows: TenderScoreMappingRow[];
   pageRefs?: TenderSectionPageRefs;
+  attachmentRefs?: TenderAttachmentRefMap;
 };
 
 export type RenderScoreMappingPdfResult = {
@@ -43,22 +46,35 @@ function hasAnyPageRef(refs?: TenderSectionPageRefs) {
   );
 }
 
+function hasAnyAttachmentRef(refs?: TenderAttachmentRefMap) {
+  if (!refs) return false;
+  return Object.values(refs).some((v) => !!v?.code && !!v?.name);
+}
+
 export async function renderScoreMappingPdf(
   input: RenderScoreMappingPdfInput
 ): Promise<RenderScoreMappingPdfResult> {
   const pageRefs = input.pageRefs;
+  const attachmentRefs = input.attachmentRefs;
   const sectionTitle = hasAnyPageRef(pageRefs)
     ? "对应响应章节（含页码）"
     : "对应响应章节";
+  const evidenceTitle = hasAnyAttachmentRef(attachmentRefs)
+    ? "建议证明材料（含附件编号）"
+    : "建议证明材料";
 
   const columns = TABLE_COLS_BASE.map((c) =>
-    c.key === "responseSection" ? { ...c, title: sectionTitle } : c
+    c.key === "responseSection"
+      ? { ...c, title: sectionTitle }
+      : c.key === "evidence"
+        ? { ...c, title: evidenceTitle }
+        : c
   );
 
   const rows: ScoreV2Row[] = (input.rows || []).map((r) => ({
     scoreItem: r.scoreItem,
     responseSection: formatSectionWithPage(r, pageRefs),
-    evidence: r.evidence,
+    evidence: formatEvidenceWithAttachments(r, attachmentRefs),
     risk: r.risk,
   }));
 

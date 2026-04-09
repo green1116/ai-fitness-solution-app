@@ -23,6 +23,10 @@ import type { BusinessResponseRow, TechnicalResponseRow } from "@/lib/pdf/tender
 import { DEFAULT_GYM_SCORE_CRITERIA } from "@/lib/pdf/tender/score/presets";
 import { buildScoreMappingRows } from "@/lib/pdf/tender/score/buildScoreMappingRows";
 import { renderScoreMappingPdf } from "@/lib/pdf/tender/renderScoreMappingPdf";
+import {
+  buildDefaultTenderAttachmentRefs,
+  type TenderAttachmentRefMap,
+} from "@/lib/pdf/tender/attachmentRefs";
 import { buildTenderSectionPageRefsFromPackLayout } from "@/lib/pdf/tender/pageRefs";
 import type { TenderSectionPageRefs } from "@/lib/pdf/tender/pageRefs";
 import {
@@ -663,6 +667,7 @@ async function buildScoreMappingPdf(input: {
   businessRows: BusinessResponseRow[];
   parsedScoreCriteria?: ParsedScoreCriterion[];
   pageRefs?: TenderSectionPageRefs;
+  attachmentRefs?: TenderAttachmentRefMap;
 }): Promise<Uint8Array> {
   const criteria =
     input.parsedScoreCriteria?.length
@@ -685,14 +690,22 @@ async function buildScoreMappingPdf(input: {
     title: "评分项对照页",
     rows: v2Rows,
     pageRefs: input.pageRefs,
+    attachmentRefs: input.attachmentRefs,
   });
   console.log("[score-mapping] pages=", rendered.pageCount);
   return rendered.bytes;
 }
 
 async function buildAttachmentIndexPdf(
-  input: GovSectionInput
+  input: GovSectionInput,
+  attachmentRefs: TenderAttachmentRefMap
 ): Promise<Uint8Array> {
+  const rows = Object.values(attachmentRefs).filter(
+    (x): x is NonNullable<typeof x> => !!x
+  );
+  const sorted = rows.sort((a, b) => a.code.localeCompare(b.code, "zh-CN"));
+  const attachmentLines = sorted.map((item) => `${item.code} ${item.name}`);
+
   return buildGovSectionShellPdf({
     title: "附件索引页",
     subtitle: "Government Review V2",
@@ -701,12 +714,7 @@ async function buildAttachmentIndexPdf(
       "本页为附件索引骨架页。",
       "",
       "建议附件目录：",
-      "1. 公司营业执照/资质证明",
-      "2. 法定代表人身份证明",
-      "3. 授权委托书",
-      "4. 类似项目业绩证明",
-      "5. 产品说明书/检测报告",
-      "6. 实施方案与售后服务承诺",
+      ...(attachmentLines.length ? attachmentLines : ["A-01 营业执照"]),
     ],
   });
 }
@@ -1355,6 +1363,7 @@ async function runTenderPack(
           "enterprise-toc"
         );
       } else {
+        const attachmentRefs = buildDefaultTenderAttachmentRefs();
         const businessRows = buildBusinessRows({
           parsedBusinessRequirements: parsedTender?.businessRequirements,
         });
@@ -1376,7 +1385,7 @@ async function runTenderPack(
           buildTechnicalResponsePdf(technicalRows),
           buildBusinessDeviationPdf(businessRows),
           buildTechnicalDeviationPdf(technicalRows),
-          buildAttachmentIndexPdf(govInput),
+          buildAttachmentIndexPdf(govInput, attachmentRefs),
         ]);
 
         [
@@ -1430,6 +1439,7 @@ async function runTenderPack(
             businessRows,
             parsedScoreCriteria: parsedTender?.scoreCriteria,
             pageRefs,
+            attachmentRefs,
           });
           scorePages = await assertPdfOk(Buffer.from(scoreBytes), "score");
           if (scorePages === scorePagesEstimate) break;
