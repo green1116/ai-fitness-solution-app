@@ -18,6 +18,7 @@ export type RenderTechnicalResponsePdfInput = {
 export type RenderTechnicalResponsePdfResult = {
   bytes: Uint8Array;
   pageCount: number;
+  refPageMap: Record<string, number>;
 };
 
 export async function renderTechnicalResponsePdf(
@@ -42,5 +43,10 @@ export async function renderTechnicalResponsePdf(
     rows,
     columns: [...TECHNICAL_RESPONSE_TABLE_COLS],
     footnote: input.footnote,
+    getRefKey: (row) => {
+      const v = String(row.requirement || "");
+      const m = v.match(/\b(T-\d{2})\b/);
+      return m?.[1];
+    },
   });
 }
