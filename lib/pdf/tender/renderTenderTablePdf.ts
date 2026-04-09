@@ -2,11 +2,14 @@ import fs from "fs";
 import path from "path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
+import { drawStatusBadge } from "@/lib/pdf/tender/statusStyle";
 
 export type TenderTableColumn<T extends Record<string, string>> = {
   key: keyof T;
   title: string;
   width: number;
+  /** default | status-badge（胶囊）| center-text（序号等单行居中） */
+  cellKind?: "default" | "status-badge" | "center-text";
 };
 
 export type RenderTenderTablePdfInput<T extends Record<string, string>> = {
@@ -144,7 +147,16 @@ function calcRowHeight<T extends Record<string, string>>(
 ) {
   const wrapped: Partial<Record<keyof T, string[]>> = {};
   for (const col of columns) {
-    wrapped[col.key] = wrapText(safeText(row[col.key]), font, BODY_FONT_SIZE, col.width - CELL_PAD_X * 2);
+    if (col.cellKind === "status-badge" || col.cellKind === "center-text") {
+      wrapped[col.key] = safeText(row[col.key]) ? [safeText(row[col.key])] : [""];
+    } else {
+      wrapped[col.key] = wrapText(
+        safeText(row[col.key]),
+        font,
+        BODY_FONT_SIZE,
+        col.width - CELL_PAD_X * 2
+      );
+    }
   }
   const maxLines = Math.max(...columns.map((c) => wrapped[c.key]?.length || 1), 1);
   return { wrapped, height: Math.max(28, maxLines * LINE_HEIGHT + CELL_PAD_Y * 2) };
@@ -163,11 +175,42 @@ function drawRow<T extends Record<string, string>>(
   let x = MARGIN_LEFT;
   for (const col of columns) {
     drawRect(page, x, y, col.width, rowHeight);
-    const lines = wrapped[col.key] || [safeText(row[col.key])];
-    let ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE;
-    for (const line of lines) {
-      page.drawText(line || "", { x: x + CELL_PAD_X, y: ly, size: BODY_FONT_SIZE, font, color: COLORS.text });
-      ly -= LINE_HEIGHT;
+    if (col.cellKind === "status-badge") {
+      drawStatusBadge({
+        page,
+        statusText: safeText(row[col.key]),
+        cellX: x,
+        cellY: y,
+        cellW: col.width,
+        cellH: rowHeight,
+        font,
+        fontSize: BODY_FONT_SIZE,
+      });
+    } else if (col.cellKind === "center-text") {
+      const line = (wrapped[col.key] || [safeText(row[col.key])])[0] || "";
+      const tw = font.widthOfTextAtSize(line, BODY_FONT_SIZE);
+      const tx = x + Math.max(CELL_PAD_X, (col.width - tw) / 2);
+      const ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE;
+      page.drawText(line, {
+        x: tx,
+        y: ly,
+        size: BODY_FONT_SIZE,
+        font,
+        color: COLORS.text,
+      });
+    } else {
+      const lines = wrapped[col.key] || [safeText(row[col.key])];
+      let ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE;
+      for (const line of lines) {
+        page.drawText(line || "", {
+          x: x + CELL_PAD_X,
+          y: ly,
+          size: BODY_FONT_SIZE,
+          font,
+          color: COLORS.text,
+        });
+        ly -= LINE_HEIGHT;
+      }
     }
     x += col.width;
   }

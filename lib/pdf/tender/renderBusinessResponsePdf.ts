@@ -20,9 +20,9 @@ export type RenderBusinessResponsePdfResult = {
 };
 
 const TABLE_COLS = [
-  { key: "no", title: "序号", width: 34 },
+  { key: "no", title: "序号", width: 34, cellKind: "center-text" as const },
   { key: "requirement", title: "招标要求", width: 150 },
-  { key: "status", title: "响应情况", width: 54 },
+  { key: "status", title: "响应情况", width: 54, cellKind: "status-badge" as const },
   { key: "response", title: "投标响应", width: 190 },
   { key: "note", title: "备注", width: 64 },
 ] as const;
