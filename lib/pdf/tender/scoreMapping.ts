@@ -3,9 +3,9 @@ import type {
   TenderAttachmentRefItem,
   TenderAttachmentRefKey,
   TenderAttachmentRefMap,
-} from "@/lib/pdf/tender/attachmentRefs";
-import type { TenderSectionPageRefs } from "@/lib/pdf/tender/pageRefs";
-import { formatResponseRefs } from "@/lib/pdf/tender/refFormat";
+} from "@/lib/pdf/tender/refs/attachmentRefs";
+import type { TenderSectionPageRefs } from "@/lib/pdf/tender/refs/pageRefs";
+import { formatResponseRefs } from "@/lib/pdf/tender/refs/refFormat";
 
 export type TenderScoreMappingSectionKey = keyof TenderSectionPageRefs;
 

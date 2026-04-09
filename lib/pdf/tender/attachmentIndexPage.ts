@@ -3,7 +3,7 @@ import {
   buildDefaultTenderAttachmentIndexRows,
   type TenderAttachmentIndexRow,
 } from "@/lib/pdf/tender/attachmentIndex";
-import { formatResponseRefs, formatScoreRefs } from "@/lib/pdf/tender/refFormat";
+import { formatResponseRefs, formatScoreRefs } from "@/lib/pdf/tender/refs/refFormat";
 
 type AttachmentIndexRenderRow = {
   code: string;

@@ -18,10 +18,10 @@ export {
   type TenderAttachmentRefItem,
   type TenderAttachmentRefKey,
   type TenderAttachmentRefMap,
-} from "@/lib/pdf/tender/attachmentRefs";
+} from "@/lib/pdf/tender/refs/attachmentRefs";
 export {
   buildTenderSectionPageRefs,
   buildTenderSectionPageRefsFromPackLayout,
   type TenderPackSegmentPageCounts,
   type TenderSectionPageRefs,
-} from "@/lib/pdf/tender/pageRefs";
+} from "@/lib/pdf/tender/refs/pageRefs";

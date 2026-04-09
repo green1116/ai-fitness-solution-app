@@ -8,7 +8,7 @@ import type {
   TenderDeviationRow,
   TenderDeviationScene,
 } from "@/lib/pdf/tender/deviationTypes";
-import { withRefPrefix } from "@/lib/pdf/tender/refFormat";
+import { withRefPrefix } from "@/lib/pdf/tender/refs/refFormat";
 import { normalizeTenderDisplayStatus } from "@/lib/pdf/tender/statusStyle";
 
 type DeviationRow = {

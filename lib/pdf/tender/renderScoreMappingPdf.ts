@@ -1,5 +1,5 @@
-import type { TenderAttachmentRefMap } from "@/lib/pdf/tender/attachmentRefs";
-import type { TenderSectionPageRefs } from "@/lib/pdf/tender/pageRefs";
+import type { TenderAttachmentRefMap } from "@/lib/pdf/tender/refs/attachmentRefs";
+import type { TenderSectionPageRefs } from "@/lib/pdf/tender/refs/pageRefs";
 import { renderTenderTablePdf } from "@/lib/pdf/tender/renderTenderTablePdf";
 import {
   formatEvidenceWithAttachments,

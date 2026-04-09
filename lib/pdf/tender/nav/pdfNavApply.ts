@@ -1,5 +1,5 @@
 import { PDFArray, PDFDocument, PDFName } from "pdf-lib";
-import type { TenderNavMap, TenderNavRect } from "@/lib/pdf/tender/pdfNavTypes";
+import type { TenderNavMap, TenderNavRect } from "@/lib/pdf/tender/nav/pdfNavTypes";
 
 function ensureAnnotsArray(page: any, pdfDoc: PDFDocument): PDFArray {
   const key = PDFName.of("Annots");

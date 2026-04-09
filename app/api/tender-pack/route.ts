@@ -22,11 +22,11 @@ import {
   isDeviationLikeStatus,
   buildScoreRefs,
   buildTechnicalResponseRefs,
-} from "@/lib/pdf/tender/refBuilder";
-import { withRefPrefix } from "@/lib/pdf/tender/refFormat";
-import { buildTenderNavMap, type TenderSectionStartPages } from "@/lib/pdf/tender/pdfNavBuilder";
-import { applyTenderNavLinks } from "@/lib/pdf/tender/pdfNavApply";
-import type { TenderNavRect } from "@/lib/pdf/tender/pdfNavTypes";
+} from "@/lib/pdf/tender/refs/refBuilder";
+import { withRefPrefix } from "@/lib/pdf/tender/refs/refFormat";
+import { buildTenderNavMap, type TenderSectionStartPages } from "@/lib/pdf/tender/nav/pdfNavBuilder";
+import { applyTenderNavLinks } from "@/lib/pdf/tender/nav/pdfNavApply";
+import type { TenderNavRect } from "@/lib/pdf/tender/nav/pdfNavTypes";
 import type { BusinessResponseRow, TechnicalResponseRow } from "@/lib/pdf/tender/types";
 import { DEFAULT_GYM_SCORE_CRITERIA } from "@/lib/pdf/tender/score/presets";
 import { buildScoreMappingRows } from "@/lib/pdf/tender/score/buildScoreMappingRows";
@@ -37,8 +37,8 @@ import {
   type TenderAttachmentRefMap,
 } from "@/lib/pdf/tender/attachmentIndex";
 import { renderAttachmentIndexPagePdf } from "@/lib/pdf/tender/attachmentIndexPage";
-import { buildTenderSectionPageRefsFromPackLayout } from "@/lib/pdf/tender/pageRefs";
-import type { TenderSectionPageRefs } from "@/lib/pdf/tender/pageRefs";
+import { buildTenderSectionPageRefsFromPackLayout } from "@/lib/pdf/tender/refs/pageRefs";
+import type { TenderSectionPageRefs } from "@/lib/pdf/tender/refs/pageRefs";
 import {
   buildDefaultTenderScoreMappings,
   mapScoreMappingToTenderRow,

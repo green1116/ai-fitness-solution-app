@@ -1,4 +1,4 @@
-import type { TenderNavMap } from "@/lib/pdf/tender/pdfNavTypes";
+import type { TenderNavMap } from "@/lib/pdf/tender/nav/pdfNavTypes";
 
 export type TenderSectionStartPages = {
   score?: number;
