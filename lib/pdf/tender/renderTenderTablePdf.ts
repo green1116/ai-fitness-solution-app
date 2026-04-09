@@ -11,8 +11,8 @@ export type TenderTableColumn<T extends Record<string, string>> = {
   key: keyof T;
   title: string;
   width: number;
-  /** default | status-badge（胶囊）| center-text（序号等单行居中） */
-  cellKind?: "default" | "status-badge" | "center-text";
+  /** default | status-badge | center-text | risk-muted（风险提示列着色） */
+  cellKind?: "default" | "status-badge" | "center-text" | "risk-muted";
 };
 
 export type RenderTenderTablePdfInput<T extends Record<string, string>> = {
@@ -20,6 +20,8 @@ export type RenderTenderTablePdfInput<T extends Record<string, string>> = {
   rows: T[];
   columns: TenderTableColumn<T>[];
   continuationTitle?: string;
+  /** 标题下方说明（仅首页；续页不重复） */
+  subtitle?: string;
   footnote?: string;
 };
 
@@ -46,6 +48,8 @@ const COLORS = {
   headerBg: rgb(0.93, 0.95, 0.98),
   title: rgb(0.1, 0.2, 0.42),
   statusCellBorder: rgb(0.82, 0.82, 0.82),
+  subtitle: rgb(0.35, 0.35, 0.35),
+  riskText: rgb(0.45, 0.2, 0.1),
 };
 
 function safeText(v: unknown): string {
@@ -115,10 +119,40 @@ function drawRect(page: PDFPage, x: number, y: number, w: number, h: number, fil
   });
 }
 
-function drawTitle(page: PDFPage, title: string, fontBold: PDFFont): number {
-  const y = PAGE_H - MARGIN_TOP;
-  page.drawText(title, { x: MARGIN_LEFT, y, size: TITLE_FONT_SIZE, font: fontBold, color: COLORS.title });
-  return y - 24;
+function drawTitleBlock(
+  page: PDFPage,
+  title: string,
+  fontBold: PDFFont,
+  fontReg: PDFFont,
+  subtitle?: string
+): number {
+  let y = PAGE_H - MARGIN_TOP;
+  page.drawText(title, {
+    x: MARGIN_LEFT,
+    y,
+    size: TITLE_FONT_SIZE,
+    font: fontBold,
+    color: COLORS.title,
+  });
+  y -= 22;
+  const sub = safeText(subtitle || "");
+  if (sub) {
+    const lines = wrapText(sub, fontReg, 9, PAGE_W - MARGIN_LEFT * 2);
+    for (const line of lines) {
+      page.drawText(line || "", {
+        x: MARGIN_LEFT,
+        y,
+        size: 9,
+        font: fontReg,
+        color: COLORS.subtitle,
+      });
+      y -= 12;
+    }
+    y -= 6;
+  } else {
+    y -= 4;
+  }
+  return y;
 }
 
 function drawHeader<T extends Record<string, string>>(
@@ -213,6 +247,8 @@ function drawRow<T extends Record<string, string>>(
         });
       } else {
         const lines = wrapped[col.key] || [safeText(row[col.key])];
+        const textColor =
+          col.cellKind === "risk-muted" ? COLORS.riskText : COLORS.text;
         let ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE;
         for (const line of lines) {
           page.drawText(line || "", {
@@ -220,7 +256,7 @@ function drawRow<T extends Record<string, string>>(
             y: ly,
             size: BODY_FONT_SIZE,
             font,
-            color: COLORS.text,
+            color: textColor,
           });
           ly -= LINE_HEIGHT;
         }
@@ -264,7 +300,7 @@ export async function renderTenderTablePdf<T extends Record<string, string>>(
 
   let page = doc.addPage([PAGE_W, PAGE_H]);
   let pageNo = 1;
-  let cursorY = drawTitle(page, title, bold);
+  let cursorY = drawTitleBlock(page, title, bold, regular, input.subtitle);
   cursorY = drawHeader(page, cursorY, input.columns, bold);
 
   for (const row of rows) {
@@ -276,7 +312,7 @@ export async function renderTenderTablePdf<T extends Record<string, string>>(
       drawFooter(page, regular, pageNo);
       page = doc.addPage([PAGE_W, PAGE_H]);
       pageNo += 1;
-      cursorY = drawTitle(page, continuationTitle, bold);
+      cursorY = drawTitleBlock(page, continuationTitle, bold, regular);
       cursorY = drawHeader(page, cursorY, input.columns, bold);
     }
     cursorY = drawRow(page, cursorY, normalized, input.columns, wrapped, height, regular);

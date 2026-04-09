@@ -23,6 +23,10 @@ import type { BusinessResponseRow, TechnicalResponseRow } from "@/lib/pdf/tender
 import { DEFAULT_GYM_SCORE_CRITERIA } from "@/lib/pdf/tender/score/presets";
 import { buildScoreMappingRows } from "@/lib/pdf/tender/score/buildScoreMappingRows";
 import { renderScoreMappingPdf } from "@/lib/pdf/tender/renderScoreMappingPdf";
+import {
+  buildDefaultTenderScoreMappings,
+  mapScoreMappingToTenderRow,
+} from "@/lib/pdf/tender/scoreMapping";
 import { buildParsedTenderResult } from "@/lib/tender-parser/buildParsedTenderResult";
 import {
   writeTenderResponses,
@@ -575,10 +579,12 @@ async function buildBusinessTermsResponsePdf(
 
   const rendered = await renderBusinessResponsePdf({
     title: "商务响应表",
-    rows: rows.map((r) => ({
-      clause: r.clause,
+    rows: rows.map((r, i) => ({
+      no: String(i + 1),
+      requirement: r.clause,
+      status: r.status || "无此项",
       response: r.response,
-      status: r.status,
+      note: r.note || "",
     })),
     footnote: businessFootnote,
   });
@@ -603,11 +609,12 @@ async function buildTechnicalResponsePdf(
 
   const rendered = await renderTechnicalResponsePdf({
     title: "技术响应表",
-    rows: rows.map((r) => ({
+    rows: rows.map((r, i) => ({
+      no: String(i + 1),
       requirement: r.requirement,
+      status: r.status || "无此项",
       response: r.response,
-      proof: r.proof,
-      status: r.status,
+      note: r.note || "",
     })),
     footnote: technicalFootnote,
   });
@@ -666,14 +673,14 @@ async function buildScoreMappingPdf(input: {
   });
   console.log("[score-mapping] rows=", scoreRows.length);
 
+  const v2Rows =
+    scoreRows.length > 0
+      ? scoreRows.map(mapScoreMappingToTenderRow)
+      : buildDefaultTenderScoreMappings();
+
   const rendered = await renderScoreMappingPdf({
-    title: "评分对照页",
-    rows: scoreRows.map((r) => ({
-      scoreItem: r.scoreItem,
-      criteria: r.criteria,
-      proof: r.proof,
-      responseSummary: r.responseSummary,
-    })),
+    title: "评分项对照页",
+    rows: v2Rows,
   });
   console.log("[score-mapping] pages=", rendered.pageCount);
   return rendered.bytes;
@@ -1459,7 +1466,7 @@ async function runTenderPack(
         if (scoreBytes) {
           govTocEntries.push({
             id: "score",
-            title: "评分对照页",
+            title: "评分项对照页",
             startPage: currentPage,
           });
           currentPage += scorePages || 1;
