@@ -2,6 +2,8 @@ import type { TenderNavMap } from "@/lib/pdf/tender/nav/pdfNavTypes";
 
 export type TenderSectionStartPages = {
   score?: number;
+  riskMitigation?: number;
+  scoreSimulation?: number;
   technicalResponse?: number;
   businessResponse?: number;
   technicalDeviation?: number;
@@ -32,6 +34,20 @@ export function buildTenderNavMap(input: {
 
   if (sectionStarts.score) {
     map["score-page"] = { key: "score-page", kind: "section", page: sectionStarts.score };
+  }
+  if (sectionStarts.riskMitigation) {
+    map["risk-mitigation"] = {
+      key: "risk-mitigation",
+      kind: "section",
+      page: sectionStarts.riskMitigation,
+    };
+  }
+  if (sectionStarts.scoreSimulation) {
+    map["score-simulation"] = {
+      key: "score-simulation",
+      kind: "section",
+      page: sectionStarts.scoreSimulation,
+    };
   }
   if (sectionStarts.technicalResponse) {
     map["technical-response"] = {
@@ -98,7 +114,12 @@ export function buildTenderNavMap(input: {
   }
   for (const row of attachmentRows) {
     if (!row.code || !sectionStarts.attachmentIndex) continue;
-    map[row.code] = { key: row.code, kind: "attachmentRef", page: sectionStarts.attachmentIndex };
+    const precisePage = input.preciseRefPages?.[row.code];
+    map[row.code] = {
+      key: row.code,
+      kind: "attachmentRef",
+      page: precisePage || sectionStarts.attachmentIndex,
+    };
   }
 
   return map;

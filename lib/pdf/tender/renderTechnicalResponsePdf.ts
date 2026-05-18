@@ -38,15 +38,20 @@ export async function renderTechnicalResponsePdf(
       ),
   }));
 
-  return renderTenderTablePdf<TechnicalResponseTableRow>({
+  const rendered = await renderTenderTablePdf<TechnicalResponseTableRow>({
     title: input.title || "技术响应表",
     rows,
     columns: [...TECHNICAL_RESPONSE_TABLE_COLS],
     footnote: input.footnote,
     getRefKey: (row) => {
       const v = String(row.requirement || "");
-      const m = v.match(/\b(T-\d{2})\b/);
-      return m?.[1];
+      const m = v.match(/\b(T-\d{2,3})\b/i);
+      return m?.[1] ? m[1].toUpperCase() : undefined;
     },
   });
+  return {
+    bytes: rendered.bytes,
+    pageCount: rendered.pageCount,
+    refPageMap: rendered.refPageMap,
+  };
 }

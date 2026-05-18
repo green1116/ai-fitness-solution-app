@@ -98,7 +98,13 @@ function isBlockedSenderDomain(domain: string) {
 }
 
 function isValidMode(mode: string) {
-  return ["full", "budget"].includes(mode);
+  return ["full", "budget", "pack"].includes(mode);
+}
+
+function isValidPlanLevel(
+  v: string
+): v is "free" | "pro" | "enterprise" {
+  return v === "free" || v === "pro" || v === "enterprise";
 }
 
 export async function POST(req: NextRequest) {
@@ -107,8 +113,21 @@ export async function POST(req: NextRequest) {
     const email = String(body?.email || "").trim().toLowerCase();
     const mode = String(body?.mode || "full").trim().toLowerCase();
     const planId = String(body?.planId || "").trim();
+    const planLevelRaw = String(body?.planLevel || "pro").trim().toLowerCase();
+    const planLevel = isValidPlanLevel(planLevelRaw)
+      ? planLevelRaw
+      : "pro";
 
-    console.log("[EMAIL_SEND] request email =", email || "(empty)", "mode =", mode, "planId =", planId || "(empty)");
+    console.log(
+      "[EMAIL_SEND] request email =",
+      email || "(empty)",
+      "mode =",
+      mode,
+      "planId =",
+      planId || "(empty)",
+      "planLevel =",
+      planLevel
+    );
 
     if (!email) {
       return j(400, {
@@ -138,7 +157,7 @@ export async function POST(req: NextRequest) {
       return j(400, {
         ok: false,
         code: "MODE_INVALID",
-        message: "mode must be full or budget",
+        message: "mode must be one of: full, budget, pack",
       });
     }
 
@@ -187,6 +206,7 @@ export async function POST(req: NextRequest) {
         email,
         mode,
         planId,
+        planLevel,
         usedAt: null,
       },
     });
@@ -197,6 +217,7 @@ export async function POST(req: NextRequest) {
         code,
         mode,
         planId,
+        planLevel,
         expiresAt,
       },
     });

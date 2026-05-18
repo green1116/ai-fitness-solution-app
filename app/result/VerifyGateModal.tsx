@@ -139,7 +139,7 @@ export default function VerifyGateModal({
 
       if (!pdfRes.ok) {
         const t = await pdfRes.text();
-        alert("生成失败：" + t);
+        console.error("[VerifyGateModal] 生成失败", t);
         return;
       }
 
@@ -156,7 +156,7 @@ export default function VerifyGateModal({
       onClose();
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
-      alert("下载失败：" + message);
+      console.error("[VerifyGateModal] 下载失败", message, e);
     } finally {
       setDownloading(false);
     }

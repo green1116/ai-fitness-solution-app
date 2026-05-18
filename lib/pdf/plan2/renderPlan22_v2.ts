@@ -15,6 +15,7 @@ export type Plan22V2Input = {
   companyName: string;
   ymd: string;
   reqsig?: string;
+  internalPack?: boolean;
 };
 
 export async function renderPlan22PdfBytes_v2(
@@ -51,14 +52,16 @@ export async function renderPlan22PdfBytes_v2(
   pages.forEach((p, i) => {
     // 封面不加页脚
     if (i === 0) return;
-    
-    drawFooter(p, font, {
-      planId: input.planId,
-      ymd: input.ymd,
-      pageNo: i + 1,
-      pageTotal,
-      sig8: sig,
-    });
+
+    if (!input.internalPack) {
+      drawFooter(p, font, {
+        planId: input.planId,
+        ymd: input.ymd,
+        pageNo: i + 1,
+        pageTotal,
+        sig8: sig,
+      });
+    }
   });
 
   // 设置 PDF 元数据

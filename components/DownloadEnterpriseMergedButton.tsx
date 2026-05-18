@@ -1,6 +1,11 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
+import type { BidDecisionGateResult } from "@/lib/tender/gate/types";
+import { mapScoreGateToPanelGate } from "@/lib/tender/gate/mapScoreGateToPanelGate";
+import type { BidDecisionGateResult as ScoreBidDecisionGateResult } from "@/lib/tender/score/buildBidDecisionGate";
+
+const PACK_RISK_BLOCK_CODE = "TENDER_PACK_BLOCKED_BY_RISK_GATE";
 
 type Props = {
   planId: string;
@@ -9,6 +14,18 @@ type Props = {
   internalDebug?: boolean;
   className?: string;
   children?: React.ReactNode;
+  /** 仅 `false` 中止下载；`true` / `undefined` 均继续 */
+  beforeDownload?: () =>
+    | boolean
+    | undefined
+    | Promise<boolean | undefined>;
+  /**
+   * 用户在 Gate 面板点「强制继续」时由页面置 true；本按钮在发起 /api/tender-pack 请求前读取并清零，
+   * 用于携带 forceAllow，避免 block 后仍被服务端 409。
+   */
+  packForceAllowOnceRef?: React.MutableRefObject<boolean>;
+  /** 服务端 409 门闸：用页面 Gate 展示，勿 alert */
+  onPackRiskBlocked?: (gate: BidDecisionGateResult) => void;
 };
 
 type TokenResp =
@@ -68,6 +85,9 @@ export default function DownloadEnterpriseMergedButton({
   internalDebug = false,
   className,
   children,
+  beforeDownload,
+  packForceAllowOnceRef,
+  onPackRiskBlocked,
 }: Props) {
   const [loading, setLoading] = useState(false);
 
@@ -108,6 +128,17 @@ export default function DownloadEnterpriseMergedButton({
 
     if (!res.ok) {
       const { rawText: errText, json } = await safeReadJsonOrText(res);
+      if (
+        res.status === 409 &&
+        json?.code === PACK_RISK_BLOCK_CODE &&
+        json?.gate &&
+        onPackRiskBlocked
+      ) {
+        onPackRiskBlocked(
+          mapScoreGateToPanelGate(json.gate as ScoreBidDecisionGateResult)
+        );
+        return;
+      }
       throw new Error(
         json?.message ||
           json?.code ||
@@ -118,7 +149,7 @@ export default function DownloadEnterpriseMergedButton({
 
     const blob = await res.blob();
     triggerBrowserDownload(blob, buildMergedFilename(planId));
-  }, [internalDebug, planId, tenderFileName, tenderRawText]);
+  }, [internalDebug, onPackRiskBlocked, planId, tenderFileName, tenderRawText]);
 
   const handleLegacyGetDownload = useCallback(async () => {
     const tokenUrl = new URL("/api/download-token", window.location.origin);
@@ -165,6 +196,17 @@ export default function DownloadEnterpriseMergedButton({
 
     if (!res.ok) {
       const { rawText: errText, json: errJson } = await safeReadJsonOrText(res);
+      if (
+        res.status === 409 &&
+        errJson?.code === PACK_RISK_BLOCK_CODE &&
+        errJson?.gate &&
+        onPackRiskBlocked
+      ) {
+        onPackRiskBlocked(
+          mapScoreGateToPanelGate(errJson.gate as ScoreBidDecisionGateResult)
+        );
+        return;
+      }
       throw new Error(
         errJson?.message ||
           errJson?.code ||
@@ -175,10 +217,16 @@ export default function DownloadEnterpriseMergedButton({
 
     const blob = await res.blob();
     triggerBrowserDownload(blob, buildMergedFilename(planId));
-  }, [planId]);
+  }, [onPackRiskBlocked, planId]);
 
   const handleClick = useCallback(async () => {
     if (!planId || loading) return;
+    if (beforeDownload) {
+      const ok = await beforeDownload();
+      if (ok === false) {
+        return;
+      }
+    }
 
     try {
       setLoading(true);
@@ -190,12 +238,13 @@ export default function DownloadEnterpriseMergedButton({
 
       await handleLegacyGetDownload();
     } catch (err: any) {
-      console.error("[DownloadEnterpriseMergedButton] failed", err);
-      alert(err?.message || "下载失败，请稍后重试");
+      const msg = err?.message || "下载失败，请稍后重试";
+      console.error("[DownloadEnterpriseMergedButton] failed", msg, err);
     } finally {
       setLoading(false);
     }
   }, [
+    beforeDownload,
     hasTenderText,
     handleLegacyGetDownload,
     handleParsedPostDownload,

@@ -38,15 +38,20 @@ export async function renderBusinessResponsePdf(
       ),
   }));
 
-  return renderTenderTablePdf<BusinessResponseTableRow>({
+  const rendered = await renderTenderTablePdf<BusinessResponseTableRow>({
     title: input.title || "商务响应表",
     rows,
     columns: [...BUSINESS_RESPONSE_TABLE_COLS],
     footnote: input.footnote,
     getRefKey: (row) => {
       const v = String(row.requirement || "");
-      const m = v.match(/\b(B-\d{2})\b/);
-      return m?.[1];
+      const m = v.match(/\b(B-\d{2,3})\b/i);
+      return m?.[1] ? m[1].toUpperCase() : undefined;
     },
   });
+  return {
+    bytes: rendered.bytes,
+    pageCount: rendered.pageCount,
+    refPageMap: rendered.refPageMap,
+  };
 }

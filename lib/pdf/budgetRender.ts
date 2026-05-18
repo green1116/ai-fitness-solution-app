@@ -7,7 +7,38 @@ import { PDFDocument, PDFFont, PDFPage, rgb, StandardFonts } from "pdf-lib";
 import { getBudgetSummary } from "@/lib/services/budgetService";
 import type { BudgetSummary } from "@/lib/pdf/contracts/budgetSummary";
 import { wrapTextCN } from "@/lib/pdf/engine/text";
-import { THEMES, drawHeader as drawThemeHeader, drawFooter as drawThemeFooter } from "@/lib/pdf/theme";
+import {
+  THEMES,
+  drawHeader as drawThemeHeader,
+  drawHR,
+  type PdfTheme,
+} from "@/lib/pdf/theme";
+import { restampTenderDeliveryChrome } from "@/lib/pdf/shared/documentChrome";
+import {
+  applyTenderDocumentMetadata,
+  formatReqsigLine,
+  TENDER_BUDGET_VOLUME_SUBTITLE,
+  TENDER_BUDGET_VOLUME_TITLE,
+  type TenderDocumentContext,
+} from "@/lib/pdf/tenderDocumentContext";
+import {
+  COVER_CONFIDENTIAL_BASE_Y,
+  drawTenderAuthorityArchiveNote,
+  drawTenderClosingBlock,
+  drawTenderCoverConfidentialBlock,
+  SIGN_PAGE_ARCHIVE_START_Y,
+  TENDER_CLOSING_PAGE_TITLE,
+  TENDER_SIGN_LABEL_COMPANY,
+  TENDER_SIGN_LABEL_DATE,
+  TENDER_SIGN_LABEL_REPRESENTATIVE,
+} from "@/lib/pdf/tenderCommercialCopy";
+import {
+  FREEZE_DIVIDER_COLOR,
+  FREEZE_INVESTMENT_BOX_HEIGHT,
+  FREEZE_INVESTMENT_LABEL_SIZE,
+  FREEZE_INVESTMENT_PRICE_SIZE,
+} from "@/lib/pdf/commercialFreezeDesignSystem";
+import { drawEditorialDivider } from "@/lib/pdf/editorialStyle";
 import { PAGE_BOTTOM_SAFE, GAP_SM, GAP_MD, GAP_LG } from "@/lib/pdf/brand";
 import { TOKENS } from "@/lib/pdf/tokens";
 
@@ -32,6 +63,7 @@ function normalizeLevel(v?: string): BudgetLevel {
 export type BudgetPdfSection =
   | "header"
   | "overall"
+  | "table"
   | "compare"
   | "table_lines"
   | "table_items"
@@ -58,6 +90,11 @@ export type RenderBudgetPdfOpts = {
 
   // ✅ NEW: theme routing from API ("brand" | "tender")
   theme?: "brand" | "tender";
+  internalPack?: boolean;
+  /** 嵌入 Tender Pack 合并 PDF：不画 tender 大页眉（由整包 restamp 统一页眉），避免叠两层 */
+  packEmbed?: boolean;
+  /** V4 统一交付身份（页脚 / 元数据 / REQSIG） */
+  tenderDocument?: TenderDocumentContext;
 };
 
 export const BUDGET_PDF_VERSION = "BUDGET_PDF_V_GOV_BRAND_DUAL_20260228";
@@ -65,6 +102,132 @@ export const BUDGET_ENGINE_FP = "BUDGET_ENGINE_FP_GOV_BRAND_DUAL_20260228";
 
 if (process.env.NODE_ENV !== "production") {
   console.log("[BUDGET_RENDER]", BUDGET_ENGINE_FP, BUDGET_PDF_VERSION);
+}
+
+/**
+ * 企业 tender 档分页计数（与 renderBrand2Pages + renderEnterpriseTermsPlaceholder 的加页顺序一致；
+ * remarks 在 pricing 之前；不含 sign_seal）。
+ */
+export function countEnterpriseBudgetPdfPages(
+  sections: BudgetPdfSection[] | undefined,
+): {
+  total: number;
+  pricingFirst1Based: number;
+  afterSalesFirst1Based: number;
+} {
+  const sec =
+    sections && sections.length > 0
+      ? sections
+      : ([
+          "header",
+          "overall",
+          "table",
+          "compare",
+          "pricing_terms",
+          "delivery_terms",
+          "payment_terms",
+          "after_sales",
+          "remarks",
+        ] as BudgetPdfSection[]);
+  const need = (k: BudgetPdfSection) => sec.includes(k);
+  let n = 0;
+  if (need("header") || need("overall")) n++;
+  if (need("table")) n++;
+  if (need("compare")) n++;
+  if (need("remarks")) n++;
+  const beforePricing = n;
+  if (need("pricing_terms")) n++;
+  const pricingFirst1Based = need("pricing_terms") ? beforePricing + 1 : 0;
+  if (need("delivery_terms")) n++;
+  if (need("payment_terms")) n++;
+  const beforeAfterSales = n;
+  if (need("after_sales")) n++;
+  const afterSalesFirst1Based = need("after_sales") ? beforeAfterSales + 1 : 0;
+  return { total: n, pricingFirst1Based, afterSalesFirst1Based };
+}
+
+/**
+ * 企业 Tender budget donor PDF 内各条款起始页（1-based）。
+ * 加页顺序同 `renderBrand2Pages` + `renderEnterpriseTermsPlaceholder`：
+ * header+overall → table → compare → remarks → pricing → delivery → payment → after_sales
+ */
+export function budgetDonorSectionStarts1Based(sections: BudgetPdfSection[] | undefined): {
+  pricingStart?: number;
+  deliveryStart?: number;
+  paymentStart?: number;
+  warrantyStart?: number;
+} {
+  const sec =
+    sections && sections.length > 0
+      ? sections
+      : ([
+          "header",
+          "overall",
+          "table",
+          "compare",
+          "pricing_terms",
+          "delivery_terms",
+          "payment_terms",
+          "after_sales",
+          "remarks",
+        ] as BudgetPdfSection[]);
+  const need = (k: BudgetPdfSection) => sec.includes(k);
+  let cur = 0;
+  const bump = () => ++cur;
+
+  if (need("header") || need("overall")) bump();
+  if (need("table")) bump();
+  if (need("compare")) bump();
+  if (need("remarks")) bump();
+
+  let pricingStart: number | undefined;
+  let deliveryStart: number | undefined;
+  let paymentStart: number | undefined;
+  let warrantyStart: number | undefined;
+
+  if (need("pricing_terms")) pricingStart = bump();
+  if (need("delivery_terms")) deliveryStart = bump();
+  if (need("payment_terms")) paymentStart = bump();
+  if (need("after_sales")) warrantyStart = bump();
+
+  return {
+    pricingStart,
+    deliveryStart,
+    paymentStart,
+    warrantyStart,
+  };
+}
+
+function packEmbedHeaderStartY(
+  packEmbed: boolean,
+  page: PDFPage,
+  ctx: DrawCtx,
+  theme: PdfTheme,
+  title: string,
+  input: BudgetPdfInput,
+  dateYmd: string,
+): number {
+  if (!packEmbed) {
+    return drawThemeHeader(page, theme, ctx.font, title, {
+      companyName: input.companyName || "示例企业",
+      companySize: input.companySize,
+      tierLabel: String(input.budgetTier).toUpperCase(),
+      planId: input.planId,
+      dateYmd,
+    });
+  }
+  const H = page.getHeight();
+  const M = theme.margin;
+  const top = H - 102;
+  page.drawText(title, {
+    x: M.l,
+    y: top,
+    size: 13,
+    font: ctx.fontBold,
+    color: theme.colors.text,
+  });
+  drawHR(page, theme, top - 20);
+  return top - 42;
 }
 
 // -------------------------------
@@ -337,6 +500,7 @@ function drawLegacyFooter(
 export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderBudgetPdfOpts = {}) {
   const level: BudgetLevel = normalizeLevel(opts.level);
   const themeName: "brand" | "tender" = opts.theme === "tender" ? "tender" : "brand";
+  const internalPack = opts.internalPack === true || opts.packEmbed === true;
 
   if (process.env.NODE_ENV !== "production") {
     console.log("[BUDGET_RENDER]", "level=", level, "theme=", themeName, "planId=", input.planId);
@@ -369,19 +533,26 @@ export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderB
 
     if (level === "enterprise") {
       await renderEnterpriseTermsPlaceholder(doc, { doc, font, fontBold, fontMono }, input, opts);
+    }
 
-      // ✅ restamp with correct totals + correct theme
+    if (!internalPack) {
       const theme = THEMES[themeName];
-      const dateYmd = opts.dateTokyoYmd || ymdTokyoSlash();
-      const reqsig = opts.reqsig ? String(opts.reqsig) : "";
-      const pdfVersion = opts.pdfVersion || BUDGET_PDF_VERSION;
+      const docCtx = opts.tenderDocument;
+      const reqsig =
+        docCtx?.reqsig?.trim() ||
+        (opts.reqsig ? String(opts.reqsig).trim() : "");
 
-      restampThemeFooters(doc, theme, font, {
-        planId: input.planId,
-        dateYmd,
-        sig: reqsig || undefined,
-        fp: pdfVersion,
+      restampTenderDeliveryChrome(doc, font, {
+        drawHeader: false,
+        footerCenterLabel: docCtx?.version,
+        footerSigLine: formatReqsigLine(reqsig || docCtx?.reqsig),
+        marginL: theme.margin.l,
+        marginR: theme.margin.r,
       });
+
+      if (docCtx && reqsig) {
+        applyTenderDocumentMetadata(doc, docCtx, reqsig, "budget");
+      }
     }
 
     return Buffer.from(await doc.save());
@@ -423,6 +594,8 @@ async function renderBrand2Pages(
   summary: BudgetSummary,
   opts: RenderBudgetPdfOpts
 ) {
+  const internalPack = opts.internalPack === true || opts.packEmbed === true;
+  const packEmbed = opts.packEmbed === true;
   const A4: [number, number] = [595.28, 841.89];
 
   // ✅ use theme from opts (enterprise tender / saas brand)
@@ -445,170 +618,229 @@ async function renderBrand2Pages(
     `AFS-${themeName.toUpperCase()}-${ymdTokyoCompact()}-${asciiSafe(input.planId).toUpperCase()}`
   );
 
-  // Page 1
-  {
+  const secList = opts.sections;
+  const need = (k: string) =>
+    !secList ||
+    secList.length === 0 ||
+    (secList as string[]).includes(k);
+
+  const wantHeader = need("header");
+  const wantOverall = need("overall");
+  const wantTable = need("table");
+  console.log("[budget sections flags]", {
+    secList,
+    wantHeader,
+    wantOverall,
+    wantTable,
+  });
+  if (wantHeader || wantOverall) {
     const p = doc.addPage(A4);
     const W = p.getWidth();
 
-    let y = drawThemeHeader(p, theme, ctx.font, "企业健身空间设备采购预算测算报告", {
-      companyName: input.companyName || "示例企业",
-      companySize: input.companySize,
-      tierLabel: String(input.budgetTier).toUpperCase(),
-      planId: input.planId,
-      dateYmd,
-    });
+    let y: number;
+    if (wantHeader) {
+      y = packEmbedHeaderStartY(
+        packEmbed,
+        p,
+        ctx,
+        theme,
+        TENDER_BUDGET_VOLUME_TITLE,
+        input,
+        dateYmd,
+      );
 
-    y = y + 6;
-    drawTextF(
-      p,
-      ctx.font,
-      "（企业级测算版本 / 用于方案评审与预算沟通）",
-      M.l,
-      y,
-      theme.fontSizes.h2,
-      theme.colors.sub
-    );
-    y -= GAP_MD;
+      y = y + 6;
+      drawTextF(
+        p,
+        ctx.font,
+        TENDER_BUDGET_VOLUME_SUBTITLE,
+        M.l,
+        y,
+        theme.fontSizes.h2,
+        theme.colors.sub
+      );
+      y -= GAP_MD + 4;
 
-    const recLine = `建议：按 ${String(input.budgetTier).toUpperCase()} 档位配置，可覆盖常规高频使用与基础扩展需求。`;
-    const recLines = wrapTextCN(`• ${recLine}`, {
-      font: ctx.font,
-      fontSize: 10,
-      maxWidth: W - M.l - M.r,
-      maxLines: 2,
-    });
-    y -= 4;
-    for (const line of recLines) {
-      drawTextF(p, ctx.font, line, M.l, y, 10);
-      y -= 14;
-    }
+      const execLabel = "EXECUTIVE COMMERCIAL SUMMARY";
+      drawTextF(p, ctx.font, execLabel, M.l, y, 8, rgb(0.5, 0.52, 0.56));
+      y -= 20;
 
-    const totalMin = strict.total.min;
-    const totalMax = strict.total.max;
-
-    y -= GAP_SM;
-    drawBox(p, M.l, y - 6, W - M.l - M.r, 92, rgb(0.82, 0.82, 0.82));
-    drawTextF(p, ctx.fontBold, "建议预算区间（CNY）", M.l + 14, y + 60, 12);
-    drawTextF(p, ctx.fontBold, `${fmtMoney(totalMin)}  -  ${fmtMoney(totalMax)}`, M.l + 14, y + 22, 22);
-
-    const vx = M.l + (W - M.l - M.r) * 0.62;
-    let vy = y + 58;
-    const values = [
-      "商用标准配置，适配高使用密度",
-      "分项闭环核算，便于内部审批/对外沟通",
-      "可选项可拆分（地板/橡胶地垫等）",
-    ];
-    for (const t of values) {
-      const lines = wrapTextCN(`✓ ${t}`, {
+      const recLine = `建议：按 ${String(input.budgetTier).toUpperCase()} 档位配置，可覆盖常规高频使用与基础扩展需求。`;
+      const recLines = wrapTextCN(recLine, {
         font: ctx.font,
-        fontSize: 10,
-        maxWidth: W - M.r - vx,
+        fontSize: 10.5,
+        maxWidth: W - M.l - M.r,
         maxLines: 2,
       });
-      for (const line of lines) {
-        drawTextF(p, ctx.font, line, vx, vy, 10, rgb(0.2, 0.2, 0.2));
-        vy -= 14;
+      y -= 2;
+      for (const line of recLines) {
+        drawTextF(p, ctx.font, line, M.l, y, 10.5, rgb(0.28, 0.3, 0.34));
+        y -= 18;
       }
-      vy -= 4;
-    }
 
-    y -= 120;
+      const totalMin = strict.total.min;
+      const totalMax = strict.total.max;
 
-    const map = new Map<string, MoneyRange>();
-    for (const it of strict.items) {
-      const key = it.categoryName || it.category || "其他";
-      const cur = map.get(key) || { min: 0, max: 0 };
-      map.set(key, { min: cur.min + it.subtotalMin, max: cur.max + it.subtotalMax });
-    }
-    const rows = Array.from(map.entries());
+      y -= GAP_MD + 10;
+      drawEditorialDivider(p, y + 6, M.l, W);
+      y -= 20;
 
-    const tableW = W - M.l - M.r;
-    const colCat = 210;
-    const colMin = 160;
-    const colMax = tableW - colCat - colMin;
-    const rowH = 26;
-    const x0 = M.l;
-    const x1 = x0 + colCat;
-    const x2 = x0 + colCat + colMin;
+      const priceBoxH = FREEZE_INVESTMENT_BOX_HEIGHT;
+      const priceBoxW = W - M.l - M.r;
+      const boxY = y - 14;
+      drawBox(p, M.l, boxY, priceBoxW, priceBoxH, rgb(0.96, 0.97, 0.98));
+      drawEditorialDivider(p, boxY + priceBoxH - 8, M.l, W, 0.92, FREEZE_DIVIDER_COLOR);
+      drawTextF(
+        p,
+        ctx.font,
+        "INVESTMENT OVERVIEW · CNY",
+        M.l + 20,
+        boxY + priceBoxH - 26,
+        FREEZE_INVESTMENT_LABEL_SIZE,
+        rgb(0.5, 0.52, 0.55),
+      );
+      drawTextF(
+        p,
+        ctx.fontBold,
+        `${fmtMoney(totalMin)}  —  ${fmtMoney(totalMax)}`,
+        M.l + 20,
+        boxY + 40,
+        FREEZE_INVESTMENT_PRICE_SIZE,
+        rgb(0.1, 0.11, 0.13),
+      );
 
-    drawTextF(p, ctx.fontBold, "分项预算汇总", M.l, y + 18, 12);
-    y -= GAP_SM;
-
-    p.drawRectangle({
-      x: x0,
-      y,
-      width: tableW,
-      height: rowH,
-      color: TOKENS.colorBrand,
-      borderWidth: 0,
-    });
-    drawVLines(p, [x1, x2], y, rowH);
-    drawTextF(p, ctx.fontBold, "类别", x0 + 8, y + 8, 10, rgb(1, 1, 1));
-    const minLblW = ctx.fontBold.widthOfTextAtSize("最低估算", 10);
-    const maxLblW = ctx.fontBold.widthOfTextAtSize("最高估算", 10);
-    drawTextF(p, ctx.fontBold, "最低估算", x2 - 8 - minLblW, y + 8, 10, rgb(1, 1, 1));
-    drawTextF(p, ctx.fontBold, "最高估算", x0 + tableW - 8 - maxLblW, y + 8, 10, rgb(1, 1, 1));
-
-    y -= rowH;
-
-    rows.forEach(([k, v], idx) => {
-      if (y < PAGE_BOTTOM_SAFE + 125) return;
-      const alt = idx % 2 === 1;
-      if (alt) {
-        p.drawRectangle({
-          x: x0,
-          y,
-          width: tableW,
-          height: rowH,
-          color: TOKENS.colorBrandLight,
-          borderWidth: 0,
+      const vx = M.l + priceBoxW * 0.54;
+      let vy = boxY + priceBoxH - 38;
+      const values = [
+        "商用标准配置，适配高使用密度",
+        "分项闭环核算，便于内部审批/对外沟通",
+        "可选项可拆分（地板/橡胶地垫等）",
+      ];
+      for (const t of values) {
+        const lines = wrapTextCN(t, {
+          font: ctx.font,
+          fontSize: 10.5,
+          maxWidth: W - M.r - vx - 4,
+          maxLines: 2,
         });
-      } else {
-        drawBox(p, x0, y, tableW, rowH);
+        drawTextF(p, ctx.font, "—", vx - 18, vy, 10, rgb(0.6, 0.62, 0.65));
+        for (const line of lines) {
+          drawTextF(p, ctx.font, line, vx, vy, 10.5, rgb(0.18, 0.2, 0.24));
+          vy -= 22;
+        }
+        vy -= 10;
       }
+
+      y = boxY - 44;
+
+      drawTenderCoverConfidentialBlock(p, ctx.font, {
+        baseY: COVER_CONFIDENTIAL_BASE_Y,
+        centered: true,
+      });
+    } else {
+      const H = p.getHeight();
+      y = H - 88;
+      drawTextF(p, ctx.font, "（分类汇总与口径说明）", M.l, y, 10, rgb(0.38, 0.38, 0.38));
+      y -= GAP_LG;
+    }
+
+    if (wantOverall) {
+      const map = new Map<string, MoneyRange>();
+      for (const it of strict.items) {
+        const key = it.categoryName || it.category || "其他";
+        const cur = map.get(key) || { min: 0, max: 0 };
+        map.set(key, { min: cur.min + it.subtotalMin, max: cur.max + it.subtotalMax });
+      }
+      const rows = Array.from(map.entries());
+
+      const tableW = W - M.l - M.r;
+      const colCat = 210;
+      const colMin = 160;
+      void (tableW - colCat - colMin);
+      const rowH = 26;
+      const x0 = M.l;
+      const x1 = x0 + colCat;
+      const x2 = x0 + colCat + colMin;
+
+      drawTextF(p, ctx.fontBold, "分项预算汇总", M.l, y + 18, 12);
+      y -= GAP_SM;
+
+      p.drawRectangle({
+        x: x0,
+        y,
+        width: tableW,
+        height: rowH,
+        color: TOKENS.colorBrand,
+        borderWidth: 0,
+      });
       drawVLines(p, [x1, x2], y, rowH);
-
-      drawTextF(p, ctx.font, ellipsisToWidth(k, ctx.font, 10, colCat - 14), x0 + 8, y + 8, 10);
-
-      const minText = fmtMoney(v.min);
-      const maxText = fmtMoney(v.max);
-      const minW = ctx.font.widthOfTextAtSize(minText, 10);
-      const maxW = ctx.font.widthOfTextAtSize(maxText, 10);
-      drawTextF(p, ctx.font, minText, x2 - 8 - minW, y + 8, 10);
-      drawTextF(p, ctx.font, maxText, x0 + tableW - 8 - maxW, y + 8, 10);
+      drawTextF(p, ctx.fontBold, "类别", x0 + 8, y + 8, 10, rgb(1, 1, 1));
+      const minLblW = ctx.fontBold.widthOfTextAtSize("最低估算", 10);
+      const maxLblW = ctx.fontBold.widthOfTextAtSize("最高估算", 10);
+      drawTextF(p, ctx.fontBold, "最低估算", x2 - 8 - minLblW, y + 8, 10, rgb(1, 1, 1));
+      drawTextF(p, ctx.fontBold, "最高估算", x0 + tableW - 8 - maxLblW, y + 8, 10, rgb(1, 1, 1));
 
       y -= rowH;
-    });
 
-    const scope = [
-      "仅含设备采购及基础交付费用；不含装修/强弱电/消防。",
-      "运动地板/力量区橡胶地垫可作为可选项单列。",
-    ];
-    y -= GAP_MD;
-    drawTextF(p, ctx.fontBold, "预算口径", M.l, y, 11);
-    y -= GAP_MD;
-    for (const s of scope) {
-      const lines = wrapTextCN(`• ${s}`, { font: ctx.font, fontSize: 10, maxWidth: W - M.l - M.r, maxLines: 2 });
-      for (const line of lines) {
-        drawTextF(p, ctx.font, line, M.l, y, 10);
-        y -= 14;
+      rows.forEach(([k, v], idx) => {
+        if (y < PAGE_BOTTOM_SAFE + 125) return;
+        const alt = idx % 2 === 1;
+        if (alt) {
+          p.drawRectangle({
+            x: x0,
+            y,
+            width: tableW,
+            height: rowH,
+            color: TOKENS.colorBrandLight,
+            borderWidth: 0,
+          });
+        } else {
+          drawBox(p, x0, y, tableW, rowH);
+        }
+        drawVLines(p, [x1, x2], y, rowH);
+
+        drawTextF(p, ctx.font, ellipsisToWidth(k, ctx.font, 10, colCat - 14), x0 + 8, y + 8, 10);
+
+        const minText = fmtMoney(v.min);
+        const maxText = fmtMoney(v.max);
+        const minW = ctx.font.widthOfTextAtSize(minText, 10);
+        const maxW = ctx.font.widthOfTextAtSize(maxText, 10);
+        drawTextF(p, ctx.font, minText, x2 - 8 - minW, y + 8, 10);
+        drawTextF(p, ctx.font, maxText, x0 + tableW - 8 - maxW, y + 8, 10);
+
+        y -= rowH;
+      });
+
+      const scope = [
+        "仅含设备采购及基础交付费用；不含装修/强弱电/消防。",
+        "运动地板/力量区橡胶地垫可作为可选项单列。",
+      ];
+      y -= GAP_MD;
+      drawTextF(p, ctx.fontBold, "预算口径", M.l, y, 11);
+      y -= GAP_MD;
+      for (const s of scope) {
+        const lines = wrapTextCN(`• ${s}`, {
+          font: ctx.font,
+          fontSize: 10,
+          maxWidth: W - M.l - M.r,
+          maxLines: 2,
+        });
+        for (const line of lines) {
+          drawTextF(p, ctx.font, line, M.l, y, 10);
+          y -= 14;
+        }
+        y -= 2;
       }
-      y -= 2;
     }
 
-    drawThemeFooter(p, theme, ctx.font, {
-      planId: input.planId,
-      dateYmd,
-      pageNo: 1,
-      pageTotal: 2,
-      sig: reqsig ? reqsig : undefined,
-      fp: pdfVersion,
-    });
   }
 
-  // Page 2
-  {
+  if (wantTable) {
+    console.log("[budget wantTable branch] entered");
     const p = doc.addPage(A4);
+    console.log("[budget wantTable branch] page added", {
+      pagesNow: doc.getPageCount(),
+    });
     const W = p.getWidth();
     const H = p.getHeight();
 
@@ -712,21 +944,70 @@ async function renderBrand2Pages(
     drawTextF(
       p,
       ctx.font,
-      "说明：本报告为预算测算依据文件，最终采购清单及价格以正式合同或供应商报价为准。",
+      "说明：本卷为 Tender Delivery 报价与配置依据，最终采购清单及价格以正式合同或供应商报价为准。",
       M.l,
       60,
       9,
       rgb(0.35, 0.35, 0.35)
     );
 
-    drawThemeFooter(p, theme, ctx.font, {
-      planId: input.planId,
-      dateYmd,
-      pageNo: 2,
-      pageTotal: 2,
-      sig: reqsig ? reqsig : undefined,
-      fp: pdfVersion,
-    });
+  }
+
+  if (need("compare")) {
+    const p = doc.addPage(A4);
+    const W = p.getWidth();
+    let y = packEmbedHeaderStartY(packEmbed, p, ctx, theme, "预算档位对比说明", input, dateYmd);
+    y -= 12;
+    const compareBullets = [
+      `当前推荐档位：${String(input.budgetTier).toUpperCase()}（与本报告测算口径一致）。`,
+      "经济档（LOW）：满足基础有氧与力量配置，适合试点或预算受限场景。",
+      "标准档（MID）：均衡功能与成本，适配多数企业日常高频使用。",
+      "高档（HIGH）：强化商用耐久与智能化扩展，适合高强度使用与品牌展示需求。",
+      "对比说明：各档位在设备数量区间、单价区间与可选项（地胶/智能看板等）上形成梯度差异。",
+      "选型建议：以招标文件评分项、使用密度与运维能力为约束，在区间内选择可交付组合。",
+    ];
+    for (const b of compareBullets) {
+      const lines = wrapTextCN(`• ${b}`, {
+        font: ctx.font,
+        fontSize: 10,
+        maxWidth: W - M.l - M.r,
+        maxLines: 999,
+      });
+      for (const line of lines) {
+        drawTextF(p, ctx.font, line, M.l, y, 10);
+        y -= 16;
+      }
+      y -= 8;
+    }
+  }
+
+  if (need("remarks")) {
+    const p = doc.addPage(A4);
+    const W = p.getWidth();
+    let y = packEmbedHeaderStartY(packEmbed, p, ctx, theme, "备注与说明", input, dateYmd);
+    y -= 12;
+    const remarkBullets = [
+      "本卷为投标阶段商务报价依据，区间报价不构成最终成交价承诺。",
+      "设备明细可在中标后按集采结果、品牌型号与现场条件进行固化与微调。",
+      "不含装修、强弱电改造、消防专项、第三方检测等除非招标文件另有约定。",
+      "税费、运输、安装、培训、验收等费用口径以合同约定为准。",
+      "假设企业规模与使用密度基于输入参数；现场复核后可能对数量区间进行调整。",
+      "可选项（运动地板、橡胶地垫、智能系统等）可在商务谈判阶段单列。",
+      "文档版本与页脚验真信息用于内部归档；对外提交以签章版 PDF 为准。",
+    ];
+    for (const b of remarkBullets) {
+      const lines = wrapTextCN(`• ${b}`, {
+        font: ctx.font,
+        fontSize: 10,
+        maxWidth: W - M.l - M.r,
+        maxLines: 999,
+      });
+      for (const line of lines) {
+        drawTextF(p, ctx.font, line, M.l, y, 10);
+        y -= 16;
+      }
+      y -= 8;
+    }
   }
 }
 
@@ -739,6 +1020,7 @@ async function renderGovernment5Pages(
   strict: StrictSummary,
   opts: RenderBudgetPdfOpts
 ) {
+  const internalPack = opts.internalPack === true;
   const A4: [number, number] = [595.28, 841.89];
   const m = 48;
 
@@ -746,6 +1028,7 @@ async function renderGovernment5Pages(
   const reqsig = opts.reqsig ? String(opts.reqsig) : "";
   const dateYmd = opts.dateTokyoYmd || ymdTokyoSlash();
 
+  /*
   // Page 0: Cover
   {
     const p = doc.addPage(A4);
@@ -779,7 +1062,9 @@ async function renderGovernment5Pages(
       `DOCNO:${strict.docNo}${reqsig ? ` | SIG:${reqsig}` : ""}`
     );
   }
+  */
 
+  /*
   // Page 1: Method + Scope boundary
   {
     const p = doc.addPage(A4);
@@ -839,7 +1124,7 @@ async function renderGovernment5Pages(
     drawLegacyFooter(
       p,
       ctx,
-      "预算测算依据与范围边界说明",
+      "报价依据与范围边界说明（Tender Delivery）",
       `DOCNO:${strict.docNo}${reqsig ? ` | SIG:${reqsig}` : ""}`
     );
   }
@@ -993,6 +1278,7 @@ async function renderGovernment5Pages(
     };
 
     const drawFooterSafe = (p: PDFPage) => {
+      if (internalPack) return;
       const left = "明细小计 = 数量 × 单价（自动计算）";
       const right = `DOCNO:${strict.docNo}${reqsig ? ` | SIG:${reqsig}` : ""}`;
       const y = 24;
@@ -1035,7 +1321,9 @@ async function renderGovernment5Pages(
 
     drawFooterSafe(p);
   }
+  */
 
+  /*
   // Page 4: Delivery + Warranty
   {
     const p = doc.addPage(A4);
@@ -1068,13 +1356,16 @@ async function renderGovernment5Pages(
       y -= 6;
     }
 
-    drawLegacyFooter(
-      p,
-      ctx,
-      `Plan ID: ${strict.planId} | ${dateYmd}`,
-      `${pdfVersion}${reqsig ? ` | SIG:${reqsig}` : ""}`
-    );
+    if (!internalPack) {
+      drawLegacyFooter(
+        p,
+        ctx,
+        `Plan ID: ${strict.planId} | ${dateYmd}`,
+        `${pdfVersion}${reqsig ? ` | SIG:${reqsig}` : ""}`
+      );
+    }
   }
+  */
 }
 
 // -------------------------------
@@ -1086,6 +1377,8 @@ async function renderEnterpriseTermsPlaceholder(
   input: BudgetPdfInput,
   opts: RenderBudgetPdfOpts
 ) {
+  const internalPack = opts.internalPack === true || opts.packEmbed === true;
+  const packEmbed = opts.packEmbed === true;
   const A4: [number, number] = [595.28, 841.89];
   const theme = THEMES.tender; // ✅ terms 永远 tender（评审/招标感）
   const M = theme.margin;
@@ -1101,13 +1394,7 @@ async function renderEnterpriseTermsPlaceholder(
     const p = doc.addPage(A4);
     const W = p.getWidth();
 
-    let y = drawThemeHeader(p, theme, ctx.font, title, {
-      companyName: input.companyName || "示例企业",
-      companySize: input.companySize,
-      tierLabel: String(input.budgetTier).toUpperCase(),
-      planId: input.planId,
-      dateYmd,
-    });
+    let y = packEmbedHeaderStartY(packEmbed, p, ctx, theme, title, input, dateYmd);
 
     y -= 10;
 
@@ -1124,16 +1411,44 @@ async function renderEnterpriseTermsPlaceholder(
       }
       y -= 6;
     }
+  };
 
-    // 先画占位 footer，最终会被 restamp 覆盖为真实页码
-    drawThemeFooter(p, theme, ctx.font, {
-      planId: input.planId,
+  /** 签章页：企业正式交付收口（禁止列表前缀，避免 •/□ 乱码） */
+  const addSignSealPage = () => {
+    const p = doc.addPage(A4);
+    let y = packEmbedHeaderStartY(
+      packEmbed,
+      p,
+      ctx,
+      theme,
+      TENDER_CLOSING_PAGE_TITLE,
+      input,
       dateYmd,
-      pageNo: 0,
-      pageTotal: 0,
-      sig: reqsig ? reqsig : undefined,
-      fp,
+    );
+    y -= 20;
+
+    y = drawTenderClosingBlock(p, ctx.font, { marginL: M.l, startY: y });
+
+    y -= 48;
+    drawTextF(p, ctx.font, TENDER_SIGN_LABEL_COMPANY, M.l, y, 11);
+    drawTextF(p, ctx.font, "______________________________", M.l + 118, y, 11);
+    y -= 36;
+    drawTextF(p, ctx.font, TENDER_SIGN_LABEL_REPRESENTATIVE, M.l, y, 11);
+    drawTextF(p, ctx.font, "______________________________", M.l + 168, y, 11);
+    y -= 36;
+    drawTextF(p, ctx.font, `${TENDER_SIGN_LABEL_DATE}${dateYmd}`, M.l, y, 11);
+
+    const sigLine = reqsig ? formatReqsigLine(reqsig) : undefined;
+    if (sigLine) {
+      y -= 28;
+      drawTextF(p, ctx.font, sigLine, M.l, y, 9.5, rgb(0.45, 0.45, 0.48));
+    }
+
+    drawTenderAuthorityArchiveNote(p, ctx.font, {
+      marginL: M.l,
+      startY: SIGN_PAGE_ARCHIVE_START_Y,
     });
+
   };
 
   if (need("pricing_terms")) {
@@ -1169,40 +1484,6 @@ async function renderEnterpriseTermsPlaceholder(
   }
 
   if (need("sign_seal")) {
-    addPage("签章页", [
-      "投标单位（盖章）：AI Fitness Solution",
-      "法定代表人/授权代表（签字）：________________",
-      `签署日期：${dateYmd}`,
-      reqsig ? `验真信息：SIG:${reqsig}` : "验真信息：—",
-    ]);
-  }
-}
-
-// -------------------------------
-// Restamp theme footers
-// -------------------------------
-function restampThemeFooters(
-  doc: PDFDocument,
-  theme: any,
-  font: PDFFont,
-  opts: {
-    planId: string;
-    dateYmd: string;
-    sig?: string;
-    fp?: string;
-  }
-) {
-  const total = doc.getPageCount();
-  for (let i = 0; i < total; i++) {
-    const page = doc.getPage(i);
-    drawThemeFooter(page, theme, font, {
-      planId: opts.planId,
-      dateYmd: opts.dateYmd,
-      pageNo: i + 1,
-      pageTotal: total,
-      sig: opts.sig,
-      fp: opts.fp,
-      cover: true,
-    } as any);
+    addSignSealPage();
   }
 }

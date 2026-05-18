@@ -1,6 +1,11 @@
 "use client";
 
 import React, { useCallback, useMemo, useState } from "react";
+import type { BidDecisionGateResult } from "@/lib/tender/gate/types";
+import { mapScoreGateToPanelGate } from "@/lib/tender/gate/mapScoreGateToPanelGate";
+import type { BidDecisionGateResult as ScoreBidDecisionGateResult } from "@/lib/tender/score/buildBidDecisionGate";
+
+const PACK_RISK_BLOCK_CODE = "TENDER_PACK_BLOCKED_BY_RISK_GATE";
 
 type Props = {
   planId: string;
@@ -9,6 +14,14 @@ type Props = {
   internalDebug?: boolean;
   className?: string;
   children?: React.ReactNode;
+  /** 仅 `false` 中止下载；`true` / `undefined` 均继续 */
+  beforeDownload?: () =>
+    | boolean
+    | undefined
+    | Promise<boolean | undefined>;
+  onPackRiskBlocked?: (gate: BidDecisionGateResult) => void;
+  canDownloadNow?: boolean;
+  onResolveRiskBeforeDownload?: () => void;
 };
 
 type TokenResp =
@@ -64,7 +77,13 @@ export default function DownloadEnterpriseZipButton({
   internalDebug = false,
   className,
   children,
+  beforeDownload,
+  onPackRiskBlocked,
+  canDownloadNow = false,
+  onResolveRiskBeforeDownload,
 }: Props) {
+  const blocked = !canDownloadNow;
+
   const [loading, setLoading] = useState(false);
 
   const hasTenderText = useMemo(
@@ -72,7 +91,6 @@ export default function DownloadEnterpriseZipButton({
     [tenderRawText]
   );
 
-  // ========= POST（有解析文本） =========
   const handleParsedZip = useCallback(async () => {
     const rawText = String(tenderRawText || "").trim();
     if (!rawText) throw new Error("tenderRawText is empty");
@@ -103,6 +121,17 @@ export default function DownloadEnterpriseZipButton({
 
     if (!res.ok) {
       const { rawText: errText, json } = await safeReadJsonOrText(res);
+      if (
+        res.status === 409 &&
+        json?.code === PACK_RISK_BLOCK_CODE &&
+        json?.gate &&
+        onPackRiskBlocked
+      ) {
+        onPackRiskBlocked(
+          mapScoreGateToPanelGate(json.gate as ScoreBidDecisionGateResult)
+        );
+        return;
+      }
       throw new Error(
         json?.message ||
           json?.code ||
@@ -113,9 +142,8 @@ export default function DownloadEnterpriseZipButton({
 
     const blob = await res.blob();
     triggerDownload(blob, buildZipFilename(planId));
-  }, [planId, tenderRawText, tenderFileName, internalDebug]);
+  }, [internalDebug, onPackRiskBlocked, planId, tenderFileName, tenderRawText]);
 
-  // ========= GET（旧 token 流） =========
   const handleLegacyZip = useCallback(async () => {
     const tokenUrl = new URL("/api/download-token", window.location.origin);
     tokenUrl.searchParams.set("planId", planId);
@@ -151,16 +179,35 @@ export default function DownloadEnterpriseZipButton({
     const res = await fetch(apiUrl.toString());
 
     if (!res.ok) {
-      const { rawText: errText, json } = await safeReadJsonOrText(res);
-      throw new Error(json?.message || json?.code || errText || "zip failed");
+      const { rawText: errText, json: errJson } = await safeReadJsonOrText(res);
+      if (
+        res.status === 409 &&
+        errJson?.code === PACK_RISK_BLOCK_CODE &&
+        errJson?.gate &&
+        onPackRiskBlocked
+      ) {
+        onPackRiskBlocked(
+          mapScoreGateToPanelGate(errJson.gate as ScoreBidDecisionGateResult)
+        );
+        return;
+      }
+      throw new Error(
+        errJson?.message || errJson?.code || errText || "zip failed"
+      );
     }
 
     const blob = await res.blob();
     triggerDownload(blob, buildZipFilename(planId));
-  }, [planId]);
+  }, [onPackRiskBlocked, planId]);
 
-  const handleClick = useCallback(async () => {
+  const handleDownload = useCallback(async () => {
     if (!planId || loading) return;
+    if (beforeDownload) {
+      const ok = await beforeDownload();
+      if (ok === false) {
+        return;
+      }
+    }
 
     try {
       setLoading(true);
@@ -171,16 +218,45 @@ export default function DownloadEnterpriseZipButton({
         await handleLegacyZip();
       }
     } catch (e: any) {
-      console.error("[DownloadEnterpriseZipButton]", e);
-      alert(e?.message || "下载失败");
+      const msg = e?.message || "下载失败";
+      console.error("[DownloadEnterpriseZipButton]", msg, e);
     } finally {
       setLoading(false);
     }
-  }, [planId, loading, hasTenderText, handleParsedZip, handleLegacyZip]);
+  }, [
+    beforeDownload,
+    planId,
+    loading,
+    hasTenderText,
+    handleParsedZip,
+    handleLegacyZip,
+  ]);
+
+  const label = loading
+    ? "打包中..."
+    : children ?? (blocked ? "先处理风险后下载 ZIP" : "下载 ZIP");
 
   return (
-    <button onClick={handleClick} disabled={loading} className={className}>
-      {loading ? "打包中..." : children || "下载企业投标包 ZIP"}
+    <button
+      type="button"
+      onClick={() => {
+        if (blocked) {
+          onResolveRiskBeforeDownload?.();
+          return;
+        }
+        void handleDownload();
+      }}
+      disabled={loading}
+      className={
+        className ??
+        `inline-flex w-full items-center justify-center rounded-xl px-5 py-4 text-base font-semibold transition disabled:opacity-50 ${
+          blocked
+            ? "border border-amber-400/40 bg-amber-400/10 text-amber-200 hover:bg-amber-400/15"
+            : "border border-white/15 bg-transparent text-white hover:bg-white/10"
+        }`
+      }
+    >
+      {label}
     </button>
   );
 }

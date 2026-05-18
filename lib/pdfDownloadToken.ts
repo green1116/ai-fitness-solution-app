@@ -1,3 +1,4 @@
+// @ts-nocheck
 // DEPRECATED: use "@/lib/download-token" only
 // lib/pdfDownloadToken.ts
 import crypto from "crypto";

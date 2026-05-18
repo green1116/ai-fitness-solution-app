@@ -14,11 +14,39 @@ type PlanData = {
   equipmentList?: EquipmentItem[];
   addons?: Record<string, boolean>;
   upsellHints?: string[];
+  planId?: string;
+  plan_id?: string;
   meta?: {
     version?: string;
     generatedAt?: string;
+    plan_id?: string;
   };
 };
+
+function getStoredPlanProjectId(): string {
+  try {
+    const raw = localStorage.getItem("attaguy_plan");
+    if (!raw) return "";
+    const p = JSON.parse(raw) as PlanData & { plan_id?: string };
+    return String(p?.planId || p?.plan_id || p?.meta?.plan_id || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function navigateToResult(router: { push: (href: string) => void }) {
+  const pid = getStoredPlanProjectId();
+  if (pid) {
+    try {
+      localStorage.setItem("projectId", pid);
+    } catch {
+      // ignore
+    }
+    router.push(`/result?projectId=${encodeURIComponent(pid)}`);
+  } else {
+    router.push("/result");
+  }
+}
 
 export default function EditPlanPage() {
   const router = useRouter();
@@ -95,13 +123,25 @@ export default function EditPlanPage() {
         },
       };
 
+      const preservedPid = String(
+        plan.planId ||
+          plan.plan_id ||
+          previousPlan?.planId ||
+          previousPlan?.plan_id ||
+          "",
+      ).trim();
+      if (preservedPid) {
+        newPlan.planId = preservedPid;
+        newPlan.plan_id = preservedPid;
+      }
+
       if (previousPlan?.meta?.version && oldPlanRaw) {
         const historyKey = `attaguy_plan_v${previousPlan.meta.version}`;
         localStorage.setItem(historyKey, oldPlanRaw);
       }
 
       localStorage.setItem("attaguy_plan", JSON.stringify(newPlan));
-      router.push("/result");
+      navigateToResult(router);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "保存失败";
       alert(message);
@@ -209,7 +249,7 @@ export default function EditPlanPage() {
           </button>
 
           <button
-            onClick={() => router.push("/result")}
+            onClick={() => navigateToResult(router)}
             className="rounded-xl bg-zinc-800 px-6 py-4 font-semibold text-white transition hover:bg-zinc-700"
           >
             取消

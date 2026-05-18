@@ -1,6 +1,8 @@
+import type { TenderNavRect } from "@/lib/pdf/tender/nav/pdfNavTypes";
 import type { TenderAttachmentRefMap } from "@/lib/pdf/tender/refs/attachmentRefs";
 import type { TenderSectionPageRefs } from "@/lib/pdf/tender/refs/pageRefs";
 import { renderTenderTablePdf } from "@/lib/pdf/tender/renderTenderTablePdf";
+import { extractClickableRefTokens } from "@/lib/pdf/tender/scoreSectionFormat";
 import {
   formatEvidenceWithAttachments,
   formatSectionWithPageAndRefs,
@@ -25,11 +27,15 @@ export type RenderScoreMappingPdfInput = {
   rows: TenderScoreMappingRow[];
   pageRefs?: TenderSectionPageRefs;
   attachmentRefs?: TenderAttachmentRefMap;
+  /** 包内合并页码上的 B-xx/T-xx 等，用于「主章节+真实页码」与逐条链接 */
+  preciseRefPageMap?: Record<string, number>;
 };
 
 export type RenderScoreMappingPdfResult = {
   bytes: Uint8Array;
   pageCount: number;
+  refPageMap: Record<string, number>;
+  navLinkRects: TenderNavRect[];
 };
 
 const TABLE_COLS_BASE = [
@@ -71,9 +77,10 @@ export async function renderScoreMappingPdf(
         : c
   );
 
+  const precise = input.preciseRefPageMap;
   const rows: ScoreV2Row[] = (input.rows || []).map((r) => ({
     scoreItem: r.scoreId ? `${r.scoreId}  ${r.scoreItem}` : r.scoreItem,
-    responseSection: formatSectionWithPageAndRefs(r, pageRefs),
+    responseSection: formatSectionWithPageAndRefs(r, pageRefs, precise),
     evidence: formatEvidenceWithAttachments(r, attachmentRefs),
     risk: r.risk,
   }));
@@ -85,5 +92,17 @@ export async function renderScoreMappingPdf(
     rows,
     columns: [...columns],
     footnote: input.footnote ?? SCORE_MAPPING_PAGE_FOOTNOTE,
+    getRefKey: (row) => {
+      const m = String(row.scoreItem || "").match(/\b(S-\d{2,3})\b/i);
+      return m?.[1] ? m[1].toUpperCase() : undefined;
+    },
+    inlineRefNavLinks: {
+      columnKey: "responseSection",
+      tokensForRow: (row) => extractClickableRefTokens(row.responseSection),
+    },
+    wholeCellLink: {
+      columnKey: "responseSection",
+      targetKeyForRow: (row) => extractClickableRefTokens(row.responseSection)[0],
+    },
   });
 }

@@ -1,8 +1,8 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { normalizeEmail, sha256 } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { sha256 } from "@/lib/auth";
 
 // 生成 session token（明文）+ hash 入库
 function genSessionToken() {
@@ -21,8 +21,16 @@ export async function createSessionCookie(
   email: string,
   days = 30
 ) {
+  const normalizedEmail = normalizeEmail(email);
+  const user = await prisma.user.upsert({
+    where: { email: normalizedEmail },
+    create: { email: normalizedEmail },
+    update: {},
+    select: { id: true },
+  });
+
   const token = genSessionToken();
-  const tokenHash = sha256(`${token}:${process.env.SESSION_SECRET ?? "sess"}`);
+  const tokenHash = computeSessionTokenHash(token);
 
   const expiresAt = new Date(Date.now() + days * 24 * 3600 * 1000);
 
@@ -30,10 +38,11 @@ export async function createSessionCookie(
     // 生成唯一的 session id（使用 cuid 格式）
     const sessionId = `sess_${crypto.randomBytes(16).toString("hex")}`;
     
-    await (prisma as any).session.create({
+    await prisma.session.create({
       data: {
         id: sessionId,
-        email,
+        email: normalizedEmail,
+        userId: user.id,
         tokenHash,
         expiresAt,
       },
@@ -68,7 +77,7 @@ export async function requireEmailFromSession() {
 
   try {
     const tokenHash = computeSessionTokenHash(raw);
-    const sess = await (prisma as any).session.findUnique({ where: { tokenHash } });
+    const sess = await prisma.session.findUnique({ where: { tokenHash } });
 
     if (!sess) return null;
     if (sess.expiresAt <= new Date()) return null;

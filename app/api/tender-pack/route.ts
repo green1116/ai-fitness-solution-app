@@ -9,6 +9,7 @@ import { parseTenderLevel, type TenderLevel } from "@/lib/pdf/presets";
 import { renderTenderCoverPdf } from "@/lib/pdf/cover";
 import { logPdfDownloadSafe, getReqIp } from "@/lib/audit/pdfLog";
 import { requireAndConsumeDownloadToken } from "@/lib/license";
+import { PLAN_LEVEL_FORBIDDEN_MESSAGE } from "@/lib/download-token";
 import { DEFAULT_GYM_TECHNICAL_REQUIREMENTS } from "@/lib/pdf/tender/technical-response/presets";
 import { buildTechnicalResponseRows } from "@/lib/pdf/tender/technical-response/buildTechnicalResponseRows";
 import { renderTechnicalResponsePdf } from "@/lib/pdf/tender/renderTechnicalResponsePdf";
@@ -46,6 +47,20 @@ import {
 } from "@/lib/pdf/tender/scoreMapping";
 import { buildParsedTenderResult } from "@/lib/tender-parser/buildParsedTenderResult";
 import {
+  computeTenderRiskFromRows,
+  DEFAULT_TENDER_ATTACHMENT_CODES,
+  rowsFromParsedTenderText,
+} from "@/lib/tender/computeTenderRisk";
+import { buildRiskMitigationPdf } from "@/lib/pdf/sections/renderRiskMitigation";
+import { buildScoreSimulationPdf } from "@/lib/pdf/sections/renderScoreSimulation";
+import {
+  computeTenderScore,
+  resolveScoreProfile,
+} from "@/lib/tender/scoreEngine";
+import { buildScoreProfileFromTenderText } from "@/lib/tender/scoreProfileFromTender";
+import { buildBidDecisionSummary } from "@/lib/tender/score/buildBidDecisionSummary";
+import { buildBidDecisionGate } from "@/lib/tender/score/buildBidDecisionGate";
+import {
   writeTenderResponses,
   type ParsedTenderClause,
 } from "@/lib/tender/responseWriter";
@@ -64,6 +79,13 @@ import type {
   TechnicalStatus,
   TenderRequirement,
 } from "@/lib/pdf/tender/types";
+import {
+  buildReleaseManifestLines,
+  parseExecutiveReleaseSurfaceHeader,
+  toDownloadSurfaceHeaders,
+  toReleaseManifestJson,
+} from "@/lib/evidence/release";
+import { EXECUTIVE_RELEASE_SURFACE_RUNTIME_VERSION } from "@/lib/evidence/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,8 +112,10 @@ function isInternalPack(req: NextRequest) {
   return flag === "1" && !!expect && secret === expect;
 }
 
-function isInternalRequest(req: NextRequest, searchParams: URLSearchParams) {
-  return searchParams.get("internal") === "1" || isInternalPack(req);
+function isInternalRequest(req: NextRequest, _searchParams: URLSearchParams) {
+  // 第 4 刀：不再信任 ?internal=1 这种 query 绕过，避免任何前端/代理/爬虫
+  // 通过 URL 参数跳过 downloadToken 消费。内部调用必须带 x-internal-pack + secret。
+  return isInternalPack(req);
 }
 
 function normFreezeYmd(v: string) {
@@ -261,9 +285,9 @@ function drawParagraphLines(
       x,
       y,
       size,
-      font,
-      color: rgb(0.2, 0.2, 0.2),
-    });
+    font,
+    color: rgb(0.2, 0.2, 0.2),
+  });
     y -= step;
   }
   return y;
@@ -294,7 +318,7 @@ async function buildGovSectionShellPdf(opts: {
       x: M,
       y: height - 98,
       size: 10,
-      font,
+        font,
       color: rgb(0.45, 0.45, 0.45),
     });
   }
@@ -601,7 +625,7 @@ async function buildBusinessTermsResponsePdf(
   const businessFootnote = `${businessDigest} ${buildTenderResponseFootnote("business", businessSummary)}`;
 
   const rendered = await renderBusinessResponsePdf({
-    title: "商务响应表",
+    title: "商务条款响应表",
     rows: rows.map((r, i) => ({
       no: String(i + 1),
       requirement: withRefPrefix(r.refId, r.clause),
@@ -702,10 +726,14 @@ async function buildScoreMappingPdf(input: {
   parsedScoreCriteria?: ParsedScoreCriterion[];
   pageRefs?: TenderSectionPageRefs;
   attachmentRefs?: TenderAttachmentRefMap;
+  technicalRefPageMap?: TenderRefPageMap;
+  businessRefPageMap?: TenderRefPageMap;
+  attachmentRefPageMap?: TenderRefPageMap;
 }): Promise<{
   bytes: Uint8Array;
   scoreRows: Array<{ scoreId?: string }>;
   refPageMap: TenderRefPageMap;
+  scoreNavLinkRects: TenderNavRect[];
 }> {
   const criteria =
     input.parsedScoreCriteria?.length
@@ -731,13 +759,28 @@ async function buildScoreMappingPdf(input: {
       if (r.responseRefIds?.length) return r;
       const blob = `${r.scoreItem} ${r.responseSection} ${r.evidence}`;
       if (/技术|参数|设备|配置|系统/.test(blob)) {
-        return { ...r, responseRefIds: techRefIds.slice(0, 4) };
+        return { ...r, responseRefIds: techRefIds.slice(0, 3) };
       }
       if (/商务|售后|服务|交付|报价|预算|付款/.test(blob)) {
-        return { ...r, responseRefIds: bizRefIds.slice(0, 4) };
+        return { ...r, responseRefIds: bizRefIds.slice(0, 3) };
       }
       return r;
     })
+  );
+
+  const preciseForScore = mergeRefPageMaps(
+    offsetRefPageMap(
+      input.technicalRefPageMap,
+      Math.max((input.pageRefs?.technicalResponse || 1) - 1, 0)
+    ),
+    offsetRefPageMap(
+      input.businessRefPageMap,
+      Math.max((input.pageRefs?.businessResponse || 1) - 1, 0)
+    ),
+    offsetRefPageMap(
+      input.attachmentRefPageMap,
+      Math.max((input.pageRefs?.attachmentIndex || 1) - 1, 0)
+    )
   );
 
   const rendered = await renderScoreMappingPdf({
@@ -745,25 +788,27 @@ async function buildScoreMappingPdf(input: {
     rows: scoredRows,
     pageRefs: input.pageRefs,
     attachmentRefs: input.attachmentRefs,
+    preciseRefPageMap: preciseForScore,
   });
   console.log("[score-mapping] pages=", rendered.pageCount);
   return {
     bytes: rendered.bytes,
     scoreRows: scoredRows,
     refPageMap: rendered.refPageMap,
+    scoreNavLinkRects: rendered.navLinkRects || [],
   };
 }
 
 async function buildAttachmentIndexPdf(
   input: GovSectionInput,
   attachmentIndexRows = buildDefaultTenderAttachmentIndexRows()
-): Promise<Uint8Array> {
+): Promise<{ bytes: Uint8Array; refPageMap: TenderRefPageMap }> {
   const rendered = await renderAttachmentIndexPagePdf({
     title: "附件索引页",
     subtitle: `项目：${input.projectName || "-"} · 投标单位：${input.companyName || "-"}`,
     rows: attachmentIndexRows,
   });
-  return rendered.bytes;
+  return { bytes: rendered.bytes, refPageMap: rendered.refPageMap || {} };
 }
 
 /** 企业投标包 · brand 主题：目录中的「商务说明」单页 */
@@ -786,6 +831,10 @@ function resolveTocTargetKey(entryId: string) {
   switch (entryId) {
     case "score":
       return "score-page";
+    case "risk-mitigation":
+      return "risk-mitigation";
+    case "score-simulation":
+      return "score-simulation";
     case "technical-response":
       return "technical-response";
     case "business-terms-response":
@@ -807,6 +856,12 @@ function buildTenderSectionStartPages(entries: GovTocEntry[]): TenderSectionStar
     switch (entry.id) {
       case "score":
         out.score = entry.startPage;
+        break;
+      case "risk-mitigation":
+        out.riskMitigation = entry.startPage;
+        break;
+      case "score-simulation":
+        out.scoreSimulation = entry.startPage;
         break;
       case "technical-response":
         out.technicalResponse = entry.startPage;
@@ -874,7 +929,7 @@ async function buildGovernmentTocPdf(
       x: width - M - w,
       y,
       size: 11,
-      font,
+    font,
       color: rgb(0.2, 0.2, 0.2),
     });
     const targetKey = resolveTocTargetKey(entry.id);
@@ -898,7 +953,7 @@ async function restampPackPagination(
   mergedBytes: Uint8Array,
   opts: {
     level: TenderLevel;
-    planId: string;
+  planId: string;
   }
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(mergedBytes, { ignoreEncryption: true });
@@ -948,7 +1003,7 @@ async function restampPackPagination(
       borderWidth: 0,
     });
 
-    page.drawRectangle({
+  page.drawRectangle({
       x: 0,
       y: 0,
       width,
@@ -965,14 +1020,14 @@ async function restampPackPagination(
       height: 110,
       color: rgb(1, 1, 1),
       borderWidth: 0,
-    });
+  });
 
-    page.drawLine({
+  page.drawLine({
       start: { x: 28, y: 70 },
       end: { x: width - 28, y: 70 },
       thickness: 0.8,
-      color: rgb(0.85, 0.85, 0.85),
-    });
+    color: rgb(0.85, 0.85, 0.85),
+  });
 
     const leftText = `AI Fitness Solution · ${label}`;
     const rightText = `第 ${i + 1} 页 / 共 ${total} 页`;
@@ -984,7 +1039,7 @@ async function restampPackPagination(
       x: 28,
       y: footerY,
       size: footerFontSize,
-      font,
+    font,
       color: footerColor,
     });
 
@@ -992,7 +1047,7 @@ async function restampPackPagination(
       x: width - 28 - rightSize,
       y: footerY,
       size: footerFontSize,
-      font,
+    font,
       color: footerColor,
     });
   }
@@ -1202,6 +1257,69 @@ async function runTenderPack(
     });
 
     if (sp.get("parseOnly") === "1") {
+      const parseOnlyLevel = parseTenderLevel(sp.get("level"));
+      const scoreMode =
+        parseOnlyLevel === "government" ? "government" : "enterprise";
+
+      let parseOnlyRisk: ReturnType<typeof computeTenderRiskFromRows> | null =
+        null;
+      let parseOnlyScoreProfile: {
+        source: "tender-extracted" | "default";
+        profileId: string;
+        profileName: string;
+        items: { key: string; label: string; maxScore: number }[];
+      } | null = null;
+      let parseOnlyScoreResult: ReturnType<typeof computeTenderScore> | null =
+        null;
+
+      if (tenderRawText.trim()) {
+        const { technicalRows, businessRows } =
+          rowsFromParsedTenderText(tenderRawText);
+        parseOnlyRisk = computeTenderRiskFromRows({
+          technicalRows,
+          businessRows,
+          attachments: DEFAULT_TENDER_ATTACHMENT_CODES,
+        });
+        const extracted = buildScoreProfileFromTenderText(tenderRawText);
+        const profile =
+          extracted || resolveScoreProfile(scoreMode);
+        parseOnlyScoreProfile = {
+          source: extracted ? "tender-extracted" : "default",
+          profileId: profile.profileId,
+          profileName: profile.profileName,
+          items: profile.items,
+        };
+        parseOnlyScoreResult = computeTenderScore(
+          {
+            level: parseOnlyRisk.level,
+            summary: parseOnlyRisk.summary,
+            topRisks: parseOnlyRisk.topRisks,
+            missingAttachments: parseOnlyRisk.missingAttachments,
+          },
+          profile,
+          {
+            responseRows: [
+              ...technicalRows.map((r) => ({
+                ref: r.ref,
+                label: r.requirement,
+                section: "技术响应",
+                content: r.requirement,
+              })),
+              ...businessRows.map((r) => ({
+                ref: r.ref,
+                label: r.requirement,
+                section: "商务响应",
+                content: r.requirement,
+              })),
+            ],
+            attachmentIndex: DEFAULT_TENDER_ATTACHMENT_CODES.map((code) => ({
+              ref: code,
+              title: code,
+            })),
+          }
+        );
+      }
+
       return NextResponse.json({
         ok: true,
         mode: "parse-only",
@@ -1209,6 +1327,9 @@ async function runTenderPack(
         rawTextLength: tenderRawText.length,
         rawTextPreview: tenderRawText.slice(0, 300),
         parsed: parsedTender,
+        risk: parseOnlyRisk,
+        scoreProfile: parseOnlyScoreProfile,
+        scoreResult: parseOnlyScoreResult,
       });
     }
 
@@ -1228,6 +1349,11 @@ async function runTenderPack(
     }
 
     const level = parseTenderLevel(sp.get("level"));
+    const forceAllow =
+      sp.get("forceAllow") === "1" || req.headers.get("x-force-allow") === "1";
+    const executiveReleaseSurface = parseExecutiveReleaseSurfaceHeader(
+      req.headers.get("x-executive-release-surface"),
+    );
     const theme = (
       sp.get("theme") || (level === "government" ? "tender" : "brand")
     ).trim();
@@ -1339,16 +1465,36 @@ async function runTenderPack(
     const ip = getReqIp(req as any);
     const ua = req.headers.get("user-agent") || "";
 
-    if (internal) {
-      console.log("[tender-pack internal bypass]", {
-        internal,
+    /**
+     * 下载风控统一落点。
+     * - 所有产出二进制的 format（merged / zip）必须在进入渲染前通过此检查
+     * - 成功后 downloadToken 立即被标记为已用（jti + DB stateful 双保险）
+     * - 重复使用返回 401 DOWNLOAD_TOKEN_REUSED
+     * - `internal` 旁路仅支持 header+secret，不再支持 ?internal=1 query
+     */
+    const enforceDownloadGuard = async (): Promise<Response | null> => {
+      if (internal) {
+        console.log("[tender-pack] internal bypass (header+secret verified)", {
+          planId,
+          format,
+          method: req.method,
+        });
+        return null;
+      }
+
+      console.log("[tender-pack] consuming downloadToken", {
         planId,
-        method: req.method,
+        format,
+        mode: "pack",
+        variant: packVariant,
+        hasDownloadToken: !!downloadToken,
+        tokenPreview: downloadToken ? `${downloadToken.slice(0, 16)}...` : "",
       });
-    } else {
+
       const fingerprint = [
         planId,
         "pack",
+        format,
         (ip || "noip").split(",")[0].trim(),
         (ua || "noua").slice(0, 80),
       ].join("|");
@@ -1361,17 +1507,45 @@ async function runTenderPack(
         fingerprint,
         ip,
         ua,
+        packFormat: format === "merged" ? "merged" : "zip",
       });
 
       if (!tokenResult.ok) {
-        return json(
-          403,
-          tokenResult.code || "TOKEN_INVALID",
-          `download token rejected: ${tokenResult.code || "TOKEN_INVALID"}`,
-          tokenResult
-        );
+        const code = tokenResult.code || "TOKEN_INVALID";
+        const status = code === "DOWNLOAD_TOKEN_REUSED" ? 401 : 403;
+        const message =
+          code === "DOWNLOAD_TOKEN_REUSED"
+            ? "下载凭证已使用，请重新获取"
+            : code === "PLAN_LEVEL_FORBIDDEN"
+              ? PLAN_LEVEL_FORBIDDEN_MESSAGE
+              : `download token rejected: ${code}`;
+
+        console.warn("[tender-pack] downloadToken rejected", {
+          planId,
+          format,
+          code,
+          status,
+          detail: tokenResult,
+        });
+
+        return json(status, code, message, tokenResult);
       }
-    }
+
+      console.log("[tender-pack] downloadToken consumed", {
+        planId,
+        format,
+        tokenId: (tokenResult as any).tokenId ?? null,
+        jti: (tokenResult as any).jti ?? null,
+        usedCount: (tokenResult as any).usedCount ?? null,
+        maxUses: (tokenResult as any).maxUses ?? null,
+      });
+
+      return null;
+    };
+
+    // merged / zip 都是会产出二进制的分支，必须在此统一消费 downloadToken。
+    const guardDenyResponse = await enforceDownloadGuard();
+    if (guardDenyResponse) return guardDenyResponse;
 
     const [planBytes, budgetBytes] = await Promise.all([
       fetchPdfBytes(planPdfUrl.toString()),
@@ -1391,8 +1565,7 @@ async function runTenderPack(
         planId,
         reportDate: date,
         tenderNo,
-        projectName:
-          (sp.get("projectName") || "").trim() || "企业健身房建设项目",
+        projectName: (sp.get("projectName") || "企业健身房建设项目").trim(),
       });
       coverPages = await assertPdfOk(Buffer.from(coverBytes), "cover");
     }
@@ -1405,6 +1578,8 @@ async function runTenderPack(
     let businessDeviationBytes: Uint8Array | null = null;
     let technicalDeviationBytes: Uint8Array | null = null;
     let scoreBytes: Uint8Array | null = null;
+    let riskMitigationBytes: Uint8Array | null = null;
+    let scoreSimulationBytes: Uint8Array | null = null;
     let attachmentIndexBytes: Uint8Array | null = null;
     let enterpriseBizNoteBytes: Uint8Array | null = null;
     let govTocPages = 0;
@@ -1414,6 +1589,8 @@ async function runTenderPack(
     let businessDeviationPages = 0;
     let technicalDeviationPages = 0;
     let scorePages = 0;
+    let riskMitigationPages = 0;
+    let scoreSimulationPages = 0;
     let attachmentIndexPages = 0;
     let enterpriseBizNotePages = 0;
     let govTocEntries: GovTocEntry[] = [];
@@ -1423,7 +1600,11 @@ async function runTenderPack(
     let attachmentRowsForNav: Array<{ code?: string }> = [];
     let technicalRefPageMap: TenderRefPageMap = {};
     let businessRefPageMap: TenderRefPageMap = {};
+    let attachmentRefPageMap: TenderRefPageMap = {};
     let scoreRefPageMap: TenderRefPageMap = {};
+    let scoreNavLinkRects: TenderNavRect[] = [];
+    let decisionSummaryForGate: ReturnType<typeof buildBidDecisionSummary> | null = null;
+    let gateResultForPack: ReturnType<typeof buildBidDecisionGate> | null = null;
     const shouldBuildTenderExtras =
       level === "government" || level === "enterprise";
 
@@ -1431,10 +1612,240 @@ async function runTenderPack(
       const govInput: GovSectionInput = {
         planId,
         companyName,
-        projectName: sp.get("projectName") || "企业健身房建设项目",
+        projectName: (sp.get("projectName") || "企业健身房建设项目").trim(),
         tenderNo,
         issueDate: `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`,
       };
+
+      const attachmentIndexRows = buildDefaultTenderAttachmentIndexRows();
+      const attachmentRefs = mapAttachmentIndexRowsToRefs(attachmentIndexRows);
+      const businessRows = buildBusinessRows({
+        parsedBusinessRequirements: parsedTender?.businessRequirements,
+      });
+      const technicalRows = buildTechnicalRows({
+        ...govInput,
+        parsedTechnicalRequirements: parsedTender?.technicalRequirements,
+      });
+      const businessRowsWithRefs = buildBusinessResponseRefs(businessRows);
+      const technicalRowsWithRefs = buildTechnicalResponseRefs(technicalRows);
+      businessRowsForNav = businessRowsWithRefs;
+      technicalRowsForNav = technicalRowsWithRefs;
+      attachmentRowsForNav = attachmentIndexRows;
+
+      const [
+        bidLetterResult,
+        businessResponseResult,
+        technicalResponseResult,
+        businessDeviationResult,
+        technicalDeviationResult,
+        attachmentIndexResult,
+      ] = await Promise.all([
+        buildBidLetterPdf(govInput),
+        buildBusinessTermsResponsePdf(businessRowsWithRefs, attachmentRefs),
+        buildTechnicalResponsePdf(technicalRowsWithRefs, attachmentRefs),
+        buildBusinessDeviationPdf(businessRowsWithRefs, attachmentRefs),
+        buildTechnicalDeviationPdf(technicalRowsWithRefs, attachmentRefs),
+        buildAttachmentIndexPdf(govInput, attachmentIndexRows),
+      ]);
+      bidLetterBytes = bidLetterResult;
+      businessTermsResponseBytes = businessResponseResult.bytes;
+      technicalResponseBytes = technicalResponseResult.bytes;
+      businessDeviationBytes = businessDeviationResult;
+      technicalDeviationBytes = technicalDeviationResult;
+      attachmentIndexBytes = attachmentIndexResult.bytes;
+      attachmentRefPageMap = attachmentIndexResult.refPageMap || {};
+      businessRefPageMap = businessResponseResult.refPageMap || {};
+      technicalRefPageMap = technicalResponseResult.refPageMap || {};
+
+      [
+        bidLetterPages,
+        businessTermsResponsePages,
+        technicalResponsePages,
+        businessDeviationPages,
+        technicalDeviationPages,
+        attachmentIndexPages,
+      ] = await Promise.all([
+        assertPdfOk(Buffer.from(bidLetterBytes!), "bid-letter"),
+        assertPdfOk(
+          Buffer.from(businessTermsResponseBytes!),
+          "business-terms-response"
+        ),
+        assertPdfOk(
+          Buffer.from(technicalResponseBytes!),
+          "technical-response"
+        ),
+        assertPdfOk(
+          Buffer.from(businessDeviationBytes!),
+          "business-deviation"
+        ),
+        assertPdfOk(
+          Buffer.from(technicalDeviationBytes!),
+          "technical-deviation"
+        ),
+        assertPdfOk(
+          Buffer.from(attachmentIndexBytes!),
+          "attachment-index"
+        ),
+      ]);
+
+      let scorePagesEstimate = 1;
+      const RISK_MITIGATION_LAYOUT_PAGES = 1;
+      const SCORE_SIMULATION_LAYOUT_PAGES = 1;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const pageRefs = buildTenderSectionPageRefsFromPackLayout({
+          coverPages,
+          govTocPages: 1,
+          omitBidLetter: isEnterpriseBrand,
+          bidLetterPages,
+          businessTermsResponsePages,
+          technicalResponsePages,
+          businessDeviationPages,
+          technicalDeviationPages,
+          scorePages: scorePagesEstimate,
+          riskMitigationPages: RISK_MITIGATION_LAYOUT_PAGES,
+          scoreSimulationPages: SCORE_SIMULATION_LAYOUT_PAGES,
+          attachmentIndexPages,
+          planPages,
+          budgetPages,
+        });
+        const scoreResult = await buildScoreMappingPdf({
+          technicalRows: technicalRowsWithRefs,
+          businessRows: businessRowsWithRefs,
+          parsedScoreCriteria: parsedTender?.scoreCriteria,
+          pageRefs,
+          attachmentRefs,
+          technicalRefPageMap,
+          businessRefPageMap,
+          attachmentRefPageMap,
+        });
+        scoreBytes = scoreResult.bytes;
+        scoreRowsForNav = scoreResult.scoreRows;
+        scoreRefPageMap = scoreResult.refPageMap || {};
+        scoreNavLinkRects = scoreResult.scoreNavLinkRects;
+        scorePages = await assertPdfOk(Buffer.from(scoreBytes), "score");
+        if (scorePages === scorePagesEstimate) break;
+        scorePagesEstimate = scorePages;
+      }
+
+      if (scoreBytes) {
+        const techForRisk = technicalRowsWithRefs.map((r) => ({
+          requirement: r.requirement,
+          status: String(r.status || ""),
+          ref: r.refId,
+        }));
+        const bizForRisk = businessRowsWithRefs.map((r) => ({
+          requirement: r.clause,
+          status: String(r.status || ""),
+          ref: r.refId,
+        }));
+        const riskComputed = computeTenderRiskFromRows({
+          technicalRows: techForRisk,
+          businessRows: bizForRisk,
+          attachments: DEFAULT_TENDER_ATTACHMENT_CODES,
+        });
+
+        riskMitigationBytes = await buildRiskMitigationPdf({
+          risk: riskComputed,
+          projectName: govInput.projectName,
+          tenderNo: govInput.tenderNo,
+          companyName: govInput.companyName,
+        });
+        riskMitigationPages = await assertPdfOk(
+          Buffer.from(riskMitigationBytes),
+          "risk-mitigation"
+        );
+
+        const scorePackMode = level === "government" ? "government" : "enterprise";
+        const extractedScoreProfile = tenderRawText.trim()
+          ? buildScoreProfileFromTenderText(tenderRawText)
+          : null;
+        const scoreProfileResolved =
+          extractedScoreProfile || resolveScoreProfile(scorePackMode);
+        const tenderScoreResult = computeTenderScore(
+          {
+            level: riskComputed.level,
+            summary: riskComputed.summary,
+            topRisks: riskComputed.topRisks,
+            missingAttachments: riskComputed.missingAttachments,
+          },
+          scoreProfileResolved,
+          {
+            responseRows: [
+              ...technicalRowsWithRefs.map((r) => ({
+                ref: r.refId,
+                label: r.requirement,
+                section: "技术响应",
+                content: `${r.requirement || ""} ${r.response || ""} ${r.note || ""}`,
+              })),
+              ...businessRowsWithRefs.map((r) => ({
+                ref: r.refId,
+                label: r.clause,
+                section: "商务响应",
+                content: `${r.clause || ""} ${r.response || ""} ${r.note || ""}`,
+              })),
+            ],
+            attachmentIndex: attachmentIndexRows.map((a) => ({
+              ref: a.code,
+              name: a.name,
+              title: a.name,
+              content: `${a.code || ""} ${a.name || ""}`,
+            })),
+          }
+        );
+        decisionSummaryForGate = buildBidDecisionSummary({
+          items: tenderScoreResult.breakdown,
+          totalScore: tenderScoreResult.totalScore,
+          totalMaxScore: tenderScoreResult.totalMaxScore,
+          topRisks: riskComputed.topRisks,
+          missingAttachments: riskComputed.missingAttachments,
+        });
+        const forceAllow =
+  req.nextUrl.searchParams.get("forceAllow") === "1" ||
+  req.headers.get("x-force-allow") === "1";
+
+  console.log("[tender-pack] forceAllow debug", {
+    url: req.nextUrl.toString(),
+    forceAllowFromQuery: req.nextUrl.searchParams.get("forceAllow"),
+    forceAllowFromHeader: req.headers.get("x-force-allow"),
+    forceAllow,
+  });
+
+  gateResultForPack = buildBidDecisionGate({
+    summary: decisionSummaryForGate,
+    forceAllow,
+  });
+
+if (gateResultForPack.action === "block" && !forceAllow) {
+  return NextResponse.json(
+    {
+      ok: false,
+      code: "TENDER_PACK_BLOCKED_BY_RISK_GATE",
+      message: gateResultForPack.message,
+      gate: gateResultForPack,
+      summary: decisionSummaryForGate,
+    },
+    { status: 409 }
+  );
+}
+
+        console.log("[tender-score-profile]", {
+          source: extractedScoreProfile ? "tender-extracted" : "default",
+          profileId: scoreProfileResolved.profileId,
+          profileName: scoreProfileResolved.profileName,
+          items: scoreProfileResolved.items,
+          totalScore: tenderScoreResult.totalScore,
+          totalMaxScore: tenderScoreResult.totalMaxScore,
+        });
+
+        scoreSimulationBytes = await buildScoreSimulationPdf({
+          scoreResult: tenderScoreResult,
+          profileName: scoreProfileResolved.profileName,
+        });
+        scoreSimulationPages = await assertPdfOk(
+          Buffer.from(scoreSimulationBytes),
+          "score-simulation"
+        );
+      }
 
       if (isEnterpriseBrand) {
         enterpriseBizNoteBytes =
@@ -1447,6 +1858,78 @@ async function runTenderPack(
         govTocPages = 1;
         let currentPage = coverPages + govTocPages + 1;
         govTocEntries = [];
+
+        if (businessTermsResponseBytes) {
+          govTocEntries.push({
+            id: "business-terms-response",
+            title: "商务条款响应表",
+            startPage: currentPage,
+          });
+          currentPage += businessTermsResponsePages || 1;
+        }
+
+        if (technicalResponseBytes) {
+          govTocEntries.push({
+            id: "technical-response",
+            title: "技术响应表",
+            startPage: currentPage,
+          });
+          currentPage += technicalResponsePages || 1;
+        }
+
+        if (businessDeviationBytes) {
+          govTocEntries.push({
+            id: "business-deviation",
+            title: "商务偏离表",
+            startPage: currentPage,
+          });
+          currentPage += businessDeviationPages || 1;
+        }
+
+        if (technicalDeviationBytes) {
+          govTocEntries.push({
+            id: "technical-deviation",
+            title: "技术偏离表",
+            startPage: currentPage,
+          });
+          currentPage += technicalDeviationPages || 1;
+        }
+
+        if (scoreBytes) {
+          govTocEntries.push({
+            id: "score",
+            title: "评分项对照页",
+            startPage: currentPage,
+          });
+          currentPage += scorePages || 1;
+        }
+
+        if (riskMitigationBytes) {
+          govTocEntries.push({
+            id: "risk-mitigation",
+            title: "风险与对策说明",
+            startPage: currentPage,
+          });
+          currentPage += riskMitigationPages || 1;
+        }
+
+        if (scoreSimulationBytes) {
+          govTocEntries.push({
+            id: "score-simulation",
+            title: "评审打分模拟（参考）",
+            startPage: currentPage,
+          });
+          currentPage += scoreSimulationPages || 1;
+        }
+
+        if (attachmentIndexBytes) {
+          govTocEntries.push({
+            id: "attachment-index",
+            title: "附件索引页",
+            startPage: currentPage,
+          });
+          currentPage += attachmentIndexPages || 1;
+        }
 
         govTocEntries.push({
           id: "plan",
@@ -1478,106 +1961,6 @@ async function runTenderPack(
           "enterprise-toc"
         );
       } else {
-        const attachmentIndexRows = buildDefaultTenderAttachmentIndexRows();
-        const attachmentRefs = mapAttachmentIndexRowsToRefs(attachmentIndexRows);
-        const businessRows = buildBusinessRows({
-          parsedBusinessRequirements: parsedTender?.businessRequirements,
-        });
-        const technicalRows = buildTechnicalRows({
-          ...govInput,
-          parsedTechnicalRequirements: parsedTender?.technicalRequirements,
-        });
-        const businessRowsWithRefs = buildBusinessResponseRefs(businessRows);
-        const technicalRowsWithRefs = buildTechnicalResponseRefs(technicalRows);
-        businessRowsForNav = businessRowsWithRefs;
-        technicalRowsForNav = technicalRowsWithRefs;
-        attachmentRowsForNav = attachmentIndexRows;
-
-        const [
-          bidLetterResult,
-          businessResponseResult,
-          technicalResponseResult,
-          businessDeviationResult,
-          technicalDeviationResult,
-          attachmentIndexResult,
-        ] = await Promise.all([
-          buildBidLetterPdf(govInput),
-          buildBusinessTermsResponsePdf(businessRowsWithRefs, attachmentRefs),
-          buildTechnicalResponsePdf(technicalRowsWithRefs, attachmentRefs),
-          buildBusinessDeviationPdf(businessRowsWithRefs, attachmentRefs),
-          buildTechnicalDeviationPdf(technicalRowsWithRefs, attachmentRefs),
-          buildAttachmentIndexPdf(govInput, attachmentIndexRows),
-        ]);
-        bidLetterBytes = bidLetterResult;
-        businessTermsResponseBytes = businessResponseResult.bytes;
-        technicalResponseBytes = technicalResponseResult.bytes;
-        businessDeviationBytes = businessDeviationResult;
-        technicalDeviationBytes = technicalDeviationResult;
-        attachmentIndexBytes = attachmentIndexResult;
-        businessRefPageMap = businessResponseResult.refPageMap || {};
-        technicalRefPageMap = technicalResponseResult.refPageMap || {};
-
-        [
-          bidLetterPages,
-          businessTermsResponsePages,
-          technicalResponsePages,
-          businessDeviationPages,
-          technicalDeviationPages,
-          attachmentIndexPages,
-        ] = await Promise.all([
-          assertPdfOk(Buffer.from(bidLetterBytes!), "bid-letter"),
-          assertPdfOk(
-            Buffer.from(businessTermsResponseBytes!),
-            "business-terms-response"
-          ),
-          assertPdfOk(
-            Buffer.from(technicalResponseBytes!),
-            "technical-response"
-          ),
-          assertPdfOk(
-            Buffer.from(businessDeviationBytes!),
-            "business-deviation"
-          ),
-          assertPdfOk(
-            Buffer.from(technicalDeviationBytes!),
-            "technical-deviation"
-          ),
-          assertPdfOk(
-            Buffer.from(attachmentIndexBytes!),
-            "attachment-index"
-          ),
-        ]);
-
-        let scorePagesEstimate = 1;
-        for (let attempt = 0; attempt < 5; attempt++) {
-          const pageRefs = buildTenderSectionPageRefsFromPackLayout({
-            coverPages,
-            govTocPages: 1,
-            bidLetterPages,
-            businessTermsResponsePages,
-            technicalResponsePages,
-            businessDeviationPages,
-            technicalDeviationPages,
-            scorePages: scorePagesEstimate,
-            attachmentIndexPages,
-            planPages,
-            budgetPages,
-          });
-          const scoreResult = await buildScoreMappingPdf({
-            technicalRows: technicalRowsWithRefs,
-            businessRows: businessRowsWithRefs,
-            parsedScoreCriteria: parsedTender?.scoreCriteria,
-            pageRefs,
-            attachmentRefs,
-          });
-          scoreBytes = scoreResult.bytes;
-          scoreRowsForNav = scoreResult.scoreRows;
-          scoreRefPageMap = scoreResult.refPageMap || {};
-          scorePages = await assertPdfOk(Buffer.from(scoreBytes), "score");
-          if (scorePages === scorePagesEstimate) break;
-          scorePagesEstimate = scorePages;
-        }
-
         govTocPages = 1;
         let currentPage = coverPages + govTocPages + 1;
         govTocEntries = [];
@@ -1636,6 +2019,24 @@ async function runTenderPack(
           currentPage += scorePages || 1;
         }
 
+        if (riskMitigationBytes) {
+          govTocEntries.push({
+            id: "risk-mitigation",
+            title: "风险与对策说明",
+            startPage: currentPage,
+          });
+          currentPage += riskMitigationPages || 1;
+        }
+
+        if (scoreSimulationBytes) {
+          govTocEntries.push({
+            id: "score-simulation",
+            title: "评审打分模拟（参考）",
+            startPage: currentPage,
+          });
+          currentPage += scoreSimulationPages || 1;
+        }
+
         if (attachmentIndexBytes) {
           govTocEntries.push({
             id: "attachment-index",
@@ -1670,13 +2071,25 @@ async function runTenderPack(
       coverPages +
       govTocPages +
       (isEnterpriseBrand
-        ? planPages + budgetPages + enterpriseBizNotePages
+        ? businessTermsResponsePages +
+          technicalResponsePages +
+          businessDeviationPages +
+          technicalDeviationPages +
+          scorePages +
+          riskMitigationPages +
+          scoreSimulationPages +
+          attachmentIndexPages +
+          planPages +
+          budgetPages +
+          enterpriseBizNotePages
         : bidLetterPages +
           businessTermsResponsePages +
           technicalResponsePages +
           businessDeviationPages +
           technicalDeviationPages +
           scorePages +
+          riskMitigationPages +
+          scoreSimulationPages +
           attachmentIndexPages +
           planPages +
           budgetPages);
@@ -1684,8 +2097,17 @@ async function runTenderPack(
     console.log("[tender-pack page counts]", {
       coverPages,
       govTocPages,
-      planPages,
-      budgetPages,
+      bidLetterPages,
+      businessTermsResponsePages,
+      technicalResponsePages,
+      businessDeviationPages,
+      technicalDeviationPages,
+      scorePages,
+      riskMitigationPages,
+      scoreSimulationPages,
+      attachmentIndexPages,
+          planPages,
+          budgetPages,
       enterpriseBizNotePages,
       totalPages,
     });
@@ -1696,6 +2118,62 @@ async function runTenderPack(
       if (govTocBytes) parts.push({ name: "toc", buf: govTocBytes, mode: "copy" });
 
       if (isEnterpriseBrand) {
+        if (businessTermsResponseBytes) {
+          parts.push({
+            name: "business-terms-response",
+            buf: businessTermsResponseBytes,
+            mode: "copy",
+          });
+        }
+        if (technicalResponseBytes) {
+          parts.push({
+            name: "technical-response",
+            buf: technicalResponseBytes,
+            mode: "copy",
+          });
+        }
+        if (businessDeviationBytes) {
+          parts.push({
+            name: "business-deviation",
+            buf: businessDeviationBytes,
+            mode: "copy",
+          });
+        }
+        if (technicalDeviationBytes) {
+          parts.push({
+            name: "technical-deviation",
+            buf: technicalDeviationBytes,
+            mode: "copy",
+          });
+        }
+        if (scoreBytes) {
+          parts.push({
+            name: "score",
+            buf: scoreBytes,
+            mode: "copy",
+          });
+        }
+        if (riskMitigationBytes) {
+          parts.push({
+            name: "risk-mitigation",
+            buf: riskMitigationBytes,
+            mode: "copy",
+          });
+        }
+        if (scoreSimulationBytes) {
+          parts.push({
+            name: "score-simulation",
+            buf: scoreSimulationBytes,
+            mode: "copy",
+          });
+        }
+        if (attachmentIndexBytes) {
+          parts.push({
+            name: "attachment-index",
+            buf: attachmentIndexBytes,
+            mode: "copy",
+          });
+        }
         parts.push({
           name: "plan",
           buf: planBytes,
@@ -1753,6 +2231,20 @@ async function runTenderPack(
             mode: "copy",
           });
         }
+        if (riskMitigationBytes) {
+          parts.push({
+            name: "risk-mitigation",
+            buf: riskMitigationBytes,
+            mode: "copy",
+          });
+        }
+        if (scoreSimulationBytes) {
+          parts.push({
+            name: "score-simulation",
+            buf: scoreSimulationBytes,
+            mode: "copy",
+          });
+        }
         if (attachmentIndexBytes) {
           parts.push({
             name: "attachment-index",
@@ -1791,7 +2283,7 @@ async function runTenderPack(
         ? await restampPackPagination(mergedBytes, { level, planId })
         : mergedBytes;
 
-      if (!isEnterpriseBrand && govTocEntries.length > 0 && govTocLinkRects.length > 0) {
+      if (govTocEntries.length > 0 && govTocLinkRects.length > 0) {
         const sectionStarts = buildTenderSectionStartPages(govTocEntries);
         const mergedRefPageMap = mergeRefPageMaps(
           offsetRefPageMap(
@@ -1805,6 +2297,10 @@ async function runTenderPack(
           offsetRefPageMap(
             businessRefPageMap,
             Math.max((sectionStarts.businessResponse || 1) - 1, 0)
+          ),
+          offsetRefPageMap(
+            attachmentRefPageMap,
+            Math.max((sectionStarts.attachmentIndex || 1) - 1, 0)
           )
         );
         const navMap = buildTenderNavMap({
@@ -1819,8 +2315,16 @@ async function runTenderPack(
           ...r,
           page: r.page + coverPages,
         }));
+        const scoreStart = sectionStarts.score ?? 1;
+        const scoreRectsInMerged = scoreNavLinkRects.map((r) => ({
+          ...r,
+          page: scoreStart + r.page - 1,
+        }));
         const navDoc = await PDFDocument.load(finalBytes, { ignoreEncryption: true });
-        applyTenderNavLinks(navDoc, navMap, tocRectsInMerged);
+        applyTenderNavLinks(navDoc, navMap, [
+          ...tocRectsInMerged,
+          ...scoreRectsInMerged,
+        ]);
         finalBytes = await navDoc.save();
       }
       const mergedFilename = `AI_Fitness_Solution_Tender_Merged-${level}-${asciiSafeFilename(planId)}-${date}.pdf`;
@@ -1853,6 +2357,10 @@ async function runTenderPack(
             watermark,
             tz,
             packVariant,
+            gateAction: gateResultForPack?.action || null,
+            decisionLevel: gateResultForPack?.decisionLevel || null,
+            scoreRatio: gateResultForPack?.meta?.scoreRatio ?? null,
+            forceAllow: forceAllow ? "1" : "0",
           },
         });
       }
@@ -1878,6 +2386,8 @@ async function runTenderPack(
           "X-GOV-BIZ-DEVIATION-PAGES": String(businessDeviationPages),
           "X-GOV-TECH-DEVIATION-PAGES": String(technicalDeviationPages),
           "X-GOV-SCORE-PAGES": String(scorePages),
+          "X-RISK-MITIGATION-PAGES": String(riskMitigationPages),
+          "X-SCORE-SIMULATION-PAGES": String(scoreSimulationPages),
           "X-GOV-ATTACHMENT-INDEX-PAGES": String(attachmentIndexPages),
           "X-TOTAL-PAGES": String(totalPages),
           "X-INCLUDE-COVER": includeCover ? "1" : "0",
@@ -1902,6 +2412,30 @@ async function runTenderPack(
     if (coverBytes) zipAddPart("cover", coverBytes);
     if (govTocBytes) zipAddPart("toc", govTocBytes);
     if (isEnterpriseBrand) {
+      if (businessTermsResponseBytes) {
+        zipAddPart("business-terms-response", businessTermsResponseBytes);
+      }
+      if (technicalResponseBytes) {
+        zipAddPart("technical-response", technicalResponseBytes);
+      }
+      if (businessDeviationBytes) {
+        zipAddPart("business-deviation", businessDeviationBytes);
+      }
+      if (technicalDeviationBytes) {
+        zipAddPart("technical-deviation", technicalDeviationBytes);
+      }
+      if (scoreBytes) {
+        zipAddPart("score", scoreBytes);
+      }
+      if (riskMitigationBytes) {
+        zipAddPart("risk-mitigation", riskMitigationBytes);
+      }
+      if (scoreSimulationBytes) {
+        zipAddPart("score-simulation", scoreSimulationBytes);
+      }
+      if (attachmentIndexBytes) {
+        zipAddPart("attachment-index", attachmentIndexBytes);
+      }
       zipAddPart("plan", planBytes);
       zipAddPart("budget", budgetBytes);
       if (enterpriseBizNoteBytes) {
@@ -1924,6 +2458,12 @@ async function runTenderPack(
       if (scoreBytes) {
         zipAddPart("score", scoreBytes);
       }
+      if (riskMitigationBytes) {
+        zipAddPart("risk-mitigation", riskMitigationBytes);
+      }
+      if (scoreSimulationBytes) {
+        zipAddPart("score-simulation", scoreSimulationBytes);
+      }
       if (attachmentIndexBytes) {
         zipAddPart("attachment-index", attachmentIndexBytes);
       }
@@ -1931,36 +2471,56 @@ async function runTenderPack(
       zipAddPart("budget", budgetBytes);
     }
 
-    zip.file(
-      "MANIFEST.txt",
-      [
-        `planId=${planId}`,
-        `companyName=${companyName}`,
-        `level=${level}`,
-        `variant=${packVariant}`,
-        `tenderNo=${tenderNo}`,
-        `theme=${theme}`,
-        `watermark=${watermark}`,
-        `tz=${tz}`,
-        `includeCover=${includeCover ? "1" : "0"}`,
-        `packFooter=${packFooter ? "1" : "0"}`,
-        `tocPages=${govTocPages}`,
-        `bidLetterPages=${bidLetterPages}`,
-        `businessTermsResponsePages=${businessTermsResponsePages}`,
-        `technicalResponsePages=${technicalResponsePages}`,
-        `businessDeviationPages=${businessDeviationPages}`,
-        `technicalDeviationPages=${technicalDeviationPages}`,
-        `scorePages=${scorePages}`,
-        `attachmentIndexPages=${attachmentIndexPages}`,
-        `enterpriseBizNotePages=${enterpriseBizNotePages}`,
-        `planPages=${planPages}`,
-        `budgetPages=${budgetPages}`,
-        `coverPages=${coverPages}`,
-        `totalPages=${totalPages}`,
-        `budgetSections=${packBudgetSections}`,
-        `generatedAt=${new Date().toISOString()}`,
-      ].join("\n")
-    );
+    const manifestBase = [
+      `planId=${planId}`,
+      `companyName=${companyName}`,
+      `level=${level}`,
+      `variant=${packVariant}`,
+      `tenderNo=${tenderNo}`,
+      `theme=${theme}`,
+      `watermark=${watermark}`,
+      `tz=${tz}`,
+      `includeCover=${includeCover ? "1" : "0"}`,
+      `packFooter=${packFooter ? "1" : "0"}`,
+      `tocPages=${govTocPages}`,
+      `bidLetterPages=${bidLetterPages}`,
+      `businessTermsResponsePages=${businessTermsResponsePages}`,
+      `technicalResponsePages=${technicalResponsePages}`,
+      `businessDeviationPages=${businessDeviationPages}`,
+      `technicalDeviationPages=${technicalDeviationPages}`,
+      `scorePages=${scorePages}`,
+      `riskMitigationPages=${riskMitigationPages}`,
+      `scoreSimulationPages=${scoreSimulationPages}`,
+      `attachmentIndexPages=${attachmentIndexPages}`,
+      `enterpriseBizNotePages=${enterpriseBizNotePages}`,
+      `planPages=${planPages}`,
+      `budgetPages=${budgetPages}`,
+      `coverPages=${coverPages}`,
+      `totalPages=${totalPages}`,
+      `budgetSections=${packBudgetSections}`,
+      `generatedAt=${new Date().toISOString()}`,
+    ];
+    if (executiveReleaseSurface) {
+      manifestBase.push(
+        ...buildReleaseManifestLines(executiveReleaseSurface, {
+          planId,
+          tenderId: tenderNo,
+        }),
+      );
+      zip.file(
+        "EXECUTIVE_RELEASE_MANIFEST.json",
+        toReleaseManifestJson({
+          version: EXECUTIVE_RELEASE_SURFACE_RUNTIME_VERSION,
+          generatedAt: new Date().toISOString(),
+          surface: executiveReleaseSurface,
+          lines: buildReleaseManifestLines(executiveReleaseSurface, {
+            planId,
+            tenderId: tenderNo,
+          }),
+        }),
+      );
+    }
+    zip.file("MANIFEST.txt", manifestBase.join("\n"));
 
     const zipBytes = await zip.generateAsync({
       type: "nodebuffer",
@@ -1997,32 +2557,41 @@ async function runTenderPack(
           watermark,
           tz,
           packVariant,
+          gateAction: gateResultForPack?.action || null,
+          decisionLevel: gateResultForPack?.decisionLevel || null,
+          scoreRatio: gateResultForPack?.meta?.scoreRatio ?? null,
+          forceAllow: forceAllow ? "1" : "0",
         },
       });
     }
 
+    const zipHeaders: Record<string, string> = {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${asciiSafeFilename(zipFilename)}"`,
+      "Cache-Control": "no-store",
+      "X-TENDER-PACK": "ZIP_TENDER_V10_SIMPLE",
+      "X-TENDER-LEVEL": level,
+      "X-TENDER-NO": tenderNo,
+      "X-PLAN-VERSION": pdfVersionPlan,
+      "X-BUDGET-VERSION": pdfVersionBudget,
+      "X-PLAN-PAGES": String(planPages),
+      "X-BUDGET-PAGES": String(budgetPages),
+      "X-COVER-PAGES": String(coverPages),
+      "X-TOTAL-PAGES": String(totalPages),
+      "X-INCLUDE-COVER": includeCover ? "1" : "0",
+      "X-PACK-BUDGET-SECTIONS": packBudgetSections,
+      "X-PACK-VARIANT": packVariant,
+      "X-PACK-THEME": theme || "brand",
+      "X-PACK-WATERMARK": watermark === "1" ? "1" : "0",
+      "X-PACK-TZ": tz,
+      ...(executiveReleaseSurface
+        ? toDownloadSurfaceHeaders(executiveReleaseSurface)
+        : {}),
+    };
+
     return new NextResponse(new Uint8Array(zipBytes), {
       status: 200,
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="${asciiSafeFilename(zipFilename)}"`,
-        "Cache-Control": "no-store",
-        "X-TENDER-PACK": "ZIP_TENDER_V10_SIMPLE",
-        "X-TENDER-LEVEL": level,
-        "X-TENDER-NO": tenderNo,
-        "X-PLAN-VERSION": pdfVersionPlan,
-        "X-BUDGET-VERSION": pdfVersionBudget,
-        "X-PLAN-PAGES": String(planPages),
-        "X-BUDGET-PAGES": String(budgetPages),
-        "X-COVER-PAGES": String(coverPages),
-        "X-TOTAL-PAGES": String(totalPages),
-        "X-INCLUDE-COVER": includeCover ? "1" : "0",
-        "X-PACK-BUDGET-SECTIONS": packBudgetSections,
-        "X-PACK-VARIANT": packVariant,
-        "X-PACK-THEME": theme || "brand",
-        "X-PACK-WATERMARK": watermark === "1" ? "1" : "0",
-        "X-PACK-TZ": tz,
-      },
+      headers: zipHeaders,
     });
   } catch (e: any) {
     return json(500, "TENDER_PACK_ERROR", e?.message || "Internal error", {

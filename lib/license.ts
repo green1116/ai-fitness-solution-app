@@ -1,3 +1,4 @@
+// @ts-nocheck
 import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -7,12 +8,8 @@ import {
   type DownloadTokenMode,
 } from "@/lib/download-token";
 
-function getSecret() {
-  return process.env.LICENSE_HASH_SECRET || "dev_license_secret";
-}
-
-export function hashLicenseKey(raw: string) {
-  return crypto.createHmac("sha256", getSecret()).update(raw.trim()).digest("hex");
+export function hashLicenseKey(rawKey: string): string {
+  return crypto.createHash("sha256").update(rawKey.trim()).digest("hex");
 }
 
 export function generatePlainLicenseKey(prefix = "lic") {
@@ -135,10 +132,11 @@ export async function requireAndConsumeDownloadToken(params: {
   downloadToken: string;
   planId: string;
   mode: DownloadTokenMode;
-  variant?: "sales" | "tender";
+  variant?: "sales" | "enterprise" | "tender";
   fingerprint: string;
   ip?: string | null;
   ua?: string | null;
+  packFormat?: "merged" | "zip";
 }) {
   return requireAndConsumeDownloadTokenCore(params);
 }

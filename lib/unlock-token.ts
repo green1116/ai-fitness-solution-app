@@ -1,84 +1,168 @@
-import { jwtVerify, SignJWT } from "jose";
+import { SignJWT, jwtVerify } from "jose";
 
-export type UnlockIntent = "unlock_pro" | "unlock_budget" | "unlock_tender";
+type UnlockIntent =
+  | "unlock_pro"
+  | "unlock_budget"
+  | "unlock_enterprise"
+  | "unlock_tender";
 
-function getSecret() {
-  const s = (process.env.DOWNLOAD_TOKEN_SECRET || "").trim();
-  if (!s) throw new Error("DOWNLOAD_TOKEN_SECRET_MISSING");
-  return new TextEncoder().encode(s);
-}
+type UnlockMode = "full" | "budget" | "pack";
 
-/**
- * 签发解锁 token（留资成功后返回，用于后续申请 download token）
- * 有效期 24 小时
- */
-export async function signUnlockToken(payload: {
+export type UnlockPlanLevel = "free" | "pro" | "enterprise";
+
+export type UnlockTokenPayload = {
+  scope: "unlock";
   planId: string;
-  email: string;
   intent: UnlockIntent;
-  ttlSec?: number;
-}) {
-  const ttlSec = payload.ttlSec ?? 86400; // 24h
-  const now = Math.floor(Date.now() / 1000);
-  const exp = now + ttlSec;
-
-  return new SignJWT({
-    scope: "unlock",
-    planId: payload.planId,
-    email: payload.email,
-    intent: payload.intent,
-  })
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setIssuedAt(now)
-    .setExpirationTime(exp)
-    .sign(getSecret());
-}
-
-export type UnlockPayload = {
-  scope: string;
-  planId: string;
-  email: string;
-  intent: UnlockIntent;
-  exp: number;
-  iat: number;
+  email?: string;
+  mode?: UnlockMode;
+  /** 商业化套餐档：预览 / Pro 投标包 PDF / Enterprise PDF+ZIP */
+  planLevel: UnlockPlanLevel;
 };
 
-/**
- * 校验解锁 token
- */
+function getUnlockSecret() {
+  const secret = (process.env.UNLOCK_TOKEN_SECRET || "").trim();
+
+  if (!secret) {
+    throw new Error("UNLOCK_TOKEN_SECRET 未配置");
+  }
+
+  return new TextEncoder().encode(secret);
+}
+
+export async function issueUnlockToken(input: {
+  planId: string;
+  intent: UnlockIntent;
+  email?: string;
+  mode?: UnlockMode;
+  planLevel: UnlockPlanLevel;
+  ttlSec?: number;
+}) {
+  const ttlSec =
+    input.ttlSec ??
+    Number(process.env.UNLOCK_TOKEN_EXPIRES_IN_SECONDS || "86400");
+
+  const key = getUnlockSecret();
+
+  const token = await new SignJWT({
+    scope: "unlock",
+    planId: input.planId,
+    intent: input.intent,
+    email: input.email || undefined,
+    mode: input.mode || undefined,
+    planLevel: input.planLevel,
+  })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setIssuedAt()
+    .setExpirationTime(`${ttlSec}s`)
+    .sign(key);
+
+  console.log("[unlock-token] issue success", {
+    planId: input.planId,
+    intent: input.intent,
+    email: input.email || "",
+    mode: input.mode || "",
+    planLevel: input.planLevel,
+    ttlSec,
+    tokenPreview: `${token.slice(0, 16)}...`,
+  });
+
+  return token;
+}
+
 export async function verifyUnlockToken(
   token: string
-): Promise<UnlockPayload | null> {
+): Promise<UnlockTokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecret());
+    if (!token || !token.trim()) {
+      console.log("[unlock-token] verify reject: empty token");
+      return null;
+    }
+
+    const key = getUnlockSecret();
+
+    const result = await jwtVerify(token, key, {
+      algorithms: ["HS256"],
+    });
+
+    const payload = result.payload as Partial<UnlockTokenPayload>;
+
+    console.log("[unlock-token] verify decoded", {
+      scope: payload?.scope,
+      planId: payload?.planId,
+      mode: payload?.mode,
+      planLevel: payload?.planLevel,
+      email: payload?.email || "",
+      intent: payload?.intent || "",
+      exp: result.payload?.exp,
+      iat: result.payload?.iat,
+    });
+
+    if (payload?.scope !== "unlock") {
+      console.log("[unlock-token] verify reject: invalid scope", {
+        scope: payload?.scope,
+      });
+      return null;
+    }
+
+    if (!payload?.planId) {
+      console.log("[unlock-token] verify reject: missing planId");
+      return null;
+    }
+
+    if (!payload?.email) {
+      console.log("[unlock-token] verify reject: missing email");
+      return null;
+    }
+
+    const rawMode = String(payload.mode || "").toLowerCase();
+    const mode: UnlockMode | null =
+      rawMode === "full" || rawMode === "budget" || rawMode === "pack"
+        ? (rawMode as UnlockMode)
+        : null;
+
+    if (!mode) {
+      console.log("[unlock-token] verify reject: missing/invalid mode", {
+        rawMode,
+      });
+      return null;
+    }
+
+    const rawLevel = String(payload.planLevel || "").toLowerCase();
+    const planLevel: UnlockPlanLevel =
+      rawLevel === "free" || rawLevel === "pro" || rawLevel === "enterprise"
+        ? rawLevel
+        : "free";
+
     return {
-      scope: String(payload.scope || ""),
-      planId: String(payload.planId || ""),
-      email: String(payload.email || ""),
-      intent: String(payload.intent || "unlock_pro") as UnlockIntent,
-      exp: Number(payload.exp || 0),
-      iat: Number(payload.iat || 0),
+      scope: "unlock",
+      planId: String(payload.planId),
+      intent: payload.intent as UnlockIntent,
+      email: String(payload.email),
+      mode,
+      planLevel,
     };
-  } catch {
+  } catch (error: any) {
+    console.log("[unlock-token] verify error", {
+      name: error?.name,
+      message: error?.message,
+    });
     return null;
   }
 }
 
-/** 判断 intent 是否允许下载 pack（需 unlock_tender） */
-export function intentAllowsPack(intent: UnlockIntent): boolean {
-  return intent === "unlock_tender";
-}
-
-/** 判断 intent 是否允许下载 full（unlock_pro 或 unlock_tender） */
-export function intentAllowsFull(intent: UnlockIntent): boolean {
-  return intent === "unlock_pro" || intent === "unlock_tender";
-}
-
-/** 判断 intent 是否允许下载 budget（unlock_pro / unlock_budget / unlock_tender 均可） */
-export function intentAllowsBudget(intent: UnlockIntent): boolean {
+export function intentAllowsFull(intent: string) {
   return (
     intent === "unlock_pro" ||
+    intent === "unlock_enterprise" ||
+    intent === "unlock_tender"
+  );
+}
+
+export function intentAllowsBudget(intent: string) {
+  return (
     intent === "unlock_budget" ||
+    intent === "unlock_enterprise" ||
     intent === "unlock_tender"
   );
 }

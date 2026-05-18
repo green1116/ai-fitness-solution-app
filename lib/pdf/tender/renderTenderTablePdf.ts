@@ -2,6 +2,12 @@ import fs from "fs";
 import path from "path";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
+import type { TenderNavRect } from "@/lib/pdf/tender/nav/pdfNavTypes";
+import {
+  extractClickableRefTokens,
+  normalizeTenderRef,
+  uniqStrings, 
+} from "@/lib/pdf/tender/scoreSectionFormat";
 import {
   drawStatusBadge,
   normalizeTenderDisplayStatus,
@@ -11,7 +17,7 @@ export type TenderTableColumn<T extends Record<string, string>> = {
   key: keyof T;
   title: string;
   width: number;
-  /** default | status-badge | center-text | risk-muted（风险提示列着色） */
+  /** default | status-badge | center-text | risk-muted（风险提示列着色） */ 
   cellKind?: "default" | "status-badge" | "center-text" | "risk-muted";
 };
 
@@ -19,15 +25,31 @@ export type RenderTenderTablePdfInput<T extends Record<string, string>> = {
   title: string;
   rows: T[];
   columns: TenderTableColumn<T>[];
+  /** 返回当前行对应的编号键（如 T-01 / B-02 / S-03），用于生成 refPageMap */
+  getRefKey?: (row: T) => string | undefined;
   continuationTitle?: string;
   /** 标题下方说明（仅首页；续页不重复） */
   subtitle?: string;
   footnote?: string;
+  /** 为指定列内 B-xx/T-xx/A-xx/S-xx 生成独立链接矩形（页码为当前子 PDF 内 1-based） */
+  inlineRefNavLinks?: {
+    columnKey: keyof T;
+    tokensForRow: (row: T) => string[];
+  };
+  /**
+   * 当本行未生成任何行内链接时，为整格补一条链接（targetKey 由回调给出，需落在 navMap 中）
+   */
+  wholeCellLink?: {
+    columnKey: keyof T;
+    targetKeyForRow: (row: T) => string | undefined;
+  };
 };
 
 export type RenderTenderTablePdfResult = {
   bytes: Uint8Array;
   pageCount: number;
+  refPageMap: Record<string, number>;
+  navLinkRects: TenderNavRect[];
 };
 
 const PAGE_W = 595.28;
@@ -36,11 +58,12 @@ const MARGIN_LEFT = 42;
 const MARGIN_TOP = 52;
 const MARGIN_BOTTOM = 48;
 const TITLE_FONT_SIZE = 15;
-const HEADER_FONT_SIZE = 9.5;
+const HEADER_FONT_SIZE = 9;
 const BODY_FONT_SIZE = 9;
 const LINE_HEIGHT = 13;
-const CELL_PAD_X = 4;
-const CELL_PAD_Y = 4;
+const HEADER_LINE_HEIGHT = 11;
+const CELL_PAD_X = 5;
+const CELL_PAD_Y = 5;
 
 const COLORS = {
   text: rgb(0.12, 0.12, 0.12),
@@ -161,20 +184,50 @@ function drawHeader<T extends Record<string, string>>(
   columns: TenderTableColumn<T>[],
   fontBold: PDFFont
 ): number {
-  const rowH = 24;
+  const wrappedMap = new Map<keyof T, string[]>();
+
+  for (const col of columns) {
+    const lines = wrapText(
+      safeText(col.title),
+      fontBold,
+      HEADER_FONT_SIZE,
+      col.width - CELL_PAD_X * 2
+    );
+    wrappedMap.set(col.key, lines);
+  }
+
+  const maxLines = Math.max(
+    ...columns.map((col) => wrappedMap.get(col.key)?.length || 1),
+    1
+  );
+
+  const rowH = Math.max(
+    28,
+    maxLines * HEADER_LINE_HEIGHT + CELL_PAD_Y * 2 + 2
+  );
+
   const y = yTop - rowH;
   let x = MARGIN_LEFT;
+
   for (const col of columns) {
+    const lines = wrappedMap.get(col.key) || [safeText(col.title)];
     drawRect(page, x, y, col.width, rowH, COLORS.headerBg);
-    page.drawText(col.title, {
-      x: x + CELL_PAD_X,
-      y: y + 7,
-      size: HEADER_FONT_SIZE,
-      font: fontBold,
-      color: COLORS.text,
-    });
+
+    let ly = y + rowH - CELL_PAD_Y - HEADER_FONT_SIZE;
+    for (const line of lines) {
+      page.drawText(line || "", {
+        x: x + CELL_PAD_X,
+        y: ly,
+        size: HEADER_FONT_SIZE,
+        font: fontBold,
+        color: COLORS.text,
+      });
+      ly -= HEADER_LINE_HEIGHT;
+    }
+
     x += col.width;
   }
+
   return y;
 }
 
@@ -197,7 +250,10 @@ function calcRowHeight<T extends Record<string, string>>(
     }
   }
   const maxLines = Math.max(...columns.map((c) => wrapped[c.key]?.length || 1), 1);
-  return { wrapped, height: Math.max(28, maxLines * LINE_HEIGHT + CELL_PAD_Y * 2) };
+  return {
+    wrapped,
+    height: Math.max(30, maxLines * LINE_HEIGHT + CELL_PAD_Y * 2 + 2),
+  };
 }
 
 function drawRow<T extends Record<string, string>>(
@@ -237,7 +293,7 @@ function drawRow<T extends Record<string, string>>(
         const line = (wrapped[col.key] || [safeText(row[col.key])])[0] || "";
         const tw = font.widthOfTextAtSize(line, BODY_FONT_SIZE);
         const tx = x + Math.max(CELL_PAD_X, (col.width - tw) / 2);
-        const ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE;
+        const ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE - 1;
         page.drawText(line, {
           x: tx,
           y: ly,
@@ -249,7 +305,7 @@ function drawRow<T extends Record<string, string>>(
         const lines = wrapped[col.key] || [safeText(row[col.key])];
         const textColor =
           col.cellKind === "risk-muted" ? COLORS.riskText : COLORS.text;
-        let ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE;
+        let ly = y + rowHeight - CELL_PAD_Y - BODY_FONT_SIZE - 1;
         for (const line of lines) {
           page.drawText(line || "", {
             x: x + CELL_PAD_X,
@@ -265,6 +321,92 @@ function drawRow<T extends Record<string, string>>(
     x += col.width;
   }
   return y;
+}
+
+function columnLeftX<T extends Record<string, string>>(
+  columns: TenderTableColumn<T>[],
+  key: keyof T
+): number {
+  let x = MARGIN_LEFT;
+  for (const col of columns) {
+    if (col.key === key) return x;
+    x += col.width;
+  }
+  return MARGIN_LEFT;
+}
+
+function columnWidthOf<T extends Record<string, string>>(
+  columns: TenderTableColumn<T>[],
+  key: keyof T
+): number {
+  for (const col of columns) {
+    if (col.key === key) return col.width;
+  }
+  return 0;
+}
+
+function pushInlineRefNavRects<T extends Record<string, string>>(params: {
+  pageNo: number;
+  rowTopY: number;
+  columns: TenderTableColumn<T>[];
+  columnKey: keyof T;
+  wrappedLines: string[];
+  font: PDFFont;
+  tokens: string[];
+  out: TenderNavRect[];
+}) {
+  const {
+    pageNo,
+    rowTopY,
+    columns,
+    columnKey,
+    wrappedLines,
+    font,
+    tokens,
+    out,
+  } = params;
+  const colX = columnLeftX(columns, columnKey);
+  const colW = columnWidthOf(columns, columnKey);
+  const uniqTok = uniqStrings(tokens.map(normalizeTenderRef));
+  if (!uniqTok.length) return;
+
+  for (let lineIdx = 0; lineIdx < wrappedLines.length; lineIdx++) {
+    const line = wrappedLines[lineIdx] || "";
+    const baselineY =
+      rowTopY - CELL_PAD_Y - BODY_FONT_SIZE - 1 - lineIdx * LINE_HEIGHT;
+
+    for (const token of uniqTok) {
+      const needle = token;
+      const needleLo = needle.toLowerCase();
+      let from = 0;
+      while (from < line.length) {
+        let at = line.indexOf(needle, from);
+        const used = needle.length;
+        if (at < 0) {
+          const loLine = line.toLowerCase();
+          at = loLine.indexOf(needleLo, from);
+        }
+        if (at < 0) break;
+
+        const leftText = line.slice(0, at);
+        const mid = line.slice(at, at + used);
+        const x = colX + CELL_PAD_X + font.widthOfTextAtSize(leftText, BODY_FONT_SIZE);
+        const w = font.widthOfTextAtSize(mid, BODY_FONT_SIZE);
+        const maxW = colX + colW - CELL_PAD_X - x;
+        if (w > 0 && maxW > 0) {
+          out.push({
+            page: pageNo,
+            x,
+            y: baselineY - 4,
+            width: Math.min(w, maxW),
+            height: LINE_HEIGHT + 4,
+            targetKey: normalizeTenderRef(token),
+          });
+        }
+        from = at + used;
+      }
+    }
+  }
 }
 
 function drawFooter(page: PDFPage, font: PDFFont, pageNo: number) {
@@ -300,6 +442,8 @@ export async function renderTenderTablePdf<T extends Record<string, string>>(
 
   let page = doc.addPage([PAGE_W, PAGE_H]);
   let pageNo = 1;
+  const refPageMap: Record<string, number> = {};
+  const navLinkRects: TenderNavRect[] = [];
   let cursorY = drawTitleBlock(page, title, bold, regular, input.subtitle);
   cursorY = drawHeader(page, cursorY, input.columns, bold);
 
@@ -308,20 +452,71 @@ export async function renderTenderTablePdf<T extends Record<string, string>>(
       Object.entries(row).map(([k, v]) => [k, safeText(v)])
     ) as T;
     const { wrapped, height } = calcRowHeight(normalized, input.columns, regular);
-    if (cursorY - height < MARGIN_BOTTOM + 20) {
+    if (cursorY - height < MARGIN_BOTTOM + 28) {
       drawFooter(page, regular, pageNo);
       page = doc.addPage([PAGE_W, PAGE_H]);
       pageNo += 1;
       cursorY = drawTitleBlock(page, continuationTitle, bold, regular);
       cursorY = drawHeader(page, cursorY, input.columns, bold);
     }
+    const refKey = input.getRefKey?.(normalized);
+    if (refKey && !refPageMap[refKey]) {
+      refPageMap[refKey] = pageNo;
+    }
+    const rowTopY = cursorY;
     cursorY = drawRow(page, cursorY, normalized, input.columns, wrapped, height, regular);
+    const rowBottomY = cursorY;
+    const linkSpec = input.inlineRefNavLinks;
+    if (linkSpec) {
+      const cellText = safeText(normalized[linkSpec.columnKey]);
+      const tokens =
+        linkSpec.tokensForRow(normalized).length > 0
+          ? linkSpec.tokensForRow(normalized)
+          : extractClickableRefTokens(cellText);
+      const navCountBefore = navLinkRects.length;
+      pushInlineRefNavRects({
+        pageNo,
+        rowTopY,
+        columns: input.columns,
+        columnKey: linkSpec.columnKey,
+        wrappedLines: wrapped[linkSpec.columnKey] || [""],
+        font: regular,
+        tokens,
+        out: navLinkRects,
+      });
+      const whole = input.wholeCellLink;
+      if (
+        whole &&
+        whole.columnKey === linkSpec.columnKey &&
+        navLinkRects.length === navCountBefore
+      ) {
+        const tk = whole.targetKeyForRow(normalized);
+        if (tk) {
+          const colX = columnLeftX(input.columns, whole.columnKey);
+          const colW = columnWidthOf(input.columns, whole.columnKey);
+          const pad = 2;
+          navLinkRects.push({
+            page: pageNo,
+            x: colX + pad,
+            y: rowBottomY + pad,
+            width: Math.max(8, colW - pad * 2),
+            height: Math.max(8, rowTopY - rowBottomY - pad * 2),
+            targetKey: normalizeTenderRef(tk),
+          });
+        }
+      }
+    }
   }
 
   if (input.footnote && safeText(input.footnote)) {
     drawFootnote(page, regular, safeText(input.footnote));
   }
   drawFooter(page, regular, pageNo);
-  return { bytes: await doc.save(), pageCount: doc.getPageCount() };
+  return {
+    bytes: await doc.save(),
+    pageCount: doc.getPageCount(),
+    refPageMap,
+    navLinkRects,
+  };
 }
 

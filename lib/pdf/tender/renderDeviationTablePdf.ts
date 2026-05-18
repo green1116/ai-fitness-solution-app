@@ -71,10 +71,11 @@ export async function renderDeviationTablePdf(
     };
   });
 
-  return renderTenderTablePdf<DeviationRow>({
+  const rendered = await renderTenderTablePdf<DeviationRow>({
     title: input.title || "偏离表",
     rows,
     columns: [...TABLE_COLS],
   });
+  return { bytes: rendered.bytes, pageCount: rendered.pageCount };
 }
 

@@ -4,6 +4,7 @@ import {
   type TenderAttachmentIndexRow,
 } from "@/lib/pdf/tender/attachmentIndex";
 import { formatResponseRefs, formatScoreRefs } from "@/lib/pdf/tender/refs/refFormat";
+import { normalizeTenderRef } from "@/lib/pdf/tender/scoreSectionFormat";
 
 type AttachmentIndexRenderRow = {
   code: string;
@@ -23,6 +24,7 @@ export type RenderAttachmentIndexPagePdfInput = {
 export type RenderAttachmentIndexPagePdfResult = {
   bytes: Uint8Array;
   pageCount: number;
+  refPageMap: Record<string, number>;
 };
 
 const ATTACHMENT_INDEX_SUBTITLE =
@@ -65,13 +67,22 @@ export async function renderAttachmentIndexPagePdf(
       .join("\n") || "-",
   }));
 
-  return renderTenderTablePdf<AttachmentIndexRenderRow>({
+  const rendered = await renderTenderTablePdf<AttachmentIndexRenderRow>({
     title: input?.title || "附件索引页",
     subtitle: input?.subtitle ?? ATTACHMENT_INDEX_SUBTITLE,
     continuationTitle: `${input?.title || "附件索引页"}（续）`,
     rows,
     columns: [...TABLE_COLS],
     footnote: input?.footnote ?? ATTACHMENT_INDEX_FOOTNOTE,
+    getRefKey: (row) => {
+      const c = normalizeTenderRef(String(row.code || ""));
+      return /^A-\d{2,3}$/.test(c) ? c : undefined;
+    },
   });
+  return {
+    bytes: rendered.bytes,
+    pageCount: rendered.pageCount,
+    refPageMap: rendered.refPageMap,
+  };
 }
 

@@ -25,12 +25,14 @@ export type BudgetPdfSection =
   | "header"
   | "overall"
   | "table"
+  | "compare"
   | "pricing_terms"
   | "delivery_terms"
   | "payment_terms"
   | "after_sales"
   | "compliance"
   | "sign_seal"
+  | "remarks"
   | "attachments"
   | "footer";
 
@@ -103,12 +105,13 @@ const LEVEL_BASE: Record<
         "header",
         "overall",
         "table",
+        "compare",
         "pricing_terms",
         "delivery_terms",
         "payment_terms",
         "after_sales",
         "sign_seal",
-        "footer",
+        "remarks",
       ],
       requireDocSeq: false,
       requireDocNoAndSigOnPage1: false,

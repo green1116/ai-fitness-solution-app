@@ -10,7 +10,13 @@ export type RequirementType =
 
 export type RequirementPriority = "must" | "preferred" | "optional";
 
-export type TechnicalStatus = "满足" | "部分满足" | "偏离" | "无此项";
+export type TechnicalStatus =
+  | "满足"
+  | "响应"
+  | "待确认"
+  | "部分满足"
+  | "偏离"
+  | "无此项";
 export type TechnicalResponseStatus = TechnicalStatus;
 
 export type TenderRequirement = {

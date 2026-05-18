@@ -1,0 +1,42 @@
+[
+  {
+    "id": "SKU-RC-TG-KINESIS",
+    "brand": "Technogym",
+    "model": "Kinesis",
+    "category": "recovery",
+    "productTier": "high",
+    "specs": { "dimensions": "功能性康复与拉伸系统" },
+    "certifications": ["ISO9001", "CE"],
+    "serviceSupport": ["原厂培训", "24h 响应"],
+    "warrantyYears": 3,
+    "leadTimeDays": 70,
+    "tenderTags": ["康复", "功能性训练"],
+    "evidenceFiles": ["产品说明"]
+  },
+  {
+    "id": "SKU-RC-LF-STRETCH",
+    "brand": "Life Fitness",
+    "model": "Stretch & Recovery",
+    "category": "recovery",
+    "productTier": "mid",
+    "specs": { "dimensions": "拉伸与恢复模块" },
+    "certifications": ["ISO9001"],
+    "warrantyYears": 2,
+    "leadTimeDays": 45,
+    "tenderTags": ["恢复区", "会所"],
+    "evidenceFiles": ["参数表"]
+  },
+  {
+    "id": "SKU-RC-SH-FLEX",
+    "brand": "舒华",
+    "model": "Flex 恢复系列",
+    "category": "recovery",
+    "productTier": "mid",
+    "specs": { "dimensions": "泡沫轴与拉伸组合" },
+    "certifications": ["ISO9001"],
+    "warrantyYears": 1,
+    "leadTimeDays": 20,
+    "tenderTags": ["学校体测", "社区"],
+    "evidenceFiles": ["检测报告"]
+  }
+]

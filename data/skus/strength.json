@@ -1,0 +1,44 @@
+[
+  {
+    "id": "SKU-ST-LF-INSIGNIA",
+    "brand": "Life Fitness",
+    "model": "Insignia Series",
+    "category": "strength",
+    "productTier": "high",
+    "specs": { "maxLoadKg": 200, "dimensions": "模块化力量训练系统" },
+    "certifications": ["ISO9001", "CE"],
+    "serviceSupport": ["全国联保", "安装调试"],
+    "warrantyYears": 3,
+    "leadTimeDays": 60,
+    "tenderTags": ["力量器械", "会所"],
+    "evidenceFiles": ["产品目录", "检测报告"]
+  },
+  {
+    "id": "SKU-ST-MX-ULTRA",
+    "brand": "Matrix",
+    "model": "Ultra Series",
+    "category": "strength",
+    "productTier": "high",
+    "specs": { "maxLoadKg": 195, "dimensions": "挂片式力量系统" },
+    "certifications": ["ISO9001"],
+    "serviceSupport": ["全国联保"],
+    "warrantyYears": 3,
+    "leadTimeDays": 55,
+    "tenderTags": ["力量训练", "酒店"],
+    "evidenceFiles": ["参数表"]
+  },
+  {
+    "id": "SKU-ST-SH-68",
+    "brand": "舒华",
+    "model": "68 系列力量",
+    "category": "strength",
+    "productTier": "mid",
+    "specs": { "maxLoadKg": 150, "dimensions": "组合力量器械" },
+    "certifications": ["ISO9001"],
+    "warrantyYears": 2,
+    "leadTimeDays": 35,
+    "priceBand": { "min": 8000, "max": 45000 },
+    "tenderTags": ["政府采购", "学校"],
+    "evidenceFiles": ["检测报告"]
+  }
+]
