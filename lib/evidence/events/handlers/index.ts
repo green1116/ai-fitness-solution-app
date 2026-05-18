@@ -1,0 +1,1 @@
+export { registerDefaultRuntimeEventHandlers } from "./chains";
