@@ -11,6 +11,7 @@ import type {
 } from "./executiveGate";
 import type { ExecutiveOversightPackage, ExecutiveTenderResult } from "./executive";
 import type {
+  ExecutiveDeliveryEnvelope,
   ExecutiveReleaseSurface,
   ExecutiveReleaseSurfaceRuntimeResult,
 } from "./executiveReleaseSurface";
@@ -172,6 +173,7 @@ export type ExecutiveRuntimeVisualizationResult = RuntimeVisualizationPackage & 
   ranAt: string;
   durationMs: number;
   trace: VisualizationTrace;
+  delivery: ExecutiveDeliveryEnvelope;
 };
 
 /** 供 result page / dashboard 消费的 JSON 契约 */

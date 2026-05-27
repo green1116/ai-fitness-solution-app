@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!result.ok) return json(400, result);
-    return json(200, { ok: true, ...result });
+    return json(200, result);
   } catch (err: unknown) {
     const message =
       err instanceof Error ? err.message : "evidence intelligence failed";

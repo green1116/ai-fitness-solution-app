@@ -95,13 +95,6 @@ async function testVisualizationFromGate() {
     documentId: "viz-1",
     executiveOversight,
     executiveApprovalGate: gate,
-    coverageRuntime,
-    tenderValidation,
-    tenderAudit,
-    tenderDecision,
-    tenderGovernance,
-    linking,
-    ocrDocuments,
   });
 
   const pkg = buildRuntimeVisualization({
@@ -125,7 +118,6 @@ async function testVisualizationFromGate() {
 
   const viz = runExecutiveRuntimeVisualization({
     runId: "viz-1",
-    documentId: "viz-1",
     executiveApprovalGate: gate,
     executiveOversight,
     executiveReleaseSurface: surface,
@@ -175,13 +167,15 @@ async function testFullPipeline() {
 
   const viz = result.executiveRuntimeVisualization;
   assert(viz?.version === "3.4-e12", "visualization on runtime");
-  assert(viz.metrics.length >= 6, "metrics");
-  assert(viz.pipeline.length >= 10, "pipeline");
-  assert(viz.releasable === true || viz.releasable === false, "releasable bool");
+  const runtimeViz = viz;
+  if (!runtimeViz) return;
+  assert(runtimeViz.metrics.length >= 6, "metrics");
+  assert(runtimeViz.pipeline.length >= 10, "pipeline");
+  assert(runtimeViz.releasable === true || runtimeViz.releasable === false, "releasable bool");
 
   console.log("✓ Full pipeline executive visualization");
-  console.log("  releasable:", viz.releasable);
-  console.log("  findings:", viz.findings.length);
+  console.log("  releasable:", runtimeViz.releasable);
+  console.log("  findings:", runtimeViz.findings.length);
 }
 
 async function main() {

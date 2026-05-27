@@ -74,10 +74,12 @@ async function testBusValidationChain() {
       coverageRatio: 0,
     },
     coverageValidation: {
+      version: "3.4-e4",
       verdict: "fail",
-      score: 0,
+      title: "t",
+      message: "m",
       reasons: [],
-      explain: [],
+      suggestedActions: [],
     },
     audit: {
       version: "3.4-e5",
@@ -143,15 +145,17 @@ async function testPipelineOrchestration() {
 
   const orch = result.runtimeEventOrchestration;
   assert(orch?.version === RUNTIME_EVENT_ORCHESTRATION_VERSION, "version");
-  assert(orch.eventCount > 0, "events recorded");
-  assert(orch.correlationId === "corr-evt-pipe", "correlation");
+  const runtimeOrchestration = orch;
+  if (!runtimeOrchestration) return;
+  assert(runtimeOrchestration.eventCount > 0, "events recorded");
+  assert(runtimeOrchestration.correlationId === "corr-evt-pipe", "correlation");
 
-  const types = orch.records.map((r) => r.eventType);
+  const types = runtimeOrchestration.records.map((r) => r.eventType);
   assert(types.includes("OCR_COMPLETED"), "OCR_COMPLETED");
   assert(types.includes("STATE_TRANSITIONED") || types.length > 3, "state or rich trace");
 
   console.log("✓ pipeline orchestration attached");
-  console.log(" ", `events=${orch.eventCount} replay=${orch.records.map((r) => r.eventType).join(" → ")}`);
+  console.log(" ", `events=${runtimeOrchestration.eventCount} replay=${runtimeOrchestration.records.map((r) => r.eventType).join(" → ")}`);
 }
 
 async function testFixtureStackEvents() {
@@ -222,13 +226,6 @@ async function testFixtureStackEvents() {
     documentId: "evt-fix",
     executiveOversight,
     executiveApprovalGate,
-    coverageRuntime,
-    tenderValidation,
-    tenderAudit,
-    tenderDecision,
-    tenderGovernance,
-    linking,
-    ocrDocuments,
   });
   const runtimeCorrelation = runRuntimeCorrelationIntelligence({
     runId: "evt-fix",

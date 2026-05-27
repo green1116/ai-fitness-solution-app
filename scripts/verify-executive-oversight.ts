@@ -146,16 +146,18 @@ async function testApprovePath() {
   assert(result.ok, "runtime ok");
   if (!result.ok) return;
   assert(result.executiveOversight?.version === "3.4-e9", "executiveOversight");
+  const executiveOversight = result.executiveOversight;
+  if (!executiveOversight) return;
   assert(
-    result.executiveOversight.recommendation === "approve" ||
-      result.executiveOversight.recommendation === "conditional-approve",
+    executiveOversight.recommendation === "approve" ||
+      executiveOversight.recommendation === "conditional-approve",
     "approve path",
   );
-  assert(result.executiveOversight.executiveScore >= 70, "score");
+  assert(executiveOversight.executiveScore >= 70, "score");
 
   console.log("✓ Full pipeline executive approve");
-  console.log("  recommendation:", result.executiveOversight.recommendation);
-  console.log("  score:", result.executiveOversight.executiveScore);
+  console.log("  recommendation:", executiveOversight.recommendation);
+  console.log("  score:", executiveOversight.executiveScore);
 }
 
 async function testRejectPath() {

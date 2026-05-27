@@ -91,13 +91,6 @@ async function buildFullStack() {
     documentId: "fsm-1",
     executiveOversight,
     executiveApprovalGate,
-    coverageRuntime,
-    tenderValidation,
-    tenderAudit,
-    tenderDecision,
-    tenderGovernance,
-    linking,
-    ocrDocuments,
   });
   const runtimeCorrelation = runRuntimeCorrelationIntelligence({
     runId: "fsm-1",
@@ -196,18 +189,26 @@ async function testReleasedPath() {
 
   const fsm = result.runtimeStateMachine;
   assert(fsm?.version === "3.4-e15", "runtimeStateMachine");
+  const runtimeStateMachine = fsm;
+  if (!runtimeStateMachine) return;
   assert(
-    ["released", "release-approved", "executive-approved"].includes(fsm.currentState),
-    `release path got ${fsm.currentState}`,
+    ["released", "release-approved", "executive-approved"].includes(runtimeStateMachine.currentState),
+    `release path got ${runtimeStateMachine.currentState}`,
   );
-  if (fsm.currentState === "released" || fsm.currentState === "release-approved") {
-    assert(fsm.releasable === true, "releasable when release-approved");
+  if (
+    runtimeStateMachine.currentState === "released" ||
+    runtimeStateMachine.currentState === "release-approved"
+  ) {
+    assert(runtimeStateMachine.releasable === true, "releasable when release-approved");
   }
-  assert(fsm.transitions.some((t) => t.to === "ocr-verified"), "ocr transition");
+  assert(runtimeStateMachine.transitions.some((t) => t.to === "ocr-verified"), "ocr transition");
 
   console.log("✓ Full pipeline lifecycle");
-  console.log("  currentState:", fsm.currentState);
-  console.log("  last transition:", fsm.transitions[fsm.transitions.length - 1]?.to);
+  console.log("  currentState:", runtimeStateMachine.currentState);
+  console.log(
+    "  last transition:",
+    runtimeStateMachine.transitions[runtimeStateMachine.transitions.length - 1]?.to,
+  );
 }
 
 async function testEvidencePending() {

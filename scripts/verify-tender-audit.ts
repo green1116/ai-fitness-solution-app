@@ -107,12 +107,14 @@ async function testFullPipeline() {
   if (!result.ok) return;
 
   assert(result.tenderAudit?.version === "3.4-e6", "tenderAudit in pipeline");
-  assert(result.tenderAudit.trail.entries.length > 5, "rich audit trail");
-  assert(result.tenderAudit.governanceStatus === "clear", "clear for good bid");
+  const tenderAudit = result.tenderAudit;
+  if (!tenderAudit) return;
+  assert(tenderAudit.trail.entries.length > 5, "rich audit trail");
+  assert(tenderAudit.governanceStatus === "clear", "clear for good bid");
 
   console.log("✓ Full pipeline with tender audit");
-  console.log("  governance:", result.tenderAudit.governanceStatus);
-  console.log("  entries:", result.tenderAudit.trail.summary.totalEntries);
+  console.log("  governance:", tenderAudit.governanceStatus);
+  console.log("  entries:", tenderAudit.trail.summary.totalEntries);
 }
 
 async function main() {

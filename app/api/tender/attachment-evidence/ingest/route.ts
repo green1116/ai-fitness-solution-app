@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       registry,
     });
 
-    return json(200, { ok: true, ...result });
+    return json(200, result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "attachment ingest failed";
     console.error("[tender/attachment-evidence/ingest]", err);

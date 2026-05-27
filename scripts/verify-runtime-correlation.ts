@@ -95,13 +95,6 @@ async function testCorrelationFromFixture() {
     documentId: "corr-1",
     executiveOversight,
     executiveApprovalGate: gate,
-    coverageRuntime,
-    tenderValidation,
-    tenderAudit,
-    tenderDecision,
-    tenderGovernance,
-    linking,
-    ocrDocuments,
   });
 
   const pkg = buildRuntimeCorrelation({
@@ -179,15 +172,17 @@ async function testFullPipeline() {
 
   const corr = result.runtimeCorrelation;
   assert(corr?.version === "3.4-e13", "runtimeCorrelation");
-  assert(corr.edges.length > 0, "pipeline edges");
+  const runtimeCorrelation = corr;
+  if (!runtimeCorrelation) return;
+  assert(runtimeCorrelation.edges.length > 0, "pipeline edges");
 
-  const hasExecutiveRelease = corr.edges.some(
+  const hasExecutiveRelease = runtimeCorrelation.edges.some(
     (e) => e.source === "executive" && e.target === "gate",
   );
   assert(hasExecutiveRelease, "executive→gate on approve path");
 
   console.log("✓ Full pipeline runtime correlation");
-  console.log("  warnings:", corr.correlationWarnings.length);
+  console.log("  warnings:", runtimeCorrelation.correlationWarnings.length);
 }
 
 async function testBlockPathCorrelation() {

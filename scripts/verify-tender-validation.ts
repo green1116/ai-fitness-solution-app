@@ -96,10 +96,12 @@ async function testFullPipeline() {
   assert(result.ok, "runtime ok");
   if (!result.ok) return;
   assert(result.tenderValidation?.version === "3.4-e5", "tenderValidation");
-  assert(result.tenderValidation.outcome === "approved", "approved for good cert");
+  const tenderValidation = result.tenderValidation;
+  if (!tenderValidation) return;
+  assert(tenderValidation.outcome === "approved", "approved for good cert");
 
   console.log("✓ Full evidence pipeline with tender validation");
-  console.log("  outcome:", result.tenderValidation.outcome);
+  console.log("  outcome:", tenderValidation.outcome);
 }
 
 async function main() {

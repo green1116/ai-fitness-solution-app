@@ -95,6 +95,7 @@ export type RuntimeDecision = {
     scoreRatio: number | null;
     unsupportedCount: number;
     gateEvidenceWeakCount: number;
+    mandatoryUnsupportedCount?: number;
   };
 };
 

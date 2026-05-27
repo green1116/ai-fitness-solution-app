@@ -62,6 +62,19 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        <section className="space-y-3 rounded-2xl border border-amber-900/40 bg-amber-950/20 p-6">
+          <div className="text-lg font-semibold text-amber-100">Enterprise Command Center</div>
+          <p className="text-sm text-zinc-400">
+            统一企业运维入口 — unified ops · governance · audit · release · access · observability
+          </p>
+          <Link
+            href="/dashboard/command-center"
+            className="inline-block rounded-xl border border-amber-700 bg-amber-950/40 px-5 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-900/40"
+          >
+            进入 Command Center
+          </Link>
+        </section>
+
         <button
           onClick={logout}
           className="text-sm text-gray-400 underline hover:text-gray-200"

@@ -171,10 +171,12 @@ async function testFullRuntimeIntegration() {
   assert(result.ok, "runtime ok");
   if (!result.ok) return;
   assert(result.coverageRuntime?.version === "3.4-e4", "coverageRuntime");
-  assert(result.coverageRuntime.validation.verdict !== undefined, "validation");
+  const coverageRuntime = result.coverageRuntime;
+  if (!coverageRuntime) return;
+  assert(coverageRuntime.validation.verdict !== undefined, "validation");
 
   console.log("✓ Coverage integrated with External Evidence Runtime");
-  console.log("  validation:", result.coverageRuntime.validation.verdict);
+  console.log("  validation:", coverageRuntime.validation.verdict);
 }
 
 async function main() {

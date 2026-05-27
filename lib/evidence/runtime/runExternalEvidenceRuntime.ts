@@ -210,7 +210,7 @@ export async function runExternalEvidenceRuntime(
     phases.push(
       completedPhase("linker", `关联 ${links.length} 条 / OCR 定位 ${locCount}`, t0, {
         links: links.length,
-        linkingVersion: linking?.version,
+        linkingVersion: linking?.version ?? "",
       }),
     );
     trace = appendAuditEvent(trace, {

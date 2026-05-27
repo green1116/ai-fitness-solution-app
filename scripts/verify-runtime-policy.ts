@@ -98,13 +98,6 @@ async function testPolicyFromFixture() {
     documentId: "pol-1",
     executiveOversight,
     executiveApprovalGate: gate,
-    coverageRuntime,
-    tenderValidation,
-    tenderAudit,
-    tenderDecision,
-    tenderGovernance,
-    linking,
-    ocrDocuments,
   });
   const correlation = runRuntimeCorrelationIntelligence({
     runId: "pol-1",
@@ -185,15 +178,61 @@ async function testApprovePathPolicies() {
 
   const policy = result.runtimePolicy;
   assert(policy?.version === "3.4-e14", "runtimePolicy");
-  assert(!policy.blocked, "approve path not blocked");
-  assert(policy.executiveScore === undefined || policy.metrics.executiveScore >= 75, "score");
+  const runtimePolicy = policy;
+  if (!runtimePolicy) return;
+  assert(!runtimePolicy.blocked, "approve path not blocked");
+  assert(
+    typeof runtimePolicy.metrics.executiveScore !== "number" ||
+      runtimePolicy.metrics.executiveScore >= 75,
+    "score",
+  );
 
   console.log("✓ Full pipeline policy (approve)");
-  console.log("  triggered:", policy.triggeredPolicies.length);
-  console.log("  actions:", policy.actions.join(", ") || "(none)");
+  console.log("  triggered:", runtimePolicy.triggeredPolicies.length);
+  console.log("  actions:", runtimePolicy.actions.join(", ") || "(none)");
 }
 
 async function testCustomPolicy() {
+  const executiveOversight = {
+    version: "3.4-e9" as const,
+    executiveApproved: true,
+    executiveScore: 95,
+    findings: [],
+    recommendation: "approve" as const,
+    risk: { executiveRisk: "acceptable" as const, executiveScore: 95 },
+    recommendations: [],
+    debug: {
+      summary: "",
+      findings: "",
+      criticalFindings: "",
+      recommendations: "",
+    },
+  };
+  const executiveApprovalGate = {
+    version: "3.4-e10" as const,
+    status: "approved" as const,
+    releasable: true,
+    reasons: [],
+    executiveScore: 95,
+    recommendation: "release" as const,
+    tenderReleaseDecision: "release-authorized" as const,
+    debug: {
+      summary: "",
+      gateStatus: "",
+      blockReasons: "",
+      releaseConditions: "",
+    },
+    runId: "pol-custom",
+    ranAt: new Date().toISOString(),
+    durationMs: 0,
+    documentId: "pol-custom",
+    trace: {
+      version: "3.4-e10" as const,
+      runId: "pol-custom",
+      events: [],
+    },
+  };
+
   const pkg = evaluateRuntimePolicy({
     policies: [
       {
@@ -205,20 +244,8 @@ async function testCustomPolicy() {
         deterministic: true,
       },
     ],
-    executiveOversight: {
-      executiveApproved: true,
-      executiveScore: 95,
-      findings: [],
-      recommendation: "approve",
-    },
-    executiveApprovalGate: {
-      status: "approved",
-      releasable: true,
-      reasons: [],
-      executiveScore: 95,
-      recommendation: "release",
-      tenderReleaseDecision: "release-authorized",
-    },
+    executiveOversight,
+    executiveApprovalGate,
   });
 
   assert(

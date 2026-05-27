@@ -69,7 +69,7 @@ function testPackageEvidenceQuery() {
       sections: [],
       scoringItems: [],
       risks: [],
-      qualifications: [],
+      compliance: [],
     },
   });
 

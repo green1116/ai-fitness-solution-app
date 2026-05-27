@@ -91,7 +91,7 @@ export function buildRuntimeStateMachine(
     if (val?.outcome === "rejected" || (val?.summary.criticalCount ?? 0) > 0) {
       addTransition(transitions, state, "release-blocked", "validation-failed", ts());
       state = "release-blocked";
-    } else if (val && val.outcome !== "rejected") {
+    } else if (val) {
       addTransition(transitions, state, "validation-passed", "coverage-passed", ts());
       state = "validation-passed";
     }
@@ -166,7 +166,7 @@ export function buildRuntimeStateMachine(
       gate?.recommendation === "release" ||
       surface?.decision === "release"
     ) {
-      if (state !== "executive-approved" && state !== "release-approved") {
+      if (state !== "executive-approved") {
         addTransition(transitions, state, "executive-approved", "executive-approved", ts());
         state = "executive-approved";
       }

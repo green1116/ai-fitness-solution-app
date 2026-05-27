@@ -107,12 +107,14 @@ async function testProceedPath() {
   assert(result.ok, "runtime ok");
   if (!result.ok) return;
   assert(result.tenderGovernance?.version === "3.4-e8", "tenderGovernance");
-  assert(result.tenderGovernance.riskLevel === "low", "low risk");
-  assert(result.tenderGovernance.posture === "proceed", "proceed posture");
+  const tenderGovernance = result.tenderGovernance;
+  if (!tenderGovernance) return;
+  assert(tenderGovernance.riskLevel === "low", "low risk");
+  assert(tenderGovernance.posture === "proceed", "proceed posture");
 
   console.log("✓ Full pipeline governance");
-  console.log("  risk:", result.tenderGovernance.riskLevel);
-  console.log("  posture:", result.tenderGovernance.posture);
+  console.log("  risk:", tenderGovernance.riskLevel);
+  console.log("  posture:", tenderGovernance.posture);
 }
 
 async function testHaltPath() {

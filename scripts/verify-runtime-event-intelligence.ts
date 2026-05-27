@@ -55,10 +55,12 @@ async function testValidationFailureIntelligence() {
       coverageRatio: 0,
     },
     coverageValidation: {
+      version: "3.4-e4",
       verdict: "fail",
-      score: 0,
+      title: "t",
+      message: "m",
       reasons: [],
-      explain: [],
+      suggestedActions: [],
     },
     audit: {
       version: "3.4-e5",
@@ -133,17 +135,19 @@ async function testPipelineIntelligence() {
 
   const intel = result.runtimeEventIntelligence;
   assert(intel?.version === RUNTIME_EVENT_INTELLIGENCE_VERSION, "attached");
-  assert(intel.timeline.orderedSteps.length > 0, "timeline");
-  assert(intel.timeline.traceId === result.runId, "traceId");
-  assert(intel.correlation.relatedGroups.length > 0, "related groups");
-  assert(intel.releaseStability.stabilityScore >= 0, "stability");
-  assert(intel.health.labels.executiveReadiness.length > 0, "labels");
+  const runtimeIntel = intel;
+  if (!runtimeIntel) return;
+  assert(runtimeIntel.timeline.orderedSteps.length > 0, "timeline");
+  assert(runtimeIntel.timeline.traceId === result.runId, "traceId");
+  assert(runtimeIntel.correlation.relatedGroups.length > 0, "related groups");
+  assert(runtimeIntel.releaseStability.stabilityScore >= 0, "stability");
+  assert(runtimeIntel.health.labels.executiveReadiness.length > 0, "labels");
 
-  const phases = new Set(intel.timeline.orderedSteps.map((s) => s.phase));
+  const phases = new Set(runtimeIntel.timeline.orderedSteps.map((s) => s.phase));
   assert(phases.has("ocr") || phases.has("validation"), "lifecycle phases");
 
   console.log("✓ pipeline intelligence attached");
-  console.log(" ", intel.debug.summary.replace(/\n/g, " | "));
+  console.log(" ", runtimeIntel.debug.summary.replace(/\n/g, " | "));
 }
 
 async function main() {

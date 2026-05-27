@@ -152,6 +152,7 @@ async function testReleasePath() {
 
   const gate = result.executiveApprovalGate;
   assert(gate?.version === "3.4-e10", "executiveApprovalGate");
+  if (!gate) return;
   assert(
     gate.recommendation === "release" || gate.recommendation === "conditional-release",
     "release path",

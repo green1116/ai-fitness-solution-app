@@ -1,8 +1,13 @@
-import { toDeliveryEnvelope } from "../release/surfaceAdapters";
+import {
+  buildReleaseManifestLines,
+  toDeliveryEnvelope,
+} from "../release/surfaceAdapters";
 import { buildRuntimeVisualization } from "./buildRuntimeVisualization";
-import type {
-  ExecutiveRuntimeVisualizationResult,
-  ExecutiveRuntimeVisualizationRuntimeInput,
+import {
+  EXECUTIVE_RELEASE_SURFACE_RUNTIME_VERSION,
+  type ExecutiveReleaseManifest,
+  type ExecutiveRuntimeVisualizationResult,
+  type ExecutiveRuntimeVisualizationRuntimeInput,
 } from "../types";
 import { appendVisualizationEvent, createVisualizationTrace } from "./visualizationTrace";
 
@@ -36,7 +41,19 @@ export function runExecutiveRuntimeVisualization(
     labels: [],
     blockReasons: pkg.blockReasons,
   };
-  const delivery = toDeliveryEnvelope(surfaceForDelivery, pkg.manifest);
+  const releaseSurface = input.executiveReleaseSurface;
+  const manifest: ExecutiveReleaseManifest =
+    releaseSurface && "manifest" in releaseSurface && releaseSurface.manifest
+      ? releaseSurface.manifest
+      : {
+          version: EXECUTIVE_RELEASE_SURFACE_RUNTIME_VERSION,
+          generatedAt: ranAt,
+          surface: surfaceForDelivery,
+          lines: buildReleaseManifestLines(surfaceForDelivery, {
+            runId: input.runId,
+          }),
+        };
+  const delivery = toDeliveryEnvelope(surfaceForDelivery, manifest);
   trace = appendVisualizationEvent(trace, "debug", "生成 visualization debug");
 
   return {

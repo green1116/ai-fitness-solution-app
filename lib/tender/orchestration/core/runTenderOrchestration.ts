@@ -99,7 +99,7 @@ export async function runTenderOrchestration(
   }
   phases.push(
     phaseResult("initialize", "completed", t0, "编排上下文已初始化", {
-      planId: input.planId || null,
+      planId: input.planId ?? "",
       hasGraph: Boolean(input.graph),
       hasRawText: Boolean(input.rawText?.trim()),
     }),
@@ -144,10 +144,10 @@ export async function runTenderOrchestration(
     semanticEvidence = runSemanticEvidenceReasoning(
       {
         graph: workflowResult.graph,
-        registry: workflowResult.evidence?.registry,
+        registry: workflowResult.evidence?.evidence?.registry,
         sourceName: input.sourceName,
       },
-      { registryCoverage: workflowResult.evidence?.coverage },
+      { registryCoverage: workflowResult.evidence?.evidence?.coverage },
     );
   }
 
@@ -160,13 +160,13 @@ export async function runTenderOrchestration(
         compliance: workflowResult.compliance,
         skuResult: workflowResult.skuResult,
       },
-      registry: workflowResult.evidence?.registry,
+      registry: workflowResult.evidence?.evidence?.registry,
       mergeInternalEvidence: true,
     });
     if (eir.ok) {
       externalEvidence = eir;
       if (workflowResult.evidence) {
-        workflowResult.evidence = eir.coverage.evidence;
+        workflowResult.evidence.evidence = eir.coverage.evidence;
       }
       if (input.runSemanticEvidence !== false) {
         semanticEvidence = runSemanticEvidenceReasoning(
@@ -187,7 +187,7 @@ export async function runTenderOrchestration(
       intelligence: semanticEvidence,
       graph: workflowResult.graph,
       registry:
-        externalEvidence?.registry.registry ?? workflowResult.evidence?.registry,
+        externalEvidence?.registry.registry ?? workflowResult.evidence?.evidence?.registry,
       sourceName: input.sourceName,
       forceAllow: input.forceAllow,
     });

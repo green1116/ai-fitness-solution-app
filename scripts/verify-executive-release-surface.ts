@@ -151,13 +151,15 @@ async function testFullPipeline() {
 
   const surf = result.executiveReleaseSurface;
   assert(surf?.version === "3.4-e11", "executiveReleaseSurface");
-  assert(surf.decision === "release" || surf.decision === "conditional-release", "release decision");
-  assert(surf.manifest.lines.length > 0, "manifest");
-  assert(surf.delivery.pdfKeywords.length > 0, "pdf keywords in delivery");
+  const releaseSurface = surf;
+  if (!releaseSurface) return;
+  assert(releaseSurface.decision === "release" || releaseSurface.decision === "conditional-release", "release decision");
+  assert(releaseSurface.manifest.lines.length > 0, "manifest");
+  assert(releaseSurface.delivery.pdfKeywords.length > 0, "pdf keywords in delivery");
 
   console.log("✓ Full pipeline release surface");
-  console.log("  decision:", surf.decision);
-  console.log("  labels:", surf.labels.join(", "));
+  console.log("  decision:", releaseSurface.decision);
+  console.log("  labels:", releaseSurface.labels.join(", "));
 }
 
 async function main() {

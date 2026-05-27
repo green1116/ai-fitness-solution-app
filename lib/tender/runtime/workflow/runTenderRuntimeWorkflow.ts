@@ -7,6 +7,7 @@ import {
 } from "@/lib/tender/computeTenderRisk";
 import { packageEvidenceQuery } from "@/lib/tender/evidence/query";
 import { runEvidenceRuntime } from "@/lib/tender/evidence/runtime";
+import type { EvidenceRuntimeResult } from "@/lib/tender/evidence/runtime";
 import { composeTenderResponsePackage } from "@/lib/tender/response";
 import { buildSemanticGraph } from "@/lib/tender/semantic";
 import type { TenderSemanticGraph } from "@/lib/tender/semantic/types";
@@ -234,7 +235,7 @@ export async function runTenderRuntimeWorkflow(
   }
 
   // --- evidence ---
-  let evidenceRuntime;
+  let evidenceRuntime: EvidenceRuntimeResult | undefined;
   const evidenceOk = await runStep("evidence", async () => {
     evidenceRuntime = runEvidenceRuntime(
       {

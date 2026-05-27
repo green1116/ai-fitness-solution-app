@@ -28,7 +28,7 @@ function testRuntimeStages() {
       sections: [],
       scoringItems: [],
       risks: [],
-      qualifications: [],
+      compliance: [],
     },
   });
 
@@ -60,7 +60,7 @@ function testProvenancePreserved() {
       sections: [],
       scoringItems: [],
       risks: [],
-      qualifications: [],
+      compliance: [],
     },
   });
 

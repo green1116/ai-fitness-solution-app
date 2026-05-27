@@ -42,6 +42,7 @@ export type RuntimeStateTransitionReason =
   | "coverage-passed"
   | "validation-failed"
   | "audit-failed"
+  | "audit-reviewed"
   | "governance-failed"
   | "executive-approved"
   | "policy-blocked"

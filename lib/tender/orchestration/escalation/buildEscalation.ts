@@ -33,9 +33,11 @@ export function buildEscalation(input: BuildEscalationInput): EscalationResult {
 
   let level: EscalationLevel = "none";
 
-  if (decision.meta.mandatoryUnsupportedCount > 0) {
+  const mandatoryUnsupportedCount = decision.meta.mandatoryUnsupportedCount ?? 0;
+
+  if (mandatoryUnsupportedCount > 0) {
     triggers.push(
-      `强制性要求缺证据 ${decision.meta.mandatoryUnsupportedCount} 项`,
+      `强制性要求缺证据 ${mandatoryUnsupportedCount} 项`,
     );
     level = "executive";
     resolutionHints.push("由投标负责人确认是否补充硬性资质材料");

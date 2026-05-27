@@ -96,12 +96,14 @@ async function testRecommendedPath() {
   assert(result.ok, "runtime ok");
   if (!result.ok) return;
   assert(result.tenderDecision?.version === "3.4-e7", "tenderDecision");
-  assert(result.tenderDecision.status === "recommended", "recommended for strong cert");
-  assert(result.tenderDecision.confidence >= 0.8, "high confidence");
+  const tenderDecision = result.tenderDecision;
+  if (!tenderDecision) return;
+  assert(tenderDecision.status === "recommended", "recommended for strong cert");
+  assert(tenderDecision.confidence >= 0.8, "high confidence");
 
   console.log("✓ Full pipeline → recommended");
-  console.log("  status:", result.tenderDecision.status);
-  console.log("  confidence:", result.tenderDecision.confidence);
+  console.log("  status:", tenderDecision.status);
+  console.log("  confidence:", tenderDecision.confidence);
 }
 
 async function testRejectedPath() {

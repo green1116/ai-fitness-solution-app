@@ -112,7 +112,8 @@ async function testLinkingPipeline() {
   assert(linking.trace.events.length >= 4, "linking trace");
 
   const qual = linking.results.find((r) => r.requirementId === "req-qual");
-  assert(qual && qual.matches.length > 0, "qualification linked");
+  assert(Boolean(qual && qual.matches.length > 0), "qualification linked");
+  if (!qual) return;
   assert(qual.matches[0].explain.length > 0, "explainable");
 
   console.log("✓ Evidence Linking Runtime (V3.4-E3)");
@@ -148,6 +149,7 @@ async function testFullRuntimeIntegration() {
   assert(result.ok, "runtime ok");
   if (!result.ok) return;
   assert(result.linking?.version === "3.4-e3", "linking in runtime");
+  if (!result.linking) return;
   assert(result.linking.matches.length > 0, "runtime matches");
 
   console.log("✓ Linking integrated with External Evidence Runtime");

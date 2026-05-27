@@ -34,7 +34,6 @@ export async function POST(req: NextRequest) {
     if (body.executiveApprovalGate && body.runId) {
       const visualization = runExecutiveRuntimeVisualization({
         runId: body.runId,
-        documentId: body.documentId || body.runId,
         executiveApprovalGate: body.executiveApprovalGate,
         executiveOversight: body.executiveOversight,
         executiveReleaseSurface: body.executiveReleaseSurface,
