@@ -35,7 +35,8 @@ export type VerifyGroup =
   | "lifecycle"
   | "preservation-closure"
   | "production-release"
-  | "production-operations";
+  | "production-operations"
+  | "operational-intelligence";
 
 export type VerifyScriptEntry = {
   id: string;
@@ -79,6 +80,7 @@ export const VERIFY_GROUP_LABELS: Record<VerifyGroup, string> = {
   "preservation-closure": "Enterprise lifecycle final archive & preservation closure H25",
   "production-release": "V3.7 FINAL production freeze & release baseline",
   "production-operations": "V4-A1 production operations runtime",
+  "operational-intelligence": "V4-A2 operational intelligence runtime",
 };
 
 /** Canonical registry — single source for smoke pipeline + stability guard. */
@@ -173,6 +175,7 @@ export const VERIFY_REGISTRY: VerifyScriptEntry[] = [
   { id: "release-snapshot", npmScript: "verify:release-snapshot", file: "scripts/verify-release-snapshot.ts", group: "production-release", required: true },
   { id: "release-governance", npmScript: "verify:release-governance", file: "scripts/verify-release-governance.ts", group: "production-release", required: true },
   { id: "production-operations", npmScript: "verify:production-operations", file: "scripts/verify-production-operations.ts", group: "production-operations", required: true },
+  { id: "operational-intelligence", npmScript: "verify:operational-intelligence", file: "scripts/verify-operational-intelligence.ts", group: "operational-intelligence", required: true },
 ];
 
 export function verifyEntriesForGroup(group: VerifyGroup): VerifyScriptEntry[] {

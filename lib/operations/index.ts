@@ -6,13 +6,64 @@ export * from "./shared";
 export * from "./operations-context";
 export * from "./registry";
 export * from "./stability";
-export * from "./intelligence";
+export * from "./a1-intelligence";
+export {
+  V4A2_INTELLIGENCE_VERSION,
+  OPERATIONAL_SIGNAL_KINDS,
+  normalizeOperationalSignal,
+  normalizeSignalBatch,
+  createOperationalSignalBatch,
+  buildOperationalSignalBatch,
+  groupSignalsByKind,
+  groupSignalsBySource,
+  getSignalByKind,
+  buildOperationalHealthSnapshot,
+  detectOperationalAnomalies,
+  analyzeOperationalTrends,
+  analyzeExecutionPatterns,
+  identifyOperationalBottlenecks,
+  summarizeOperationalBottlenecks,
+  deriveOperationalInsights,
+  summarizeOperationalInsights,
+  generateOperationalRecommendations,
+  summarizeOperationalRecommendations,
+  buildOperationalDecisionSupport,
+  summarizeOperationalDecisionSupport,
+  buildV4OperationalIntelligenceRuntime,
+  summarizeOperationalIntelligenceRuntime,
+  warmOperationalIntelligenceContext,
+  averageNormalizedScore,
+  clampNormalizedScore,
+} from "./intelligence/index";
+export type {
+  OperationalSignalKind,
+  OperationalSignalUnit,
+  OperationalSignal,
+  OperationalSignalBatch,
+  RawOperationalSignalInput,
+  OperationalHealthSnapshot,
+  OperationalAnomaly,
+  OperationalTrendDirection,
+  OperationalTrend,
+  OperationalBottleneckType,
+  OperationalBottleneck,
+  OperationalInsightType,
+  OperationalInsightPriority,
+  OperationalIntelligenceRuntime,
+  OperationalIntelligenceSummary as V4A2OperationalIntelligenceSummary,
+  OperationalInsight as V4A2OperationalInsight,
+  OperationalRecommendationType,
+  OperationalRecommendation as V4A2OperationalRecommendation,
+  OperationalDecisionStatus,
+  OperationalDecisionType,
+  OperationalDecisionSupport as V4A2OperationalDecisionSupport,
+} from "./intelligence/index";
 export * from "./sustainability";
 
 import { V4_OPERATIONS_VERSION } from "./shared";
 import { buildProductionOperationsRegistry } from "./registry";
 import { buildOperationalStabilityReport } from "./stability";
-import { buildOperationalIntelligenceSummary } from "./intelligence";
+import { buildOperationalIntelligenceSummary } from "./a1-intelligence";
 import { buildOperationalSustainabilityReport } from "./sustainability";
 
 export const V4_PRODUCTION_OPERATIONS_FOUNDATION_VERSION = V4_OPERATIONS_VERSION;

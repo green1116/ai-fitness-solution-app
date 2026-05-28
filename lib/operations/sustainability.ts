@@ -8,7 +8,7 @@ import {
 } from "./shared";
 import { buildProductionOperationsRegistry } from "./registry";
 import { buildOperationalStabilityReport } from "./stability";
-import { buildOperationalIntelligenceSummary } from "./intelligence";
+import { buildOperationalIntelligenceSummary } from "./a1-intelligence";
 import { getReleaseFoundationForOperations } from "./operations-context";
 
 export const OPERATIONAL_SUSTAINABILITY_VERSION = "4-a1-operational-sustainability-1" as const;

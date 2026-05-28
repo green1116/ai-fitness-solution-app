@@ -75,6 +75,7 @@
         "verify:release-snapshot": "tsx scripts/verify-release-snapshot.ts",
         "verify:release-governance": "tsx scripts/verify-release-governance.ts",
         "verify:production-operations": "tsx scripts/verify-production-operations.ts",
+        "verify:operational-intelligence": "tsx scripts/verify-operational-intelligence.ts",
         "verify:all": "tsx scripts/run-all-verifications.ts",
         "verify:stability": "tsx scripts/verify-build-stability.ts",
         "verify:runtime-freeze": "tsx scripts/verify-build-stability.ts && tsx scripts/verify-runtime-freeze.ts",
