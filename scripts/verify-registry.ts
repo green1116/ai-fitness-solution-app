@@ -36,7 +36,27 @@ export type VerifyGroup =
   | "preservation-closure"
   | "production-release"
   | "production-operations"
-  | "operational-intelligence";
+  | "operational-intelligence"
+  | "operational-governance"
+  | "operational-rulebook"
+  | "operational-policy-pack"
+  | "operational-orchestration"
+  | "operational-lifecycle"
+  | "operational-persistence"
+  | "operational-store"
+  | "operational-recovery"
+  | "operational-incident-recovery-profile"
+  | "operational-incident-recovery-profile-config"
+  | "operational-incident-recovery-profile-json-source"
+  | "operational-incident-recovery-profile-json-schema-guard"
+  | "operational-incident-recovery-profile-json-schema-evolution"
+  | "operational-incident-recovery-profile-migration-rule-registry"
+  | "operational-incident-recovery-profile-rendering-policy"
+  | "operational-incident-recovery-profile-migration-execution"
+  | "operational-incident-recovery-profile-canonical-contract"
+  | "operational-incident-recovery-profile-external-consumer-registry"
+  | "operational-incident-recovery-profile-external-consumer-registry-config"
+  | "operational-incident-recovery-profile-external-consumer-registry-source-adapter";
 
 export type VerifyScriptEntry = {
   id: string;
@@ -81,6 +101,37 @@ export const VERIFY_GROUP_LABELS: Record<VerifyGroup, string> = {
   "production-release": "V3.7 FINAL production freeze & release baseline",
   "production-operations": "V4-A1 production operations runtime",
   "operational-intelligence": "V4-A2 operational intelligence runtime",
+  "operational-governance": "V4-A3 operational governance runtime",
+  "operational-rulebook": "V4-A3-R2 operational governance rulebook runtime",
+  "operational-policy-pack": "V4-A3-R3 operational governance policy pack runtime",
+  "operational-orchestration": "V4-A3-R4 operational governance orchestration runtime",
+  "operational-lifecycle": "V4-A3-R5 operational governance lifecycle runtime",
+  "operational-persistence": "V4-A3-R6 operational governance persistence runtime",
+  "operational-store": "V4-A3-R7 operational governance store adapter runtime",
+  "operational-recovery": "V4-A3-R8 operational governance recovery runtime",
+  "operational-incident-recovery-profile": "V4-A3-R9 operational governance incident recovery profile runtime",
+  "operational-incident-recovery-profile-config":
+    "V4-A3-R9.1 operational governance incident recovery profile config runtime",
+  "operational-incident-recovery-profile-json-source":
+    "V4-A3-R9.1.1 operational governance incident recovery profile json source runtime",
+  "operational-incident-recovery-profile-json-schema-guard":
+    "V4-A3-R9.1.2 operational governance incident recovery profile json schema guard runtime",
+  "operational-incident-recovery-profile-json-schema-evolution":
+    "V4-A3-R9.1.3 operational governance incident recovery profile json schema evolution runtime",
+  "operational-incident-recovery-profile-migration-rule-registry":
+    "V4-A3-R9.1.4 operational governance incident recovery profile migration rule registry runtime",
+  "operational-incident-recovery-profile-rendering-policy":
+    "V4-A3-R9.1.4 operational governance incident recovery profile rendering policy runtime",
+  "operational-incident-recovery-profile-migration-execution":
+    "V4-A3-R9.1.5 operational governance incident recovery profile migration execution runtime",
+  "operational-incident-recovery-profile-canonical-contract":
+    "V4-A3-R9.1.6 operational governance incident recovery profile canonical contract runtime",
+  "operational-incident-recovery-profile-external-consumer-registry":
+    "V4-A3-R9.1.7 operational governance incident recovery profile external consumer registry runtime",
+  "operational-incident-recovery-profile-external-consumer-registry-config":
+    "V4-A3-R9.1.8 operational governance incident recovery profile external consumer registry config runtime",
+  "operational-incident-recovery-profile-external-consumer-registry-source-adapter":
+    "V4-A3-R9.1.9 operational governance incident recovery profile external consumer registry source adapter runtime",
 };
 
 /** Canonical registry — single source for smoke pipeline + stability guard. */
@@ -176,6 +227,26 @@ export const VERIFY_REGISTRY: VerifyScriptEntry[] = [
   { id: "release-governance", npmScript: "verify:release-governance", file: "scripts/verify-release-governance.ts", group: "production-release", required: true },
   { id: "production-operations", npmScript: "verify:production-operations", file: "scripts/verify-production-operations.ts", group: "production-operations", required: true },
   { id: "operational-intelligence", npmScript: "verify:operational-intelligence", file: "scripts/verify-operational-intelligence.ts", group: "operational-intelligence", required: true },
+  { id: "operational-governance", npmScript: "verify:operational-governance", file: "scripts/verify-operational-governance.ts", group: "operational-governance", required: true },
+  { id: "operational-rulebook", npmScript: "verify:operational-rulebook", file: "scripts/verify-operational-rulebook.ts", group: "operational-rulebook", required: true },
+  { id: "operational-policy-pack", npmScript: "verify:operational-policy-pack", file: "scripts/verify-operational-policy-pack.ts", group: "operational-policy-pack", required: true },
+  { id: "operational-orchestration", npmScript: "verify:operational-orchestration", file: "scripts/verify-operational-orchestration.ts", group: "operational-orchestration", required: true },
+  { id: "operational-lifecycle", npmScript: "verify:operational-lifecycle", file: "scripts/verify-operational-lifecycle.ts", group: "operational-lifecycle", required: true },
+  { id: "operational-persistence", npmScript: "verify:operational-persistence", file: "scripts/verify-operational-persistence.ts", group: "operational-persistence", required: true },
+  { id: "operational-store", npmScript: "verify:operational-store", file: "scripts/verify-operational-store.ts", group: "operational-store", required: true },
+  { id: "operational-recovery", npmScript: "verify:operational-recovery", file: "scripts/verify-operational-recovery.ts", group: "operational-recovery", required: true },
+  { id: "operational-incident-recovery-profile", npmScript: "verify:operational-incident-recovery-profile", file: "scripts/verify-operational-incident-recovery-profile.ts", group: "operational-incident-recovery-profile", required: true },
+  { id: "operational-incident-recovery-profile-config", npmScript: "verify:operational-incident-recovery-profile-config", file: "scripts/verify-operational-incident-recovery-profile-config.ts", group: "operational-incident-recovery-profile-config", required: true },
+  { id: "operational-incident-recovery-profile-json-source", npmScript: "verify:operational-incident-recovery-profile-json-source", file: "scripts/verify-operational-incident-recovery-profile-json-source.ts", group: "operational-incident-recovery-profile-json-source", required: true },
+  { id: "operational-incident-recovery-profile-json-schema-guard", npmScript: "verify:operational-incident-recovery-profile-json-schema-guard", file: "scripts/verify-operational-incident-recovery-profile-json-schema-guard.ts", group: "operational-incident-recovery-profile-json-schema-guard", required: true },
+  { id: "operational-incident-recovery-profile-json-schema-evolution", npmScript: "verify:operational-incident-recovery-profile-json-schema-evolution", file: "scripts/verify-operational-incident-recovery-profile-json-schema-evolution.ts", group: "operational-incident-recovery-profile-json-schema-evolution", required: true },
+  { id: "operational-incident-recovery-profile-migration-rule-registry", npmScript: "verify:operational-incident-recovery-profile-migration-rule-registry", file: "scripts/verify-operational-incident-recovery-profile-migration-rule-registry.ts", group: "operational-incident-recovery-profile-migration-rule-registry", required: true },
+  { id: "operational-incident-recovery-profile-rendering-policy", npmScript: "verify:operational-incident-recovery-profile-rendering-policy", file: "scripts/verify-operational-incident-recovery-profile-rendering-policy.ts", group: "operational-incident-recovery-profile-rendering-policy", required: true },
+  { id: "operational-incident-recovery-profile-migration-execution", npmScript: "verify:operational-incident-recovery-profile-migration-execution", file: "scripts/verify-operational-incident-recovery-profile-migration-execution.ts", group: "operational-incident-recovery-profile-migration-execution", required: true },
+  { id: "operational-incident-recovery-profile-canonical-contract", npmScript: "verify:operational-incident-recovery-profile-canonical-contract", file: "scripts/verify-operational-incident-recovery-profile-canonical-contract.ts", group: "operational-incident-recovery-profile-canonical-contract", required: true },
+  { id: "operational-incident-recovery-profile-external-consumer-registry", npmScript: "verify:operational-incident-recovery-profile-external-consumer-registry", file: "scripts/verify-operational-incident-recovery-profile-external-consumer-registry.ts", group: "operational-incident-recovery-profile-external-consumer-registry", required: true },
+  { id: "operational-incident-recovery-profile-external-consumer-registry-config", npmScript: "verify:operational-incident-recovery-profile-external-consumer-registry-config", file: "scripts/verify-operational-incident-recovery-profile-external-consumer-registry-config.ts", group: "operational-incident-recovery-profile-external-consumer-registry-config", required: true },
+  { id: "operational-incident-recovery-profile-external-consumer-registry-source-adapter", npmScript: "verify:operational-incident-recovery-profile-external-consumer-registry-source-adapter", file: "scripts/verify-operational-incident-recovery-profile-external-consumer-registry-source-adapter.ts", group: "operational-incident-recovery-profile-external-consumer-registry-source-adapter", required: true },
 ];
 
 export function verifyEntriesForGroup(group: VerifyGroup): VerifyScriptEntry[] {

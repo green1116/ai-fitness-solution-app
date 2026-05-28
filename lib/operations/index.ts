@@ -58,6 +58,7 @@ export type {
   OperationalDecisionType,
   OperationalDecisionSupport as V4A2OperationalDecisionSupport,
 } from "./intelligence/index";
+export * from "./governance";
 export * from "./sustainability";
 
 import { V4_OPERATIONS_VERSION } from "./shared";
