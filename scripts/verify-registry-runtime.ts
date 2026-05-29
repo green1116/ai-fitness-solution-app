@@ -128,6 +128,9 @@ function main() {
   const hasCommandHitlScript = VERIFY_REGISTRY.some(
     (entry) => entry.npmScript === "verify:command-hitl",
   );
+  const hasCommandHitlBridgeScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:command-hitl-bridge",
+  );
   assert(hasGovernanceScript, "verify:operational-governance registered");
   assert(hasRulebookScript, "verify:operational-rulebook registered");
   assert(hasPolicyPackScript, "verify:operational-policy-pack registered");
@@ -167,7 +170,8 @@ function main() {
   assert(hasAutonomousCommandPlatformScript, "verify:autonomous-command-platform registered");
   assert(hasCommandExecutionBridgeScript, "verify:command-execution-bridge registered");
   assert(hasCommandHitlScript, "verify:command-hitl registered");
-  console.log("✓ verify registry contains governance + rulebook + policy-pack + orchestration + lifecycle + persistence + store + recovery + incident-profile + incident-profile-config + incident-profile-json-source + incident-profile-json-schema-guard + incident-profile-json-schema-evolution + migration-registry + rendering-policy + migration-execution + canonical-contract + external-consumer-registry + external-consumer-registry-config + external-consumer-registry-source-adapter + consumer-capability-negotiation + federation-runtime + federation-consensus + federation-policy-propagation + federation-lifecycle-continuity + federation-observability + governance-intelligence + governance-autonomous + governance-self-optimization + governance-meta-governance + governance-platform-baseline + operational-autonomous-execution + autonomous-change-management + autonomous-incident-management + autonomous-recovery-orchestration + autonomous-operations-center + autonomous-command-platform + command-execution-bridge + command-hitl");
+  assert(hasCommandHitlBridgeScript, "verify:command-hitl-bridge registered");
+  console.log("✓ verify registry contains governance + rulebook + policy-pack + orchestration + lifecycle + persistence + store + recovery + incident-profile + incident-profile-config + incident-profile-json-source + incident-profile-json-schema-guard + incident-profile-json-schema-evolution + migration-registry + rendering-policy + migration-execution + canonical-contract + external-consumer-registry + external-consumer-registry-config + external-consumer-registry-source-adapter + consumer-capability-negotiation + federation-runtime + federation-consensus + federation-policy-propagation + federation-lifecycle-continuity + federation-observability + governance-intelligence + governance-autonomous + governance-self-optimization + governance-meta-governance + governance-platform-baseline + operational-autonomous-execution + autonomous-change-management + autonomous-incident-management + autonomous-recovery-orchestration + autonomous-operations-center + autonomous-command-platform + command-execution-bridge + command-hitl + command-hitl-bridge");
 }
 
 main();

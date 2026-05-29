@@ -75,7 +75,8 @@ export type VerifyGroup =
   | "autonomous-operations-center"
   | "autonomous-command-platform"
   | "command-execution-bridge"
-  | "command-hitl";
+  | "command-hitl"
+  | "command-hitl-bridge";
 
 export type VerifyScriptEntry = {
   id: string;
@@ -189,6 +190,8 @@ export const VERIFY_GROUP_LABELS: Record<VerifyGroup, string> = {
     "V4-A5-A1 command execution bridge",
   "command-hitl":
     "V4-A5-A2 human-in-the-loop command control",
+  "command-hitl-bridge":
+    "V4-A5-A3 HITL-bridge coordination runtime",
 };
 
 /** Canonical registry — single source for smoke pipeline + stability guard. */
@@ -323,6 +326,7 @@ export const VERIFY_REGISTRY: VerifyScriptEntry[] = [
   { id: "autonomous-command-platform", npmScript: "verify:autonomous-command-platform", file: "scripts/verify-autonomous-command-platform.ts", group: "autonomous-command-platform", required: true },
   { id: "command-execution-bridge", npmScript: "verify:command-execution-bridge", file: "scripts/verify-command-execution-bridge.ts", group: "command-execution-bridge", required: true },
   { id: "command-hitl", npmScript: "verify:command-hitl", file: "scripts/verify-command-hitl.ts", group: "command-hitl", required: true },
+  { id: "command-hitl-bridge", npmScript: "verify:command-hitl-bridge", file: "scripts/verify-command-hitl-bridge.ts", group: "command-hitl-bridge", required: true },
 ];
 
 export function verifyEntriesForGroup(group: VerifyGroup): VerifyScriptEntry[] {

@@ -9,6 +9,7 @@ export * from "./intelligence";
 export * from "./center";
 export * from "./bridge";
 export * from "./hitl";
+export * from "./hitl-bridge";
 
 import {
   AUTONOMOUS_COMMAND_PLATFORM_VERSION,
