@@ -64,6 +64,7 @@ export * from "./change";
 export * from "./incident";
 export * from "./recovery";
 export * from "./center";
+export * from "./command";
 export * from "./sustainability";
 
 import { V4_OPERATIONS_VERSION } from "./shared";

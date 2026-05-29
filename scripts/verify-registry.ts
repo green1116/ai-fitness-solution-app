@@ -72,7 +72,8 @@ export type VerifyGroup =
   | "autonomous-change-management"
   | "autonomous-incident-management"
   | "autonomous-recovery-orchestration"
-  | "autonomous-operations-center";
+  | "autonomous-operations-center"
+  | "autonomous-command-platform";
 
 export type VerifyScriptEntry = {
   id: string;
@@ -180,6 +181,8 @@ export const VERIFY_GROUP_LABELS: Record<VerifyGroup, string> = {
     "V4-A4-A4 autonomous recovery orchestration runtime",
   "autonomous-operations-center":
     "V4-A4-A5 autonomous operations center",
+  "autonomous-command-platform":
+    "V4-A5 autonomous command platform",
 };
 
 /** Canonical registry — single source for smoke pipeline + stability guard. */
@@ -311,6 +314,7 @@ export const VERIFY_REGISTRY: VerifyScriptEntry[] = [
   { id: "autonomous-incident-management", npmScript: "verify:autonomous-incident-management", file: "scripts/verify-autonomous-incident-management.ts", group: "autonomous-incident-management", required: true },
   { id: "autonomous-recovery-orchestration", npmScript: "verify:autonomous-recovery-orchestration", file: "scripts/verify-autonomous-recovery-orchestration.ts", group: "autonomous-recovery-orchestration", required: true },
   { id: "autonomous-operations-center", npmScript: "verify:autonomous-operations-center", file: "scripts/verify-autonomous-operations-center.ts", group: "autonomous-operations-center", required: true },
+  { id: "autonomous-command-platform", npmScript: "verify:autonomous-command-platform", file: "scripts/verify-autonomous-command-platform.ts", group: "autonomous-command-platform", required: true },
 ];
 
 export function verifyEntriesForGroup(group: VerifyGroup): VerifyScriptEntry[] {
