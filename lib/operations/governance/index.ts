@@ -164,6 +164,17 @@ export * from "./incident-recovery-profile-external-consumer-registry-source-ada
 export * from "./incident-recovery-profile-external-consumer-registry-source-adapter.trace";
 export * from "./incident-recovery-profile-external-consumer-registry-source-adapter.summary";
 export * from "./incident-recovery-profile-external-consumer-registry-source-adapter.report";
+export * from "./consumer-capability";
+export * from "./federation";
+export * from "./federation-consensus";
+export * from "./federation-policy";
+export * from "./federation-lifecycle";
+export * from "./federation-observability";
+export * from "./intelligence";
+export * from "./autonomous";
+export * from "./self-optimization";
+export * from "./meta-governance";
+export * from "./platform-baseline";
 
 import { buildV4OperationalIntelligenceRuntime } from "../intelligence";
 import { buildGovernancePolicy } from "./policy";
@@ -203,6 +214,18 @@ import { buildIncidentRecoveryProfileCanonicalContractRuntime } from "./incident
 import { buildIncidentRecoveryProfileExternalConsumerRegistryRuntime } from "./incident-recovery-profile-external-consumer-registry";
 import { buildIncidentRecoveryProfileExternalConsumerRegistryConfigRuntime } from "./incident-recovery-profile-external-consumer-registry-config";
 import { buildIncidentRecoveryProfileExternalConsumerRegistrySourceAdapterRuntime } from "./incident-recovery-profile-external-consumer-registry-source-adapter";
+import { buildConsumerCapabilityNegotiationRuntime } from "./consumer-capability/capability-negotiation-runtime";
+import { buildGovernanceFederationRuntime } from "./federation/federation-runtime";
+import { buildGovernanceFederationConsensusRuntime } from "./federation-consensus/consensus-runtime";
+import { buildGovernanceFederationPolicyPropagationRuntime } from "./federation-policy/propagation-runtime";
+import { buildGovernanceFederationLifecycleContinuityRuntime } from "./federation-lifecycle/continuity-runtime";
+import { buildGovernanceFederationObservabilityRuntime } from "./federation-observability/observability-runtime";
+import { buildGovernanceIntelligenceRuntime } from "./intelligence/intelligence-runtime";
+import { buildGovernanceAutonomousRuntime } from "./autonomous/autonomous-runtime";
+import { buildGovernanceSelfOptimizationRuntime } from "./self-optimization/optimization-runtime";
+import { buildGovernanceMetaGovernanceRuntime } from "./meta-governance/meta-governance-runtime";
+import { buildGovernancePlatformBaselineRuntime } from "./platform-baseline/baseline-runtime";
+import { collectGovernanceCapabilityVersions } from "./platform-baseline/baseline-inventory";
 import {
   V4A3_OPERATIONAL_GOVERNANCE_VERSION,
   type OperationalGovernanceRuntimeInput,
@@ -364,6 +387,72 @@ export function buildOperationalGovernanceRuntime(
         input?.incidentRecoveryProfileExternalConsumers ??
         incidentRecoveryProfileExternalConsumerRegistryConfig.mergedConsumers,
     });
+  const consumerCapabilityNegotiation = buildConsumerCapabilityNegotiationRuntime({
+    deploymentId,
+    resolvedConsumer: incidentRecoveryProfileExternalConsumerRegistry.resolvedConsumer,
+    canonicalContract: incidentRecoveryProfileCanonicalContract,
+    requestedCapabilities: input?.consumerCapabilityNegotiationRequestedCapabilities,
+  });
+  const governanceFederation = buildGovernanceFederationRuntime({
+    deploymentId,
+    orchestration,
+    capabilityNegotiation: consumerCapabilityNegotiation,
+    policyPackMode: policyPackEvaluation.mode,
+    requestedDomainId: input?.governanceFederationDomainId,
+  });
+  const governanceFederationConsensus = buildGovernanceFederationConsensusRuntime({
+    deploymentId,
+    federation: governanceFederation,
+    proposalType: input?.governanceFederationConsensusProposalType,
+  });
+  const governanceFederationPolicyPropagation = buildGovernanceFederationPolicyPropagationRuntime({
+    deploymentId,
+    federation: governanceFederation,
+    consensus: governanceFederationConsensus,
+    policyPackMode: policyPackEvaluation.mode,
+    requestedPolicyVersion: input?.governanceFederationPolicyPropagationVersion,
+  });
+  const governanceFederationLifecycleContinuity = buildGovernanceFederationLifecycleContinuityRuntime({
+    deploymentId,
+    federation: governanceFederation,
+    consensus: governanceFederationConsensus,
+    policyPropagation: governanceFederationPolicyPropagation,
+    requestedPhase: input?.governanceFederationLifecyclePhase,
+  });
+  const governanceFederationObservability = buildGovernanceFederationObservabilityRuntime({
+    deploymentId,
+    federation: governanceFederation,
+    consensus: governanceFederationConsensus,
+    policyPropagation: governanceFederationPolicyPropagation,
+    lifecycleContinuity: governanceFederationLifecycleContinuity,
+  });
+  const governanceIntelligence = buildGovernanceIntelligenceRuntime({
+    deploymentId,
+    observability: governanceFederationObservability,
+    federation: governanceFederation,
+    lifecycleContinuity: governanceFederationLifecycleContinuity,
+    simulationScenario: input?.governanceIntelligenceSimulationScenario,
+  });
+  const governanceAutonomous = buildGovernanceAutonomousRuntime({
+    deploymentId,
+    intelligence: governanceIntelligence,
+    observability: governanceFederationObservability,
+    federation: governanceFederation,
+    lifecycleContinuity: governanceFederationLifecycleContinuity,
+  });
+  const governanceSelfOptimization = buildGovernanceSelfOptimizationRuntime({
+    deploymentId,
+    observability: governanceFederationObservability,
+    intelligence: governanceIntelligence,
+    autonomous: governanceAutonomous,
+  });
+  const governanceMetaGovernance = buildGovernanceMetaGovernanceRuntime({
+    deploymentId,
+    selfOptimization: governanceSelfOptimization,
+    observability: governanceFederationObservability,
+    intelligence: governanceIntelligence,
+    autonomous: governanceAutonomous,
+  });
   const externalConfig =
     incidentRecoveryProfileJsonSource.resolved.useJsonSource &&
     incidentRecoveryProfileJsonSchemaEvolution.evolvedSchema !== null &&
@@ -392,6 +481,49 @@ export function buildOperationalGovernanceRuntime(
       text: `${recovery.summary.text} profile=${incidentRecoveryProfile.snapshot.profileName} profileStrategy=${incidentRecoveryProfileConfig.resolved.decision.strategy}`,
     },
   };
+
+  const governancePlatformBaseline = buildGovernancePlatformBaselineRuntime({
+    deploymentId,
+    platformVersion: V4A3_OPERATIONAL_GOVERNANCE_VERSION,
+    capabilities: collectGovernanceCapabilityVersions({
+      governanceRulesVersion: ruleEvaluation.governanceRules.version,
+      rulebookVersion: rulebook.version,
+      policyPackVersion: selectedPolicyPack.version,
+      orchestrationVersion: orchestration.version,
+      lifecycleVersion: lifecycle.version,
+      persistenceVersion: persistence.version,
+      storeVersion: store.version,
+      recoveryVersion: effectiveRecovery.version,
+      incidentRecoveryProfileVersion: incidentRecoveryProfile.version,
+      incidentRecoveryProfileConfigVersion: incidentRecoveryProfileConfig.version,
+      incidentRecoveryProfileJsonSourceVersion: incidentRecoveryProfileJsonSource.version,
+      incidentRecoveryProfileJsonSchemaGuardVersion: incidentRecoveryProfileJsonSchemaGuard.version,
+      incidentRecoveryProfileJsonSchemaEvolutionVersion: incidentRecoveryProfileJsonSchemaEvolution.version,
+      incidentRecoveryProfileMigrationRuleRegistryVersion:
+        incidentRecoveryProfileMigrationRuleRegistry.version,
+      incidentRecoveryProfileRenderingPolicyVersion: incidentRecoveryProfileRenderingPolicy.version,
+      incidentRecoveryProfileMigrationExecutionVersion: incidentRecoveryProfileMigrationExecution.version,
+      incidentRecoveryProfileCanonicalContractVersion: incidentRecoveryProfileCanonicalContract.version,
+      incidentRecoveryProfileExternalConsumerRegistryVersion:
+        incidentRecoveryProfileExternalConsumerRegistry.version,
+      incidentRecoveryProfileExternalConsumerRegistryConfigVersion:
+        incidentRecoveryProfileExternalConsumerRegistryConfig.version,
+      incidentRecoveryProfileExternalConsumerRegistrySourceAdapterVersion:
+        incidentRecoveryProfileExternalConsumerRegistrySourceAdapter.version,
+      consumerCapabilityNegotiationVersion: consumerCapabilityNegotiation.version,
+      governanceFederationVersion: governanceFederation.version,
+      governanceFederationConsensusVersion: governanceFederationConsensus.version,
+      governanceFederationPolicyPropagationVersion: governanceFederationPolicyPropagation.version,
+      governanceFederationLifecycleContinuityVersion: governanceFederationLifecycleContinuity.version,
+      governanceFederationObservabilityVersion: governanceFederationObservability.version,
+      governanceIntelligenceVersion: governanceIntelligence.version,
+      governanceAutonomousVersion: governanceAutonomous.version,
+      governanceSelfOptimizationVersion: governanceSelfOptimization.version,
+      governanceMetaGovernanceVersion: governanceMetaGovernance.version,
+    }),
+    metaGovernance: governanceMetaGovernance,
+    selfOptimization: governanceSelfOptimization,
+  });
 
   const controls = buildGovernanceControls(policy);
   const approvals = buildGovernanceApprovals(policy);
@@ -658,6 +790,175 @@ export function buildOperationalGovernanceRuntime(
       incidentRecoveryProfileExternalConsumerRegistry.report,
     incidentRecoveryProfileExternalConsumerRegistryStatus:
       incidentRecoveryProfileExternalConsumerRegistry.status,
+    consumerCapabilityNegotiation,
+    consumerCapabilityNegotiationVersion: consumerCapabilityNegotiation.version,
+    consumerCapabilityNegotiationProfile: consumerCapabilityNegotiation.profile,
+    consumerCapabilityNegotiationResult: consumerCapabilityNegotiation.negotiation,
+    consumerCapabilityNegotiationResolvedCapabilities: consumerCapabilityNegotiation.resolvedCapabilities,
+    consumerCapabilityNegotiationDegradationPlan: consumerCapabilityNegotiation.degradationPlan,
+    consumerCapabilityNegotiationVersionMatrix: consumerCapabilityNegotiation.versionMatrix,
+    consumerCapabilityNegotiationLineage: consumerCapabilityNegotiation.lineage,
+    consumerCapabilityNegotiationAudit: consumerCapabilityNegotiation.audit,
+    consumerCapabilityNegotiationHooks: consumerCapabilityNegotiation.hooks,
+    consumerCapabilityNegotiationSummary: consumerCapabilityNegotiation.summary.text,
+    consumerCapabilityNegotiationStatus: consumerCapabilityNegotiation.status,
+    governanceFederation,
+    governanceFederationVersion: governanceFederation.version,
+    governanceFederationRegistry: governanceFederation.registry,
+    governanceFederationTopology: governanceFederation.topology,
+    governanceFederationRouting: governanceFederation.routing,
+    governanceFederationOrchestration: governanceFederation.orchestration,
+    governanceFederationPolicy: governanceFederation.policy,
+    governanceFederationRecovery: governanceFederation.recovery,
+    governanceFederationLineage: governanceFederation.lineage,
+    governanceFederationAudit: governanceFederation.audit,
+    governanceFederationHooks: governanceFederation.hooks,
+    governanceFederationSummary: governanceFederation.summary.text,
+    governanceFederationStatus: governanceFederation.status,
+    governanceFederationConsensus,
+    governanceFederationConsensusVersion: governanceFederationConsensus.version,
+    governanceFederationConsensusRegistry: governanceFederationConsensus.registry,
+    governanceFederationConsensusNodes: governanceFederationConsensus.nodes,
+    governanceFederationConsensusProposal: governanceFederationConsensus.proposal,
+    governanceFederationConsensusVotes: governanceFederationConsensus.votes,
+    governanceFederationConsensusQuorum: governanceFederationConsensus.quorum,
+    governanceFederationConsensusResolution: governanceFederationConsensus.resolution,
+    governanceFederationConsensusReconciliation: governanceFederationConsensus.reconciliation,
+    governanceFederationConsensusConvergence: governanceFederationConsensus.convergence,
+    governanceFederationConsensusRecovery: governanceFederationConsensus.recovery,
+    governanceFederationConsensusLineage: governanceFederationConsensus.lineage,
+    governanceFederationConsensusAudit: governanceFederationConsensus.audit,
+    governanceFederationConsensusHooks: governanceFederationConsensus.hooks,
+    governanceFederationConsensusSummary: governanceFederationConsensus.summary.text,
+    governanceFederationConsensusStatus: governanceFederationConsensus.status,
+    governanceFederationPolicyPropagation,
+    governanceFederationPolicyPropagationVersion: governanceFederationPolicyPropagation.version,
+    governanceFederationPolicyPropagationRegistry: governanceFederationPolicyPropagation.registry,
+    governanceFederationPolicyPropagationBundle: governanceFederationPolicyPropagation.bundle,
+    governanceFederationPolicyPropagationDissemination: governanceFederationPolicyPropagation.dissemination,
+    governanceFederationPolicyPropagationSync: governanceFederationPolicyPropagation.sync,
+    governanceFederationPolicyPropagationFanout: governanceFederationPolicyPropagation.fanout,
+    governanceFederationPolicyPropagationBoundary: governanceFederationPolicyPropagation.boundary,
+    governanceFederationPolicyPropagationVersionPropagation: governanceFederationPolicyPropagation.versionPropagation,
+    governanceFederationPolicyPropagationConflict: governanceFederationPolicyPropagation.conflict,
+    governanceFederationPolicyPropagationRollback: governanceFederationPolicyPropagation.rollback,
+    governanceFederationPolicyPropagationFreeze: governanceFederationPolicyPropagation.freeze,
+    governanceFederationPolicyPropagationLineage: governanceFederationPolicyPropagation.lineage,
+    governanceFederationPolicyPropagationAudit: governanceFederationPolicyPropagation.audit,
+    governanceFederationPolicyPropagationHooks: governanceFederationPolicyPropagation.hooks,
+    governanceFederationPolicyPropagationSummary: governanceFederationPolicyPropagation.summary.text,
+    governanceFederationPolicyPropagationStatus: governanceFederationPolicyPropagation.status,
+    governanceFederationLifecycleContinuity,
+    governanceFederationLifecycleContinuityVersion: governanceFederationLifecycleContinuity.version,
+    governanceFederationLifecycleContinuityRegistry: governanceFederationLifecycleContinuity.registry,
+    governanceFederationLifecycleContinuityDomainLifecycle: governanceFederationLifecycleContinuity.domainLifecycle,
+    governanceFederationLifecycleContinuityNodeLifecycle: governanceFederationLifecycleContinuity.nodeLifecycle,
+    governanceFederationLifecycleContinuityPolicyLifecycle: governanceFederationLifecycleContinuity.policyLifecycle,
+    governanceFederationLifecycleContinuityConsensusLifecycle: governanceFederationLifecycleContinuity.consensusLifecycle,
+    governanceFederationLifecycleContinuityRecoveryLifecycle: governanceFederationLifecycleContinuity.recoveryLifecycle,
+    governanceFederationLifecycleContinuityActivation: governanceFederationLifecycleContinuity.activation,
+    governanceFederationLifecycleContinuityFreezeThaw: governanceFederationLifecycleContinuity.freezeThaw,
+    governanceFederationLifecycleContinuityRetirement: governanceFederationLifecycleContinuity.retirement,
+    governanceFederationLifecycleContinuityHandoff: governanceFederationLifecycleContinuity.handoff,
+    governanceFederationLifecycleContinuityLineage: governanceFederationLifecycleContinuity.lineage,
+    governanceFederationLifecycleContinuityAudit: governanceFederationLifecycleContinuity.audit,
+    governanceFederationLifecycleContinuityHooks: governanceFederationLifecycleContinuity.hooks,
+    governanceFederationLifecycleContinuitySummary: governanceFederationLifecycleContinuity.summary.text,
+    governanceFederationLifecycleContinuityStatus: governanceFederationLifecycleContinuity.status,
+    governanceFederationLifecyclePhase: governanceFederationLifecycleContinuity.phase,
+    governanceFederationObservability,
+    governanceFederationObservabilityVersion: governanceFederationObservability.version,
+    governanceFederationObservabilityRegistry: governanceFederationObservability.registry,
+    governanceFederationObservabilityHealth: governanceFederationObservability.health,
+    governanceFederationObservabilityTopology: governanceFederationObservability.topology,
+    governanceFederationObservabilityConsensus: governanceFederationObservability.consensus,
+    governanceFederationObservabilityPropagation: governanceFederationObservability.propagation,
+    governanceFederationObservabilityLifecycle: governanceFederationObservability.lifecycle,
+    governanceFederationObservabilityRecovery: governanceFederationObservability.recovery,
+    governanceFederationObservabilityRisk: governanceFederationObservability.risk,
+    governanceFederationObservabilityGovernanceScore: governanceFederationObservability.governanceScore,
+    governanceFederationObservabilityLineage: governanceFederationObservability.lineage,
+    governanceFederationObservabilityAudit: governanceFederationObservability.audit,
+    governanceFederationObservabilityHooks: governanceFederationObservability.hooks,
+    governanceFederationObservabilitySummary: governanceFederationObservability.summary.text,
+    governanceFederationObservabilityStatus: governanceFederationObservability.status,
+    governanceIntelligence,
+    governanceIntelligenceVersion: governanceIntelligence.version,
+    governanceIntelligenceRegistry: governanceIntelligence.registry,
+    governanceIntelligenceSignals: governanceIntelligence.signals,
+    governanceIntelligenceAnalysis: governanceIntelligence.analysis,
+    governanceIntelligenceAnomalies: governanceIntelligence.anomalies,
+    governanceIntelligencePrediction: governanceIntelligence.prediction,
+    governanceIntelligenceRecommendations: governanceIntelligence.recommendations,
+    governanceIntelligenceSimulations: governanceIntelligence.simulations,
+    governanceIntelligenceRisk: governanceIntelligence.riskIntelligence,
+    governanceIntelligenceScore: governanceIntelligence.intelligenceScore,
+    governanceIntelligenceLineage: governanceIntelligence.lineage,
+    governanceIntelligenceAudit: governanceIntelligence.audit,
+    governanceIntelligenceHooks: governanceIntelligence.hooks,
+    governanceIntelligenceSummary: governanceIntelligence.summary.text,
+    governanceIntelligenceStatus: governanceIntelligence.status,
+    governanceAutonomous,
+    governanceAutonomousVersion: governanceAutonomous.version,
+    governanceAutonomousRegistry: governanceAutonomous.registry,
+    governanceAutonomousSignals: governanceAutonomous.signals,
+    governanceAutonomousAnalysis: governanceAutonomous.analysis,
+    governanceAutonomousDecisions: governanceAutonomous.decisions,
+    governanceAutonomousProposals: governanceAutonomous.proposals,
+    governanceAutonomousExecutionPlan: governanceAutonomous.executionPlan,
+    governanceAutonomousRemediations: governanceAutonomous.remediations,
+    governanceAutonomousOptimizations: governanceAutonomous.optimizations,
+    governanceAutonomousApproval: governanceAutonomous.approval,
+    governanceAutonomousScore: governanceAutonomous.autonomousScore,
+    governanceAutonomousLineage: governanceAutonomous.lineage,
+    governanceAutonomousAudit: governanceAutonomous.audit,
+    governanceAutonomousHooks: governanceAutonomous.hooks,
+    governanceAutonomousSummary: governanceAutonomous.summary.text,
+    governanceAutonomousStatus: governanceAutonomous.status,
+    governanceSelfOptimization,
+    governanceSelfOptimizationVersion: governanceSelfOptimization.version,
+    governanceSelfOptimizationRegistry: governanceSelfOptimization.registry,
+    governanceSelfOptimizationFeedback: governanceSelfOptimization.feedback,
+    governanceSelfOptimizationMechanisms: governanceSelfOptimization.mechanisms,
+    governanceSelfOptimizationStrategies: governanceSelfOptimization.strategies,
+    governanceSelfOptimizationModules: governanceSelfOptimization.modules,
+    governanceSelfOptimizationImpact: governanceSelfOptimization.impact,
+    governanceSelfOptimizationResilience: governanceSelfOptimization.resilience,
+    governanceSelfOptimizationLoopClosed: governanceSelfOptimization.loopClosed,
+    governanceSelfOptimizationScore: governanceSelfOptimization.optimizationScore,
+    governanceSelfOptimizationLineage: governanceSelfOptimization.lineage,
+    governanceSelfOptimizationAudit: governanceSelfOptimization.audit,
+    governanceSelfOptimizationHooks: governanceSelfOptimization.hooks,
+    governanceSelfOptimizationSummary: governanceSelfOptimization.summary.text,
+    governanceSelfOptimizationStatus: governanceSelfOptimization.status,
+    governanceMetaGovernance,
+    governanceMetaGovernanceVersion: governanceMetaGovernance.version,
+    governanceMetaGovernanceRegistry: governanceMetaGovernance.registry,
+    governanceMetaGovernanceInventory: governanceMetaGovernance.inventory,
+    governanceMetaGovernanceAssessment: governanceMetaGovernance.assessment,
+    governanceMetaGovernanceDecisions: governanceMetaGovernance.decisions,
+    governanceMetaGovernanceComplexity: governanceMetaGovernance.complexity,
+    governanceMetaGovernanceStandardization: governanceMetaGovernance.standardization,
+    governanceMetaGovernanceScore: governanceMetaGovernance.metaScore,
+    governanceMetaGovernanceLineage: governanceMetaGovernance.lineage,
+    governanceMetaGovernanceAudit: governanceMetaGovernance.audit,
+    governanceMetaGovernanceHooks: governanceMetaGovernance.hooks,
+    governanceMetaGovernanceSummary: governanceMetaGovernance.summary.text,
+    governanceMetaGovernanceStatus: governanceMetaGovernance.status,
+    governancePlatformBaseline,
+    governancePlatformBaselineVersion: governancePlatformBaseline.version,
+    governancePlatformBaselineRegistry: governancePlatformBaseline.registry,
+    governancePlatformBaselineInventory: governancePlatformBaseline.inventory,
+    governancePlatformBaselineClassifications: governancePlatformBaseline.classifications,
+    governancePlatformBaselineDependencyGraph: governancePlatformBaseline.dependencyGraph,
+    governancePlatformBaselineComplexityReport: governancePlatformBaseline.complexityReport,
+    governancePlatformBaselineReport: governancePlatformBaseline.baselineReport,
+    governancePlatformBaselineRelease: governancePlatformBaseline.releaseBaseline,
+    governancePlatformBaselineLineage: governancePlatformBaseline.lineage,
+    governancePlatformBaselineAudit: governancePlatformBaseline.audit,
+    governancePlatformBaselineHooks: governancePlatformBaseline.hooks,
+    governancePlatformBaselineSummary: governancePlatformBaseline.summary.text,
+    governancePlatformBaselineStatus: governancePlatformBaseline.status,
   };
 
   return {

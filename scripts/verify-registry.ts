@@ -56,7 +56,23 @@ export type VerifyGroup =
   | "operational-incident-recovery-profile-canonical-contract"
   | "operational-incident-recovery-profile-external-consumer-registry"
   | "operational-incident-recovery-profile-external-consumer-registry-config"
-  | "operational-incident-recovery-profile-external-consumer-registry-source-adapter";
+  | "operational-incident-recovery-profile-external-consumer-registry-source-adapter"
+  | "consumer-capability-negotiation"
+  | "federation-runtime"
+  | "federation-consensus"
+  | "federation-policy-propagation"
+  | "federation-lifecycle-continuity"
+  | "federation-observability"
+  | "governance-intelligence"
+  | "governance-autonomous"
+  | "governance-self-optimization"
+  | "governance-meta-governance"
+  | "governance-platform-baseline"
+  | "operational-autonomous-execution"
+  | "autonomous-change-management"
+  | "autonomous-incident-management"
+  | "autonomous-recovery-orchestration"
+  | "autonomous-operations-center";
 
 export type VerifyScriptEntry = {
   id: string;
@@ -132,6 +148,38 @@ export const VERIFY_GROUP_LABELS: Record<VerifyGroup, string> = {
     "V4-A3-R9.1.8 operational governance incident recovery profile external consumer registry config runtime",
   "operational-incident-recovery-profile-external-consumer-registry-source-adapter":
     "V4-A3-R9.1.9 operational governance incident recovery profile external consumer registry source adapter runtime",
+  "consumer-capability-negotiation":
+    "V4-A3-R9.2 operational governance consumer capability negotiation runtime",
+  "federation-runtime":
+    "V4-A3-R9.3 operational governance federation runtime",
+  "federation-consensus":
+    "V4-A3-R9.4 operational governance federation consensus runtime",
+  "federation-policy-propagation":
+    "V4-A3-R9.5 operational governance federation policy propagation runtime",
+  "federation-lifecycle-continuity":
+    "V4-A3-R9.6 operational governance federation lifecycle continuity runtime",
+  "federation-observability":
+    "V4-A3-R10 operational governance federation observability runtime",
+  "governance-intelligence":
+    "V4-A3-R11 operational governance intelligence runtime",
+  "governance-autonomous":
+    "V4-A3-R12 operational governance autonomous runtime",
+  "governance-self-optimization":
+    "V4-A3-R13 operational governance self-optimization runtime",
+  "governance-meta-governance":
+    "V4-A3-R14 operational governance meta-governance runtime",
+  "governance-platform-baseline":
+    "V4-A3-FINAL governance platform baseline freeze",
+  "operational-autonomous-execution":
+    "V4-A4-A1 operational autonomous execution runtime",
+  "autonomous-change-management":
+    "V4-A4-A2 autonomous change management runtime",
+  "autonomous-incident-management":
+    "V4-A4-A3 autonomous incident management runtime",
+  "autonomous-recovery-orchestration":
+    "V4-A4-A4 autonomous recovery orchestration runtime",
+  "autonomous-operations-center":
+    "V4-A4-A5 autonomous operations center",
 };
 
 /** Canonical registry — single source for smoke pipeline + stability guard. */
@@ -247,6 +295,22 @@ export const VERIFY_REGISTRY: VerifyScriptEntry[] = [
   { id: "operational-incident-recovery-profile-external-consumer-registry", npmScript: "verify:operational-incident-recovery-profile-external-consumer-registry", file: "scripts/verify-operational-incident-recovery-profile-external-consumer-registry.ts", group: "operational-incident-recovery-profile-external-consumer-registry", required: true },
   { id: "operational-incident-recovery-profile-external-consumer-registry-config", npmScript: "verify:operational-incident-recovery-profile-external-consumer-registry-config", file: "scripts/verify-operational-incident-recovery-profile-external-consumer-registry-config.ts", group: "operational-incident-recovery-profile-external-consumer-registry-config", required: true },
   { id: "operational-incident-recovery-profile-external-consumer-registry-source-adapter", npmScript: "verify:operational-incident-recovery-profile-external-consumer-registry-source-adapter", file: "scripts/verify-operational-incident-recovery-profile-external-consumer-registry-source-adapter.ts", group: "operational-incident-recovery-profile-external-consumer-registry-source-adapter", required: true },
+  { id: "consumer-capability-negotiation", npmScript: "verify:consumer-capability-negotiation", file: "scripts/verify-consumer-capability-negotiation.ts", group: "consumer-capability-negotiation", required: true },
+  { id: "federation-runtime", npmScript: "verify:federation-runtime", file: "scripts/verify-federation-runtime.ts", group: "federation-runtime", required: true },
+  { id: "federation-consensus", npmScript: "verify:federation-consensus", file: "scripts/verify-federation-consensus.ts", group: "federation-consensus", required: true },
+  { id: "federation-policy-propagation", npmScript: "verify:federation-policy-propagation", file: "scripts/verify-federation-policy-propagation.ts", group: "federation-policy-propagation", required: true },
+  { id: "federation-lifecycle-continuity", npmScript: "verify:federation-lifecycle-continuity", file: "scripts/verify-federation-lifecycle-continuity.ts", group: "federation-lifecycle-continuity", required: true },
+  { id: "federation-observability", npmScript: "verify:federation-observability", file: "scripts/verify-federation-observability.ts", group: "federation-observability", required: true },
+  { id: "governance-intelligence", npmScript: "verify:governance-intelligence", file: "scripts/verify-governance-intelligence.ts", group: "governance-intelligence", required: true },
+  { id: "governance-autonomous", npmScript: "verify:governance-autonomous", file: "scripts/verify-governance-autonomous.ts", group: "governance-autonomous", required: true },
+  { id: "governance-self-optimization", npmScript: "verify:governance-self-optimization", file: "scripts/verify-governance-self-optimization.ts", group: "governance-self-optimization", required: true },
+  { id: "governance-meta-governance", npmScript: "verify:governance-meta-governance", file: "scripts/verify-governance-meta-governance.ts", group: "governance-meta-governance", required: true },
+  { id: "governance-platform-baseline", npmScript: "verify:governance-platform-baseline", file: "scripts/verify-governance-platform-baseline.ts", group: "governance-platform-baseline", required: true },
+  { id: "operational-autonomous-execution", npmScript: "verify:operational-autonomous-execution", file: "scripts/verify-operational-autonomous-execution.ts", group: "operational-autonomous-execution", required: true },
+  { id: "autonomous-change-management", npmScript: "verify:autonomous-change-management", file: "scripts/verify-autonomous-change-management.ts", group: "autonomous-change-management", required: true },
+  { id: "autonomous-incident-management", npmScript: "verify:autonomous-incident-management", file: "scripts/verify-autonomous-incident-management.ts", group: "autonomous-incident-management", required: true },
+  { id: "autonomous-recovery-orchestration", npmScript: "verify:autonomous-recovery-orchestration", file: "scripts/verify-autonomous-recovery-orchestration.ts", group: "autonomous-recovery-orchestration", required: true },
+  { id: "autonomous-operations-center", npmScript: "verify:autonomous-operations-center", file: "scripts/verify-autonomous-operations-center.ts", group: "autonomous-operations-center", required: true },
 ];
 
 export function verifyEntriesForGroup(group: VerifyGroup): VerifyScriptEntry[] {

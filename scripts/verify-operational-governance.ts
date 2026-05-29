@@ -32,6 +32,17 @@ import {
   GOVERNANCE_INCIDENT_RECOVERY_PROFILE_EXTERNAL_CONSUMER_REGISTRY_VERSION,
   GOVERNANCE_INCIDENT_RECOVERY_PROFILE_EXTERNAL_CONSUMER_REGISTRY_CONFIG_VERSION,
   GOVERNANCE_INCIDENT_RECOVERY_PROFILE_EXTERNAL_CONSUMER_REGISTRY_SOURCE_ADAPTER_VERSION,
+  GOVERNANCE_CONSUMER_CAPABILITY_NEGOTIATION_VERSION,
+  GOVERNANCE_FEDERATION_RUNTIME_VERSION,
+  GOVERNANCE_FEDERATION_CONSENSUS_RUNTIME_VERSION,
+  GOVERNANCE_FEDERATION_POLICY_PROPAGATION_RUNTIME_VERSION,
+  GOVERNANCE_FEDERATION_LIFECYCLE_CONTINUITY_RUNTIME_VERSION,
+  GOVERNANCE_FEDERATION_OBSERVABILITY_RUNTIME_VERSION,
+  GOVERNANCE_INTELLIGENCE_RUNTIME_VERSION,
+  GOVERNANCE_AUTONOMOUS_RUNTIME_VERSION,
+  GOVERNANCE_SELF_OPTIMIZATION_RUNTIME_VERSION,
+  GOVERNANCE_META_GOVERNANCE_RUNTIME_VERSION,
+  GOVERNANCE_PLATFORM_BASELINE_VERSION,
   buildOperationalGovernanceRuntime,
 } from "../lib/operations/governance";
 import { buildV4OperationalIntelligenceRuntime } from "../lib/operations/intelligence";
@@ -276,6 +287,102 @@ function main() {
     runtime.incidentRecoveryProfileExternalConsumerRegistryConfigSummary.length > 0,
     "external consumer registry config summary",
   );
+  assert(
+    runtime.consumerCapabilityNegotiationVersion === GOVERNANCE_CONSUMER_CAPABILITY_NEGOTIATION_VERSION,
+    "consumer capability negotiation version",
+  );
+  assert(runtime.consumerCapabilityNegotiationResult.negotiationId.length > 0, "capability negotiation");
+  assert(runtime.consumerCapabilityNegotiationResolvedCapabilities.length > 0, "capability resolved");
+  assert(runtime.consumerCapabilityNegotiationDegradationPlan.steps.length > 0, "capability degradation");
+  assert(runtime.consumerCapabilityNegotiationLineage.entries.length > 0, "capability lineage");
+  assert(runtime.consumerCapabilityNegotiationAudit.length > 0, "capability audit");
+  assert(runtime.consumerCapabilityNegotiationSummary.length > 0, "capability negotiation summary");
+  assert(
+    runtime.governanceFederationVersion === GOVERNANCE_FEDERATION_RUNTIME_VERSION,
+    "federation runtime version",
+  );
+  assert(runtime.governanceFederationTopology.domains.length >= 4, "federation topology");
+  assert(runtime.governanceFederationRouting.routingId.length > 0, "federation routing");
+  assert(runtime.governanceFederationLineage.entries.length >= 4, "federation lineage");
+  assert(runtime.governanceFederationSummary.length > 0, "federation summary");
+  assert(
+    runtime.governanceFederationConsensusVersion === GOVERNANCE_FEDERATION_CONSENSUS_RUNTIME_VERSION,
+    "federation consensus version",
+  );
+  assert(runtime.governanceFederationConsensusNodes.length >= 4, "federation consensus nodes");
+  assert(runtime.governanceFederationConsensusQuorum.participatingNodes.length > 0, "consensus quorum");
+  assert(runtime.governanceFederationConsensusLineage.entries.length >= 5, "consensus lineage");
+  assert(runtime.governanceFederationConsensusSummary.length > 0, "consensus summary");
+  assert(
+    runtime.governanceFederationPolicyPropagationVersion ===
+      GOVERNANCE_FEDERATION_POLICY_PROPAGATION_RUNTIME_VERSION,
+    "federation policy propagation version",
+  );
+  assert(runtime.governanceFederationPolicyPropagationBundle.bundleId.length > 0, "policy bundle");
+  assert(runtime.governanceFederationPolicyPropagationSync.syncId.length > 0, "policy sync");
+  assert(runtime.governanceFederationPolicyPropagationLineage.entries.length >= 8, "policy lineage");
+  assert(runtime.governanceFederationPolicyPropagationSummary.length > 0, "policy propagation summary");
+  assert(
+    runtime.governanceFederationLifecycleContinuityVersion ===
+      GOVERNANCE_FEDERATION_LIFECYCLE_CONTINUITY_RUNTIME_VERSION,
+    "federation lifecycle continuity version",
+  );
+  assert(runtime.governanceFederationLifecycleContinuityDomainLifecycle.length >= 4, "domain lifecycle");
+  assert(runtime.governanceFederationLifecycleContinuityHandoff.handoffId.length > 0, "continuity handoff");
+  assert(runtime.governanceFederationLifecycleContinuityLineage.entries.length >= 8, "lifecycle lineage");
+  assert(runtime.governanceFederationLifecycleContinuitySummary.length > 0, "lifecycle continuity summary");
+  assert(
+    runtime.governanceFederationObservabilityVersion ===
+      GOVERNANCE_FEDERATION_OBSERVABILITY_RUNTIME_VERSION,
+    "federation observability version",
+  );
+  assert(runtime.governanceFederationObservabilityHealth.healthScore >= 0, "observability health");
+  assert(
+    runtime.governanceFederationObservabilityGovernanceScore.compositeScore >= 0,
+    "observability governance score",
+  );
+  assert(runtime.governanceFederationObservabilityLineage.entries.length >= 8, "observability lineage");
+  assert(runtime.governanceFederationObservabilitySummary.length > 0, "observability summary");
+  assert(
+    runtime.governanceIntelligenceVersion === GOVERNANCE_INTELLIGENCE_RUNTIME_VERSION,
+    "governance intelligence version",
+  );
+  assert(runtime.governanceIntelligenceSignals.signals.length >= 10, "governance intelligence signals");
+  assert(runtime.governanceIntelligenceRecommendations.length > 0, "governance intelligence recommendations");
+  assert(runtime.governanceIntelligenceLineage.entries.length >= 8, "governance intelligence lineage");
+  assert(runtime.governanceIntelligenceSummary.length > 0, "governance intelligence summary");
+  assert(
+    runtime.governanceAutonomousVersion === GOVERNANCE_AUTONOMOUS_RUNTIME_VERSION,
+    "governance autonomous version",
+  );
+  assert(runtime.governanceAutonomousProposals.length > 0, "autonomous proposals");
+  assert(runtime.governanceAutonomousExecutionPlan.steps.length > 0, "autonomous execution plan");
+  assert(runtime.governanceAutonomousLineage.entries.length >= 9, "autonomous lineage");
+  assert(runtime.governanceAutonomousSummary.length > 0, "governance autonomous summary");
+  assert(
+    runtime.governanceSelfOptimizationVersion === GOVERNANCE_SELF_OPTIMIZATION_RUNTIME_VERSION,
+    "governance self-optimization version",
+  );
+  assert(runtime.governanceSelfOptimizationMechanisms.length >= 7, "self-optimization mechanisms");
+  assert(runtime.governanceSelfOptimizationStrategies.length >= 6, "self-optimization strategies");
+  assert(runtime.governanceSelfOptimizationLineage.entries.length >= 8, "self-optimization lineage");
+  assert(runtime.governanceSelfOptimizationSummary.length > 0, "self-optimization summary");
+  assert(
+    runtime.governanceMetaGovernanceVersion === GOVERNANCE_META_GOVERNANCE_RUNTIME_VERSION,
+    "governance meta-governance version",
+  );
+  assert(runtime.governanceMetaGovernanceInventory.length >= 9, "meta-governance inventory");
+  assert(runtime.governanceMetaGovernanceDecisions.length >= 9, "meta-governance decisions");
+  assert(runtime.governanceMetaGovernanceLineage.entries.length >= 6, "meta-governance lineage");
+  assert(runtime.governanceMetaGovernanceSummary.length > 0, "meta-governance summary");
+  assert(
+    runtime.governancePlatformBaselineVersion === GOVERNANCE_PLATFORM_BASELINE_VERSION,
+    "governance platform baseline version",
+  );
+  assert(runtime.governancePlatformBaselineInventory.length >= 30, "platform baseline inventory");
+  assert(runtime.governancePlatformBaselineRelease.frozen === true, "platform baseline frozen");
+  assert(runtime.governancePlatformBaselineLineage.entries.length >= 6, "platform baseline lineage");
+  assert(runtime.governancePlatformBaselineSummary.length > 0, "platform baseline summary");
 
   assert(Array.isArray(runtime.policy), "legacy field policy compatibility");
   assert(Array.isArray(runtime.controls), "legacy field controls compatibility");

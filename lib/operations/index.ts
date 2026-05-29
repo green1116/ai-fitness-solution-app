@@ -59,6 +59,11 @@ export type {
   OperationalDecisionSupport as V4A2OperationalDecisionSupport,
 } from "./intelligence/index";
 export * from "./governance";
+export * from "./execution";
+export * from "./change";
+export * from "./incident";
+export * from "./recovery";
+export * from "./center";
 export * from "./sustainability";
 
 import { V4_OPERATIONS_VERSION } from "./shared";

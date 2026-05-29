@@ -71,6 +71,54 @@ function main() {
   const hasExternalConsumerRegistrySourceAdapterScript = VERIFY_REGISTRY.some(
     (entry) => entry.npmScript === "verify:operational-incident-recovery-profile-external-consumer-registry-source-adapter",
   );
+  const hasConsumerCapabilityNegotiationScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:consumer-capability-negotiation",
+  );
+  const hasFederationRuntimeScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:federation-runtime",
+  );
+  const hasFederationConsensusScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:federation-consensus",
+  );
+  const hasFederationPolicyPropagationScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:federation-policy-propagation",
+  );
+  const hasFederationLifecycleContinuityScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:federation-lifecycle-continuity",
+  );
+  const hasFederationObservabilityScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:federation-observability",
+  );
+  const hasGovernanceIntelligenceScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:governance-intelligence",
+  );
+  const hasGovernanceAutonomousScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:governance-autonomous",
+  );
+  const hasGovernanceSelfOptimizationScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:governance-self-optimization",
+  );
+  const hasGovernanceMetaGovernanceScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:governance-meta-governance",
+  );
+  const hasGovernancePlatformBaselineScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:governance-platform-baseline",
+  );
+  const hasOperationalAutonomousExecutionScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:operational-autonomous-execution",
+  );
+  const hasAutonomousChangeManagementScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:autonomous-change-management",
+  );
+  const hasAutonomousIncidentManagementScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:autonomous-incident-management",
+  );
+  const hasAutonomousRecoveryOrchestrationScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:autonomous-recovery-orchestration",
+  );
+  const hasAutonomousOperationsCenterScript = VERIFY_REGISTRY.some(
+    (entry) => entry.npmScript === "verify:autonomous-operations-center",
+  );
   assert(hasGovernanceScript, "verify:operational-governance registered");
   assert(hasRulebookScript, "verify:operational-rulebook registered");
   assert(hasPolicyPackScript, "verify:operational-policy-pack registered");
@@ -91,7 +139,23 @@ function main() {
   assert(hasExternalConsumerRegistryScript, "verify:operational-incident-recovery-profile-external-consumer-registry registered");
   assert(hasExternalConsumerRegistryConfigScript, "verify:operational-incident-recovery-profile-external-consumer-registry-config registered");
   assert(hasExternalConsumerRegistrySourceAdapterScript, "verify:operational-incident-recovery-profile-external-consumer-registry-source-adapter registered");
-  console.log("✓ verify registry contains governance + rulebook + policy-pack + orchestration + lifecycle + persistence + store + recovery + incident-profile + incident-profile-config + incident-profile-json-source + incident-profile-json-schema-guard + incident-profile-json-schema-evolution + migration-registry + rendering-policy + migration-execution + canonical-contract + external-consumer-registry + external-consumer-registry-config + external-consumer-registry-source-adapter");
+  assert(hasConsumerCapabilityNegotiationScript, "verify:consumer-capability-negotiation registered");
+  assert(hasFederationRuntimeScript, "verify:federation-runtime registered");
+  assert(hasFederationConsensusScript, "verify:federation-consensus registered");
+  assert(hasFederationPolicyPropagationScript, "verify:federation-policy-propagation registered");
+  assert(hasFederationLifecycleContinuityScript, "verify:federation-lifecycle-continuity registered");
+  assert(hasFederationObservabilityScript, "verify:federation-observability registered");
+  assert(hasGovernanceIntelligenceScript, "verify:governance-intelligence registered");
+  assert(hasGovernanceAutonomousScript, "verify:governance-autonomous registered");
+  assert(hasGovernanceSelfOptimizationScript, "verify:governance-self-optimization registered");
+  assert(hasGovernanceMetaGovernanceScript, "verify:governance-meta-governance registered");
+  assert(hasGovernancePlatformBaselineScript, "verify:governance-platform-baseline registered");
+  assert(hasOperationalAutonomousExecutionScript, "verify:operational-autonomous-execution registered");
+  assert(hasAutonomousChangeManagementScript, "verify:autonomous-change-management registered");
+  assert(hasAutonomousIncidentManagementScript, "verify:autonomous-incident-management registered");
+  assert(hasAutonomousRecoveryOrchestrationScript, "verify:autonomous-recovery-orchestration registered");
+  assert(hasAutonomousOperationsCenterScript, "verify:autonomous-operations-center registered");
+  console.log("✓ verify registry contains governance + rulebook + policy-pack + orchestration + lifecycle + persistence + store + recovery + incident-profile + incident-profile-config + incident-profile-json-source + incident-profile-json-schema-guard + incident-profile-json-schema-evolution + migration-registry + rendering-policy + migration-execution + canonical-contract + external-consumer-registry + external-consumer-registry-config + external-consumer-registry-source-adapter + consumer-capability-negotiation + federation-runtime + federation-consensus + federation-policy-propagation + federation-lifecycle-continuity + federation-observability + governance-intelligence + governance-autonomous + governance-self-optimization + governance-meta-governance + governance-platform-baseline + operational-autonomous-execution + autonomous-change-management + autonomous-incident-management + autonomous-recovery-orchestration + autonomous-operations-center");
 }
 
 main();

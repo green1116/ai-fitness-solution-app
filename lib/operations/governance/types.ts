@@ -167,6 +167,176 @@ import type {
   GovernanceIncidentRecoveryProfileExternalConsumerRegistrySourceAdapterVersion,
 } from "./incident-recovery-profile-external-consumer-registry-source-adapter.types";
 import type {
+  CapabilityAuditRecord,
+  CapabilityDegradationPlan,
+  CapabilityHookEvent,
+  CapabilityLineageGraph,
+  CapabilityNegotiationResult,
+  CapabilityVersionMatrixEntry,
+  ConsumerCapabilityNegotiationRuntimeResult,
+  ConsumerCapabilityNegotiationStatus,
+  ConsumerCapabilityProfile,
+  GovernanceConsumerCapabilityNegotiationVersion,
+} from "./consumer-capability/capability-types";
+import type {
+  FederationAuditRecord,
+  FederationHookEvent,
+  FederationLineageGraph,
+  FederationOrchestrationPlan,
+  FederationPolicyPropagation,
+  FederationRecoveryCoordination,
+  FederationRoutingDecision,
+  FederationRuntimeResult,
+  FederationRuntimeStatus,
+  FederationTopology,
+  GovernanceFederationRuntimeVersion,
+} from "./federation/federation-types";
+import type {
+  ConsensusAuditRecord,
+  ConsensusHookEvent,
+  ConsensusLineageGraph,
+  ConsensusProposal,
+  ConsensusProposalType,
+  ConsensusQuorumResult,
+  ConsensusReconciliationResult,
+  ConsensusRecoveryCoordination,
+  ConsensusResolution,
+  ConsensusRuntimeResult,
+  ConsensusRuntimeStatus,
+  ConsensusStateConvergence,
+  ConsensusVote,
+  FederationConsensusNode,
+  GovernanceFederationConsensusRuntimeVersion,
+} from "./federation-consensus/consensus-types";
+import type {
+  FederatedPolicyBundle,
+  PolicyBoundaryEnforcement,
+  PolicyConflictArbitration,
+  PolicyDisseminationResult,
+  PolicyFanoutResult,
+  PolicyFreezePropagation,
+  PolicyPropagationAuditRecord,
+  PolicyPropagationHookEvent,
+  PolicyPropagationLineageGraph,
+  PolicyPropagationRuntimeResult,
+  PolicyPropagationStatus,
+  PolicyRollbackPropagation,
+  PolicySyncResult,
+  PolicyVersionPropagation,
+  GovernanceFederationPolicyPropagationRuntimeVersion,
+} from "./federation-policy/propagation-types";
+import type {
+  FederationActivationResult,
+  FederationConsensusLifecycleState,
+  FederationContinuityHandoff,
+  FederationContinuityStatus,
+  FederationDomainLifecycleState,
+  FederationFreezeThawResult,
+  FederationLifecycleAuditRecord,
+  FederationLifecycleHookEvent,
+  FederationLifecycleLineageGraph,
+  FederationLifecyclePhase,
+  FederationNodeLifecycleState,
+  FederationPolicyLifecycleState,
+  FederationRecoveryLifecycleState,
+  FederationRetirementArchivalResult,
+  LifecycleContinuityRuntimeResult,
+  GovernanceFederationLifecycleContinuityRuntimeVersion,
+} from "./federation-lifecycle/continuity-types";
+import type {
+  FederationConsensusObservability,
+  FederationGovernanceScore,
+  FederationHealthSnapshot,
+  FederationLifecycleObservability,
+  FederationObservabilityAuditRecord,
+  FederationObservabilityHookEvent,
+  FederationObservabilityLineageGraph,
+  FederationObservabilityRuntimeResult,
+  FederationObservabilityStatus,
+  FederationPropagationObservability,
+  FederationRecoveryObservability,
+  FederationRiskProfile,
+  FederationTopologyObservability,
+  GovernanceFederationObservabilityRuntimeVersion,
+} from "./federation-observability/observability-types";
+import type {
+  GovernanceAnalysisResult,
+  GovernanceAnomaly,
+  GovernanceIntelligenceAuditRecord,
+  GovernanceIntelligenceHookEvent,
+  GovernanceIntelligenceLineageGraph,
+  GovernanceIntelligenceRuntimeResult,
+  GovernanceIntelligenceScore,
+  GovernanceIntelligenceStatus,
+  GovernancePrediction,
+  GovernanceRecommendation,
+  GovernanceRiskIntelligence,
+  GovernanceSignalBundle,
+  GovernanceSimulation,
+  GovernanceSimulationScenario,
+  GovernanceIntelligenceRuntimeVersion,
+} from "./intelligence/intelligence-types";
+import type {
+  GovernanceActionProposal,
+  GovernanceApprovalCandidate,
+  GovernanceAutonomousAnalysis,
+  GovernanceAutonomousAuditRecord,
+  GovernanceAutonomousHookEvent,
+  GovernanceAutonomousLineageGraph,
+  GovernanceAutonomousRuntimeResult,
+  GovernanceAutonomousScore,
+  GovernanceAutonomousSignalBundle,
+  GovernanceAutonomousStatus,
+  GovernanceDecisionCandidate,
+  GovernanceExecutionPlan,
+  GovernanceOptimizationProposal,
+  GovernanceRemediationPlan,
+  GovernanceAutonomousRuntimeVersion,
+} from "./autonomous/autonomous-types";
+import type {
+  GovernanceFeedbackLoop,
+  GovernanceImpactAssessment,
+  GovernanceMechanismScore,
+  GovernanceModuleOptimization,
+  GovernanceResilienceOptimization,
+  GovernanceSelfOptimizationAuditRecord,
+  GovernanceSelfOptimizationHookEvent,
+  GovernanceSelfOptimizationLineageGraph,
+  GovernanceSelfOptimizationRuntimeResult,
+  GovernanceSelfOptimizationScore,
+  GovernanceStrategyOptimization,
+  GovernanceSelfOptimizationRuntimeVersion,
+  SelfOptimizationStatus,
+} from "./self-optimization/optimization-types";
+import type {
+  GovernanceComplexityProfile,
+  GovernanceEvolutionAssessment,
+  GovernanceEvolutionDecision,
+  GovernanceMechanismInventoryEntry,
+  GovernanceMetaGovernanceAuditRecord,
+  GovernanceMetaGovernanceHookEvent,
+  GovernanceMetaGovernanceLineageGraph,
+  GovernanceMetaGovernanceRuntimeResult,
+  GovernanceMetaGovernanceScore,
+  GovernanceStandardizationPlan,
+  GovernanceMetaGovernanceRuntimeVersion,
+  MetaGovernanceStatus,
+} from "./meta-governance/meta-governance-types";
+import type {
+  GovernanceBaselineReport,
+  GovernanceCapabilityClassification,
+  GovernanceCapabilityDependencyGraph,
+  GovernanceCapabilityInventoryEntry,
+  GovernanceComplexityReport,
+  GovernancePlatformBaselineAuditRecord,
+  GovernancePlatformBaselineHookEvent,
+  GovernancePlatformBaselineLineageGraph,
+  GovernancePlatformBaselineRuntimeResult,
+  GovernancePlatformBaselineVersion,
+  GovernanceReleaseBaseline,
+  GovernanceBaselineFreezeStatus,
+} from "./platform-baseline/baseline-types";
+import type {
   GovernanceLifecycleArchive,
   GovernanceLifecycleReplay,
   GovernanceLifecycleRuntimeResult,
@@ -304,6 +474,12 @@ export type OperationalGovernanceRuntimeInput = {
     mergeStrategy: GovernanceIncidentRecoveryProfileExternalConsumerRegistryConfigMergeStrategy;
     consumers: GovernanceIncidentRecoveryProfileExternalConsumerRegistryConsumer[];
   };
+  consumerCapabilityNegotiationRequestedCapabilities?: string[];
+  governanceFederationDomainId?: string;
+  governanceFederationConsensusProposalType?: ConsensusProposalType;
+  governanceFederationPolicyPropagationVersion?: string;
+  governanceFederationLifecyclePhase?: FederationLifecyclePhase;
+  governanceIntelligenceSimulationScenario?: GovernanceSimulationScenario;
   incidentRecoveryProfileConfig?: {
     sourceType?: "inline" | "jsonLocal" | "env" | "builtinFallback" | "db" | "remote";
     profileVersion: string;
@@ -590,4 +766,173 @@ export type OperationalGovernanceRuntimeResult = {
   incidentRecoveryProfileExternalConsumerRegistryConfigSummary: string;
   incidentRecoveryProfileExternalConsumerRegistryConfigReport: GovernanceIncidentRecoveryProfileExternalConsumerRegistryConfigReport;
   incidentRecoveryProfileExternalConsumerRegistryConfigStatus: GovernanceIncidentRecoveryProfileExternalConsumerRegistryConfigStatus;
+  consumerCapabilityNegotiation: ConsumerCapabilityNegotiationRuntimeResult;
+  consumerCapabilityNegotiationVersion: GovernanceConsumerCapabilityNegotiationVersion;
+  consumerCapabilityNegotiationProfile: ConsumerCapabilityProfile;
+  consumerCapabilityNegotiationResult: CapabilityNegotiationResult;
+  consumerCapabilityNegotiationResolvedCapabilities: string[];
+  consumerCapabilityNegotiationDegradationPlan: CapabilityDegradationPlan;
+  consumerCapabilityNegotiationVersionMatrix: CapabilityVersionMatrixEntry[];
+  consumerCapabilityNegotiationLineage: CapabilityLineageGraph;
+  consumerCapabilityNegotiationAudit: CapabilityAuditRecord[];
+  consumerCapabilityNegotiationHooks: CapabilityHookEvent[];
+  consumerCapabilityNegotiationSummary: string;
+  consumerCapabilityNegotiationStatus: ConsumerCapabilityNegotiationStatus;
+  governanceFederation: FederationRuntimeResult;
+  governanceFederationVersion: GovernanceFederationRuntimeVersion;
+  governanceFederationRegistry: FederationRuntimeResult["registry"];
+  governanceFederationTopology: FederationTopology;
+  governanceFederationRouting: FederationRoutingDecision;
+  governanceFederationOrchestration: FederationOrchestrationPlan;
+  governanceFederationPolicy: FederationPolicyPropagation;
+  governanceFederationRecovery: FederationRecoveryCoordination;
+  governanceFederationLineage: FederationLineageGraph;
+  governanceFederationAudit: FederationAuditRecord[];
+  governanceFederationHooks: FederationHookEvent[];
+  governanceFederationSummary: string;
+  governanceFederationStatus: FederationRuntimeStatus;
+  governanceFederationConsensus: ConsensusRuntimeResult;
+  governanceFederationConsensusVersion: GovernanceFederationConsensusRuntimeVersion;
+  governanceFederationConsensusRegistry: ConsensusRuntimeResult["registry"];
+  governanceFederationConsensusNodes: FederationConsensusNode[];
+  governanceFederationConsensusProposal: ConsensusProposal;
+  governanceFederationConsensusVotes: ConsensusVote[];
+  governanceFederationConsensusQuorum: ConsensusQuorumResult;
+  governanceFederationConsensusResolution: ConsensusResolution;
+  governanceFederationConsensusReconciliation: ConsensusReconciliationResult;
+  governanceFederationConsensusConvergence: ConsensusStateConvergence;
+  governanceFederationConsensusRecovery: ConsensusRecoveryCoordination;
+  governanceFederationConsensusLineage: ConsensusLineageGraph;
+  governanceFederationConsensusAudit: ConsensusAuditRecord[];
+  governanceFederationConsensusHooks: ConsensusHookEvent[];
+  governanceFederationConsensusSummary: string;
+  governanceFederationConsensusStatus: ConsensusRuntimeStatus;
+  governanceFederationPolicyPropagation: PolicyPropagationRuntimeResult;
+  governanceFederationPolicyPropagationVersion: GovernanceFederationPolicyPropagationRuntimeVersion;
+  governanceFederationPolicyPropagationRegistry: PolicyPropagationRuntimeResult["registry"];
+  governanceFederationPolicyPropagationBundle: FederatedPolicyBundle;
+  governanceFederationPolicyPropagationDissemination: PolicyDisseminationResult;
+  governanceFederationPolicyPropagationSync: PolicySyncResult;
+  governanceFederationPolicyPropagationFanout: PolicyFanoutResult;
+  governanceFederationPolicyPropagationBoundary: PolicyBoundaryEnforcement;
+  governanceFederationPolicyPropagationVersionPropagation: PolicyVersionPropagation;
+  governanceFederationPolicyPropagationConflict: PolicyConflictArbitration;
+  governanceFederationPolicyPropagationRollback: PolicyRollbackPropagation;
+  governanceFederationPolicyPropagationFreeze: PolicyFreezePropagation;
+  governanceFederationPolicyPropagationLineage: PolicyPropagationLineageGraph;
+  governanceFederationPolicyPropagationAudit: PolicyPropagationAuditRecord[];
+  governanceFederationPolicyPropagationHooks: PolicyPropagationHookEvent[];
+  governanceFederationPolicyPropagationSummary: string;
+  governanceFederationPolicyPropagationStatus: PolicyPropagationStatus;
+  governanceFederationLifecycleContinuity: LifecycleContinuityRuntimeResult;
+  governanceFederationLifecycleContinuityVersion: GovernanceFederationLifecycleContinuityRuntimeVersion;
+  governanceFederationLifecycleContinuityRegistry: LifecycleContinuityRuntimeResult["registry"];
+  governanceFederationLifecycleContinuityDomainLifecycle: FederationDomainLifecycleState[];
+  governanceFederationLifecycleContinuityNodeLifecycle: FederationNodeLifecycleState[];
+  governanceFederationLifecycleContinuityPolicyLifecycle: FederationPolicyLifecycleState;
+  governanceFederationLifecycleContinuityConsensusLifecycle: FederationConsensusLifecycleState;
+  governanceFederationLifecycleContinuityRecoveryLifecycle: FederationRecoveryLifecycleState;
+  governanceFederationLifecycleContinuityActivation: FederationActivationResult;
+  governanceFederationLifecycleContinuityFreezeThaw: FederationFreezeThawResult;
+  governanceFederationLifecycleContinuityRetirement: FederationRetirementArchivalResult;
+  governanceFederationLifecycleContinuityHandoff: FederationContinuityHandoff;
+  governanceFederationLifecycleContinuityLineage: FederationLifecycleLineageGraph;
+  governanceFederationLifecycleContinuityAudit: FederationLifecycleAuditRecord[];
+  governanceFederationLifecycleContinuityHooks: FederationLifecycleHookEvent[];
+  governanceFederationLifecycleContinuitySummary: string;
+  governanceFederationLifecycleContinuityStatus: FederationContinuityStatus;
+  governanceFederationLifecyclePhase: FederationLifecyclePhase;
+  governanceFederationObservability: FederationObservabilityRuntimeResult;
+  governanceFederationObservabilityVersion: GovernanceFederationObservabilityRuntimeVersion;
+  governanceFederationObservabilityRegistry: FederationObservabilityRuntimeResult["registry"];
+  governanceFederationObservabilityHealth: FederationHealthSnapshot;
+  governanceFederationObservabilityTopology: FederationTopologyObservability;
+  governanceFederationObservabilityConsensus: FederationConsensusObservability;
+  governanceFederationObservabilityPropagation: FederationPropagationObservability;
+  governanceFederationObservabilityLifecycle: FederationLifecycleObservability;
+  governanceFederationObservabilityRecovery: FederationRecoveryObservability;
+  governanceFederationObservabilityRisk: FederationRiskProfile;
+  governanceFederationObservabilityGovernanceScore: FederationGovernanceScore;
+  governanceFederationObservabilityLineage: FederationObservabilityLineageGraph;
+  governanceFederationObservabilityAudit: FederationObservabilityAuditRecord[];
+  governanceFederationObservabilityHooks: FederationObservabilityHookEvent[];
+  governanceFederationObservabilitySummary: string;
+  governanceFederationObservabilityStatus: FederationObservabilityStatus;
+  governanceIntelligence: GovernanceIntelligenceRuntimeResult;
+  governanceIntelligenceVersion: GovernanceIntelligenceRuntimeVersion;
+  governanceIntelligenceRegistry: GovernanceIntelligenceRuntimeResult["registry"];
+  governanceIntelligenceSignals: GovernanceSignalBundle;
+  governanceIntelligenceAnalysis: GovernanceAnalysisResult;
+  governanceIntelligenceAnomalies: GovernanceAnomaly[];
+  governanceIntelligencePrediction: GovernancePrediction;
+  governanceIntelligenceRecommendations: GovernanceRecommendation[];
+  governanceIntelligenceSimulations: GovernanceSimulation[];
+  governanceIntelligenceRisk: GovernanceRiskIntelligence;
+  governanceIntelligenceScore: GovernanceIntelligenceScore;
+  governanceIntelligenceLineage: GovernanceIntelligenceLineageGraph;
+  governanceIntelligenceAudit: GovernanceIntelligenceAuditRecord[];
+  governanceIntelligenceHooks: GovernanceIntelligenceHookEvent[];
+  governanceIntelligenceSummary: string;
+  governanceIntelligenceStatus: GovernanceIntelligenceStatus;
+  governanceAutonomous: GovernanceAutonomousRuntimeResult;
+  governanceAutonomousVersion: GovernanceAutonomousRuntimeVersion;
+  governanceAutonomousRegistry: GovernanceAutonomousRuntimeResult["registry"];
+  governanceAutonomousSignals: GovernanceAutonomousSignalBundle;
+  governanceAutonomousAnalysis: GovernanceAutonomousAnalysis;
+  governanceAutonomousDecisions: GovernanceDecisionCandidate[];
+  governanceAutonomousProposals: GovernanceActionProposal[];
+  governanceAutonomousExecutionPlan: GovernanceExecutionPlan;
+  governanceAutonomousRemediations: GovernanceRemediationPlan[];
+  governanceAutonomousOptimizations: GovernanceOptimizationProposal[];
+  governanceAutonomousApproval: GovernanceApprovalCandidate;
+  governanceAutonomousScore: GovernanceAutonomousScore;
+  governanceAutonomousLineage: GovernanceAutonomousLineageGraph;
+  governanceAutonomousAudit: GovernanceAutonomousAuditRecord[];
+  governanceAutonomousHooks: GovernanceAutonomousHookEvent[];
+  governanceAutonomousSummary: string;
+  governanceAutonomousStatus: GovernanceAutonomousStatus;
+  governanceSelfOptimization: GovernanceSelfOptimizationRuntimeResult;
+  governanceSelfOptimizationVersion: GovernanceSelfOptimizationRuntimeVersion;
+  governanceSelfOptimizationRegistry: GovernanceSelfOptimizationRuntimeResult["registry"];
+  governanceSelfOptimizationFeedback: GovernanceFeedbackLoop;
+  governanceSelfOptimizationMechanisms: GovernanceMechanismScore[];
+  governanceSelfOptimizationStrategies: GovernanceStrategyOptimization[];
+  governanceSelfOptimizationModules: GovernanceModuleOptimization[];
+  governanceSelfOptimizationImpact: GovernanceImpactAssessment;
+  governanceSelfOptimizationResilience: GovernanceResilienceOptimization;
+  governanceSelfOptimizationLoopClosed: boolean;
+  governanceSelfOptimizationScore: GovernanceSelfOptimizationScore;
+  governanceSelfOptimizationLineage: GovernanceSelfOptimizationLineageGraph;
+  governanceSelfOptimizationAudit: GovernanceSelfOptimizationAuditRecord[];
+  governanceSelfOptimizationHooks: GovernanceSelfOptimizationHookEvent[];
+  governanceSelfOptimizationSummary: string;
+  governanceSelfOptimizationStatus: SelfOptimizationStatus;
+  governanceMetaGovernance: GovernanceMetaGovernanceRuntimeResult;
+  governanceMetaGovernanceVersion: GovernanceMetaGovernanceRuntimeVersion;
+  governanceMetaGovernanceRegistry: GovernanceMetaGovernanceRuntimeResult["registry"];
+  governanceMetaGovernanceInventory: GovernanceMechanismInventoryEntry[];
+  governanceMetaGovernanceAssessment: GovernanceEvolutionAssessment;
+  governanceMetaGovernanceDecisions: GovernanceEvolutionDecision[];
+  governanceMetaGovernanceComplexity: GovernanceComplexityProfile;
+  governanceMetaGovernanceStandardization: GovernanceStandardizationPlan;
+  governanceMetaGovernanceScore: GovernanceMetaGovernanceScore;
+  governanceMetaGovernanceLineage: GovernanceMetaGovernanceLineageGraph;
+  governanceMetaGovernanceAudit: GovernanceMetaGovernanceAuditRecord[];
+  governanceMetaGovernanceHooks: GovernanceMetaGovernanceHookEvent[];
+  governanceMetaGovernanceSummary: string;
+  governanceMetaGovernanceStatus: MetaGovernanceStatus;
+  governancePlatformBaseline: GovernancePlatformBaselineRuntimeResult;
+  governancePlatformBaselineVersion: GovernancePlatformBaselineVersion;
+  governancePlatformBaselineRegistry: GovernancePlatformBaselineRuntimeResult["registry"];
+  governancePlatformBaselineInventory: GovernanceCapabilityInventoryEntry[];
+  governancePlatformBaselineClassifications: GovernanceCapabilityClassification[];
+  governancePlatformBaselineDependencyGraph: GovernanceCapabilityDependencyGraph;
+  governancePlatformBaselineComplexityReport: GovernanceComplexityReport;
+  governancePlatformBaselineReport: GovernanceBaselineReport;
+  governancePlatformBaselineRelease: GovernanceReleaseBaseline;
+  governancePlatformBaselineLineage: GovernancePlatformBaselineLineageGraph;
+  governancePlatformBaselineAudit: GovernancePlatformBaselineAuditRecord[];
+  governancePlatformBaselineHooks: GovernancePlatformBaselineHookEvent[];
+  governancePlatformBaselineSummary: string;
+  governancePlatformBaselineStatus: GovernanceBaselineFreezeStatus;
 };
