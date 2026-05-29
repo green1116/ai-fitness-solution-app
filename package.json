@@ -113,6 +113,7 @@
         "verify:autonomous-recovery-orchestration": "tsx scripts/verify-autonomous-recovery-orchestration.ts",
         "verify:autonomous-operations-center": "tsx scripts/verify-autonomous-operations-center.ts",
         "verify:autonomous-command-platform": "tsx scripts/verify-autonomous-command-platform.ts",
+        "verify:command-execution-bridge": "tsx scripts/verify-command-execution-bridge.ts",
         "verify:registry": "tsx scripts/verify-registry-runtime.ts",
         "verify:all": "tsx scripts/run-all-verifications.ts",
         "verify:stability": "tsx scripts/verify-build-stability.ts",

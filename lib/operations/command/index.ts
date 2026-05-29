@@ -7,6 +7,7 @@ export * from "./coordination";
 export * from "./audit";
 export * from "./intelligence";
 export * from "./center";
+export * from "./bridge";
 
 import {
   AUTONOMOUS_COMMAND_PLATFORM_VERSION,
