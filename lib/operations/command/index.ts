@@ -8,6 +8,7 @@ export * from "./audit";
 export * from "./intelligence";
 export * from "./center";
 export * from "./bridge";
+export * from "./hitl";
 
 import {
   AUTONOMOUS_COMMAND_PLATFORM_VERSION,
