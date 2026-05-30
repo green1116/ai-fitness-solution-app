@@ -118,6 +118,7 @@
         "verify:command-hitl-bridge": "tsx scripts/verify-command-hitl-bridge.ts",
         "verify:command-api": "tsx scripts/verify-command-api.ts",
         "verify:command-gated-orchestrator": "tsx scripts/verify-command-gated-orchestrator.ts",
+        "verify:command-platform-baseline": "tsx scripts/verify-command-platform-baseline.ts",
         "verify:registry": "tsx scripts/verify-registry-runtime.ts",
         "verify:all": "tsx scripts/run-all-verifications.ts",
         "verify:stability": "tsx scripts/verify-build-stability.ts",

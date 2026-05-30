@@ -78,7 +78,8 @@ export type VerifyGroup =
   | "command-hitl"
   | "command-hitl-bridge"
   | "command-api"
-  | "command-gated-orchestrator";
+  | "command-gated-orchestrator"
+  | "command-platform-baseline";
 
 export type VerifyScriptEntry = {
   id: string;
@@ -198,6 +199,8 @@ export const VERIFY_GROUP_LABELS: Record<VerifyGroup, string> = {
     "V4-A5-A4 command platform API",
   "command-gated-orchestrator":
     "V4-A5-A5 gated bridge orchestrator",
+  "command-platform-baseline":
+    "V4-A5-FINAL command platform baseline freeze",
 };
 
 /** Canonical registry — single source for smoke pipeline + stability guard. */
@@ -335,6 +338,7 @@ export const VERIFY_REGISTRY: VerifyScriptEntry[] = [
   { id: "command-hitl-bridge", npmScript: "verify:command-hitl-bridge", file: "scripts/verify-command-hitl-bridge.ts", group: "command-hitl-bridge", required: true },
   { id: "command-api", npmScript: "verify:command-api", file: "scripts/verify-command-api.ts", group: "command-api", required: true },
   { id: "command-gated-orchestrator", npmScript: "verify:command-gated-orchestrator", file: "scripts/verify-command-gated-orchestrator.ts", group: "command-gated-orchestrator", required: true },
+  { id: "command-platform-baseline", npmScript: "verify:command-platform-baseline", file: "scripts/verify-command-platform-baseline.ts", group: "command-platform-baseline", required: true },
 ];
 
 export function verifyEntriesForGroup(group: VerifyGroup): VerifyScriptEntry[] {
