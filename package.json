@@ -38,6 +38,7 @@
         "verify:runtime-state-machine": "tsx scripts/verify-runtime-state-machine.ts",
         "verify:runtime-events": "tsx scripts/verify-runtime-events.ts",
         "verify:runtime-event-intelligence": "tsx scripts/verify-runtime-event-intelligence.ts",
+        "verify:strategic-planning": "tsx scripts/verify-strategic-planning.ts",
         "verify:evidence": "tsx scripts/run-all-verifications.ts --group=evidence",
         "verify:executive": "tsx scripts/run-all-verifications.ts --group=executive",
         "verify:runtime": "tsx scripts/run-all-verifications.ts --group=runtime",
