@@ -1,0 +1,42 @@
+[
+  {
+    "id": "SKU-BK-LF-ICG",
+    "brand": "Life Fitness",
+    "model": "ICG Indoor Cycle",
+    "category": "bike",
+    "productTier": "high",
+    "specs": { "maxLoadKg": 180, "power": "磁控飞轮", "dimensions": "动感单车" },
+    "certifications": ["ISO9001", "CE"],
+    "serviceSupport": ["全国联保"],
+    "warrantyYears": 3,
+    "leadTimeDays": 40,
+    "tenderTags": ["动感单车", "团课"],
+    "evidenceFiles": ["参数表"]
+  },
+  {
+    "id": "SKU-BK-TG-BIKE",
+    "brand": "Technogym",
+    "model": "Bike Personal",
+    "category": "bike",
+    "productTier": "high",
+    "specs": { "maxLoadKg": 160, "power": "电磁阻力", "dimensions": "立式单车" },
+    "certifications": ["ISO9001", "CE"],
+    "warrantyYears": 3,
+    "leadTimeDays": 50,
+    "tenderTags": ["高端有氧"],
+    "evidenceFiles": ["型式检验报告"]
+  },
+  {
+    "id": "SKU-BK-SH-A5",
+    "brand": "舒华",
+    "model": "A5 动感单车",
+    "category": "bike",
+    "productTier": "mid",
+    "specs": { "maxLoadKg": 150, "power": "皮带传动", "dimensions": "商用动感单车" },
+    "certifications": ["ISO9001"],
+    "warrantyYears": 2,
+    "leadTimeDays": 28,
+    "tenderTags": ["学校", "社区健身"],
+    "evidenceFiles": ["检测报告"]
+  }
+]

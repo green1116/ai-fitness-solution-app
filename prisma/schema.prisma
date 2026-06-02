@@ -8,6 +8,41 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum SiteType {
+  office
+  factory
+  park
+  school
+  hospital
+  mixed
+}
+
+enum BudgetLevel {
+  low
+  mid
+  high
+  custom
+}
+
+enum DeliveryMode {
+  standard
+  enterprise
+  tender
+}
+
+enum PriceBand {
+  low
+  mid
+  high
+}
+
+enum DocumentType {
+  plan
+  budget
+  merged
+  zip
+}
+
 model PlanJob {
   id        String   @id
   createdAt DateTime @default(now())
@@ -26,14 +61,31 @@ model EmailOtp {
   createdAt DateTime @default(now())
 }
 
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions        Session[]
+  licenseBindings LicenseBinding[]
+
+  @@map("user")
+}
+
 model Session {
   id        String   @id @default(cuid())
   email     String
   tokenHash String   @unique(map: "Session_tokenHash_key")
+  userId    String?
   createdAt DateTime @default(now())
   expiresAt DateTime
 
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   @@index([email], map: "Session_email_idx")
+  @@index([userId])
   @@map("session")
 }
 
@@ -52,16 +104,36 @@ model Order {
 }
 
 model LicenseKey {
-  id           String    @id @default(cuid())
-  keyHash      String    @unique
+  id           String   @id @default(cuid())
+  keyHash      String   @unique
   planId       String?
-  maxDownloads Int       @default(0)
-  usedCount    Int       @default(0)
+  planLevel    String   @default("pro")
+  maxDownloads Int      @default(0)
+  usedCount    Int      @default(0)
   expiresAt    DateTime?
-  requireLogin Boolean   @default(false)
+  requireLogin Boolean  @default(false)
   note         String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  bindings LicenseBinding[]
+}
+
+/// 用户与 LicenseKey 的绑定（账号授权；可选 fingerprint 限制设备）
+model LicenseBinding {
+  id          String   @id @default(cuid())
+  userId      String
+  licenseId   String
+  fingerprint String?
+  createdAt   DateTime @default(now())
+
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  license LicenseKey @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, licenseId])
+  @@index([userId])
+  @@index([licenseId])
+  @@map("license_binding")
 }
 
 model PdfDownloadLog {
@@ -132,26 +204,204 @@ model PdfDownloadTokenState {
 
 model Lead {
   id        String   @id @default(cuid())
+
   email     String
+  phone     String?
+  company   String?
+  name      String?
+  title     String?
+
   planId    String?
-  intent    String   @default("contact_consultant")
+  intent    String
+
+  source    String   @default("download") // download / consult / demo
+  status    String   @default("new")      // new / contacted / qualified / converted
+
+  score     Int      @default(0)
+  note      String?
   payload   Json?
+
   createdAt DateTime @default(now())
 
   @@index([email, createdAt])
   @@index([planId, createdAt])
+  @@index([status])
 }
 
 model EmailVerifyCode {
-  id        String    @id @default(cuid())
-  email     String
-  code      String
-  mode      String
-  planId    String
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
+  id         String    @id @default(cuid())
+  email      String
+  code       String
+  mode       String
+  planId     String
+  /// 商业模式：free / pro / enterprise，与签发 unlockToken.planLevel 对齐
+  planLevel  String    @default("pro")
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
 
-  @@index([email, mode, planId])
+  @@index([email, mode, planId, planLevel])
   @@index([expiresAt])
+}
+
+model DownloadLead {
+  id           String   @id @default(cuid())
+  email        String
+  planId       String
+  mode         String
+
+  verifiedAt   DateTime?
+  downloadedAt DateTime?
+
+  createdAt    DateTime @default(now())
+
+  @@index([email])
+  @@index([planId])
+  @@index([mode])
+}
+
+model UnlockIntent {
+  id        String   @id @default(cuid())
+  planId    String
+  createdAt DateTime @default(now())
+  ip        String?
+  ua        String?
+
+  @@index([planId])
+  @@index([createdAt])
+}
+
+/// 套餐升级订单（支付：pending → paid | failed | canceled）
+/// status：pending | paid | failed | canceled（小写，与 API 一致）
+model UpgradeOrder {
+  id                String   @id @default(cuid())
+  planId            String
+  /// 下单关联的项目（客户端传入，用于审计与交付对齐）
+  projectId         String?
+  targetLevel       String
+  status            String   @default("pending")
+  amount            Int
+  /// 预留：登录用户 id / 外部账号体系
+  userId            String?
+  /// 下单时客户端指纹（可选）
+  clientFingerprint String?
+  /// 选用的支付适配器：mock / generic / stripe / wechat …
+  paymentProvider   String?
+  /// 第三方侧支付单号 / charge id
+  externalPaymentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([planId, createdAt])
+  @@index([projectId])
+  @@index([status])
+  @@index([userId])
+  @@map("upgrade_order")
+}
+
+model Project {
+  id           String       @id @default(cuid())
+  name         String
+  description  String?
+  clientName   String?
+  industry     String?
+  siteType     SiteType
+  areaM2       Float?
+  targetUsers  Int?
+  city         String?
+  budgetLevel  BudgetLevel
+  deliveryMode DeliveryMode
+  notes        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  solution     Solution?
+  placeholders ProductPlaceholder[]
+  budgets      Budget[]
+  documents    DocumentExport[]
+}
+
+model Solution {
+  id                 String   @id @default(cuid())
+  projectId          String   @unique
+  summary            String
+  background         String
+  requirements       Json
+  objectives         Json
+  zoning             Json
+  implementationPlan Json
+  operationsPlan     Json
+  riskControl        Json
+  acceptanceCriteria Json
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ProductPlaceholder {
+  id                   String    @id @default(cuid())
+  projectId            String
+  category             String
+  subCategory          String?
+  specTags             Json
+  quantity             Int
+  priceBand            PriceBand
+  recommendationReason String
+  replaceable          Boolean   @default(true)
+
+  skuId                String?
+  skuName              String?
+  brand                String?
+  model                String?
+  imageUrl             String?
+
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  project              Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skuMapping           SkuMapping?
+}
+
+model Budget {
+  id               String   @id @default(cuid())
+  projectId        String
+  currency         String   @default("CNY")
+  totalEstimateMin Float
+  totalEstimateMax Float
+  items            Json
+  assumptions      Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model DocumentExport {
+  id            String       @id @default(cuid())
+  projectId     String
+  docType       DocumentType
+  fileName      String
+  fileUrl       String?
+  renderVersion String
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+
+  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model SkuMapping {
+  id            String   @id @default(cuid())
+  placeholderId String   @unique
+  skuId         String
+  skuName       String
+  brand         String?
+  model         String?
+  imageUrl      String?
+  unitPrice     Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  placeholder   ProductPlaceholder @relation(fields: [placeholderId], references: [id], onDelete: Cascade)
 }

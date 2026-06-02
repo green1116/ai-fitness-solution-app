@@ -1,0 +1,33 @@
+{
+  "version": "json-local-v1",
+  "source": {
+    "name": "local-incident-recovery-profile",
+    "owner": "operations-governance",
+    "updatedAt": "2026-05-28T00:00:00.000Z"
+  },
+  "mergeStrategy": "priorityMerge",
+  "profiles": [
+    {
+      "profileId": "profile-audit-recovery",
+      "profileName": "audit-recovery-json-local",
+      "category": "audit",
+      "enabled": true,
+      "priority": 125,
+      "strategy": "replay",
+      "allowAutomation": true,
+      "preferRollback": false,
+      "allowDegraded": true,
+      "requireManualIntervention": false,
+      "allowPartialRecovery": true,
+      "rules": [
+        {
+          "ruleId": "rule-json-audit-replay",
+          "description": "JSON local prefers replay for audit-sensitive incidents.",
+          "severity": "high",
+          "predicate": "auditRequired"
+        }
+      ],
+      "rationale": "Local JSON source tuned for audit-ready recovery."
+    }
+  ]
+}

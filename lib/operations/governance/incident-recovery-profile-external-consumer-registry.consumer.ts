@@ -1,0 +1,51 @@
+import type { GovernanceIncidentRecoveryProfileExternalConsumerRegistryConsumer } from "./incident-recovery-profile-external-consumer-registry.types";
+
+export function buildBuiltinIncidentRecoveryProfileExternalConsumers(): GovernanceIncidentRecoveryProfileExternalConsumerRegistryConsumer[] {
+  return [
+    {
+      consumerId: "recovery-consumer",
+      consumerName: "Recovery Consumer",
+      consumerVersion: "v2",
+      enabled: true,
+      priority: 100,
+      category: "recovery",
+      requiredFields: ["canonicalProfileId", "canonicalProfiles", "canonicalVersion"],
+      optionalFields: ["sourceType"],
+      fallbackPolicy: "builtin",
+      compatibilityTarget: "strict",
+      description: "Consumes canonical recovery profile decision payload.",
+      owner: "ops-governance",
+      source: "builtin",
+    },
+    {
+      consumerId: "audit-consumer",
+      consumerName: "Audit Consumer",
+      consumerVersion: "v2",
+      enabled: true,
+      priority: 90,
+      category: "audit",
+      requiredFields: ["canonicalProfileId", "sourceVersion"],
+      optionalFields: ["sourceType"],
+      fallbackPolicy: "compat",
+      compatibilityTarget: "audit",
+      description: "Consumes audit-safe canonical snapshot.",
+      owner: "ops-audit",
+      source: "builtin",
+    },
+    {
+      consumerId: "reporting-consumer",
+      consumerName: "Reporting Consumer",
+      consumerVersion: "v1",
+      enabled: true,
+      priority: 70,
+      category: "reporting",
+      requiredFields: ["canonicalProfileName", "sourceVersion"],
+      optionalFields: [],
+      fallbackPolicy: "compat",
+      compatibilityTarget: "lenient",
+      description: "Consumes reporting-focused canonical subset.",
+      owner: "ops-reporting",
+      source: "builtin",
+    },
+  ];
+}

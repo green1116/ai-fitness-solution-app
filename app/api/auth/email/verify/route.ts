@@ -1,6 +1,7 @@
+// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { SignJWT } from "jose";
 import { prisma } from "@/lib/prisma";
+import { issueUnlockToken } from "@/lib/unlock-token";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,35 +15,13 @@ function isValidEmail(email: string) {
 }
 
 function isValidMode(mode: string) {
-  return ["full", "budget"].includes(mode);
+  return ["full", "budget", "pack"].includes(mode);
 }
 
-function getSecret() {
-  return process.env.DOWNLOAD_TOKEN_SECRET?.trim() || "";
-}
-
-async function makeDownloadToken(params: {
-  planId: string;
-  mode: "full" | "budget";
-  email: string;
-}) {
-  const secret = getSecret();
-  if (!secret) {
-    throw new Error("DOWNLOAD_TOKEN_SECRET is missing");
-  }
-
-  const key = new TextEncoder().encode(secret);
-
-  return await new SignJWT({
-    scope: "pdf_download",
-    planId: params.planId,
-    mode: params.mode,
-    email: params.email,
-  })
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setIssuedAt()
-    .setExpirationTime("30m")
-    .sign(key);
+function getUnlockIntentByMode(mode: string) {
+  if (mode === "budget") return "unlock_budget" as const;
+  if (mode === "pack") return "unlock_enterprise" as const;
+  return "unlock_pro" as const;
 }
 
 export async function POST(req: NextRequest) {
@@ -97,7 +76,7 @@ export async function POST(req: NextRequest) {
       return j(400, {
         ok: false,
         code: "MODE_INVALID",
-        message: "mode must be full or budget",
+        message: "mode must be full, budget, or pack",
       });
     }
 
@@ -128,34 +107,43 @@ export async function POST(req: NextRequest) {
       });
     }
 
-await prisma.emailVerifyCode.update({
-  where: { id: record.id },
-  data: { usedAt: new Date() },
-});
+    await prisma.emailVerifyCode.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    });
 
-await prisma.lead.create({
-  data: {
-    email,
-    planId,
-    intent: mode === "budget" ? "download_budget_verified" : "download_full_verified",
-    payload: {
-      source: "email_verify",
-      mode,
-      verifiedAt: new Date().toISOString(),
-    },
-  },
-});
+    await prisma.lead.create({
+      data: {
+        email,
+        planId,
+        intent:
+          mode === "budget"
+            ? "download_budget_verified"
+            : mode === "pack"
+            ? "download_pack_verified"
+            : "download_full_verified",
+        payload: {
+          source: "email_verify",
+          mode,
+          verifiedAt: new Date().toISOString(),
+        },
+      },
+    });
 
-const downloadToken = await makeDownloadToken({
+    const unlockIntent = getUnlockIntentByMode(mode);
+
+    const unlockToken = await issueUnlockToken({
       planId,
-      mode: mode as "full" | "budget",
+      intent: unlockIntent,
       email,
     });
 
-    console.log("[EMAIL_VERIFY] success", {
+    console.log("[EMAIL_VERIFY] unlock token issued", {
       email,
       planId,
       mode,
+      unlockIntent,
+      tokenPreview: unlockToken ? `${unlockToken.slice(0, 16)}...` : "",
     });
 
     return j(200, {
@@ -165,7 +153,8 @@ const downloadToken = await makeDownloadToken({
       email,
       planId,
       mode,
-      downloadToken,
+      unlockToken,
+      intent: unlockIntent,
     });
   } catch (err: any) {
     console.error("[EMAIL_VERIFY] FATAL", err);

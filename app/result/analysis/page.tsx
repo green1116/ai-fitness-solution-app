@@ -1,6 +1,6 @@
-import { Suspense } from "react";
+﻿import { Suspense } from "react";
 import AnalysisClient from "./AnalysisClient";
-
+  
 export const dynamic = "force-dynamic";
 
 export default function ResultAnalysisPage() {

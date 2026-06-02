@@ -1,0 +1,25 @@
+{
+  "version": "external-consumer-registry-local-v1",
+  "source": {
+    "name": "local-json",
+    "owner": "ops-governance",
+    "updatedAt": "2026-05-28T00:00:00.000Z"
+  },
+  "mergeStrategy": "extend",
+  "consumers": [
+    {
+      "consumerId": "api-consumer",
+      "consumerName": "API Consumer",
+      "consumerVersion": "v2",
+      "enabled": true,
+      "priority": 85,
+      "category": "api",
+      "requiredFields": ["canonicalVersion", "canonicalProfileId", "canonicalProfileName"],
+      "optionalFields": ["sourceType"],
+      "fallbackPolicy": "compat",
+      "compatibilityTarget": "compat",
+      "description": "External API consumer for canonical profile payload.",
+      "owner": "platform-api"
+    }
+  ]
+}

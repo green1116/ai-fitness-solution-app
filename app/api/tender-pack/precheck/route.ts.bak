@@ -1,0 +1,510 @@
+import { NextRequest, NextResponse } from "next/server";
+import { rowsFromParsedTenderText, computeTenderRiskFromRows, DEFAULT_TENDER_ATTACHMENT_CODES } from "@/lib/tender/computeTenderRisk";
+import { buildScoreProfileFromTenderText } from "@/lib/tender/scoreProfileFromTender";
+import { computeTenderScore, resolveScoreProfile } from "@/lib/tender/scoreEngine";
+import { buildBidDecisionSummary } from "@/lib/tender/score/buildBidDecisionSummary";
+import { buildBidDecisionGate } from "@/lib/tender/score/buildBidDecisionGate";
+import { formatBidDecisionGateText } from "@/lib/tender/score/formatBidDecisionGate";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function json(status: number, body: unknown) {
+  return NextResponse.json(body, { status });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => null);
+    const planId = String(body?.planId || "").trim();
+    const tenderRawText = String(body?.rawText || body?.tenderRawText || "").trim();
+    const mode = String(body?.mode || "enterprise");
+    const forceAllow = body?.forceAllow === true;
+    const gatePolicy =
+      body?.gatePolicy && typeof body.gatePolicy === "object"
+        ? body.gatePolicy
+        : undefined;
+
+    if (!planId) {
+      return json(400, {
+        ok: false,
+        code: "INVALID_PLAN_ID",
+        message: "缺少 planId",
+      });
+    }
+
+    // 未提供招标文本时，预检查不阻断（避免误拦截 legacy 链路）
+    if (!tenderRawText) {
+      const gate = {
+        action: "allow",
+        passed: true,
+        decisionLevel: "go",
+        decisionLabel: "建议投",
+        title: "未检测到招标文本，已跳过预检查",
+        message: "当前未提供可解析的招标正文，系统未执行完整评分诊断，默认放行下载流程。",
+        reasons: [] as string[],
+        suggestedNextSteps: ["建议先上传招标文本以获得完整风险与评分决策。"],
+        meta: {
+          highRiskCount: 0,
+          missingAttachmentCount: 0,
+          evidenceWeakCount: 0,
+          severeWeaknessCount: 0,
+          scoreRatio: 1,
+        },
+      };
+      return json(200, {
+        ok: true,
+        summary: null,
+        gate,
+        gateText: `${gate.title}\n${gate.message}`,
+      });
+    }
+
+    const { technicalRows, businessRows } = rowsFromParsedTenderText(tenderRawText);
+    const risk = computeTenderRiskFromRows({
+      technicalRows,
+      businessRows,
+      attachments: DEFAULT_TENDER_ATTACHMENT_CODES,
+    });
+    const extractedProfile = buildScoreProfileFromTenderText(tenderRawText);
+    const profile = extractedProfile || resolveScoreProfile(mode);
+    const scoreResult = computeTenderScore(
+      {
+        level: risk.level,
+        summary: risk.summary,
+        topRisks: risk.topRisks,
+        missingAttachments: risk.missingAttachments,
+      },
+      profile,
+      {
+        responseRows: [
+          ...technicalRows.map((r) => ({
+            ref: r.ref,
+            label: r.requirement,
+            section: "技术响应",
+            content: r.requirement,
+          })),
+          ...businessRows.map((r) => ({
+            ref: r.ref,
+            label: r.requirement,
+            section: "商务响应",
+            content: r.requirement,
+          })),
+        ],
+        attachmentIndex: DEFAULT_TENDER_ATTACHMENT_CODES.map((code) => ({
+          ref: code,
+          title: code,
+        })),
+      }
+    );
+
+    const summary = buildBidDecisionSummary({
+      items: scoreResult.breakdown,
+      totalScore: scoreResult.totalScore,
+      totalMaxScore: scoreResult.totalMaxScore,
+      topRisks: risk.topRisks,
+      missingAttachments: risk.missingAttachments,
+    });
+    const gate = buildBidDecisionGate({
+      summary,
+      forceAllow,
+      policy: gatePolicy,
+    });
+    const gateText = formatBidDecisionGateText(gate);
+
+    return json(200, {
+      ok: true,
+      summary,
+      gate,
+      gateText,
+      scoreResult,
+      risk,
+      profileSource: extractedProfile ? "tender-extracted" : "default",
+      profileName: profile.profileName,
+    });
+  } catch (error: any) {
+    return json(500, {
+      ok: false,
+      code: "TENDER_PRECHECK_INTERNAL_ERROR",
+      message: error?.message || "预检查失败",
+    });
+  }
+}
+import { NextRequest, NextResponse } from "next/server";
+import { buildParsedTenderResult } from "@/lib/tender-parser/buildParsedTenderResult";
+import {
+  computeTenderRiskFromRows,
+  DEFAULT_TENDER_ATTACHMENT_CODES,
+  rowsFromParsedTenderText,
+} from "@/lib/tender/computeTenderRisk";
+import {
+  computeTenderScore,
+  resolveScoreProfile,
+} from "@/lib/tender/scoreEngine";
+import { buildScoreProfileFromTenderText } from "@/lib/tender/scoreProfileFromTender";
+import { buildBidDecisionSummary } from "@/lib/tender/score/buildBidDecisionSummary";
+import { formatBidDecisionSummaryText } from "@/lib/tender/score/formatBidDecisionSummaryText";
+import { buildBidDecisionGate } from "@/lib/tender/score/buildBidDecisionGate";
+import { formatBidDecisionGateText } from "@/lib/tender/score/formatBidDecisionGate";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function json(status: number, body: unknown) {
+  return NextResponse.json(body, { status });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => null);
+    const planId = String(body?.planId || "").trim();
+    const rawText = String(body?.rawText || "").trim();
+    const mode = String(body?.mode || "enterprise");
+    const forceAllow = body?.forceAllow === true;
+
+    if (!planId) {
+      return json(400, {
+        ok: false,
+        code: "INVALID_PLAN_ID",
+        message: "缺少 planId",
+      });
+    }
+
+    if (!rawText) {
+      const gate = {
+        action: "allow",
+        passed: true,
+        decisionLevel: "go",
+        decisionLabel: "建议投",
+        title: "未提供招标文本，跳过预检查",
+        message: "当前未检测到招标文本，已跳过评分 gate 预检查，可继续生成。",
+        reasons: [],
+        suggestedNextSteps: [],
+        meta: {
+          highRiskCount: 0,
+          missingAttachmentCount: 0,
+          evidenceWeakCount: 0,
+          severeWeaknessCount: 0,
+          scoreRatio: 1,
+        },
+      };
+      return json(200, { ok: true, gate, gateText: `${gate.title}\n${gate.message}` });
+    }
+
+    const parsed = buildParsedTenderResult({ sourceName: `${planId}.txt`, rawText });
+    const { technicalRows, businessRows } = rowsFromParsedTenderText(rawText);
+    const risk = computeTenderRiskFromRows({
+      technicalRows,
+      businessRows,
+      attachments: DEFAULT_TENDER_ATTACHMENT_CODES,
+    });
+
+    const extracted = buildScoreProfileFromTenderText(rawText);
+    const profile =
+      extracted || resolveScoreProfile(mode === "government" ? "government" : "enterprise");
+
+    const result = computeTenderScore(
+      {
+        level: risk.level,
+        summary: risk.summary,
+        topRisks: risk.topRisks,
+        missingAttachments: risk.missingAttachments,
+      },
+      profile,
+      {
+        responseRows: [
+          ...technicalRows.map((r) => ({
+            ref: r.ref,
+            label: r.requirement,
+            section: "技术响应",
+            content: r.requirement,
+          })),
+          ...businessRows.map((r) => ({
+            ref: r.ref,
+            label: r.requirement,
+            section: "商务响应",
+            content: r.requirement,
+          })),
+        ],
+        attachmentIndex: DEFAULT_TENDER_ATTACHMENT_CODES.map((code) => ({
+          ref: code,
+          title: code,
+          content: code,
+        })),
+      }
+    );
+
+    const summary = buildBidDecisionSummary({
+      items: result.breakdown,
+      totalScore: result.totalScore,
+      totalMaxScore: result.totalMaxScore,
+      topRisks: risk.topRisks,
+      missingAttachments: risk.missingAttachments,
+    });
+    const decisionText = formatBidDecisionSummaryText(summary);
+    const gate = buildBidDecisionGate({ summary, forceAllow });
+    const gateText = formatBidDecisionGateText(gate);
+
+    return json(200, {
+      ok: true,
+      profileSource: extracted ? "tender-extracted" : "default",
+      parsedSummary: {
+        technicalCount: parsed.technicalRequirements.length,
+        businessCount: parsed.businessRequirements.length,
+        scoreCount: parsed.scoreCriteria.length,
+      },
+      risk,
+      scoreProfile: {
+        profileId: profile.profileId,
+        profileName: profile.profileName,
+      },
+      scoreResult: result,
+      summary,
+      decisionText,
+      gate,
+      gateText,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "预检查失败";
+    return json(500, {
+      ok: false,
+      code: "TENDER_PRECHECK_INTERNAL_ERROR",
+      message,
+    });
+  }
+}
+import { NextRequest, NextResponse } from "next/server";
+import { rowsFromParsedTenderText, computeTenderRiskFromRows, DEFAULT_TENDER_ATTACHMENT_CODES } from "@/lib/tender/computeTenderRisk";
+import { buildScoreProfileFromTenderText } from "@/lib/tender/scoreProfileFromTender";
+import { computeTenderScore, resolveScoreProfile } from "@/lib/tender/scoreEngine";
+import { buildBidDecisionSummary } from "@/lib/tender/score/buildBidDecisionSummary";
+import { buildBidDecisionGate } from "@/lib/tender/score/buildBidDecisionGate";
+import { formatBidDecisionGateText } from "@/lib/tender/score/formatBidDecisionGate";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function json(status: number, body: unknown) {
+  return NextResponse.json(body, { status });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => null);
+    const planId = String(body?.planId || "").trim();
+    const rawText = String(body?.rawText || "").trim();
+    const mode = String(body?.mode || "enterprise");
+
+    if (!planId) {
+      return json(400, {
+        ok: false,
+        code: "INVALID_PLAN_ID",
+        message: "缺少 planId",
+      });
+    }
+
+    if (!rawText) {
+      return json(400, {
+        ok: false,
+        code: "RAW_TEXT_REQUIRED",
+        message: "预检查需要招标文本 rawText",
+      });
+    }
+
+    const { technicalRows, businessRows } = rowsFromParsedTenderText(rawText);
+    const risk = computeTenderRiskFromRows({
+      technicalRows,
+      businessRows,
+      attachments: DEFAULT_TENDER_ATTACHMENT_CODES,
+    });
+
+    const extracted = buildScoreProfileFromTenderText(rawText);
+    const profile = extracted || resolveScoreProfile(mode);
+    const score = computeTenderScore(
+      {
+        level: risk.level,
+        summary: risk.summary,
+        topRisks: risk.topRisks,
+        missingAttachments: risk.missingAttachments,
+      },
+      profile,
+      {
+        responseRows: [
+          ...technicalRows.map((r) => ({
+            ref: r.ref,
+            label: r.requirement,
+            section: "技术响应",
+            content: r.requirement,
+          })),
+          ...businessRows.map((r) => ({
+            ref: r.ref,
+            label: r.requirement,
+            section: "商务响应",
+            content: r.requirement,
+          })),
+        ],
+        attachmentIndex: DEFAULT_TENDER_ATTACHMENT_CODES.map((code) => ({
+          ref: code,
+          title: code,
+        })),
+      }
+    );
+
+    const summary = buildBidDecisionSummary({
+      items: score.breakdown,
+      totalScore: score.totalScore,
+      totalMaxScore: score.totalMaxScore,
+      topRisks: risk.topRisks,
+      missingAttachments: risk.missingAttachments,
+    });
+    const gate = buildBidDecisionGate({
+      summary,
+      forceAllow: body?.forceAllow === true,
+      policy:
+        body?.gatePolicy && typeof body.gatePolicy === "object"
+          ? body.gatePolicy
+          : undefined,
+    });
+    const gateText = formatBidDecisionGateText(gate);
+
+    return json(200, {
+      ok: true,
+      planId,
+      profileSource: extracted ? "tender-extracted" : "default",
+      score,
+      summary,
+      gate,
+      gateText,
+    });
+  } catch (error: any) {
+    return json(500, {
+      ok: false,
+      code: "TENDER_PRECHECK_INTERNAL_ERROR",
+      message: error?.message || "预检查失败",
+    });
+  }
+}
+import { NextRequest, NextResponse } from "next/server";
+import { parseTenderLevel } from "@/lib/pdf/presets";
+import { rowsFromParsedTenderText, computeTenderRiskFromRows, DEFAULT_TENDER_ATTACHMENT_CODES } from "@/lib/tender/computeTenderRisk";
+import { buildScoreProfileFromTenderText } from "@/lib/tender/scoreProfileFromTender";
+import { computeTenderScore, resolveScoreProfile } from "@/lib/tender/scoreEngine";
+import { buildBidDecisionSummary } from "@/lib/tender/score/buildBidDecisionSummary";
+import { buildBidDecisionGate, type BidDecisionGateResult } from "@/lib/tender/score/buildBidDecisionGate";
+import { formatBidDecisionGateText } from "@/lib/tender/score/formatBidDecisionGate";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function json(status: number, body: unknown) {
+  return NextResponse.json(body, { status });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => null);
+    const planId = String(body?.planId || "").trim();
+    const rawText = String(body?.rawText || "").trim();
+    const level = parseTenderLevel(String(body?.level || "enterprise"));
+
+    if (!planId) {
+      return json(400, {
+        ok: false,
+        code: "INVALID_PLAN_ID",
+        message: "缺少 planId",
+      });
+    }
+
+    // 没有招标文本时给 warning（不拦截），避免阻断老流程
+    if (!rawText) {
+      const gate: BidDecisionGateResult = {
+        action: "warn",
+        passed: true,
+        decisionLevel: "cautious" as const,
+        decisionLabel: "谨慎投",
+        title: "可继续生成，但缺少预检查文本",
+        message: "未提供招标文本，无法完成完整评分诊断。建议先上传招标文件后再生成正式投标包。",
+        reasons: ["缺少招标文本，未执行完整风险评分预检查"],
+        suggestedNextSteps: ["上传招标文本后重新执行预检查", "优先补齐关键附件并核查高风险项"],
+        meta: {
+          highRiskCount: 0,
+          missingAttachmentCount: 0,
+          evidenceWeakCount: 0,
+          severeWeaknessCount: 0,
+          scoreRatio: 0,
+        },
+      };
+
+      return json(200, {
+        ok: true,
+        summary: null,
+        gate,
+        gateText: formatBidDecisionGateText(gate),
+      });
+    }
+
+    const { technicalRows, businessRows } = rowsFromParsedTenderText(rawText);
+    const risk = computeTenderRiskFromRows({
+      technicalRows,
+      businessRows,
+      attachments: DEFAULT_TENDER_ATTACHMENT_CODES,
+    });
+
+    const mode = level === "government" ? "government" : "enterprise";
+    const profile = buildScoreProfileFromTenderText(rawText) || resolveScoreProfile(mode);
+    const score = computeTenderScore(
+      {
+        level: risk.level,
+        summary: risk.summary,
+        topRisks: risk.topRisks,
+        missingAttachments: risk.missingAttachments,
+      },
+      profile,
+      {
+        responseRows: [
+          ...technicalRows.map((r) => ({
+            ref: r.ref,
+            label: r.requirement,
+            section: "技术响应",
+            content: r.requirement,
+          })),
+          ...businessRows.map((r) => ({
+            ref: r.ref,
+            label: r.requirement,
+            section: "商务响应",
+            content: r.requirement,
+          })),
+        ],
+        attachmentIndex: DEFAULT_TENDER_ATTACHMENT_CODES.map((code) => ({
+          ref: code,
+          title: code,
+          content: code,
+        })),
+      }
+    );
+
+    const summary = buildBidDecisionSummary({
+      items: score.breakdown,
+      totalScore: score.totalScore,
+      totalMaxScore: score.totalMaxScore,
+      topRisks: risk.topRisks,
+      missingAttachments: risk.missingAttachments,
+    });
+
+    const gate = buildBidDecisionGate({ summary });
+    const gateText = formatBidDecisionGateText(gate);
+
+    return json(200, {
+      ok: true,
+      summary,
+      gate,
+      gateText,
+    });
+  } catch (error: any) {
+    return json(500, {
+      ok: false,
+      code: "TENDER_PRECHECK_INTERNAL_ERROR",
+      message: error?.message || "预检查失败",
+    });
+  }
+}

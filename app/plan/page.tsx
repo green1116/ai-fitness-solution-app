@@ -61,7 +61,18 @@ export default function PlanPage() {
       }
 
       localStorage.setItem("attaguy_plan", JSON.stringify(plan));
-      router.push("/result");
+
+      const projectId = String(plan.planId || plan.plan_id || "").trim();
+      if (projectId) {
+        try {
+          localStorage.setItem("projectId", projectId);
+        } catch {
+          // ignore
+        }
+        router.push(`/result?projectId=${encodeURIComponent(projectId)}`);
+      } else {
+        router.push("/result");
+      }
     } catch (err: unknown) {
       console.error("Plan generation error:", err);
       const message = err instanceof Error ? err.message : "生成失败，请稍后重试";

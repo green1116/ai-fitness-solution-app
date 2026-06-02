@@ -1,5 +1,6 @@
 // lib/pdf/theme.ts
 import { rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { drawUnifiedFooter, footerTfSlug } from "@/lib/pdf/shared/documentChrome";
 
 export type PdfThemeName = "brand" | "tender";
 
@@ -30,9 +31,9 @@ export const THEMES: Record<PdfThemeName, PdfTheme> = {
       sub: rgb(0.45, 0.45, 0.45),
       line: rgb(0.86, 0.86, 0.86),
     },
-    fontSizes: { title: 16, h2: 11, body: 9.6, small: 8.2, footer: 8 },
+    fontSizes: { title: 16, h2: 11, body: 9.6, small: 8.2, footer: 9 },
     margin: { l: 40, r: 40, t: 44, b: 40 },
-    headerBlockH: 92,
+    headerBlockH: 96,
   },
   tender: {
     name: "tender",
@@ -41,9 +42,9 @@ export const THEMES: Record<PdfThemeName, PdfTheme> = {
       sub: rgb(0.40, 0.40, 0.40),
       line: rgb(0.82, 0.82, 0.82),
     },
-    fontSizes: { title: 16, h2: 11, body: 9.6, small: 8.2, footer: 8 },
+    fontSizes: { title: 16, h2: 11, body: 9.6, small: 8.2, footer: 9 },
     margin: { l: 42, r: 42, t: 46, b: 42 },
-    headerBlockH: 96,
+    headerBlockH: 100,
   },
 };
 
@@ -147,81 +148,32 @@ export function drawHeader(
   return bodyStartY - 18;
 }
 
-// 统一页脚：三段式对齐（左 投标人 | 中 REQSIG | 右 页码）+ 分割线
+/** 统一页脚入口 → drawUnifiedFooter（页码须在文档生成后由 restampDocumentChrome 回填） */
 export function drawFooter(
   page: PDFPage,
   theme: PdfTheme,
   font: PDFFont,
-  meta: { 
-    planId?: string; 
-    dateYmd?: string; 
-    pageNo: number; 
-    pageTotal: number; 
-    sig?: string; 
+  meta: {
+    planId?: string;
+    dateYmd?: string;
+    pageNo: number;
+    pageTotal: number;
+    sig?: string;
     fp?: string;
-    cover?: boolean; // 是否先盖白底（默认 true）
+    cover?: boolean;
   }
 ) {
-  const cover = meta.cover !== false;
-  const M = theme.margin;
-  const W = page.getWidth();
-  const footerY = 30;
-  const h = 18;
-
-  if (cover) {
-    page.drawRectangle({
-      x: 0,
-      y: footerY - 4,
-      width: W,
-      height: h,
-      color: rgb(1, 1, 1),
-      borderWidth: 0,
-    });
-  }
-
-  // 分割线
-  page.drawLine({
-    start: { x: 40, y: 45 },
-    end: { x: W - 40, y: 45 },
-    thickness: 0.5,
-    color: theme.colors.line,
-  });
-
-  const size = theme.fontSizes.footer;
-
-  // 左：投标人
-  page.drawText("投标人：AI Fitness Solution", {
-    x: M.l,
-    y: footerY,
-    size,
-    font,
-    color: theme.colors.sub,
-  });
-
-  // 中：REQSIG
-  if (meta.sig) {
-    const centerText = `REQSIG: ${meta.sig}`;
-    const cw = font.widthOfTextAtSize(centerText, size);
-    page.drawText(centerText, {
-      x: W / 2 - cw / 2,
-      y: footerY,
-      size,
-      font,
-      color: theme.colors.sub,
-    });
-  }
-
-  // 右：第 X 页 / 共 Y 页
-  const rightText = `第 ${meta.pageNo} 页 / 共 ${meta.pageTotal} 页`;
-  const rw = font.widthOfTextAtSize(rightText, size);
-  page.drawText(rightText, {
-    x: W - M.r - rw,
-    y: footerY,
-    size,
-    font,
-    color: theme.colors.sub,
+  drawUnifiedFooter(page, font, {
+    pageNo: meta.pageNo,
+    pageTotal: meta.pageTotal,
+    coverBand: meta.cover !== false,
+    footerTfRef: footerTfSlug(meta.planId),
+    footerSigLine: meta.sig ? `REQSIG: ${meta.sig}` : undefined,
+    marginL: theme.margin.l,
+    marginR: theme.margin.r,
   });
 }
+
 // ✅ Slim Header：用于 Plan22 golden 回放（不画右侧信息框，避免压内容）
 export const drawHeaderSlim = (
   page: PDFPage,
@@ -234,39 +186,28 @@ export const drawHeaderSlim = (
   const H = page.getHeight();
 
   // 顶部留很小的占位（不使用 headerBlockH 那么大）
-  const topY = H - M.t + 14; // 轻微上移，让它更贴顶
-  const lineY = topY - 14;
+  const topY = H - M.t;
 
-  // 左侧品牌
   page.drawText("AI Fitness Solution", {
     x: M.l,
     y: topY,
-    size: 10.5,
+    size: 10,
     font,
     color: theme.colors.sub,
   });
 
-  // 右侧一行 meta（可选，尽量短，避免压内容）
-  const rightBits: string[] = [];
-  if (meta?.companyName) rightBits.push(meta.companyName);
-  if (meta?.companySize != null) rightBits.push(`${meta.companySize}人`);
-  if (meta?.tierLabel) rightBits.push(String(meta.tierLabel).toUpperCase());
-  const right = rightBits.join(" · ");
-
-  if (right) {
-    const w = font.widthOfTextAtSize(right, 9);
+  if (meta?.planId) {
+    const right = `Plan: ${meta.planId}`;
+    const rw = font.widthOfTextAtSize(right, 8);
     page.drawText(right, {
-      x: W - M.r - w,
+      x: W - M.r - rw,
       y: topY,
-      size: 9,
+      size: 8,
       font,
       color: theme.colors.sub,
     });
   }
 
-  // 细分割线（统一风格）
-  drawHR(page, theme, lineY);
-
-  // 返回“建议正文起点”（Plan22 一般不会用它，但给你留着）
-  return lineY - 10;
+  drawHR(page, theme, topY - 18);
+  return topY - 36;
 };

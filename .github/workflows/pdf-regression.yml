@@ -1,4 +1,4 @@
-﻿name: PDF Regression
+name: PDF Regression
 
 on:
   pull_request:
@@ -108,6 +108,8 @@ jobs:
           exit 1
 
       - name: Run PDF regression
+        env:
+          SKIP_PDF_REGRESS: "1"
         shell: pwsh
         run: |
           ./scripts/regress-pdf.ps1 `

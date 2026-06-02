@@ -1,50 +1,75 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { createLicenseKey } from "@/lib/license";
+import { prisma } from "@/lib/prisma";
+import { hashLicenseKey } from "@/lib/license";
 
 export const runtime = "nodejs";
 
 function mustBeAdmin(req: Request) {
-  // 简单粗暴：用一个 Admin Key（先跑通再做后台页面）
-  const expected = process.env.ADMIN_API_KEY || "dev_admin_key";
+  const expected = process.env.INTERNAL_PACK_SECRET || "";
   const got = req.headers.get("x-admin-key") || "";
-  return got === expected;
+  return Boolean(expected) && got === expected;
 }
 
 export async function POST(req: Request) {
   if (!mustBeAdmin(req)) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "管理员鉴权失败" }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => ({}));
-  const planId = body?.planId ?? null;
-  const maxDownloads = Number(body?.maxDownloads ?? 1); // 默认一次性
-  const expiresInMinutes = Number(body?.expiresInMinutes ?? 60); // 默认 60 分钟
-  const requireLogin = Boolean(body?.requireLogin ?? false);
-  const note = body?.note ?? null;
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ ok: false, error: "请求体必须是 JSON 对象" }, { status: 400 });
+  }
 
-  const expiresAt = expiresInMinutes > 0 ? new Date(Date.now() + expiresInMinutes * 60_000) : null;
+  const planId = typeof body.planId === "string" && body.planId.trim() ? body.planId.trim() : null;
+  const planLevel =
+    typeof body.planLevel === "string" && body.planLevel.trim() ? body.planLevel.trim() : "pro";
+  const maxDownloadsRaw = body.maxDownloads ?? 0;
+  const maxDownloads = Number(maxDownloadsRaw);
+  const requireLogin = Boolean(body.requireLogin ?? false);
+  const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
 
-  const { licenseId, plainKey } = await createLicenseKey({
-    planId,
-    maxDownloads,
-    expiresAt,
-    requireLogin,
-    note,
-  });
+  if (!Number.isFinite(maxDownloads) || maxDownloads < 0) {
+    return NextResponse.json(
+      { ok: false, error: "maxDownloads 必须是大于等于 0 的数字" },
+      { status: 400 }
+    );
+  }
 
-  // 直接把销售链接也组装好
-  const origin = req.headers.get("origin") || req.headers.get("host") || "http://localhost:3000";
-  const base = origin.startsWith("http") ? origin : `http://${origin}`;
-  const url = new URL("/api/pdf", base);
-  if (planId) url.searchParams.set("planId", planId);
-  url.searchParams.set("mode", "full");
-  url.searchParams.set("licenseKey", plainKey);
+  let expiresAt: Date | null = null;
+  if (body.expiresAt !== undefined && body.expiresAt !== null && body.expiresAt !== "") {
+    const parsed = new Date(String(body.expiresAt));
+    if (Number.isNaN(parsed.getTime())) {
+      return NextResponse.json({ ok: false, error: "expiresAt 不是有效时间" }, { status: 400 });
+    }
+    expiresAt = parsed;
+  }
 
-  return NextResponse.json({
-    ok: true,
-    licenseId,
-    plainKey, // 只在创建时返回一次
-    downloadUrl: url.toString(),
-  });
+  try {
+    const rawKey = randomUUID();
+    const keyHash = hashLicenseKey(rawKey);
+    const license = await prisma.licenseKey.create({
+      data: {
+        keyHash,
+        planId,
+        planLevel,
+        maxDownloads: Math.floor(maxDownloads),
+        expiresAt,
+        requireLogin,
+        note,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      rawKey,
+      license,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: error instanceof Error ? error.message : "创建 License 失败" },
+      { status: 500 }
+    );
+  }
 }
 

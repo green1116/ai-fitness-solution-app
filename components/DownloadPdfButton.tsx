@@ -2,18 +2,20 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-type Mode = "full" | "preview" | "budget";
+type Mode = "full";
 
 type Props = {
   planId: string;
-  defaultMode?: Mode;
+  /** @deprecated 保留兼容，不再使用 */
+  defaultMode?: "full" | "preview" | "budget";
+  /** @deprecated 保留兼容，不再使用 */
   showBudgetButton?: boolean;
+  canDownloadNow?: boolean;
+  onResolveRiskBeforeDownload?: () => void;
 };
 
 const UNLOCK_STORAGE_KEY = "attaguy_unlockToken";
 const UNLOCK_PLAN_KEY = "attaguy_unlockPlanId";
-const UNLOCK_TENDER_KEY = "attaguy_unlockTender";
-const UNLOCK_TENDER_PLAN_KEY = "attaguy_unlockTenderPlanId";
 
 type TokenResp =
   | { ok: true; downloadToken: string; token?: string }
@@ -77,11 +79,6 @@ function buildPdfUrl(
   return u.toString();
 }
 
-/**
- * V6: 先申请 token 再下载
- * - preview: 无需 unlockToken
- * - full / budget: 需 unlockToken（留资后获得）
- */
 async function getDownloadToken(
   planId: string,
   mode: Mode,
@@ -92,7 +89,7 @@ async function getDownloadToken(
   u.searchParams.set("mode", mode);
   u.searchParams.set("variant", "sales");
 
-  if (mode !== "preview" && unlockToken) {
+  if (unlockToken) {
     u.searchParams.set("unlockToken", unlockToken);
   }
 
@@ -106,14 +103,18 @@ async function getDownloadToken(
 
   if (!res.ok) {
     const code = json?.code || `HTTP_${res.status}`;
-    const message = json?.message || rawText || res.statusText || "Request failed";
+    const message =
+      json?.message || rawText || res.statusText || "Request failed";
     const err = new Error(`${code}: ${message}`);
     // @ts-expect-error meta
     err.meta = { status: res.status, code, message, rawText, json };
     throw err;
   }
 
-  const data = (json ?? {}) as TokenResp & { downloadToken?: string; token?: string };
+  const data = (json ?? {}) as TokenResp & {
+    downloadToken?: string;
+    token?: string;
+  };
   const token = data?.downloadToken ?? data?.token;
   if (!data || (data as any).ok !== true || !token) {
     const code = (data as any)?.code || "BAD_TOKEN_RESPONSE";
@@ -137,9 +138,11 @@ function isValidEmail(email: string) {
 
 export default function DownloadPdfButton({
   planId,
-  defaultMode = "full",
-  showBudgetButton = true,
+  canDownloadNow = false,
+  onResolveRiskBeforeDownload,
 }: Props) {
+  const blocked = !canDownloadNow;
+
   const [loadingMode, setLoadingMode] = useState<Mode | null>(null);
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -154,104 +157,19 @@ export default function DownloadPdfButton({
 
   const canDownload = useMemo(() => Boolean(planId && planId.trim()), [planId]);
 
-  const handlePreviewDownload = useCallback(async () => {
+  const handleDownload = useCallback(async () => {
     if (!canDownload) {
-      alert("缺少 planId，暂时无法下载。");
+      console.warn("[DownloadPdfButton] 缺少 planId，暂时无法下载。");
       return;
     }
 
-    const mode: Mode = defaultMode === "budget" ? "budget" : "preview";
-
-    // V6: budget 需要解锁，preview 免费
-    if (mode === "budget") {
-      const stored = getStoredUnlockToken(planId);
-      if (!stored) {
-        setLeadMessage("下载预算版需要先解锁，请留下邮箱。");
-        setUnlockOpen(true);
-        return;
-      }
-    }
-
-    setLoadingMode(mode);
-
-    try {
-      const unlockTok = mode === "budget" ? getStoredUnlockToken(planId) : null;
-      const token = await getDownloadToken(planId, mode, unlockTok);
-      const pdfUrl = buildPdfUrl("/api/pdf", planId, mode, token);
-      triggerBrowserDownload(pdfUrl);
-    } catch (e: any) {
-      const meta = e?.meta || {};
-
-      if (
-        mode === "budget" &&
-        (meta.code === "DOWNLOAD_LOCKED" || meta.code === "UNLOCK_PLAN_MISMATCH")
-      ) {
-        setLeadMessage("解锁凭证已过期，请重新提交邮箱。");
-        setUnlockOpen(true);
-        return;
-      }
-
-      const status = meta.status ? `HTTP ${meta.status}` : "";
-      const code = meta.code || "";
-      const message = meta.message || e?.message || "下载失败";
-      alert([status, code, message].filter(Boolean).join(" - "));
-    } finally {
-      setLoadingMode(null);
-    }
-  }, [canDownload, defaultMode, planId]);
-
-  const handleBudgetPreview = useCallback(async () => {
-    if (!canDownload) {
-      alert("缺少 planId，暂时无法下载。");
-      return;
-    }
-
-    const stored = getStoredUnlockToken(planId);
-    if (!stored) {
-      setLeadMessage("");
-      setUnlockOpen(true);
-      setLeadMessage("下载预算完整版需要先解锁，请留下邮箱。");
-      return;
-    }
-
-    setLoadingMode("budget");
-
-    try {
-      const token = await getDownloadToken(planId, "budget", stored);
-      const pdfUrl = buildPdfUrl("/api/pdf", planId, "budget", token);
-      triggerBrowserDownload(pdfUrl);
-    } catch (e: any) {
-      const meta = e?.meta || {};
-      console.error("[DownloadPdfButton] budget download failed:", e, meta);
-
-      if (meta.code === "DOWNLOAD_LOCKED" || meta.code === "UNLOCK_PLAN_MISMATCH") {
-        setUnlockOpen(true);
-        setLeadMessage("解锁凭证已过期，请重新提交邮箱。");
-        return;
-      }
-
-      const status = meta.status ? `HTTP ${meta.status}` : "";
-      const code = meta.code || "";
-      const message = meta.message || e?.message || "Unknown error";
-      alert([status, code, message].filter(Boolean).join(" - "));
-    } finally {
-      setLoadingMode(null);
-    }
-  }, [canDownload, planId]);
-
-  const handleUnlockPro = useCallback(() => {
-    setLeadMessage("");
-    setUnlockOpen(true);
-  }, []);
-
-  const handleFullDownload = useCallback(async () => {
-    if (!canDownload) return;
     const stored = getStoredUnlockToken(planId);
     if (!stored) {
       setUnlockOpen(true);
       setLeadMessage("需要先解锁才能下载完整版。");
       return;
     }
+
     setLoadingMode("full");
     try {
       const token = await getDownloadToken(planId, "full", stored);
@@ -264,7 +182,11 @@ export default function DownloadPdfButton({
         setLeadMessage("解锁凭证已过期，请重新提交邮箱。");
         return;
       }
-      alert(meta.message || e?.message || "下载失败");
+      console.error(
+        "[DownloadPdfButton] full download failed",
+        meta.message || e?.message || "下载失败",
+        e
+      );
     } finally {
       setLoadingMode(null);
     }
@@ -311,6 +233,10 @@ export default function DownloadPdfButton({
 
       const downloadUrl = String(data?.downloadUrl || "").trim();
       if (downloadUrl) {
+        if (blocked) {
+          onResolveRiskBeforeDownload?.();
+          return;
+        }
         setLeadMessage("已提交，正在开始下载...");
         triggerBrowserDownload(
           new URL(downloadUrl, window.location.origin).toString()
@@ -324,55 +250,42 @@ export default function DownloadPdfButton({
     } finally {
       setSubmittingLead(false);
     }
-  }, [email, planId]);
+  }, [blocked, email, onResolveRiskBeforeDownload, planId]);
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <button
-          type="button"
-          className="inline-flex items-center justify-center rounded-xl border border-white/20 px-4 py-3 text-sm text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!canDownload || loadingMode !== null}
-          onClick={handlePreviewDownload}
-        >
-          {loadingMode === "preview"
-            ? "正在生成预览..."
-            : defaultMode === "budget"
-              ? "下载预算预览版"
-              : "下载预览版"}
-        </button>
+      <button
+        type="button"
+        onClick={() => {
+          if (blocked) {
+            onResolveRiskBeforeDownload?.();
+            return;
+          }
 
-        <button
-          type="button"
-          className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!canDownload || loadingMode !== null}
-          onClick={unlocked ? handleFullDownload : handleUnlockPro}
-        >
-          {unlocked
-            ? loadingMode === "full"
-              ? "正在生成..."
-              : "下载完整方案"
-            : "获取完整版方案"}
-        </button>
+          if (!unlocked) {
+            setLeadMessage("");
+            setUnlockOpen(true);
+            return;
+          }
 
-        {showBudgetButton && defaultMode !== "budget" && (
-          <button
-            type="button"
-            className="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-black transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!canDownload || loadingMode !== null}
-            onClick={handleBudgetPreview}
-          >
-            {loadingMode === "budget"
-              ? "正在生成预算..."
-              : unlocked
-                ? "下载预算完整版"
-                : "下载预算完整版"}
-          </button>
-        )}
-      </div>
+          void handleDownload();
+        }}
+        disabled={!canDownload || loadingMode !== null}
+        className={`inline-flex w-full items-center justify-center rounded-xl px-5 py-4 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+          blocked
+            ? "bg-amber-500 text-black hover:bg-amber-400"
+            : "bg-white text-black hover:bg-white/90"
+        }`}
+      >
+        {loadingMode === "full"
+          ? "正在生成..."
+          : blocked
+            ? "先处理风险后下载 PDF"
+            : "下载 PDF"}
+      </button>
 
       <p className="text-xs leading-5 text-white/65">
-        预览版用于快速查看核心内容。完整版需要先解锁（留资），提供完整方案、完整预算信息。
+        完整版需先解锁（留资）。解锁后可下载 PDF。
       </p>
 
       {unlockOpen && (
@@ -381,7 +294,7 @@ export default function DownloadPdfButton({
             解锁 Pro 完整版
           </div>
           <div className="mb-3 text-sm text-zinc-300">
-            留下邮箱后将立即生成可下载的 Pro 版本，同时用于后续商务沟通。解锁后可下载完整方案和预算版。
+            留下邮箱后将立即生成可下载的 Pro 版本，同时用于后续商务沟通。
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">

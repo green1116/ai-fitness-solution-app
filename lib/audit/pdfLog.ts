@@ -1,74 +1,77 @@
-// lib/audit/pdfLog.ts
 import { prisma } from "@/lib/prisma";
 
-/** 兼容：传 Headers 或 NextRequest */
-function asHeaders(x: any): Headers | null {
-  if (!x) return null;
-  if (typeof x.get === "function") return x as Headers; // already Headers
-  if (x.headers && typeof x.headers.get === "function") return x.headers as Headers; // NextRequest
-  return null;
-}
-
-/** ✅ 供 route.ts 调用：getReqIp(reqOrHeaders) */
-export function getReqIp(reqOrHeaders: any): string | null {
-  const h = asHeaders(reqOrHeaders);
-  if (!h) return null;
-
-  const xf = h.get("x-forwarded-for");
-  if (xf) return xf.split(",")[0].trim();
-
-  return (
-    h.get("x-real-ip") ||
-    h.get("cf-connecting-ip") ||
-    h.get("x-client-ip") ||
-    null
-  );
-}
-
-/** ✅ 供 route.ts 调用：getReqUa(reqOrHeaders) */
-export function getReqUa(reqOrHeaders: any): string | null {
-  const h = asHeaders(reqOrHeaders);
-  if (!h) return null;
-  return h.get("user-agent") || null;
-}
-
-export type PdfLogInput = {
+type PdfDownloadLogInput = {
   planId: string;
-
-  route?: string | null;
-  method?: string | null;
-
+  ok: boolean;
+  route: string;
+  method: string;
   mode?: string | null;
   level?: string | null;
   format?: string | null;
   theme?: string | null;
-
   pdfVersion?: string | null;
   planVersion?: string | null;
   budgetVersion?: string | null;
-
   reqsig?: string | null;
   docSeq?: string | null;
-
   pages?: number | null;
   bytes?: number | null;
-
   ip?: string | null;
   ua?: string | null;
-
-  ok?: boolean; // 不传默认 true
   reason?: string | null;
   extra?: any;
 };
 
-export async function logPdfDownloadSafe(data: PdfLogInput) {
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timeout after ${ms}ms`));
+    }, ms);
+
+    promise
+      .then((v) => {
+        clearTimeout(timer);
+        resolve(v);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
+
+export function getReqIp(req: Request) {
+  const forwardedFor =
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("X-Forwarded-For") ||
+    "";
+
+  if (forwardedFor) {
+    const firstIp = forwardedFor.split(",")[0]?.trim();
+    if (firstIp) return firstIp;
+  }
+
+  const realIp =
+    req.headers.get("x-real-ip") ||
+    req.headers.get("X-Real-IP") ||
+    "";
+
+  if (realIp) return realIp.trim();
+
+  return "::1";
+}
+
+export async function logPdfDownloadSafe(data: PdfDownloadLogInput) {
   try {
-    // ✅ schema-safe：仅传 schema 存在的字段，ok 必填防 P2011
     const payload = {
       planId: data.planId,
-      ok: typeof data.ok === "boolean" ? data.ok : true,
-      route: (data.route ?? "/api/pdf").toString().trim() || "/api/pdf",
-      method: (data.method ?? "GET").toString().trim() || "GET",
+      ok: data.ok,
+      route: data.route,
+      method: data.method,
       mode: data.mode ?? null,
       level: data.level ?? null,
       format: data.format ?? null,
@@ -85,7 +88,12 @@ export async function logPdfDownloadSafe(data: PdfLogInput) {
       reason: data.reason ?? null,
       extra: data.extra ?? null,
     };
-    await prisma.pdfDownloadLog.create({ data: payload });
+
+    await withTimeout(
+      prisma.pdfDownloadLog.create({ data: payload }),
+      1500,
+      "pdfDownloadLog.create"
+    );
   } catch (e) {
     console.warn("[PdfDownloadLog] write failed:", e);
   }

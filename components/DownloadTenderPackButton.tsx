@@ -30,11 +30,24 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+type DownloadTenderPackButtonProps = {
+  planId: string;
+  /** 仅 `false` 中止下载；`true` / `undefined` 均继续 */
+  beforeDownload?: () =>
+    | boolean
+    | undefined
+    | Promise<boolean | undefined>;
+  /** 为 false 且提供 onResolveRiskBeforeDownload 时，先引导处理风险再下载 */
+  canDownloadNow?: boolean;
+  onResolveRiskBeforeDownload?: () => void;
+};
+
 export default function DownloadTenderPackButton({
   planId,
-}: {
-  planId: string;
-}) {
+  beforeDownload,
+  canDownloadNow = true,
+  onResolveRiskBeforeDownload,
+}: DownloadTenderPackButtonProps) {
   const [loading, setLoading] = useState(false);
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -43,6 +56,18 @@ export default function DownloadTenderPackButton({
 
   const handleDownload = useCallback(async () => {
     if (!planId || loading) return;
+
+    if (!canDownloadNow && onResolveRiskBeforeDownload) {
+      onResolveRiskBeforeDownload();
+      return;
+    }
+
+    if (beforeDownload) {
+      const ok = await beforeDownload();
+      if (ok === false) {
+        return;
+      }
+    }
 
     const unlockToken = getStoredTenderUnlockToken(planId);
     if (!unlockToken) {
@@ -117,12 +142,18 @@ export default function DownloadTenderPackButton({
 
       window.location.href = url.toString();
     } catch (err: any) {
-      console.error("DOWNLOAD_TENDER_PACK_FAILED", err);
-      alert(err?.message || "获取企业招标版下载凭证失败");
+      const msg = err?.message || "获取企业招标版下载凭证失败";
+      console.error("DOWNLOAD_TENDER_PACK_FAILED", msg, err);
     } finally {
       setLoading(false);
     }
-  }, [planId, loading]);
+  }, [
+    beforeDownload,
+    canDownloadNow,
+    loading,
+    onResolveRiskBeforeDownload,
+    planId,
+  ]);
 
   const submitLead = useCallback(async () => {
     const v = email.trim().toLowerCase();
@@ -164,6 +195,16 @@ export default function DownloadTenderPackButton({
 
       const downloadUrl = String(data?.downloadUrl || "").trim();
       if (downloadUrl) {
+        if (!canDownloadNow && onResolveRiskBeforeDownload) {
+          onResolveRiskBeforeDownload();
+          return;
+        }
+        if (beforeDownload) {
+          const ok = await beforeDownload();
+          if (ok === false) {
+            return;
+          }
+        }
         setMessage("已提交，正在开始下载...");
         window.location.href = new URL(
           downloadUrl,
@@ -179,7 +220,13 @@ export default function DownloadTenderPackButton({
     } finally {
       setSubmitting(false);
     }
-  }, [email, planId]);
+  }, [
+    beforeDownload,
+    canDownloadNow,
+    email,
+    onResolveRiskBeforeDownload,
+    planId,
+  ]);
 
   return (
     <div className="space-y-3">

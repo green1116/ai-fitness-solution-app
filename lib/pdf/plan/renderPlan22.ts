@@ -139,9 +139,10 @@ function deriveTier(budgetRange: string): "low" | "mid" | "high" {
 
 export async function renderPlan22PdfBytes(
   planId: string,
-  opts?: { variant?: PdfVariant }
+  opts?: { variant?: PdfVariant; internalPack?: boolean }
 ): Promise<Uint8Array> {
   const variant: PdfVariant = opts?.variant || "sales";
+  const internalPack = opts?.internalPack === true;
   const flags = getSectionFlags(variant);
   const p = resolveGoldenPath(planId);
   const buf = await fs.readFile(p);
@@ -358,15 +359,17 @@ export async function renderPlan22PdfBytes(
       borderWidth: 0,
     });
 
-    // ✅ 统一页脚（使用 theme.ts）
-    drawFooter(p, theme, font, {
-      planId,
-      dateYmd: ymd,
-      pageNo: i + 1,
-      pageTotal,
-      sig: reqSig?.slice(0, 12),
-      fp: planEngineFP,
-    });
+    // Internal pack output is re-paginated later, so skip standalone footer.
+    if (!internalPack) {
+      drawFooter(p, theme, font, {
+        planId,
+        dateYmd: ymd,
+        pageNo: i + 1,
+        pageTotal,
+        sig: reqSig?.slice(0, 12),
+        fp: planEngineFP,
+      });
+    }
 
     if (flags.showToc && i === TOC_PAGE_INDEX) {
       const contentW = layout.width - layout.left - layout.right;
@@ -587,14 +590,16 @@ export async function renderPlan22PdfBytes(
 
   for (let i = pageTotal; i < newPageTotal; i++) {
     const p = allPages[i];
-    drawFooter(p, theme, font, {
-      planId,
-      dateYmd: ymd,
-      pageNo: i + 1,
-      pageTotal: newPageTotal,
-      sig: reqSig?.slice(0, 12),
-      fp: planEngineFP,
-    });
+    if (!internalPack) {
+      drawFooter(p, theme, font, {
+        planId,
+        dateYmd: ymd,
+        pageNo: i + 1,
+        pageTotal: newPageTotal,
+        sig: reqSig?.slice(0, 12),
+        fp: planEngineFP,
+      });
+    }
   }
 
   const modifiedBytes = await doc.save();
