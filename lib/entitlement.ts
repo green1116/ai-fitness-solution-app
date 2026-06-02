@@ -133,6 +133,55 @@ function licenseMatchesPlan(licPlanId: string | null, planId: string): boolean {
   return !licPlanId || licPlanId === planId;
 }
 
+function isDatabaseConnectivityError(error: unknown): boolean {
+  if (!error) return false;
+
+  const message =
+    error instanceof Error ? error.message : String(error ?? "");
+  const name = error instanceof Error ? error.name : "";
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+
+  return (
+    /Can't reach database server/i.test(message) ||
+    /P1001/i.test(message) ||
+    /ENOTFOUND/i.test(message) ||
+    /tenant\/user/i.test(message) ||
+    /PrismaClientInitializationError/i.test(name) ||
+    /P1001/i.test(code) ||
+    /ENOTFOUND/i.test(code)
+  );
+}
+
+function buildDevelopmentFallbackResult(
+  planId: string,
+): { entitlement: PlanEntitlementSnapshot; debug: EntitlementDebug } {
+  const fallbackLevel: EntitlementLevel = "enterprise";
+  const entitlement = snapshotFromLevel(fallbackLevel, planId);
+
+  const debug: EntitlementDebug = {
+    planId,
+    allOrders: [],
+    paidOrders: [],
+    orderWinner: null,
+    licenseWinner: null,
+    orderRank: 0,
+    licenseRank: 0,
+    finalRank: levelRank(fallbackLevel),
+    finalLevel: fallbackLevel,
+    winningSource: "none",
+    licenseCandidates: [],
+    priorityExplanation:
+      "DEV FALLBACK: database unavailable; local development is forced to enterprise so download/PDF flow can be validated.",
+    sourcesDisagree: false,
+    policyVersion: "v1-max-order-license",
+  };
+
+  return { entitlement, debug };
+}
+
 async function collectLicenseCandidates(params: {
   planId: string;
   userId: string | null;
@@ -215,6 +264,7 @@ async function collectLicenseCandidates(params: {
           createdAt: true,
         },
       });
+
       if (
         lic &&
         isLicenseValid(lic.expiresAt) &&
@@ -245,6 +295,7 @@ function maxLicenseRank(candidates: LicenseCandidate[]): {
   winner: LicenseCandidate | null;
 } {
   let winner: LicenseCandidate | null = null;
+
   for (const c of candidates) {
     if (!winner) {
       winner = c;
@@ -252,11 +303,13 @@ function maxLicenseRank(candidates: LicenseCandidate[]): {
     }
     const rc = levelRank(c.level);
     const rb = levelRank(winner.level);
+
     if (rc > rb) winner = c;
     else if (rc === rb && rc > 0 && c.createdAt.getTime() > winner.createdAt.getTime()) {
       winner = c;
     }
   }
+
   const rank = winner ? levelRank(winner.level) : 0;
   return { rank, winner };
 }
@@ -275,151 +328,171 @@ export async function getEntitlement(
   const userId = ctx.userId ?? null;
   const headerLicenseKey = (ctx.headerLicenseKey ?? "").trim();
 
-  const allOrders = await prisma.upgradeOrder.findMany({
-    where: { planId: pid },
-    select: {
-      id: true,
-      status: true,
-      targetLevel: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  try {
+    const allOrders: Array<{
+      id: string;
+      status: string;
+      targetLevel: string;
+      createdAt: Date;
+    }> = await prisma.upgradeOrder.findMany({
+      where: { planId: pid },
+      select: {
+        id: true,
+        status: true,
+        targetLevel: true,
+        createdAt: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
 
-  const paidOrders = allOrders.filter((o) => isPaidOrderStatus(o.status));
+    const paidOrders = allOrders.filter((o) => isPaidOrderStatus(o.status));
 
-  let orderRank = 0;
-  let orderWinner: (typeof paidOrders)[0] | null = null;
-  for (const o of paidOrders) {
-    const r = levelRank(normalizeLevel(o.targetLevel));
-    if (r > orderRank) {
-      orderRank = r;
-      orderWinner = o;
+    let orderRank = 0;
+    let orderWinner: (typeof paidOrders)[0] | null = null;
+    for (const o of paidOrders) {
+      const r = levelRank(normalizeLevel(o.targetLevel));
+      if (r > orderRank) {
+        orderRank = r;
+        orderWinner = o;
+      }
     }
-  }
 
-  const licenseCandidates = await collectLicenseCandidates({
-    planId: pid,
-    userId,
-    headerLicenseKey,
-  });
-
-  const { rank: licenseRank, winner: licenseWinner } =
-    maxLicenseRank(licenseCandidates);
-
-  const finalRank = Math.max(orderRank, licenseRank);
-  const finalLevel = rankToLevel(finalRank);
-
-  const orderWinnerLevel = orderWinner
-    ? normalizeLevel(orderWinner.targetLevel)
-    : ("free" as EntitlementLevel);
-  const licenseWinnerLevel = licenseWinner?.level ?? ("free" as EntitlementLevel);
-  const sourcesDisagree =
-    orderWinner != null &&
-    licenseWinner != null &&
-    orderWinnerLevel !== licenseWinnerLevel;
-
-  let winningSource: EntitlementDebug["winningSource"] = "none";
-  if (finalRank > 0) {
-    if (orderRank > licenseRank) winningSource = "upgrade-order";
-    else if (licenseRank > orderRank) winningSource = "license";
-    else winningSource = orderRank > 0 ? "upgrade-order" : "license";
-  }
-
-  const entitlement = snapshotFromLevel(finalLevel, pid);
-
-  const priorityExplanation =
-    "L1=paid UpgradeOrder.targetLevel(max rank for planId); L2=max LicenseKey(plan-scope|binding|header-hash) non-free; final=max(L1,L2); tie prefers L1 in winningSource; X-Mode/X-Paid ignored.";
-
-  const debug: EntitlementDebug = {
-    planId: pid,
-    allOrders: allOrders.map((o) => ({
-      id: o.id,
-      status: o.status,
-      targetLevel: o.targetLevel,
-      createdAt: o.createdAt.toISOString(),
-    })),
-    paidOrders: paidOrders.map((o) => ({
-      id: o.id,
-      status: o.status,
-      targetLevel: o.targetLevel,
-      createdAt: o.createdAt.toISOString(),
-    })),
-    orderWinner: orderWinner
-      ? {
-          id: orderWinner.id,
-          status: orderWinner.status,
-          targetLevel: orderWinner.targetLevel,
-        }
-      : null,
-    licenseWinner: licenseWinner
-      ? {
-          id: licenseWinner.id,
-          source: licenseWinner.source,
-          level: licenseWinner.level,
-          rawPlanLevel: licenseWinner.rawPlanLevel,
-        }
-      : null,
-    orderRank,
-    licenseRank,
-    finalRank,
-    finalLevel,
-    winningSource,
-    licenseCandidates,
-    priorityExplanation,
-    sourcesDisagree,
-    policyVersion: "v1-max-order-license",
-  };
-
-  if (sourcesDisagree) {
-    console.warn("[getEntitlement] L1/L2 档位不一致，已按 max 合成 effective", {
+    const licenseCandidates = await collectLicenseCandidates({
       planId: pid,
-      orderWinnerLevel,
-      licenseWinnerLevel,
-      finalLevel,
-      winningSource,
-    });
-  }
-
-  const verboseEntLog =
-    process.env.ENTITLEMENT_DEBUG_LOG === "1" ||
-    process.env.NODE_ENV !== "production";
-
-  if (verboseEntLog) {
-    console.log("[DEBUG][getEntitlement][ORDERS]", {
-      planId: pid,
-      totalOrders: allOrders.length,
-      paidCount: paidOrders.length,
-      paidOrders: debug.paidOrders,
-      orderRank,
-      orderWinnerId: orderWinner?.id ?? null,
+      userId,
+      headerLicenseKey,
     });
 
-    console.log("[DEBUG][getEntitlement][LICENSES]", {
+    const { rank: licenseRank, winner: licenseWinner } =
+      maxLicenseRank(licenseCandidates);
+
+    const finalRank = Math.max(orderRank, licenseRank);
+    const finalLevel = rankToLevel(finalRank);
+
+    const orderWinnerLevel = orderWinner
+      ? normalizeLevel(orderWinner.targetLevel)
+      : ("free" as EntitlementLevel);
+    const licenseWinnerLevel = licenseWinner?.level ?? ("free" as EntitlementLevel);
+    const sourcesDisagree =
+      orderWinner != null &&
+      licenseWinner != null &&
+      orderWinnerLevel !== licenseWinnerLevel;
+
+    let winningSource: EntitlementDebug["winningSource"] = "none";
+    if (finalRank > 0) {
+      if (orderRank > licenseRank) winningSource = "upgrade-order";
+      else if (licenseRank > orderRank) winningSource = "license";
+      else winningSource = orderRank > 0 ? "upgrade-order" : "license";
+    }
+
+    const entitlement = snapshotFromLevel(finalLevel, pid);
+
+    const priorityExplanation =
+      "L1=paid UpgradeOrder.targetLevel(max rank for planId); L2=max LicenseKey(plan-scope|binding|header-hash) non-free; final=max(L1,L2); tie prefers L1 in winningSource; X-Mode/X-Paid ignored.";
+
+    const debug: EntitlementDebug = {
       planId: pid,
-      count: licenseCandidates.length,
-      rows: licenseCandidates.map((c) => ({
-        id: c.id,
-        source: c.source,
-        level: c.level,
-        raw: c.rawPlanLevel,
+      allOrders: allOrders.map((o) => ({
+        id: o.id,
+        status: o.status,
+        targetLevel: o.targetLevel,
+        createdAt: o.createdAt.toISOString(),
       })),
+      paidOrders: paidOrders.map((o) => ({
+        id: o.id,
+        status: o.status,
+        targetLevel: o.targetLevel,
+        createdAt: o.createdAt.toISOString(),
+      })),
+      orderWinner: orderWinner
+        ? {
+            id: orderWinner.id,
+            status: orderWinner.status,
+            targetLevel: orderWinner.targetLevel,
+          }
+        : null,
+      licenseWinner: licenseWinner
+        ? {
+            id: licenseWinner.id,
+            source: licenseWinner.source,
+            level: licenseWinner.level,
+            rawPlanLevel: licenseWinner.rawPlanLevel,
+          }
+        : null,
+      orderRank,
       licenseRank,
-      licenseWinnerId: licenseWinner?.id ?? null,
-    });
-
-    console.log("[DEBUG][getEntitlement][FINAL]", {
-      planId: pid,
-      finalLevel,
       finalRank,
+      finalLevel,
       winningSource,
+      licenseCandidates,
+      priorityExplanation,
       sourcesDisagree,
-      policyVersion: debug.policyVersion,
-      zipEnabled: entitlement.zipEnabled,
-      budgetEnabled: entitlement.budgetEnabled,
-      enterpriseEnabled: entitlement.enterpriseEnabled,
-    });
-  }
+      policyVersion: "v1-max-order-license",
+    };
 
-  return { entitlement, debug };
+    if (sourcesDisagree) {
+      console.warn("[getEntitlement] L1/L2 档位不一致，已按 max 合成 effective", {
+        planId: pid,
+        orderWinnerLevel,
+        licenseWinnerLevel,
+        finalLevel,
+        winningSource,
+      });
+    }
+
+    const verboseEntLog =
+      process.env.ENTITLEMENT_DEBUG_LOG === "1" ||
+      process.env.NODE_ENV !== "production";
+
+    if (verboseEntLog) {
+      console.log("[DEBUG][getEntitlement][ORDERS]", {
+        planId: pid,
+        totalOrders: allOrders.length,
+        paidCount: paidOrders.length,
+        paidOrders: debug.paidOrders,
+        orderRank,
+        orderWinnerId: orderWinner?.id ?? null,
+      });
+
+      console.log("[DEBUG][getEntitlement][LICENSES]", {
+        planId: pid,
+        count: licenseCandidates.length,
+        rows: licenseCandidates.map((c) => ({
+          id: c.id,
+          source: c.source,
+          level: c.level,
+          raw: c.rawPlanLevel,
+        })),
+        licenseRank,
+        licenseWinnerId: licenseWinner?.id ?? null,
+      });
+
+      console.log("[DEBUG][getEntitlement][FINAL]", {
+        planId: pid,
+        finalLevel,
+        finalRank,
+        winningSource,
+        sourcesDisagree,
+        policyVersion: debug.policyVersion,
+        zipEnabled: entitlement.zipEnabled,
+        budgetEnabled: entitlement.budgetEnabled,
+        enterpriseEnabled: entitlement.enterpriseEnabled,
+      });
+    }
+
+    return { entitlement, debug };
+  } catch (error) {
+    console.warn(
+      "[ENTITLEMENT DEV FALLBACK]",
+      error instanceof Error ? error.message : error,
+    );
+
+    if (process.env.NODE_ENV === "development" && isDatabaseConnectivityError(error)) {
+      return buildDevelopmentFallbackResult(pid);
+    }
+
+    throw error;
+  }
 }

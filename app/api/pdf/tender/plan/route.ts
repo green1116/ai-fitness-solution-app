@@ -8,6 +8,10 @@ import {
   isAccessEnabled,
   resolveRequestEntitlement,
 } from "@/lib/entitlements/resolveEntitlement";
+import {
+  createDevProjectFallback,
+  isDatabaseConnectivityError,
+} from "@/lib/pdf/devFallback";
 import { prisma } from "@/lib/prisma";
 import { renderPlanPdf } from "@/lib/pdf/renderPlanPdf";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
@@ -50,10 +54,16 @@ function projectInputFromRow(p: {
  */
 async function ensureDevSolutionIfMissing(projectId: string): Promise<void> {
   if (process.env.NODE_ENV === "production") return;
-  const row = await prisma.project.findUnique({
-    where: { id: projectId },
-    include: { solution: true },
-  });
+  let row;
+  try {
+    row = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: { solution: true },
+    });
+  } catch (error) {
+    if (isDatabaseConnectivityError(error)) return;
+    throw error;
+  }
   if (!row || row.solution) return;
   const input = projectInputFromRow(row);
   const solutionData = generateSolution(input);
@@ -129,10 +139,22 @@ export async function POST(req: Request) {
       );
     }
 
-    let project = await prisma.project.findUnique({
-      where: { id: pid },
-      include: projectInclude,
-    });
+    let project;
+    try {
+      project = await prisma.project.findUnique({
+        where: { id: pid },
+        include: projectInclude,
+      });
+    } catch (error) {
+      if (
+        process.env.NODE_ENV === "production" ||
+        !isDatabaseConnectivityError(error)
+      ) {
+        throw error;
+      }
+      console.warn("[tender-plan] DEV DB fallback (findUnique)", error);
+      project = createDevProjectFallback(pid);
+    }
 
     if (!project) {
       const isDev = process.env.NODE_ENV !== "production";
@@ -164,23 +186,42 @@ export async function POST(req: Request) {
           },
           include: projectInclude,
         });
-      } catch {
-        return NextResponse.json(
-          {
-            error: "PROJECT_NOT_FOUND",
-            message: "当前 projectId 无效，请从生成流程进入",
-          },
-          { status: 404 },
-        );
+      } catch (upsertError) {
+        if (isDatabaseConnectivityError(upsertError)) {
+          console.warn("[tender-plan] DEV DB fallback (upsert)", upsertError);
+          project = createDevProjectFallback(pid);
+        } else {
+          return NextResponse.json(
+            {
+              error: "PROJECT_NOT_FOUND",
+              message: "当前 projectId 无效，请从生成流程进入",
+            },
+            { status: 404 },
+          );
+        }
       }
     }
 
-    await ensureDevSolutionIfMissing(pid);
+    if (!project.solution) {
+      await ensureDevSolutionIfMissing(pid);
 
-    project = await prisma.project.findUnique({
-      where: { id: pid },
-      include: projectInclude,
-    });
+      try {
+        project = await prisma.project.findUnique({
+          where: { id: pid },
+          include: projectInclude,
+        });
+      } catch (reloadError) {
+        if (
+          process.env.NODE_ENV !== "production" &&
+          isDatabaseConnectivityError(reloadError)
+        ) {
+          console.warn("[tender-plan] DEV DB fallback (reload)", reloadError);
+          project = createDevProjectFallback(pid);
+        } else {
+          throw reloadError;
+        }
+      }
+    }
 
     if (!project?.solution) {
       return NextResponse.json(

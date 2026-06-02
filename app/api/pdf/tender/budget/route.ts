@@ -5,6 +5,10 @@ import {
   isAccessEnabled,
   resolveRequestEntitlement,
 } from "@/lib/entitlements/resolveEntitlement";
+import {
+  devProjectFallbackBudgetSelect,
+  isDatabaseConnectivityError,
+} from "@/lib/pdf/devFallback";
 import { prisma } from "@/lib/prisma";
 import { renderBudgetPdf } from "@/lib/pdf/renderBudgetPdf";
 
@@ -88,18 +92,32 @@ export async function POST(req: Request) {
       );
     }
 
+    const projectSelect = {
+      id: true,
+      name: true,
+      clientName: true,
+      budgetLevel: true,
+      areaM2: true,
+      targetUsers: true,
+    } as const;
+
     /** —— 数据：先查 Project；缺失时 dev 下落 mock，prod 下给清晰错误文案 —— */
-    let project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: {
-        id: true,
-        name: true,
-        clientName: true,
-        budgetLevel: true,
-        areaM2: true,
-        targetUsers: true,
-      },
-    });
+    let project;
+    try {
+      project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: projectSelect,
+      });
+    } catch (error) {
+      if (
+        process.env.NODE_ENV === "production" ||
+        !isDatabaseConnectivityError(error)
+      ) {
+        throw error;
+      }
+      console.warn("[tender-budget] DEV DB fallback (findUnique)", error);
+      project = devProjectFallbackBudgetSelect(projectId);
+    }
 
     console.log("[DEBUG][BUDGET][PROJECT]", project);
 
@@ -134,34 +152,46 @@ export async function POST(req: Request) {
             areaM2: 120,
             targetUsers: 200,
           },
-          select: {
-            id: true,
-            name: true,
-            clientName: true,
-            budgetLevel: true,
-            areaM2: true,
-            targetUsers: true,
-          },
+          select: projectSelect,
         });
         console.log("[DEBUG][BUDGET][PROJECT_MOCKED]", project);
       } catch (e) {
-        console.warn("[DEBUG][BUDGET][PROJECT_MOCK_FAILED]", {
-          error: e instanceof Error ? e.message : String(e),
-        });
-        return NextResponse.json(
-          {
-            error: "PROJECT_NOT_FOUND",
-            message: "当前 projectId 无效，请从生成流程进入",
-          },
-          { status: 404 },
-        );
+        if (isDatabaseConnectivityError(e)) {
+          console.warn("[tender-budget] DEV DB fallback (upsert)", e);
+          project = devProjectFallbackBudgetSelect(projectId);
+        } else {
+          console.warn("[DEBUG][BUDGET][PROJECT_MOCK_FAILED]", {
+            error: e instanceof Error ? e.message : String(e),
+          });
+          return NextResponse.json(
+            {
+              error: "PROJECT_NOT_FOUND",
+              message: "当前 projectId 无效，请从生成流程进入",
+            },
+            { status: 404 },
+          );
+        }
       }
     }
 
-    const budgetRow = await prisma.budget.findFirst({
-      where: { projectId },
-      orderBy: { createdAt: "desc" },
-    });
+    let budgetRow = null;
+    try {
+      budgetRow = await prisma.budget.findFirst({
+        where: { projectId },
+        orderBy: { createdAt: "desc" },
+      });
+    } catch (error) {
+      if (
+        process.env.NODE_ENV === "production" ||
+        !isDatabaseConnectivityError(error)
+      ) {
+        throw error;
+      }
+      console.warn(
+        "[tender-budget] DEV DB fallback (budget findFirst); using stub budget",
+        error,
+      );
+    }
 
     const renderTier = normalizeUserTier(entitlement.effectiveLevel);
 
