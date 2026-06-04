@@ -4,6 +4,7 @@ import {
   SiteType,
 } from "@prisma/client";
 import type { ProjectInput } from "@/lib/domain/tender";
+import { generateBudget } from "@/lib/services/tender/generateBudget";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
 
 const DEV_FALLBACK_NOW = () => new Date();
@@ -121,6 +122,45 @@ export function createDevProjectFallback(
       updatedAt: now,
     },
     placeholders: [],
+  };
+}
+
+/** ZIP route `include` shape: project + solution + placeholders + latest budget */
+export type DevZipProjectBundle = DevProjectWithRelations & {
+  budgets: Array<{
+    id: string;
+    projectId: string;
+    currency: string;
+    totalEstimateMin: number;
+    totalEstimateMax: number;
+    items: unknown;
+    assumptions: unknown;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+};
+
+/** In-memory project bundle for ZIP when DB is unreachable (development only). */
+export function createDevZipProjectBundle(projectId: string): DevZipProjectBundle {
+  const base = createDevProjectFallback(projectId);
+  const now = DEV_FALLBACK_NOW();
+  const budgetData = generateBudget(projectId, []);
+
+  return {
+    ...base,
+    budgets: [
+      {
+        id: `dev-budget-${projectId}`,
+        projectId,
+        currency: budgetData.currency,
+        totalEstimateMin: budgetData.totalEstimateMin,
+        totalEstimateMax: budgetData.totalEstimateMax,
+        items: budgetData.items,
+        assumptions: budgetData.assumptions,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
   };
 }
 

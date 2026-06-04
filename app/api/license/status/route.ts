@@ -27,9 +27,6 @@ export async function GET(req: Request) {
         targetLevel: true,
         status: true,
         amount: true,
-        userId: true,
-        paymentProvider: true,
-        externalPaymentId: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -63,9 +60,6 @@ export async function GET(req: Request) {
       amount: order.amount,
       paymentStatus: order.status,
       licenseId: license?.id ?? null,
-      userId: order.userId,
-      paymentProvider: order.paymentProvider,
-      externalPaymentId: order.externalPaymentId,
       licenseIssued: Boolean(license),
       license: license
         ? {

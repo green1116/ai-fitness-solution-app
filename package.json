@@ -26,6 +26,7 @@
         "verify:evidence-linking": "tsx scripts/verify-evidence-linking.ts",
         "verify:evidence-coverage": "tsx scripts/verify-evidence-coverage.ts",
         "verify:tender-validation": "tsx scripts/verify-tender-validation.ts",
+        "verify:pdf-tender-zip": "tsx scripts/verify-pdf-tender-zip-route.ts",
         "verify:tender-audit": "tsx scripts/verify-tender-audit.ts",
         "verify:tender-decision": "tsx scripts/verify-tender-decision.ts",
         "verify:tender-governance": "tsx scripts/verify-tender-governance.ts",
