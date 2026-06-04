@@ -1,9 +1,14 @@
 import JSZip from "jszip";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { getEntitlement } from "@/lib/entitlement";
 import { toSafeEntitlementsDebug } from "@/lib/entitlements/publicEntitlement";
+import { evaluateZipAccess } from "@/lib/entitlements/zipAccess";
+import { resolveRequestEntitlement } from "@/lib/entitlements/resolveEntitlement";
 import { normalizeUserTier } from "@/lib/commercial/userTier";
+import {
+  createDevZipProjectBundle,
+  isDatabaseConnectivityError,
+} from "@/lib/pdf/devFallback";
 import { prisma } from "@/lib/prisma";
 import { renderBudgetPdf } from "@/lib/pdf/renderBudgetPdf";
 import { renderPlanPdf } from "@/lib/pdf/renderPlanPdf";
@@ -20,9 +25,13 @@ import type {
 } from "@/lib/domain/tender";
 import { provisionZipProjectMinimal } from "@/lib/services/tender/provisionZipProjectMinimal";
 
-/** App Router：POST /api/pdf/tender/zip；GET 仅用于探测路由是否挂载（避免与业务 404 混淆） */
+/** App Router：POST /api/pdf/tender/zip；GET 仅用于探测路由是否挂载 */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** 合并 PDF 耗时较长，避免平台默认超时过早中断 */
+export const maxDuration = 120;
+
+const ZIP_FILENAME = "enterprise-package.zip";
 
 const projectInclude = {
   solution: true,
@@ -30,36 +39,145 @@ const projectInclude = {
   budgets: { orderBy: { createdAt: "desc" as const }, take: 1 },
 } as const;
 
+type ZipProjectRow = Awaited<
+  ReturnType<typeof prisma.project.findFirst<{ include: typeof projectInclude }>>
+>;
+
+function zipError(
+  status: number,
+  code: string,
+  message: string,
+  extra?: Record<string, unknown>,
+) {
+  return NextResponse.json(
+    { ok: false, code, message, ...extra },
+    { status },
+  );
+}
+
+function toNodeBuffer(bytes: Buffer | Uint8Array | undefined): Buffer {
+  if (!bytes || bytes.length === 0) return Buffer.alloc(0);
+  return Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+}
+
+function zipBinaryResponse(zipBuffer: Buffer) {
+  const body = new Uint8Array(zipBuffer);
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${ZIP_FILENAME}"`,
+      "Content-Length": String(body.byteLength),
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 export async function GET() {
   return NextResponse.json(
     {
       ok: true,
       route: "/api/pdf/tender/zip",
       methods: ["GET", "POST"],
-      hint: "POST body: { projectId, planId? } — 若 Network 为 HTML 404 则路由未编译；若为 JSON 见 code 字段",
+      hint: "POST body: { projectId, planId? } — 成功响应为 application/zip 二进制",
     },
     { status: 200 },
   );
 }
 
-/**
- * 非生产、且仅在 .env.local 显式配置 DEV_ZIP_ALLOWED_PLAN_IDS 时生效（逗号分隔 planId）。
- * 不影响生产；不得依赖 X-Mode / X-Paid。
- */
-function isDevZipPlanAllowlist(planId: string): boolean {
-  if (process.env.NODE_ENV === "production") return false;
-  const raw = process.env.DEV_ZIP_ALLOWED_PLAN_IDS ?? "";
-  const ids = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return ids.length > 0 && ids.includes(planId);
+async function loadProjectForZip(
+  projectId: string,
+): Promise<{ project: ZipProjectRow; source: "db" | "dev-fallback" }> {
+  try {
+    const row = await prisma.project.findFirst({
+      where: { id: projectId },
+      include: projectInclude,
+    });
+    if (row?.solution && row.budgets[0]) {
+      return { project: row, source: "db" };
+    }
+    return { project: row, source: "db" };
+  } catch (error) {
+    if (
+      process.env.NODE_ENV === "production" ||
+      !isDatabaseConnectivityError(error)
+    ) {
+      throw error;
+    }
+    console.warn("[ZIP] DEV DB fallback (findFirst)", error);
+    return {
+      project: createDevZipProjectBundle(projectId) as unknown as ZipProjectRow,
+      source: "dev-fallback",
+    };
+  }
+}
+
+async function ensureProjectReadyForZip(
+  projectId: string,
+  initial: ZipProjectRow | null,
+): Promise<{ project: ZipProjectRow; source: "db" | "dev-fallback" | "provisioned" }> {
+  if (initial?.solution && initial.budgets[0]) {
+    return { project: initial, source: "db" };
+  }
+
+  console.warn("[ZIP] db-miss-or-incomplete — provisioning or fallback", {
+    requestedProjectId: projectId,
+    hadRow: Boolean(initial),
+    hadSolution: Boolean(initial?.solution),
+    hadBudget: Boolean(initial?.budgets[0]),
+  });
+
+  try {
+    const pack = await provisionZipProjectMinimal({
+      name: `投标ZIP-${String(projectId).slice(0, 40)}`,
+      clientName: "投标企业",
+      industry: "enterprise",
+      siteType: "office",
+      areaM2: 1200,
+      targetUsers: 200,
+      budgetLevel: "mid",
+      deliveryMode: "tender",
+      notes: `ZIP 路由自动补库：原请求 projectId=${String(projectId).slice(0, 80)}`,
+    });
+    const row = await prisma.project.findFirst({
+      where: { id: pack.project.id },
+      include: projectInclude,
+    });
+    if (row?.solution && row.budgets[0]) {
+      console.info("[ZIP] provisioned project for zip", {
+        newProjectId: pack.project.id,
+        requestedProjectId: projectId,
+      });
+      return { project: row, source: "provisioned" };
+    }
+  } catch (e) {
+    if (
+      process.env.NODE_ENV !== "production" &&
+      isDatabaseConnectivityError(e)
+    ) {
+      console.warn("[ZIP] DEV DB fallback (provision)", e);
+      return {
+        project: createDevZipProjectBundle(projectId) as unknown as ZipProjectRow,
+        source: "dev-fallback",
+      };
+    }
+    throw e;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return {
+      project: createDevZipProjectBundle(projectId) as unknown as ZipProjectRow,
+      source: "dev-fallback",
+    };
+  }
+
+  throw new Error("ZIP_PROJECT_PROVISION_FAILED");
 }
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   try {
-    console.log("[ZIP] start");
-    console.log("[ZIP] POST hit", { t: Date.now() });
+    console.log("[ZIP] POST start", { t: startedAt });
 
     const body = (await req.clone().json().catch(() => ({}))) as {
       projectId?: string;
@@ -77,230 +195,236 @@ export async function POST(req: Request) {
     const planIdForEnt =
       (headerPlanId || bodyPlanId || "attaguy-plan").trim() || "attaguy-plan";
 
-    if (!projectId) {
-      return NextResponse.json({ error: "projectId is required" }, { status: 400 });
+    if (!projectId || !String(projectId).trim()) {
+      return zipError(400, "ZIP_BAD_REQUEST", "projectId is required");
     }
 
-    const user = await getCurrentUser();
-    /** 仅传入 getEntitlement 做 DB 定位；最终权限只看返回值，不把 header 当「付费证明」 */
-    const headerLicenseKey = (req.headers.get("x-license-key") || "").trim();
+    const pid = String(projectId).trim();
 
-    const { entitlement, debug } = await getEntitlement(planIdForEnt, {
-      userId: user?.id ?? null,
-      headerLicenseKey,
+    const { entitlement, debug, source, userId } =
+      await resolveRequestEntitlement({
+        req,
+        planId: planIdForEnt,
+      });
+
+    const zipDecision = evaluateZipAccess({
+      entitlement,
+      debug,
+      planId: planIdForEnt,
     });
-
-    const zipFromEntitlement = entitlement.zipEnabled === true;
-    const devListed = isDevZipPlanAllowlist(planIdForEnt);
-    const allowed = zipFromEntitlement || devListed;
 
     const diagnostic = toSafeEntitlementsDebug(debug);
 
-    console.log("[DEBUG][ZIP][ENT]", {
+    console.log("[ZIP] entitlement", {
       planId: planIdForEnt,
-      userId: user?.id ?? null,
-      zipFromEntitlement,
+      projectId: pid,
+      source,
+      userId,
+      effectiveLevel: zipDecision.effectiveLevel,
+      zipFromEntitlement: zipDecision.zipFromEntitlement,
+      zipFromEnterprisePurchase: zipDecision.zipFromEnterprisePurchase,
+      purchaseStatus: zipDecision.purchaseStatus,
+      devListed: zipDecision.devListed,
+      devBypass: zipDecision.devBypass,
+      allowed: zipDecision.allowed,
+      allowedReason: zipDecision.allowedReason,
+      denyReason: zipDecision.denyReason ?? null,
       zipEnabled: entitlement.zipEnabled,
-      effectiveLevel: entitlement.effectiveLevel,
-      devListed,
+      budgetEnabled: entitlement.budgetEnabled,
+      paidOrderCount: debug.paidOrders.length,
+      orderWinner: debug.orderWinner,
+      licenseWinner: debug.licenseWinner,
+      finalRank: debug.finalRank,
       winningSource: debug.winningSource,
       diagnostic,
     });
 
-    if (devListed && !zipFromEntitlement) {
-      console.warn(
-        "[ZIP][DEV] DEV_ZIP_ALLOWED_PLAN_IDS 放行；验证真实权益后请移除环境变量。",
-      );
-    }
+    if (!zipDecision.allowed) {
+      const code =
+        zipDecision.denyReason === "NOT_PURCHASED"
+          ? "ZIP_NOT_PURCHASED"
+          : zipDecision.denyReason === "TIER_INSUFFICIENT"
+            ? "ZIP_TIER_INSUFFICIENT"
+            : zipDecision.denyReason === "DEV_NOT_ALLOWLISTED"
+              ? "ZIP_DEV_NOT_ALLOWLISTED"
+              : "ZIP_NOT_ENTITLED";
 
-    if (!allowed) {
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[DEBUG][ZIP][DENY]", { planId: planIdForEnt, diagnostic });
-      } else {
-        console.warn("[ZIP][DENY]", {
-          planId: planIdForEnt,
-          effectiveLevel: entitlement.effectiveLevel,
-          zipEnabled: entitlement.zipEnabled,
-        });
-      }
-      return NextResponse.json(
-        {
-          ok: false,
-          code: "NOT_ENTITLED",
-          reason: "ZIP_NOT_ENTITLED",
-          planId: planIdForEnt,
-          effectiveLevel: entitlement.effectiveLevel,
-          zipEnabled: entitlement.zipEnabled,
-          diagnostic,
-        },
-        { status: 403 },
-      );
-    }
-
-    let project = await prisma.project.findFirst({
-      where: { id: projectId },
-      include: projectInclude,
-    });
-
-    /**
-     * 常见误判：浏览器 Network 显示「404」实为**业务体**里返回了 status=404，
-     * 根因是 URL 里的 projectId 从未走 /api/tender/generate 落库（例如占位 test123）。
-     * 在**已通过 ZIP 权益校验**的前提下，自动补建一套 Prisma 数据再打包，避免假「路由不存在」。
-     */
-    if (!project || !project.solution || !project.budgets[0]) {
-      console.warn("[ZIP] db-miss-or-incomplete — provisioning package", {
-        requestedProjectId: projectId,
-        hadRow: Boolean(project),
-        hadSolution: Boolean(project?.solution),
-        hadBudget: Boolean(project?.budgets[0]),
+      return zipError(403, code, zipDecision.userMessage, {
+        reason: zipDecision.denyReason ?? "ZIP_NOT_ENTITLED",
+        planId: planIdForEnt,
+        effectiveLevel: entitlement.effectiveLevel,
+        zipEnabled: entitlement.zipEnabled,
+        purchaseStatus: zipDecision.purchaseStatus,
+        allowedReason: zipDecision.allowedReason,
+        diagnostic,
       });
-      try {
-        const pack = await provisionZipProjectMinimal({
-          name: `投标ZIP-${String(projectId).slice(0, 40)}`,
-          clientName: "投标企业",
-          industry: "enterprise",
-          siteType: "office",
-          areaM2: 1200,
-          targetUsers: 200,
-          budgetLevel: "mid",
-          deliveryMode: "tender",
-          notes: `ZIP 路由自动补库（最小集、无占位行）：原请求 projectId=${String(projectId).slice(0, 80)}`,
-        });
-        project = await prisma.project.findFirst({
-          where: { id: pack.project.id },
-          include: projectInclude,
-        });
-        console.info("[ZIP] provisioned project for zip", {
-          newProjectId: pack.project.id,
-          requestedProjectId: projectId,
-        });
-      } catch (e) {
-        console.error("[ZIP] provision_failed", e);
-        return NextResponse.json(
-          {
-            ok: false,
-            code: "ZIP_PROJECT_PROVISION_FAILED",
-            message:
-              e instanceof Error ? e.message : "无法在数据库中准备投标项目数据",
-            requestedProjectId: projectId,
-          },
-          { status: 422 },
-        );
-      }
     }
 
-    if (!project || !project.solution) {
-      return NextResponse.json(
-        {
-          ok: false,
-          code: "ZIP_PROJECT_NOT_READY",
-          message: "缺少可用的 Project / Solution 数据（非 Next 路由 404）",
-          requestedProjectId: projectId,
-        },
-        { status: 422 },
+    const loaded = await loadProjectForZip(pid);
+    let project: ZipProjectRow;
+    let dataSource: string = loaded.source;
+
+    try {
+      const ready = await ensureProjectReadyForZip(pid, loaded.project);
+      project = ready.project;
+      dataSource = ready.source;
+    } catch (e) {
+      console.error("[ZIP] ensureProjectReadyForZip failed", e);
+      return zipError(
+        422,
+        "ZIP_PROJECT_PROVISION_FAILED",
+        e instanceof Error
+          ? e.message
+          : "无法在数据库中准备投标项目数据",
+        { requestedProjectId: pid },
+      );
+    }
+
+    if (!project?.solution) {
+      return zipError(
+        422,
+        "ZIP_PROJECT_NOT_READY",
+        "缺少可用的 Project / Solution 数据",
+        { requestedProjectId: pid, dataSource },
       );
     }
 
     const budget = project.budgets[0];
     if (!budget) {
-      return NextResponse.json(
-        {
-          ok: false,
-          code: "ZIP_BUDGET_NOT_FOUND",
-          message: "项目存在但缺少 Budget 记录",
-          projectId: project.id,
-        },
-        { status: 422 },
+      return zipError(
+        422,
+        "ZIP_BUDGET_NOT_FOUND",
+        "项目存在但缺少 Budget 记录",
+        { projectId: project.id, dataSource },
       );
     }
 
-    const eff = (entitlement.effectiveLevel ?? "free") as string;
-    const renderTier = normalizeUserTier(eff);
+    const renderTier = normalizeUserTier(entitlement.effectiveLevel ?? "free");
 
     const tenderDocument = buildTenderDocumentContext({
       projectId: project.id,
       planId: planIdForEnt,
       tier: renderTier,
     });
-    // plan/budget/merged 共用同一身份（含 REQSIG）
     const packReqsig = await computeTenderPackReqsig(tenderDocument, {
       budgetLevel: project.budgetLevel,
     });
     const docCtx = { ...tenderDocument, reqsig: packReqsig };
 
-    console.log("[ZIP] tender-context", {
+    console.log("[ZIP] render start", {
+      projectId: project.id,
+      renderTier,
+      dataSource,
       tenderId: docCtx.tenderId,
-      reqsig: packReqsig,
     });
 
-    console.log("[ZIP] renderPlanPdf:start", { projectId: project.id, renderTier });
-    const planBytes = await renderPlanPdf(
-      project,
-      project.solution,
-      project.placeholders,
-      { tier: renderTier, tenderDocument: docCtx },
-    );
-    console.log("[ZIP] renderPlanPdf:done", { planBytes: planBytes?.length });
-    console.log("planBytes", planBytes?.length);
+    let planBytes: Buffer;
+    let budgetBytes: Buffer;
+    try {
+      planBytes = toNodeBuffer(
+        await renderPlanPdf(project, project.solution, project.placeholders, {
+          tier: renderTier,
+          tenderDocument: docCtx,
+        }),
+      );
+      budgetBytes = toNodeBuffer(
+        await renderBudgetPdf(budget, {
+          tier: renderTier,
+          planId: planIdForEnt,
+          companyName: project.clientName ?? project.name ?? "投标企业",
+          companySize: project.targetUsers ?? 200,
+          budgetLevel: project.budgetLevel,
+          tenderDocument: docCtx,
+        }),
+      );
+    } catch (renderErr) {
+      console.error("[ZIP] pdf render failed", renderErr);
+      return zipError(
+        500,
+        "ZIP_PDF_RENDER_FAILED",
+        renderErr instanceof Error
+          ? renderErr.message
+          : "Plan 或 Budget PDF 生成失败",
+        { projectId: project.id },
+      );
+    }
 
-    console.log("[ZIP] renderBudgetPdf:start", { planId: planIdForEnt });
-    const budgetBytes = await renderBudgetPdf(budget, {
-      tier: renderTier,
-      planId: planIdForEnt,
-      companyName: project.clientName ?? project.name ?? "投标企业",
-      companySize: project.targetUsers ?? 200,
-      budgetLevel: project.budgetLevel,
-      tenderDocument: docCtx,
+    if (!planBytes.length || !budgetBytes.length) {
+      console.error("[ZIP] empty pdf bytes", {
+        planBytes: planBytes.length,
+        budgetBytes: budgetBytes.length,
+      });
+      return zipError(500, "ZIP_PDF_EMPTY", "Plan 或 Budget PDF 为空", {
+        planBytes: planBytes.length,
+        budgetBytes: budgetBytes.length,
+      });
+    }
+
+    console.log("[ZIP] pdf rendered", {
+      planBytes: planBytes.length,
+      budgetBytes: budgetBytes.length,
     });
-    console.log("[ZIP] renderBudgetPdf:done", { budgetBytes: budgetBytes?.length });
-    console.log("budgetBytes", budgetBytes?.length);
 
     const zip = new JSZip();
-    console.log("[ZIP] zip append:start");
     zip.file("plan.pdf", planBytes);
     zip.file("budget.pdf", budgetBytes);
 
     const isEnterpriseLike = renderTier === "enterprise" || renderTier === "pro";
-    let mergedBytes: number | undefined;
     if (isEnterpriseLike) {
-      console.log("[ZIP] renderTenderPack:start");
-      const finalPack = await renderTenderPack({
-        project: project as unknown as ProjectRecord,
-        solution: project.solution as unknown as SolutionRecord,
-        placeholders: project.placeholders as unknown as ProductPlaceholder[],
-        budget: budget as unknown as BudgetRecord,
-        tier: renderTier,
-        planId: planIdForEnt,
-        companyName: project.clientName ?? project.name ?? "投标企业",
-        companySize: project.targetUsers ?? 200,
-        budgetLevel: project.budgetLevel,
-        tenderDocument: docCtx,
-        reqsig: packReqsig,
-      });
-      mergedBytes = finalPack?.length;
-      console.log("[ZIP] renderTenderPack:done", { mergedBytes });
-      console.log("mergedBytes", mergedBytes);
-      zip.file("final-tender-pack.pdf", finalPack);
+      try {
+        console.log("[ZIP] renderTenderPack:start");
+        const finalPack = toNodeBuffer(
+          await renderTenderPack({
+            project: project as unknown as ProjectRecord,
+            solution: project.solution as unknown as SolutionRecord,
+            placeholders: project.placeholders as unknown as ProductPlaceholder[],
+            budget: budget as unknown as BudgetRecord,
+            tier: renderTier,
+            planId: planIdForEnt,
+            companyName: project.clientName ?? project.name ?? "投标企业",
+            companySize: project.targetUsers ?? 200,
+            budgetLevel: project.budgetLevel,
+            tenderDocument: docCtx,
+            reqsig: packReqsig,
+          }),
+        );
+        if (finalPack.length > 0) {
+          zip.file("final-tender-pack.pdf", finalPack);
+          console.log("[ZIP] renderTenderPack:done", {
+            mergedBytes: finalPack.length,
+          });
+        } else {
+          console.warn("[ZIP] renderTenderPack returned empty — zip has plan+budget only");
+        }
+      } catch (mergeErr) {
+        console.error("[ZIP] renderTenderPack failed — continuing with plan+budget", mergeErr);
+      }
     }
 
-    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
-    console.log("[ZIP] zip append:done", { zipBytes: zipBuffer?.length, mergedBytes });
-
-    return new Response(new Uint8Array(zipBuffer), {
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Disposition": 'attachment; filename="enterprise-pack.zip"',
-      },
+    const zipBuffer = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 },
     });
+
+    if (!zipBuffer?.length) {
+      return zipError(500, "ZIP_EMPTY", "ZIP 打包结果为空");
+    }
+
+    console.log("[ZIP] success", {
+      zipBytes: zipBuffer.length,
+      elapsedMs: Date.now() - startedAt,
+      dataSource,
+    });
+
+    return zipBinaryResponse(zipBuffer);
   } catch (error) {
     console.error("[ZIP][FATAL]", error);
-    if (error instanceof Error) {
-      console.error("[ZIP][FATAL] message", error.message);
+    const message =
+      error instanceof Error ? error.message : "ZIP 打包内部错误";
+    if (error instanceof Error && error.stack) {
       console.error("[ZIP][FATAL] stack", error.stack);
-      const c = (error as Error & { cause?: unknown }).cause;
-      if (c !== undefined) console.error("[ZIP][FATAL] cause", c);
     }
-    console.error("[zip pdf error]", error);
-    return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
+    return zipError(500, "ZIP_INTERNAL_ERROR", message);
   }
 }

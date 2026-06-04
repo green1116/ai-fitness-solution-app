@@ -387,7 +387,18 @@ export async function getEntitlement(
       else winningSource = orderRank > 0 ? "upgrade-order" : "license";
     }
 
+    const enterprisePaidOnPlan = paidOrders.some(
+      (o) => normalizeLevel(o.targetLevel) === "enterprise",
+    );
     const entitlement = snapshotFromLevel(finalLevel, pid);
+    if (enterprisePaidOnPlan) {
+      entitlement.zipEnabled = true;
+      entitlement.enterpriseEnabled = true;
+      if (levelRank(finalLevel) < 2) {
+        entitlement.effectiveLevel = "enterprise";
+        entitlement.proEnabled = true;
+      }
+    }
 
     const priorityExplanation =
       "L1=paid UpgradeOrder.targetLevel(max rank for planId); L2=max LicenseKey(plan-scope|binding|header-hash) non-free; final=max(L1,L2); tie prefers L1 in winningSource; X-Mode/X-Paid ignored.";

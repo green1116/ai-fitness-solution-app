@@ -801,10 +801,30 @@ function ResultPageInner() {
       ) {
         return licenseRequiredFromApiMessage();
       }
+      if (status === 403 && json?.code === "ZIP_NOT_PURCHASED") {
+        return (
+          json?.message ||
+          "尚未购买或未完成支付，无法下载完整投标包（ZIP）。"
+        );
+      }
+      if (status === 403 && json?.code === "ZIP_TIER_INSUFFICIENT") {
+        return (
+          json?.message ||
+          "当前为 Pro 套餐，完整投标包（ZIP）需升级至企业版。"
+        );
+      }
+      if (status === 403 && json?.code === "ZIP_DEV_NOT_ALLOWLISTED") {
+        return (
+          json?.message ||
+          "本地开发未放行 ZIP，请配置 DEV_ZIP_ALLOW_ALL 或白名单 planId。"
+        );
+      }
       if (
         requestTier !== "free" &&
         status === 403 &&
-        (json?.code === "NOT_ENTITLED" || json?.reason === "ZIP_NOT_ENTITLED")
+        (json?.code === "NOT_ENTITLED" ||
+          json?.code === "ZIP_NOT_ENTITLED" ||
+          json?.reason === "ZIP_NOT_ENTITLED")
       ) {
         return (
           json?.message ||
@@ -817,7 +837,10 @@ function ResultPageInner() {
       if (status >= 500 && json?.error === "INTERNAL_ERROR") {
         return "下载服务暂时不可用，请稍后重试。";
       }
-      return json?.error || json?.message || rawText || fallback;
+      if (json?.code?.startsWith("ZIP_") && json?.message) {
+        return String(json.message);
+      }
+      return json?.message || json?.error || rawText || fallback;
     },
     [],
   );
@@ -3215,19 +3238,40 @@ score: scoreDetailsSectionRef,
       });
       if (!res.ok) {
         const { rawText, json } = await safeReadJsonOrText(res);
+        console.error("[handler] zip failed", {
+          status: res.status,
+          code: json?.code,
+          message: json?.message,
+        });
         throw new Error(
           resolveDownloadErrorMessage(
             requestTier,
             res.status,
             json,
             rawText,
-            `zip download failed: ${res.status}`,
+            `完整投标包 ZIP 下载失败（HTTP ${res.status}）`,
           ),
         );
       }
 
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      if (contentType.includes("application/json")) {
+        const { rawText, json } = await safeReadJsonOrText(res);
+        throw new Error(
+          json?.message ||
+            json?.code ||
+            rawText ||
+            "服务器返回了 JSON 而非 ZIP 文件，请稍后重试",
+        );
+      }
+
       const blob = await res.blob();
-      triggerEnterpriseBlobDownload(blob, "enterprise-pack.zip");
+      if (!blob.size || blob.size < 200) {
+        throw new Error(
+          `ZIP 文件异常（${blob.size} 字节），请确认 Plan/Budget 已生成后重试`,
+        );
+      }
+      triggerEnterpriseBlobDownload(blob, "enterprise-package.zip");
       trackEvent("download_success", { planId, mode: "zip-pack" });
       setZipDownloadFlash(true);
       setPageOpOutcome("success");
