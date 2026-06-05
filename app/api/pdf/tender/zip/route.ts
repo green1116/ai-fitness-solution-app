@@ -267,7 +267,6 @@ export async function POST(req: Request) {
         purchaseStatus: zipDecision.purchaseStatus,
         allowedReason: zipDecision.allowedReason,
         diagnostic,
-        winningSource: debug.winningSource,
       });
     }
 
