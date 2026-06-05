@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { blockDebugInProduction } from "@/lib/http/productionRouteGuard";
 
 function sha256Hex(s: string) {
   return crypto.createHash("sha256").update(s).digest("hex");
@@ -17,6 +18,9 @@ async function findByTokenHash(tokenHash: string) {
 }
 
 export async function GET(req: NextRequest) {
+  const blocked = blockDebugInProduction();
+  if (blocked) return blocked;
+
   const cookie = req.headers.get("cookie") || "";
   const m = cookie.match(/(?:^|;\s*)session=([^;]+)/);
   const raw = m?.[1] ? decodeURIComponent(m[1]) : null;

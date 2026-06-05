@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
+import { guardProductionApiRoute } from "@/lib/http/productionRouteGuard";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const blocked = guardProductionApiRoute("/api/test-db");
+  if (blocked) return blocked;
+
   try {
     const created = await prisma.licenseKey.create({
       data: {

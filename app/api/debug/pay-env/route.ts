@@ -11,7 +11,12 @@ function mask(s?: string) {
   return s.slice(0, 4) + "..." + s.slice(-4);
 }
 
+import { blockDebugInProduction } from "@/lib/http/productionRouteGuard";
+
 export async function GET() {
+  const blocked = blockDebugInProduction();
+  if (blocked) return blocked;
+
   const cwd = process.cwd();
   const envLocalAtCwd = path.join(cwd, ".env.local");
   const hasEnvLocal = fs.existsSync(envLocalAtCwd);

@@ -26,7 +26,12 @@ function nowPlusDays(days: number) {
   return d;
 }
 
+import { blockDebugInProduction } from "@/lib/http/productionRouteGuard";
+
 export async function POST(req: NextRequest) {
+  const blocked = blockDebugInProduction();
+  if (blocked) return blocked;
+
   try {
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { guardProductionApiRoute } from "@/lib/http/productionRouteGuard";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const blocked = guardProductionApiRoute("/api/pay/fake-success");
+  if (blocked) return blocked;
+
   try {
     const { projectId } = (await req.json()) as { projectId?: string };
     if (!projectId) {

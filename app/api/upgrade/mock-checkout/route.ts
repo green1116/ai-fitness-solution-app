@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardProductionApiRoute } from "@/lib/http/productionRouteGuard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,9 @@ export const dynamic = "force-dynamic";
  * 开发阶段主流程在客户端直接 POST /api/upgrade/confirm。
  */
 export async function GET(req: NextRequest) {
+  const blocked = guardProductionApiRoute("/api/upgrade/mock-checkout");
+  if (blocked) return blocked;
+
   const orderId = new URL(req.url).searchParams.get("orderId") || "";
   return NextResponse.json(
     {
