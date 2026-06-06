@@ -24,6 +24,11 @@ import type {
   SolutionRecord,
 } from "@/lib/domain/tender";
 import { provisionZipProjectMinimal } from "@/lib/services/tender/provisionZipProjectMinimal";
+import { isProductionRuntime } from "@/lib/http/productionRouteGuard";
+import {
+  clientErrorExtras,
+  sanitizeProductionClientMessage,
+} from "@/lib/http/sanitizeProductionClient";
 
 /** App Router：POST /api/pdf/tender/zip；GET 仅用于探测路由是否挂载 */
 export const runtime = "nodejs";
@@ -49,10 +54,18 @@ function zipError(
   message: string,
   extra?: Record<string, unknown>,
 ) {
-  return NextResponse.json(
-    { ok: false, code, message, ...extra },
-    { status },
+  const safeMessage = sanitizeProductionClientMessage(
+    message,
+    status >= 500 ? "ZIP 打包内部错误，请稍后重试" : message,
   );
+  const clientExtra = clientErrorExtras(extra);
+  const body: Record<string, unknown> = {
+    ok: false,
+    code,
+    message: safeMessage,
+  };
+  if (clientExtra) Object.assign(body, clientExtra);
+  return NextResponse.json(body, { status });
 }
 
 function toNodeBuffer(bytes: Buffer | Uint8Array | undefined): Buffer {
@@ -98,10 +111,7 @@ async function loadProjectForZip(
     }
     return { project: row, source: "db" };
   } catch (error) {
-    if (
-      process.env.NODE_ENV === "production" ||
-      !isDatabaseConnectivityError(error)
-    ) {
+    if (isProductionRuntime() || !isDatabaseConnectivityError(error)) {
       throw error;
     }
     console.warn("[ZIP] DEV DB fallback (findFirst)", error);
@@ -420,11 +430,13 @@ export async function POST(req: Request) {
     return zipBinaryResponse(zipBuffer);
   } catch (error) {
     console.error("[ZIP][FATAL]", error);
-    const message =
-      error instanceof Error ? error.message : "ZIP 打包内部错误";
     if (error instanceof Error && error.stack) {
       console.error("[ZIP][FATAL] stack", error.stack);
     }
+    const message = sanitizeProductionClientMessage(
+      error instanceof Error ? error.message : "ZIP 打包内部错误",
+      "ZIP 打包内部错误，请稍后重试",
+    );
     return zipError(500, "ZIP_INTERNAL_ERROR", message);
   }
 }

@@ -13,6 +13,7 @@
 import type { EntitlementDebug } from "@/lib/entitlement";
 import { normalizeLevel, type EntitlementLevel } from "@/lib/entitlement";
 import type { PlanEntitlementSnapshot } from "@/lib/entitlements/planEntitlement";
+import { isProductionRuntime } from "@/lib/http/productionRouteGuard";
 
 export type ZipPurchaseStatus =
   | "none"
@@ -62,8 +63,15 @@ export function hasPaidEnterpriseOrder(debug: EntitlementDebug): boolean {
   );
 }
 
+/** 生产环境：仅订单或用户绑定 / header key 的 license 可授权 ZIP */
+export function hasBoundEnterpriseZipLicense(debug: EntitlementDebug): boolean {
+  const lw = debug.licenseWinner;
+  if (!lw || normalizeLevel(lw.level) !== "enterprise") return false;
+  return lw.source === "binding" || lw.source === "header-key";
+}
+
 export function isDevZipPlanAllowlist(planId: string): boolean {
-  if (process.env.NODE_ENV === "production") return false;
+  if (isProductionRuntime()) return false;
   const raw = process.env.DEV_ZIP_ALLOWED_PLAN_IDS ?? "";
   const ids = raw
     .split(",")
@@ -74,7 +82,7 @@ export function isDevZipPlanAllowlist(planId: string): boolean {
 
 /** 本地默认是否对 ZIP 放行（非 production） */
 export function isDevZipDefaultBypass(): boolean {
-  if (process.env.NODE_ENV === "production") return false;
+  if (isProductionRuntime()) return false;
   if (process.env.DEV_ZIP_ALLOW_ALL === "1") return true;
   if (process.env.DEV_ZIP_ALLOW_ALL === "0") return false;
   return process.env.DEV_ZIP_DEFAULT_ALLOW !== "0";
@@ -88,14 +96,15 @@ export function evaluateZipAccess(params: {
   const { entitlement, debug, planId } = params;
   const purchaseStatus = deriveZipPurchaseStatus(debug);
   const zipFromEnterprisePurchase = hasPaidEnterpriseOrder(debug);
-  const zipFromEntitlement =
-    entitlement.zipEnabled === true || zipFromEnterprisePurchase;
+  const zipFromBoundLicense = hasBoundEnterpriseZipLicense(debug);
+  const zipFromEntitlement = isProductionRuntime()
+    ? zipFromEnterprisePurchase || zipFromBoundLicense
+    : entitlement.zipEnabled === true || zipFromEnterprisePurchase;
 
   const devListed = isDevZipPlanAllowlist(planId);
   /** 生产环境硬锁：即使 NODE_ENV 误配或 DEV_* 泄漏，也不放行 */
   const devBypass =
-    process.env.NODE_ENV !== "production" &&
-    (devListed || isDevZipDefaultBypass());
+    !isProductionRuntime() && (devListed || isDevZipDefaultBypass());
 
   const effectiveLevel = entitlement.effectiveLevel;
 
@@ -104,9 +113,11 @@ export function evaluateZipAccess(params: {
       ? devListed
         ? "dev_plan_allowlist"
         : "dev_default_bypass"
-      : zipFromEnterprisePurchase && !entitlement.zipEnabled
+      : zipFromEnterprisePurchase
         ? "enterprise_paid_order"
-        : "entitlement_zip_enabled";
+        : zipFromBoundLicense
+          ? "bound_enterprise_license"
+          : "entitlement_zip_enabled";
 
     return {
       allowed: true,
@@ -141,7 +152,7 @@ export function evaluateZipAccess(params: {
   }
 
   if (
-    process.env.NODE_ENV !== "production" &&
+    !isProductionRuntime() &&
     process.env.DEV_ZIP_ALLOW_ALL === "0" &&
     !devListed
   ) {
