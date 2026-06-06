@@ -5,6 +5,7 @@ import {
   SiteType,
 } from "@prisma/client";
 import type { ProjectInput } from "@/lib/domain/tender";
+import { resolveCompanyName } from "@/lib/plan/resolveCompanyName";
 import type { Plan } from "@/lib/types/plan";
 import { prisma } from "@/lib/prisma";
 import { generateBudget } from "./generateBudget";
@@ -22,17 +23,21 @@ export function planJsonToProjectInput(
   formInput?: Record<string, unknown> | null,
 ): ProjectInput {
   const cp = plan.client_profile;
-  const companySize = Number(cp.company_size ?? cp.companySize ?? 150) || 150;
-  const area = Number(cp.space_area ?? cp.area ?? 200) || 200;
+  const companySize = Number(
+    formInput?.companySize ?? cp.company_size ?? cp.companySize ?? 150,
+  ) || 150;
+  const area = Number(formInput?.area ?? cp.space_area ?? cp.area ?? 200) || 200;
   const budgetRange = String(
-    cp.budget_range ?? cp.budget ?? formInput?.budget ?? "5-10万",
+    formInput?.budget ?? cp.budget_range ?? cp.budget ?? "5-10万",
   );
-  const email = String(formInput?.email ?? "").trim();
-  const scene = String(cp.scene ?? cp.scenario ?? formInput?.scenario ?? "企业办公");
+  const companyName = resolveCompanyName(formInput);
+  const scene = String(
+    formInput?.scenario ?? cp.scene ?? cp.scenario ?? "企业办公",
+  );
 
   return {
-    name: `企业健身方案-${plan.meta.plan_id}`,
-    clientName: email ? email.split("@")[0] : "投标企业",
+    name: `${companyName}员工健身空间建设项目`,
+    clientName: companyName,
     industry: cp.industry || "enterprise",
     siteType: "office",
     areaM2: area,
@@ -42,6 +47,20 @@ export function planJsonToProjectInput(
     deliveryMode: "tender",
     notes: `planJob:${plan.meta.plan_id}; scene:${scene}`,
   };
+}
+
+async function syncSolutionCopyForClient(
+  projectId: string,
+  input: ProjectInput,
+): Promise<void> {
+  const solutionData = generateSolution(input);
+  await prisma.solution.update({
+    where: { projectId },
+    data: {
+      summary: solutionData.summary,
+      background: solutionData.background,
+    },
+  });
 }
 
 /**
@@ -58,6 +77,8 @@ export async function provisionProjectFromPlan(
     throw new Error("provisionProjectFromPlan: planId is required");
   }
 
+  const input = planJsonToProjectInput(plan, formInput);
+
   const existing = await prisma.project.findUnique({
     where: { id },
     include: {
@@ -67,10 +88,22 @@ export async function provisionProjectFromPlan(
   });
 
   if (existing?.solution && existing.budgets[0]) {
+    await prisma.project.update({
+      where: { id },
+      data: {
+        name: input.name,
+        clientName: input.clientName,
+        industry: input.industry,
+        areaM2: input.areaM2,
+        targetUsers: input.targetUsers,
+        budgetLevel: input.budgetLevel as BudgetLevel,
+        notes: input.notes,
+      },
+    });
+    await syncSolutionCopyForClient(id, input);
     return { created: false, projectId: id };
   }
 
-  const input = planJsonToProjectInput(plan, formInput);
   const solutionData = generateSolution(input);
   const budgetData = generateBudget(id, []);
 
@@ -104,7 +137,10 @@ export async function provisionProjectFromPlan(
     if (!existing?.solution) {
       await tx.solution.upsert({
         where: { projectId: id },
-        update: {},
+        update: {
+          summary: solutionData.summary,
+          background: solutionData.background,
+        },
         create: {
           projectId: id,
           summary: solutionData.summary,
@@ -152,8 +188,13 @@ export async function ensureProjectFromPlanJobId(
   if (!row?.plan) return false;
 
   const plan = row.plan as unknown as Plan;
-  if (!plan?.meta?.plan_id) {
-    plan.meta = { ...plan.meta, plan_id: id };
+  if (!plan.meta?.plan_id) {
+    plan.meta = {
+      ...plan.meta,
+      plan_id: id,
+      generated_at: plan.meta?.generated_at ?? new Date().toISOString().split("T")[0],
+      version: plan.meta?.version ?? "v1",
+    };
   }
 
   await provisionProjectFromPlan(id, plan, (row.input as Record<string, unknown>) ?? null);

@@ -9,6 +9,7 @@ import {
   devProjectFallbackBudgetSelect,
   isDatabaseConnectivityError,
 } from "@/lib/pdf/devFallback";
+import { resolveDownloadIds } from "@/lib/http/resolveDownloadIds";
 import { prisma } from "@/lib/prisma";
 import { renderBudgetPdf } from "@/lib/pdf/renderBudgetPdf";
 import { ensureProjectFromPlanJobId } from "@/lib/services/tender/provisionProjectFromPlan";
@@ -27,25 +28,24 @@ export async function POST(req: Request) {
       tier?: string;
     };
     const { projectId, planId, tier: bodyTier } = body;
-    const requestPlanId =
-      (typeof planId === "string" ? planId.trim() : "") ||
-      (typeof projectId === "string" ? projectId.trim() : "") ||
-      "";
+
+    const ids = resolveDownloadIds({ projectId, planId });
+    if (!ids.ok) {
+      return NextResponse.json(
+        { error: ids.error, message: ids.message },
+        { status: ids.status },
+      );
+    }
+    const resolvedProjectId = ids.projectId;
+    const requestPlanId = ids.entitlementId;
 
     /** ★ DEBUG：budget 路由原始输入 */
     console.log("[DEBUG][BUDGET][INPUT]", {
-      projectId,
+      projectId: resolvedProjectId,
       planId: requestPlanId,
       tier: bodyTier ?? null,
     });
-    console.log("[DEBUG][BUDGET][PROJECT_ID]", projectId);
-
-    if (!projectId) {
-      return NextResponse.json({ error: "projectId is required" }, { status: 400 });
-    }
-    if (!requestPlanId) {
-      return NextResponse.json({ error: "planId is required" }, { status: 400 });
-    }
+    console.log("[DEBUG][BUDGET][PROJECT_ID]", resolvedProjectId);
 
     /** —— 权限：entitlement-only —— */
     const { entitlement, source, userId } = await resolveRequestEntitlement({
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     let project;
     try {
       project = await prisma.project.findUnique({
-        where: { id: projectId },
+        where: { id: resolvedProjectId },
         select: projectSelect,
       });
     } catch (error) {
@@ -117,17 +117,17 @@ export async function POST(req: Request) {
         throw error;
       }
       console.warn("[tender-budget] DEV DB fallback (findUnique)", error);
-      project = devProjectFallbackBudgetSelect(projectId);
+      project = devProjectFallbackBudgetSelect(resolvedProjectId);
     }
 
     console.log("[DEBUG][BUDGET][PROJECT]", project);
 
     if (!project) {
-      const provisioned = await ensureProjectFromPlanJobId(projectId);
+      const provisioned = await ensureProjectFromPlanJobId(resolvedProjectId);
       if (provisioned) {
         try {
           project = await prisma.project.findUnique({
-            where: { id: projectId },
+            where: { id: resolvedProjectId },
             select: projectSelect,
           });
         } catch (reloadAfterProvision) {
@@ -141,7 +141,7 @@ export async function POST(req: Request) {
             "[tender-budget] DEV DB fallback (reload after provision)",
             reloadAfterProvision,
           );
-          project = devProjectFallbackBudgetSelect(projectId);
+          project = devProjectFallbackBudgetSelect(resolvedProjectId);
         }
       }
     }
@@ -166,11 +166,11 @@ export async function POST(req: Request) {
       /** dev 兜底：自动 upsert 一份最小可用 mock project（仅开发态，避免测试阻塞） */
       try {
         project = await prisma.project.upsert({
-          where: { id: projectId },
+          where: { id: resolvedProjectId },
           update: {},
           create: {
-            id: projectId,
-            name: `Mock-${projectId}`,
+            id: resolvedProjectId,
+            name: `Mock-${resolvedProjectId}`,
             siteType: "office",
             budgetLevel: "mid",
             deliveryMode: "enterprise",
@@ -183,7 +183,7 @@ export async function POST(req: Request) {
       } catch (e) {
         if (isDatabaseConnectivityError(e)) {
           console.warn("[tender-budget] DEV DB fallback (upsert)", e);
-          project = devProjectFallbackBudgetSelect(projectId);
+          project = devProjectFallbackBudgetSelect(resolvedProjectId);
         } else {
           console.warn("[DEBUG][BUDGET][PROJECT_MOCK_FAILED]", {
             error: e instanceof Error ? e.message : String(e),
@@ -202,7 +202,7 @@ export async function POST(req: Request) {
     let budgetRow = null;
     try {
       budgetRow = await prisma.budget.findFirst({
-        where: { projectId },
+        where: { projectId: resolvedProjectId },
         orderBy: { createdAt: "desc" },
       });
     } catch (error) {

@@ -85,7 +85,13 @@ export async function POST(req: NextRequest) {
       message: "暂支持 PDF / DOCX / TXT",
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "intake failed";
+    const raw = err instanceof Error ? err.message : "intake failed";
+    const message =
+      raw.includes("pdf-parse") || raw.includes("module unavailable")
+        ? "PDF 解析模块不可用，请尝试上传 TXT/DOCX，或直接粘贴文本。"
+        : raw.includes("ENOENT") || raw.includes("test/data")
+          ? "文件路径无效，请通过页面上传真实文件，不要使用测试路径。"
+          : raw;
     console.error("[tender/intake]", err);
     return json(500, {
       ok: false,
