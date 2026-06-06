@@ -14,6 +14,7 @@ import {
 } from "@/lib/pdf/devFallback";
 import { prisma } from "@/lib/prisma";
 import { renderPlanPdf } from "@/lib/pdf/renderPlanPdf";
+import { ensureProjectFromPlanJobId } from "@/lib/services/tender/provisionProjectFromPlan";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
 
 export const runtime = "nodejs";
@@ -154,6 +155,30 @@ export async function POST(req: Request) {
       }
       console.warn("[tender-plan] DEV DB fallback (findUnique)", error);
       project = createDevProjectFallback(pid);
+    }
+
+    if (!project) {
+      const provisioned = await ensureProjectFromPlanJobId(pid);
+      if (provisioned) {
+        try {
+          project = await prisma.project.findUnique({
+            where: { id: pid },
+            include: projectInclude,
+          });
+        } catch (reloadAfterProvision) {
+          if (
+            process.env.NODE_ENV === "production" ||
+            !isDatabaseConnectivityError(reloadAfterProvision)
+          ) {
+            throw reloadAfterProvision;
+          }
+          console.warn(
+            "[tender-plan] DEV DB fallback (reload after provision)",
+            reloadAfterProvision,
+          );
+          project = createDevProjectFallback(pid);
+        }
+      }
     }
 
     if (!project) {

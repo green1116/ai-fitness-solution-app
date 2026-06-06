@@ -60,9 +60,18 @@ export default function PlanPage() {
         throw new Error(plan.error || plan.detail || "生成方案失败");
       }
 
-      localStorage.setItem("attaguy_plan", JSON.stringify(plan));
-
       const projectId = String(plan.planId || plan.plan_id || "").trim();
+      const storedPlan = {
+        ...plan,
+        planId: projectId,
+        plan_id: projectId,
+        meta: {
+          ...(plan.meta ?? {}),
+          plan_id: projectId || plan.meta?.plan_id,
+        },
+      };
+      localStorage.setItem("attaguy_plan", JSON.stringify(storedPlan));
+
       if (projectId) {
         try {
           localStorage.setItem("projectId", projectId);

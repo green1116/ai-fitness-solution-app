@@ -289,6 +289,33 @@ function isValidResolvedProjectId(raw: string, planIdCurrent: string): boolean {
   return isLikelyProjectId(v) || isOpaqueProjectIdToken(v);
 }
 
+/** 客户端首帧同步解析 planId（URL projectId 优先，与 project 主键对齐） */
+function readInitialPlanId(fallback = "attaguy-plan"): string {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const fromUrl = (
+      new URLSearchParams(window.location.search).get("projectId") || ""
+    ).trim();
+    if (isAtgPlanJobId(fromUrl)) return fromUrl;
+    const fromPlan = readProjectIdFromStoredPlan();
+    if (fromPlan && isAtgPlanJobId(fromPlan)) return fromPlan;
+    const fromPersisted = readPersistedProjectIdKeys();
+    if (fromPersisted && isAtgPlanJobId(fromPersisted)) return fromPersisted;
+  } catch {
+    // ignore
+  }
+  return fallback;
+}
+
+/** 下载请求使用的 planId：与 projectId 对齐，避免 URL 与 localStorage 陈旧值混用 */
+function resolveEffectivePlanId(planId: string, projectId: string): string {
+  const pid = (projectId || "").trim();
+  const lid = (planId || "").trim();
+  if (isAtgPlanJobId(pid)) return pid;
+  if (isAtgPlanJobId(lid)) return lid;
+  return lid || pid || "attaguy-plan";
+}
+
 /** 客户端首帧同步解析（仅浏览器；与 URL → localStorage → attaguy_plan 优先级一致） */
 function readInitialResolvedProjectId(planIdCurrent: string): string {
   if (typeof window === "undefined") return "";
@@ -663,7 +690,7 @@ function ResultPageInner() {
     return u.toString();
   }, []);
 
-  const [planId, setPlanId] = useState("attaguy-plan");
+  const [planId, setPlanId] = useState(() => readInitialPlanId());
   const {
     licenseForm,
     setLicenseForm,
@@ -754,7 +781,7 @@ function ResultPageInner() {
   }, [entitlement, pageLastError]);
 
   const [projectId, setProjectId] = useState(() =>
-    readInitialResolvedProjectId("attaguy-plan"),
+    readInitialResolvedProjectId(readInitialPlanId()),
   );
   const [companyName, setCompanyName] = useState("示例企业");
   const [headcount, setHeadcount] = useState<number>(200);
@@ -810,7 +837,7 @@ function ResultPageInner() {
       if (status === 403 && json?.code === "ZIP_TIER_INSUFFICIENT") {
         return (
           json?.message ||
-          "当前为 Pro 套餐，完整投标包（ZIP）需升级至企业版。"
+          "当前为 Pro 授权，完整投标包（ZIP）仅 Enterprise 可用。请使用 Pro 卡片下载 Plan / Budget，或升级 Enterprise。"
         );
       }
       if (status === 403 && json?.code === "ZIP_DEV_NOT_ALLOWLISTED") {
@@ -1054,12 +1081,23 @@ const setBusinessRowsWithTrace = (rows: TenderRiskRow[], source: string) => {
 
     if (projectIdFromUrl) {
       persistProjectIdKeys(projectIdFromUrl);
+      if (isAtgPlanJobId(projectIdFromUrl)) {
+        setPlanId(projectIdFromUrl);
+      }
     }
 
     if (currentProjectId) {
       setProjectId(currentProjectId);
       persistProjectIdKeys(currentProjectId);
-      console.log("[projectId-ready]", { projectId: currentProjectId });
+      if (isAtgPlanJobId(currentProjectId)) {
+        setPlanId(currentProjectId);
+      }
+      console.log("[projectId-ready]", {
+        projectId: currentProjectId,
+        planId: isAtgPlanJobId(currentProjectId)
+          ? currentProjectId
+          : planId,
+      });
       return;
     }
 
@@ -1075,11 +1113,21 @@ const setBusinessRowsWithTrace = (rows: TenderRiskRow[], source: string) => {
 
   useEffect(() => {
     if (!mounted) return;
+    const urlPid = (searchParams.get("projectId") || "").trim();
+    if (isAtgPlanJobId(urlPid)) {
+      setPlanId(urlPid);
+      return;
+    }
     const pid = readProjectIdFromStoredPlan();
     if (pid && isAtgPlanJobId(pid)) {
       setPlanId(pid);
     }
-  }, [mounted]);
+  }, [mounted, searchParams]);
+
+  useEffect(() => {
+    if (!projectId || !isAtgPlanJobId(projectId)) return;
+    setPlanId((prev) => (prev === projectId ? prev : projectId));
+  }, [projectId]);
 
 
   const ensureProjectId = useCallback(
@@ -2760,9 +2808,10 @@ score: scoreDetailsSectionRef,
     }
 
     const resolvedProjectId = realProjectId as string;
+    const effectivePlanId = resolveEffectivePlanId(planId, resolvedProjectId);
 
     trackEvent("click_download_pdf", {
-      planId,
+      planId: effectivePlanId,
       planLevel: commercialPlanForAnalyticsRef.current,
       docType: "plan",
     });
@@ -2805,7 +2854,7 @@ score: scoreDetailsSectionRef,
         headers,
         body: JSON.stringify({
           projectId: resolvedProjectId,
-          planId,
+          planId: effectivePlanId,
           tier: requestTier,
           mode: requestTier,
           docType: "plan",
@@ -2894,9 +2943,10 @@ score: scoreDetailsSectionRef,
     }
 
     const resolvedBudgetProjectId = realProjectId as string;
+    const effectivePlanId = resolveEffectivePlanId(planId, resolvedBudgetProjectId);
 
     trackEvent("click_download_pdf", {
-      planId,
+      planId: effectivePlanId,
       planLevel: commercialPlanForAnalyticsRef.current,
       docType: "budget",
     });
@@ -2939,7 +2989,7 @@ score: scoreDetailsSectionRef,
         headers,
         body: JSON.stringify({
           projectId: resolvedBudgetProjectId,
-          planId,
+          planId: effectivePlanId,
           tier: requestTier,
           mode: requestTier,
           docType: "budget",
@@ -3180,9 +3230,10 @@ score: scoreDetailsSectionRef,
     }
 
     const resolvedZipProjectId = realProjectId as string;
+    const effectivePlanId = resolveEffectivePlanId(planId, resolvedZipProjectId);
 
     trackEvent("click_download_zip", {
-      planId,
+      planId: effectivePlanId,
       planLevel: commercialPlanForAnalyticsRef.current,
       docType: "enterprise-pack",
     });
@@ -3230,7 +3281,7 @@ score: scoreDetailsSectionRef,
         headers,
         body: JSON.stringify({
           projectId: resolvedZipProjectId,
-          planId,
+          planId: effectivePlanId,
           tier: requestTier,
           mode: requestTier,
           docType: "zip",
@@ -3947,8 +3998,8 @@ score: scoreDetailsSectionRef,
   ]);
 
   const enterpriseZipButtonLabel = useMemo(() => {
-    if (commercialPlan === "free") return "升级企业版下载 ZIP";
-    if (commercialPlan === "pro") return "企业版可用";
+    if (commercialPlan === "free") return "升级 Enterprise 下载 ZIP";
+    if (commercialPlan === "pro") return "升级 Enterprise 下载 ZIP";
     if (zipDownloadFlash) return "下载已开始";
     if (zipDownloadBusy) return "正在生成 ZIP...";
     if (!canProceedWithPaidDownloads) return "先处理风险后下载 ZIP";
@@ -3959,6 +4010,15 @@ score: scoreDetailsSectionRef,
     zipDownloadBusy,
     canProceedWithPaidDownloads,
   ]);
+
+  const enterpriseZipCardButtonLabel = useMemo(() => {
+    if (checkoutBusyTier === "enterprise") return "支付处理中...";
+    if (canDownloadPaidTier("enterprise")) return "下载完整投标包（ZIP）";
+    if (commercialPlan === "pro") return "升级 Enterprise 下载 ZIP";
+    return "开通 Enterprise 下载 ZIP";
+  }, [checkoutBusyTier, canDownloadPaidTier, commercialPlan]);
+
+  const hasEnterpriseZipAccess = canDownloadPaidTier("enterprise");
 
   /** 开发：清空本机授权与登录会话，回到未授权态以便重测 purchase flow；不触发任何下载 */
   const handleDevResetEnterpriseAuth = useCallback(() => {
@@ -5223,6 +5283,23 @@ score: scoreDetailsSectionRef,
                 ) : null}
                 。请选择版本完成下载或升级。
               </div>
+              <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs leading-relaxed text-zinc-300">
+                <div className="font-medium text-white/85">套餐下载范围</div>
+                <ul className="mt-1.5 space-y-1">
+                  <li>
+                    <span className="font-medium text-violet-200/95">Pro</span>
+                    ：完整 Plan PDF + Budget PDF（适合内部评审，{" "}
+                    <span className="text-amber-200/90">不含</span> 完整投标包
+                    ZIP）
+                  </li>
+                  <li>
+                    <span className="font-medium text-amber-200/95">
+                      Enterprise
+                    </span>
+                    ：完整投标包 ZIP（含 Plan + Budget + 封面 / 声明 / 投标编号，可直接投标）
+                  </li>
+                </ul>
+              </div>
               {mounted && !hasReadyProjectIdForPaidDownload ? (
                 <div className="mb-3 rounded-xl border border-rose-400/40 bg-rose-950/30 px-3 py-2 text-xs text-rose-100">
                   未检测到有效的{" "}
@@ -5241,8 +5318,23 @@ score: scoreDetailsSectionRef,
                     已授权 · 已激活
                   </div>
                   <div className="mt-1 text-xs leading-relaxed text-emerald-100/90">
-                    本设备已绑定付费授权，可直接使用下方 Pro / Enterprise
-                    下载能力（最终以服务端校验为准）。
+                    {hasEnterpriseZipAccess ? (
+                      <>
+                        本设备已绑定 Enterprise 授权，可下载完整 Plan / Budget
+                        及完整投标包 ZIP（最终以服务端校验为准）。
+                      </>
+                    ) : commercialPlan === "pro" ||
+                      canDownloadPaidTier("pro") ? (
+                      <>
+                        本设备已绑定 Pro 授权，可下载完整 Plan / Budget。
+                        完整投标包 ZIP 需升级至 Enterprise（Pro 无法下载
+                        ZIP）。
+                      </>
+                    ) : (
+                      <>
+                        本设备已绑定付费授权，请按下方套餐说明选择对应下载项（最终以服务端校验为准）。
+                      </>
+                    )}
                   </div>
                 </div>
               ) : null}
@@ -5401,9 +5493,12 @@ score: scoreDetailsSectionRef,
                   <div className="mt-1 text-2xl font-bold text-white">￥299</div>
                   <div className="mt-1 text-xs text-violet-100/90">适合内部评审</div>
                   <ul className="mt-3 space-y-1 text-sm text-zinc-200">
-                    <li>完整版 Plan</li>
-                    <li>Budget 预算书下载</li>
-                    <li>无水印，适合评审会</li>
+                    <li>完整版 Plan PDF</li>
+                    <li>完整版 Budget PDF</li>
+                    <li>无水印，适合内部评审</li>
+                    <li className="text-xs text-zinc-400">
+                      不含完整投标包 ZIP（ZIP 需 Enterprise）
+                    </li>
                   </ul>
                   {!canDownloadPaidTier("pro") ? (
                     <button
@@ -5472,12 +5567,34 @@ score: scoreDetailsSectionRef,
                   <div className="mt-1 text-2xl font-bold text-white">￥999</div>
                   <div className="mt-1 text-xs text-amber-100">可直接用于投标</div>
                   <ul className="mt-3 space-y-1 text-sm text-zinc-100">
-                    <li>包含：Plan + Budget + 完整投标包（ZIP）</li>
+                    <li>完整投标包 ZIP（含 Plan + Budget）</li>
                     <li>封面 / 声明 / 投标编号</li>
                     <li className="text-xs text-amber-100/80">
-                      一键下载完整 ZIP，无需分别获取 Plan / Budget
+                      一键打包，可直接用于投标提交
                     </li>
                   </ul>
+                  {!hasEnterpriseZipAccess ? (
+                    <div className="mt-3 rounded-lg border border-amber-300/35 bg-amber-400/10 px-3 py-2 text-xs leading-relaxed text-amber-50/95">
+                      {commercialPlan === "pro" ? (
+                        <>
+                          您当前为{" "}
+                          <span className="font-semibold text-amber-100">
+                            Pro
+                          </span>
+                          ，完整投标包 ZIP 仅{" "}
+                          <span className="font-semibold text-amber-100">
+                            Enterprise
+                          </span>{" "}
+                          可用。Pro 请使用左侧卡片下载 Plan / Budget。
+                        </>
+                      ) : (
+                        <>
+                          完整投标包 ZIP 为 Enterprise 专属能力；Pro
+                          仅支持 Plan / Budget 单独下载。
+                        </>
+                      )}
+                    </div>
+                  ) : null}
                   <button
                     type="button"
                     disabled={
@@ -5501,10 +5618,13 @@ score: scoreDetailsSectionRef,
                     }}
                     className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-amber-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {checkoutBusyTier === "enterprise"
-                      ? "支付处理中..."
-                      : "下载完整投标包（ZIP）"}
+                    {enterpriseZipCardButtonLabel}
                   </button>
+                  <p className="mt-2 text-center text-[11px] leading-relaxed text-amber-100/70">
+                    {hasEnterpriseZipAccess
+                      ? "Enterprise 授权 · 可下载完整投标包 ZIP"
+                      : "完整投标包 ZIP 需 Enterprise 授权 · Pro 不含 ZIP"}
+                  </p>
                 </div>
               </div>
 
