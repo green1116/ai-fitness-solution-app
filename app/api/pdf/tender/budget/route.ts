@@ -11,6 +11,7 @@ import {
 } from "@/lib/pdf/devFallback";
 import { prisma } from "@/lib/prisma";
 import { renderBudgetPdf } from "@/lib/pdf/renderBudgetPdf";
+import { ensureProjectFromPlanJobId } from "@/lib/services/tender/provisionProjectFromPlan";
 
 export const runtime = "nodejs";
 
@@ -120,6 +121,30 @@ export async function POST(req: Request) {
     }
 
     console.log("[DEBUG][BUDGET][PROJECT]", project);
+
+    if (!project) {
+      const provisioned = await ensureProjectFromPlanJobId(projectId);
+      if (provisioned) {
+        try {
+          project = await prisma.project.findUnique({
+            where: { id: projectId },
+            select: projectSelect,
+          });
+        } catch (reloadAfterProvision) {
+          if (
+            process.env.NODE_ENV === "production" ||
+            !isDatabaseConnectivityError(reloadAfterProvision)
+          ) {
+            throw reloadAfterProvision;
+          }
+          console.warn(
+            "[tender-budget] DEV DB fallback (reload after provision)",
+            reloadAfterProvision,
+          );
+          project = devProjectFallbackBudgetSelect(projectId);
+        }
+      }
+    }
 
     if (!project) {
       const isDev = process.env.NODE_ENV !== "production";
