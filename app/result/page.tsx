@@ -320,6 +320,13 @@ function readInitialPlanId(fallback = "attaguy-plan"): string {
 /** 下载请求统一使用 projectId（planId 与 projectId 同值，不再混用） */
 function resolveDownloadProjectId(projectId: string): string {
   return (projectId || "").trim();
+/** 下载请求使用的 planId：与 projectId 对齐，避免 URL 与 localStorage 陈旧值混用 */
+function resolveEffectivePlanId(planId: string, projectId: string): string {
+  const pid = (projectId || "").trim();
+  const lid = (planId || "").trim();
+  if (isAtgPlanJobId(pid)) return pid;
+  if (isAtgPlanJobId(lid)) return lid;
+  return lid || pid || "attaguy-plan";
 }
 
 /** 客户端首帧同步解析（仅浏览器；与 URL → localStorage → attaguy_plan 优先级一致） */
@@ -2851,6 +2858,11 @@ score: scoreDetailsSectionRef,
 
     trackEvent("click_download_pdf", {
       planId: resolvedProjectId,
+    const resolvedProjectId = realProjectId as string;
+    const effectivePlanId = resolveEffectivePlanId(planId, resolvedProjectId);
+
+    trackEvent("click_download_pdf", {
+      planId: effectivePlanId,
       planLevel: commercialPlanForAnalyticsRef.current,
       docType: "plan",
     });
@@ -2893,6 +2905,7 @@ score: scoreDetailsSectionRef,
         headers,
         body: JSON.stringify({
           projectId: resolvedProjectId,
+          planId: effectivePlanId,
           tier: requestTier,
           mode: requestTier,
           docType: "plan",
@@ -2995,6 +3008,11 @@ score: scoreDetailsSectionRef,
 
     trackEvent("click_download_pdf", {
       planId: resolvedBudgetProjectId,
+    const resolvedBudgetProjectId = realProjectId as string;
+    const effectivePlanId = resolveEffectivePlanId(planId, resolvedBudgetProjectId);
+
+    trackEvent("click_download_pdf", {
+      planId: effectivePlanId,
       planLevel: commercialPlanForAnalyticsRef.current,
       docType: "budget",
     });
@@ -3037,6 +3055,7 @@ score: scoreDetailsSectionRef,
         headers,
         body: JSON.stringify({
           projectId: resolvedBudgetProjectId,
+          planId: effectivePlanId,
           tier: requestTier,
           mode: requestTier,
           docType: "budget",
@@ -3291,6 +3310,11 @@ score: scoreDetailsSectionRef,
 
     trackEvent("click_download_zip", {
       planId: resolvedZipProjectId,
+    const resolvedZipProjectId = realProjectId as string;
+    const effectivePlanId = resolveEffectivePlanId(planId, resolvedZipProjectId);
+
+    trackEvent("click_download_zip", {
+      planId: effectivePlanId,
       planLevel: commercialPlanForAnalyticsRef.current,
       docType: "enterprise-pack",
     });
@@ -3338,6 +3362,7 @@ score: scoreDetailsSectionRef,
         headers,
         body: JSON.stringify({
           projectId: resolvedZipProjectId,
+          planId: effectivePlanId,
           tier: requestTier,
           mode: requestTier,
           docType: "zip",
@@ -5393,6 +5418,23 @@ score: scoreDetailsSectionRef,
                   </a>
                 </div>
               ) : null}
+              <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs leading-relaxed text-zinc-300">
+                <div className="font-medium text-white/85">套餐下载范围</div>
+                <ul className="mt-1.5 space-y-1">
+                  <li>
+                    <span className="font-medium text-violet-200/95">Pro</span>
+                    ：完整 Plan PDF + Budget PDF（适合内部评审，{" "}
+                    <span className="text-amber-200/90">不含</span> 完整投标包
+                    ZIP）
+                  </li>
+                  <li>
+                    <span className="font-medium text-amber-200/95">
+                      Enterprise
+                    </span>
+                    ：完整投标包 ZIP（含 Plan + Budget + 封面 / 声明 / 投标编号，可直接投标）
+                  </li>
+                </ul>
+              </div>
               <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs leading-relaxed text-zinc-300">
                 <div className="font-medium text-white/85">套餐下载范围</div>
                 <ul className="mt-1.5 space-y-1">

@@ -73,16 +73,27 @@ export default function PlanPage() {
         throw new Error(plan.error || plan.detail || "生成方案失败");
       }
 
-      const projectId = String(
-        plan.projectId || plan.planId || plan.plan_id || "",
-      ).trim();
+      const projectId = String(plan.planId || plan.plan_id || "").trim();
+      const storedPlan = {
+        ...plan,
+        planId: projectId,
+        plan_id: projectId,
+        meta: {
+          ...(plan.meta ?? {}),
+          plan_id: projectId || plan.meta?.plan_id,
+        },
+      };
+      localStorage.setItem("attaguy_plan", JSON.stringify(storedPlan));
 
-      if (!projectId) {
-        throw new Error("服务端未返回 projectId，请稍后重试");
-      }
-
-      if (plan.projectSynced === false) {
-        console.warn("[plan] project sync pending", { projectId });
+      if (projectId) {
+        try {
+          localStorage.setItem("projectId", projectId);
+        } catch {
+          // ignore
+        }
+        router.push(`/result?projectId=${encodeURIComponent(projectId)}`);
+      } else {
+        router.push("/result");
       }
 
       const storedPlan = {
