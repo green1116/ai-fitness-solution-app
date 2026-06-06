@@ -221,8 +221,10 @@ export async function POST(req: NextRequest) {
     const planId = planJson.meta.plan_id;
 
     // 3️⃣ 同步 Project / Solution / Budget（与 planJob 同 ID，供 PDF/Budget/ZIP 下载查询）
+    let projectSynced = false;
     try {
       const synced = await provisionProjectFromPlan(planId, planJson, input);
+      projectSynced = true;
       console.log("[Plan API] Project 已同步，projectId:", synced.projectId, {
         created: synced.created,
       });
@@ -244,11 +246,14 @@ export async function POST(req: NextRequest) {
       `&mode=full` +
       `&reason=${encodeURIComponent("plan_api")}`;
 
-    // 返回 plan_id 和下载链接（数据库保存成功）
+    // 返回 plan_id、原始表单与 Project 同步状态
     return NextResponse.json({
       ok: true,
       planId,
-      plan_id: planId, // 保留原有字段以兼容
+      plan_id: planId,
+      projectId: planId,
+      input,
+      projectSynced,
       downloadUrl,
     });
   } catch (error: any) {

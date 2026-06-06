@@ -1,40 +1,53 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  persistPlanFormDraft,
+  persistPlanFormForProject,
+  readPlanFormDraft,
+  type PlanPageForm,
+} from "@/lib/plan/planFormBridge";
 
-type FormData = {
-  companySize: string;
-  area: string;
-  scenario: string;
-  goal: string;
-  budget: string;
-  email: string;
+const DEFAULT_FORM: PlanPageForm = {
+  companyName: "",
+  companySize: "",
+  area: "",
+  scenario: "企业办公楼",
+  goal: "提升员工健康",
+  budget: "5-10万",
+  email: "",
 };
 
 export default function PlanPage() {
   const router = useRouter();
 
-  const [form, setForm] = useState<FormData>({
-    companySize: "",
-    area: "",
-    scenario: "企业办公楼",
-    goal: "提升员工健康",
-    budget: "5-10万",
-    email: "",
-  });
+  const [form, setForm] = useState<PlanPageForm>(DEFAULT_FORM);
 
-  const update = (key: keyof FormData, value: string) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  useEffect(() => {
+    const draft = readPlanFormDraft();
+    if (draft) {
+      setForm({ ...DEFAULT_FORM, ...draft });
+    }
+  }, []);
+
+  const update = (key: keyof PlanPageForm, value: string) => {
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      persistPlanFormDraft(next);
+      return next;
+    });
   };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.companySize || !form.area || !form.email) {
-      alert("请至少填写：员工数量、面积、邮箱");
+    if (!form.companyName || !form.companySize || !form.area || !form.email) {
+      alert("请至少填写：公司名称、员工数量、面积、邮箱");
       return;
     }
+
+    persistPlanFormDraft(form);
 
     try {
       const res = await fetch("/api/plan", {
@@ -82,6 +95,27 @@ export default function PlanPage() {
       } else {
         router.push("/result");
       }
+
+      const storedPlan = {
+        ...plan,
+        projectId,
+        planId: projectId,
+        plan_id: projectId,
+        input: plan.input ?? form,
+        meta: {
+          ...(plan.meta ?? {}),
+          plan_id: projectId,
+        },
+      };
+      localStorage.setItem("attaguy_plan", JSON.stringify(storedPlan));
+      persistPlanFormForProject(projectId, form);
+
+      try {
+        localStorage.setItem("projectId", projectId);
+      } catch {
+        // ignore
+      }
+      router.push(`/result?projectId=${encodeURIComponent(projectId)}`);
     } catch (err: unknown) {
       console.error("Plan generation error:", err);
       const message = err instanceof Error ? err.message : "生成失败，请稍后重试";
@@ -99,6 +133,16 @@ export default function PlanPage() {
         </p>
 
         <form onSubmit={onSubmit} className="space-y-5">
+          <div>
+            <label className="mb-2 block text-sm text-gray-300">公司名称（必填）</label>
+            <input
+              value={form.companyName}
+              onChange={(e) => update("companyName", e.target.value)}
+              placeholder="例如：某某科技有限公司"
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 outline-none focus:border-zinc-500"
+            />
+          </div>
+
           <div>
             <label className="mb-2 block text-sm text-gray-300">员工规模（必填）</label>
             <input
