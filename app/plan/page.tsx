@@ -110,11 +110,10 @@ export default function PlanPage() {
       localStorage.setItem("attaguy_plan", JSON.stringify(storedPlan));
       persistPlanFormForProject(projectId, form);
 
-      try {
+      if (projectId) {
         localStorage.setItem("projectId", projectId);
-      } catch {
-        // ignore
       }
+
       router.push(`/result?projectId=${encodeURIComponent(projectId)}`);
     } catch (err: unknown) {
       console.error("Plan generation error:", err);
