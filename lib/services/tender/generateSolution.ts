@@ -155,7 +155,7 @@ function buildImplementationPlan(input: ProjectInput): Phase[] {
 }
 
 export function generateSolution(input: ProjectInput): GeneratedSolution {
-  const client = input.clientName?.trim() || "投标企业";
+  const client = input.clientName?.trim() || "示例企业";
   const city = input.city?.trim() || "项目所在地（按招标文件）";
   const area = input.areaM2 != null ? `${input.areaM2} 平方米` : "面积以现场复核为准";
   const users =

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { blockDebugInProduction } from "@/lib/http/productionRouteGuard";
 import { describeDatabaseUrl, resolveDatabaseUrl } from "@/lib/db/resolveDatabaseUrl";
 import { formatPrismaErrorForLog, isPrismaConnectionError } from "@/lib/db/prismaErrors";
 import { pingPrisma } from "@/lib/prisma";
@@ -8,9 +9,8 @@ export const dynamic = "force-dynamic";
 
 /** 开发探测：不返回连接串，仅 host/port 与 ping 结果 */
 export async function GET() {
-  if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ ok: false, code: "NOT_FOUND" }, { status: 404 });
-  }
+  const blocked = blockDebugInProduction();
+  if (blocked) return blocked;
 
   let resolved: ReturnType<typeof describeDatabaseUrl> | null = null;
   let resolveError: string | null = null;

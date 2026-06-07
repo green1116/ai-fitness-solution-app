@@ -74,6 +74,11 @@ import TenderCompliancePanel, {
 } from "@/components/TenderCompliancePanel";
 import ExecutiveRuntimeVisualizationPanel from "@/components/ExecutiveRuntimeVisualizationPanel";
 import type { RuntimeVisualizationDashboard } from "@/lib/evidence/types";
+import {
+  budgetLabelToTier,
+  readPlanFormFromStorage,
+  type ResultPageFormSnapshot,
+} from "@/lib/plan/planFormBridge";
 
 const RESULT_PROJECT_ID_STORAGE_KEY = "__result_project_id__";
 /** 与支付回调、用户验收一致的 projectId 存储键 */
@@ -280,13 +285,48 @@ function projectIdFromUrlSources(searchParams: URLSearchParams): string {
   return "";
 }
 
-/** 可用于付费下载的 projectId（排除 plan slug 等） */
-function isValidResolvedProjectId(raw: string, planIdCurrent: string): boolean {
+/** 可用于下载/加载的 projectId（不依赖 planId 状态，避免陈旧 planId 误判） */
+function isUsableProjectId(raw: string): boolean {
   const v = raw.trim();
   if (!v) return false;
   if (looksLikeSlug(v)) return false;
-  if (v === planIdCurrent && isPlaceholderResultPlanId(planIdCurrent)) return false;
+  if (isPlaceholderResultPlanId(v)) return false;
   return isLikelyProjectId(v) || isOpaqueProjectIdToken(v);
+}
+
+/** @deprecated 使用 isUsableProjectId；保留兼容旧调用 */
+function isValidResolvedProjectId(raw: string, _planIdCurrent?: string): boolean {
+  return isUsableProjectId(raw);
+}
+
+/** 客户端首帧同步解析 planId（URL projectId 优先，与 project 主键对齐） */
+function readInitialPlanId(fallback = "attaguy-plan"): string {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const fromUrl = (
+      new URLSearchParams(window.location.search).get("projectId") || ""
+    ).trim();
+    if (isAtgPlanJobId(fromUrl)) return fromUrl;
+    const fromPlan = readProjectIdFromStoredPlan();
+    if (fromPlan && isAtgPlanJobId(fromPlan)) return fromPlan;
+    const fromPersisted = readPersistedProjectIdKeys();
+    if (fromPersisted && isAtgPlanJobId(fromPersisted)) return fromPersisted;
+  } catch {
+    // ignore
+  }
+  return fallback;
+}
+
+/** 下载请求统一使用 projectId（planId 与 projectId 同值，不再混用） */
+function resolveDownloadProjectId(projectId: string): string {
+  return (projectId || "").trim();
+/** 下载请求使用的 planId：与 projectId 对齐，避免 URL 与 localStorage 陈旧值混用 */
+function resolveEffectivePlanId(planId: string, projectId: string): string {
+  const pid = (projectId || "").trim();
+  const lid = (planId || "").trim();
+  if (isAtgPlanJobId(pid)) return pid;
+  if (isAtgPlanJobId(lid)) return lid;
+  return lid || pid || "attaguy-plan";
 }
 
 /** 客户端首帧同步解析（仅浏览器；与 URL → localStorage → attaguy_plan 优先级一致） */
@@ -301,7 +341,7 @@ function readInitialResolvedProjectId(planIdCurrent: string): string {
       readPersistedProjectIdKeys(),
       readProjectIdFromStoredPlan(),
     ]) {
-      if (isValidResolvedProjectId(raw, planIdCurrent)) return raw.trim();
+      if (isUsableProjectId(raw)) return raw.trim();
     }
   } catch {
     // ignore
@@ -663,7 +703,16 @@ function ResultPageInner() {
     return u.toString();
   }, []);
 
-  const [planId, setPlanId] = useState("attaguy-plan");
+  const [planId, setPlanId] = useState(() => readInitialPlanId());
+  const [projectId, setProjectId] = useState(() =>
+    readInitialResolvedProjectId(readInitialPlanId()),
+  );
+  /** 权益/授权查询与 projectId 对齐（planId 仅为兼容别名） */
+  const entitlementProjectId = isUsableProjectId(projectId)
+    ? projectId.trim()
+    : isUsableProjectId(planId)
+      ? planId.trim()
+      : planId;
   const {
     licenseForm,
     setLicenseForm,
@@ -673,7 +722,7 @@ function ResultPageInner() {
     applyWebhookLicensePersist,
     getPaidDownloadLicenseSnapshot,
     handleSaveLicense,
-  } = useResultLicense({ planId, setPageLastError });
+  } = useResultLicense({ planId: entitlementProjectId, setPageLastError });
 
   const {
     effectiveLevel: entitlementLevel,
@@ -683,7 +732,7 @@ function ResultPageInner() {
     loading: entitlementLoading,
     refresh: refreshEntitlements,
     pollUntil: pollEntitlementsUntil,
-  } = useEntitlement(planId);
+  } = useEntitlement(entitlementProjectId);
 
   const handleEntitlementSessionChange = useCallback(() => {
     void refreshEntitlements({ force: true });
@@ -753,10 +802,14 @@ function ResultPageInner() {
     }
   }, [entitlement, pageLastError]);
 
-  const [projectId, setProjectId] = useState(() =>
-    readInitialResolvedProjectId("attaguy-plan"),
-  );
+  const [projectLoadState, setProjectLoadState] = useState<
+    "idle" | "loading" | "ready" | "missing" | "error"
+  >("idle");
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("示例企业");
+  const [companyEmail, setCompanyEmail] = useState("");
+  const [planScenario, setPlanScenario] = useState("企业办公楼");
+  const [planGoal, setPlanGoal] = useState("提升员工健康");
   const [headcount, setHeadcount] = useState<number>(200);
   const [spaceSqm, setSpaceSqm] = useState<number>(120);
   const [budgetTier, setBudgetTier] = useState<BudgetTier>("mid");
@@ -810,7 +863,7 @@ function ResultPageInner() {
       if (status === 403 && json?.code === "ZIP_TIER_INSUFFICIENT") {
         return (
           json?.message ||
-          "当前为 Pro 套餐，完整投标包（ZIP）需升级至企业版。"
+          "当前为 Pro 授权，完整投标包（ZIP）仅 Enterprise 可用。请使用 Pro 卡片下载 Plan / Budget，或升级 Enterprise。"
         );
       }
       if (status === 403 && json?.code === "ZIP_DEV_NOT_ALLOWLISTED") {
@@ -829,6 +882,12 @@ function ResultPageInner() {
         return (
           json?.message ||
           "当前账号暂无完整投标包（ZIP）下载权限。请确认企业版订单已支付完成，并在页面刷新授权后再试。"
+        );
+      }
+      if (status === 404 && json?.error === "PROJECT_NOT_FOUND") {
+        return (
+          json?.message ||
+          "未找到项目记录，请从 /plan 重新生成方案后再下载。"
         );
       }
       if (status === 404 && json?.error === "PROJECT_OR_SOLUTION_NOT_FOUND") {
@@ -896,9 +955,9 @@ function ResultPageInner() {
 
       const fp =
         fingerprint ||
-        `${licensePlanId || planId}:browser`;
+        `${licensePlanId || projectId}:browser`;
       const pid =
-        (planId || "").trim() ||
+        (projectId || "").trim() ||
         licensePlanId ||
         "attaguy-plan";
 
@@ -914,7 +973,7 @@ function ResultPageInner() {
 
       return headers;
     },
-    [licenseForm, planId],
+    [licenseForm, projectId],
   );
 
   const [budgetHeadLoading, setBudgetHeadLoading] = useState(false);
@@ -927,6 +986,9 @@ function ResultPageInner() {
 
   const [tenderRawText, setTenderRawText] = useState("");
   const [tenderFileName, setTenderFileName] = useState("");
+  const [tenderUploadError, setTenderUploadError] = useState<string | null>(
+    null,
+  );
   const [uploadingTenderFile, setUploadingTenderFile] = useState(false);
   const [tenderIntelligence, setTenderIntelligence] =
     useState<TenderAnalyzePayload | null>(null);
@@ -1024,62 +1086,108 @@ const setBusinessRowsWithTrace = (rows: TenderRiskRow[], source: string) => {
   const [showTenderScoreDetails, setShowTenderScoreDetails] = useState(false);
 
   useEffect(() => {
-    if (!mounted || typeof window === "undefined") return;
-
-    const projectIdFromUrl = (searchParams.get("projectId") || "").trim();
-
-    let savedPrimary = "";
-    let savedLegacy = "";
-    try {
-      savedPrimary = (localStorage.getItem(PROJECT_ID_LS_KEY) || "").trim();
-      savedLegacy = (localStorage.getItem(RESULT_PROJECT_ID_STORAGE_KEY) || "").trim();
-    } catch {
-      // ignore
-    }
-
-    const fromStoredPlan = readProjectIdFromStoredPlan();
-
-    let currentProjectId: string | null = null;
-    for (const raw of [
-      projectIdFromUrl,
-      savedPrimary,
-      fromStoredPlan,
-      savedLegacy,
-    ]) {
-      if (isValidResolvedProjectId(raw, planId)) {
-        currentProjectId = raw.trim();
-        break;
-      }
-    }
-
-    if (projectIdFromUrl) {
-      persistProjectIdKeys(projectIdFromUrl);
-    }
-
-    if (currentProjectId) {
-      setProjectId(currentProjectId);
-      persistProjectIdKeys(currentProjectId);
-      console.log("[projectId-ready]", { projectId: currentProjectId });
-      return;
-    }
-
-    console.info("[projectId-missing-after-mount]", {
-      note: "no valid projectId after URL / storage / plan recovery",
-    });
-  }, [mounted, planId, searchParams]);
-
-  useEffect(() => {
     if (!projectId) return;
     persistProjectIdKeys(projectId);
+    if (isAtgPlanJobId(projectId)) {
+      setPlanId((prev) => (prev === projectId ? prev : projectId));
+    }
   }, [projectId]);
+
+  const applyResultFormSnapshot = useCallback(
+    (snapshot: Partial<ResultPageFormSnapshot>) => {
+      if (snapshot.companyName) setCompanyName(snapshot.companyName);
+      if (snapshot.companyEmail || snapshot.email) {
+        setCompanyEmail(String(snapshot.companyEmail || snapshot.email));
+      }
+      if (snapshot.scenario) setPlanScenario(snapshot.scenario);
+      if (snapshot.goal) setPlanGoal(snapshot.goal);
+      if (snapshot.headcount != null && Number.isFinite(snapshot.headcount)) {
+        setHeadcount(snapshot.headcount);
+      }
+      if (snapshot.spaceSqm != null && Number.isFinite(snapshot.spaceSqm)) {
+        setSpaceSqm(snapshot.spaceSqm);
+      }
+      if (snapshot.budgetTier) {
+        setBudgetTier(snapshot.budgetTier);
+      } else if (snapshot.budgetLabel) {
+        setBudgetTier(budgetLabelToTier(snapshot.budgetLabel));
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!mounted) return;
-    const pid = readProjectIdFromStoredPlan();
-    if (pid && isAtgPlanJobId(pid)) {
-      setPlanId(pid);
+    const pid = (projectIdFromUrlSources(searchParams) || projectId || "").trim();
+    if (!isUsableProjectId(pid)) {
+      setProjectLoadState("missing");
+      setProjectLoadError("缺少有效 projectId，请从 /plan 生成方案后进入本页。");
+      return;
     }
-  }, [mounted]);
+
+    let cancelled = false;
+    setProjectLoadState("loading");
+    setProjectLoadError(null);
+    setProjectId(pid);
+    setPlanId(pid);
+    persistProjectIdKeys(pid);
+
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/project/${encodeURIComponent(pid)}`,
+          { credentials: "include" },
+        );
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+
+        if (!res.ok || !data?.ok) {
+          const localForm = readPlanFormFromStorage(pid);
+          if (localForm) applyResultFormSnapshot(localForm);
+          setProjectLoadState("error");
+          setProjectLoadError(
+            data?.message ||
+              "项目记录加载失败，请返回 /plan 重新生成方案。",
+          );
+          return;
+        }
+
+        if (data.form) {
+          applyResultFormSnapshot(data.form as Partial<ResultPageFormSnapshot>);
+        } else {
+          const localForm = readPlanFormFromStorage(pid);
+          if (localForm) applyResultFormSnapshot(localForm);
+        }
+
+        const loadState = data.projectLoadState as typeof projectLoadState;
+        if (data.ready || loadState === "ready") {
+          setProjectLoadState("ready");
+          setProjectLoadError(null);
+        } else if (loadState === "missing" || (!data.project?.exists && !data.planJob?.exists)) {
+          setProjectLoadState("missing");
+          setProjectLoadError(
+            "未找到该项目记录，请从 /plan 填写表单并生成方案。",
+          );
+        } else {
+          setProjectLoadState("error");
+          setProjectLoadError(
+            "项目数据尚未就绪，请返回 /plan 重新生成或稍后刷新页面。",
+          );
+        }
+      } catch (err) {
+        if (cancelled) return;
+        const localForm = readPlanFormFromStorage(pid);
+        if (localForm) applyResultFormSnapshot(localForm);
+        const msg = err instanceof Error ? err.message : "项目加载失败";
+        setProjectLoadState("error");
+        setProjectLoadError(msg);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, searchParams, applyResultFormSnapshot]);
 
 
   const ensureProjectId = useCallback(
@@ -1090,32 +1198,35 @@ const setBusinessRowsWithTrace = (rows: TenderRiskRow[], source: string) => {
       const allowTenderGenerate = options?.allowTenderGenerate !== false;
 
       const urlLive = projectIdFromUrlSources(searchParams);
-      if (isValidResolvedProjectId(urlLive, planId)) {
+      if (isUsableProjectId(urlLive)) {
         const v = urlLive.trim();
         setProjectId(v);
+        setPlanId(v);
         persistProjectIdKeys(v);
         return v;
       }
 
       const current = (projectId || "").trim();
-      if (isValidResolvedProjectId(current, planId)) {
+      if (isUsableProjectId(current)) {
         return current;
       }
 
       if (typeof window !== "undefined") {
         try {
           const fromPlan = readProjectIdFromStoredPlan();
-          if (isValidResolvedProjectId(fromPlan, planId)) {
+          if (isUsableProjectId(fromPlan)) {
             const v = fromPlan.trim();
             setProjectId(v);
+            setPlanId(v);
             persistProjectIdKeys(v);
             return v;
           }
 
           const fromResultStore = readPersistedProjectIdKeys();
-          if (isValidResolvedProjectId(fromResultStore, planId)) {
+          if (isUsableProjectId(fromResultStore)) {
             const v = fromResultStore.trim();
             setProjectId(v);
+            setPlanId(v);
             persistProjectIdKeys(v);
             return v;
           }
@@ -1132,44 +1243,15 @@ const setBusinessRowsWithTrace = (rows: TenderRiskRow[], source: string) => {
         return null;
       }
 
-      const payload: TenderProjectInput = {
-        name: `${companyName || "企业项目"}-${planId || "result"}`,
-        clientName: companyName || undefined,
-        industry: "enterprise",
-        siteType: "office",
-        areaM2: Number.isFinite(spaceSqm) ? spaceSqm : undefined,
-        targetUsers: Number.isFinite(headcount) ? headcount : undefined,
-        budgetLevel: budgetTier,
-        deliveryMode: "tender",
-        notes: tenderFileName ? `来源文件：${tenderFileName}` : undefined,
-      };
-
-      try {
-        const res = await fetch("/api/tender/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const data = await res.json().catch(() => null);
-        const createdId = String(data?.data?.project?.id || "").trim();
-        if (!res.ok || !createdId || !isValidResolvedProjectId(createdId, planId)) {
-          throw new Error(
-            data?.error ||
-              data?.message ||
-              `无法生成有效 projectId（status=${res.status}）`,
-          );
-        }
-        setProjectId(createdId);
-        return createdId;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setPageLastError(msg);
-        return null;
-      }
+      /** /plan 主流程使用 ATG projectId，禁止 fallback 到 cuid，避免 ID 分裂 */
+      console.info("[projectId-missing]", {
+        phase: "ensureProjectId",
+        note: "ATG flow requires /plan generation; tender/generate skipped",
+      });
+      return null;
     },
     [
       projectId,
-      planId,
       companyName,
       spaceSqm,
       headcount,
@@ -1335,10 +1417,8 @@ const setBusinessRowsWithTrace = (rows: TenderRiskRow[], source: string) => {
     canDownloadPaidTier,
   ]);
 
-  const hasReadyProjectIdForPaidDownload = useMemo(() => {
-    // mount 完成前不拦截付费按钮 / 不误判缺失（避免 hydration 闪烁）
-    if (!mounted) return true;
-    if (typeof window === "undefined") return true;
+  const hasUsableProjectId = useMemo(() => {
+    if (!mounted || typeof window === "undefined") return false;
     const urlId = projectIdFromUrlSources(searchParams);
     let storePrimary = "";
     let storeLegacy = "";
@@ -1351,10 +1431,16 @@ const setBusinessRowsWithTrace = (rows: TenderRiskRow[], source: string) => {
     const stateId = projectId.trim();
     const fromPlan = readProjectIdFromStoredPlan();
     for (const raw of [urlId, stateId, storePrimary, fromPlan, storeLegacy]) {
-      if (isValidResolvedProjectId(raw, planId)) return true;
+      if (isUsableProjectId(raw)) return true;
     }
     return false;
-  }, [mounted, projectId, planId, searchParams]);
+  }, [mounted, projectId, searchParams]);
+
+  /** 数据库 Project 已就绪，允许下载 */
+  const canDownloadDocuments = projectLoadState === "ready";
+
+  /** 兼容旧变量名：付费购买按钮是否具备有效 projectId */
+  const hasReadyProjectIdForPaidDownload = hasUsableProjectId;
 
   useEffect(() => {
     logPurchaseEntryPrepared({ surface: "result-page" });
@@ -2730,6 +2816,15 @@ score: scoreDetailsSectionRef,
       forcedTier?: CommercialPlanLevel,
       downloadOpts?: PaidPdfDownloadOpts,
     ) => {
+    if (projectLoadState !== "ready") {
+      setPageLastError(
+        projectLoadError ||
+          "项目数据尚未就绪，请返回 /plan 重新生成后再下载。",
+      );
+      setPageOpOutcome("error");
+      setPageOpLabel("下载计划书 PDF");
+      return;
+    }
     const requestTier = forcedTier ?? commercialPlanForAnalyticsRef.current;
     if (
       (requestTier === "pro" || requestTier === "enterprise") &&
@@ -2759,10 +2854,15 @@ score: scoreDetailsSectionRef,
       return;
     }
 
-    const resolvedProjectId = realProjectId as string;
+    const resolvedProjectId = resolveDownloadProjectId(realProjectId as string);
 
     trackEvent("click_download_pdf", {
-      planId,
+      planId: resolvedProjectId,
+    const resolvedProjectId = realProjectId as string;
+    const effectivePlanId = resolveEffectivePlanId(planId, resolvedProjectId);
+
+    trackEvent("click_download_pdf", {
+      planId: effectivePlanId,
       planLevel: commercialPlanForAnalyticsRef.current,
       docType: "plan",
     });
@@ -2805,7 +2905,7 @@ score: scoreDetailsSectionRef,
         headers,
         body: JSON.stringify({
           projectId: resolvedProjectId,
-          planId,
+          planId: effectivePlanId,
           tier: requestTier,
           mode: requestTier,
           docType: "plan",
@@ -2853,6 +2953,8 @@ score: scoreDetailsSectionRef,
   }, [
     planId,
     projectId,
+    projectLoadState,
+    projectLoadError,
     ensureProjectId,
     resolveDownloadErrorMessage,
     buildCommercialPdfFetchHeaders,
@@ -2864,6 +2966,15 @@ score: scoreDetailsSectionRef,
       forcedTier?: CommercialPlanLevel,
       downloadOpts?: PaidPdfDownloadOpts,
     ) => {
+    if (projectLoadState !== "ready") {
+      setPageLastError(
+        projectLoadError ||
+          "项目数据尚未就绪，请返回 /plan 重新生成后再下载。",
+      );
+      setPageOpOutcome("error");
+      setPageOpLabel("下载预算书 PDF");
+      return;
+    }
     const requestTier = forcedTier ?? commercialPlanForAnalyticsRef.current;
     if (
       (requestTier === "pro" || requestTier === "enterprise") &&
@@ -2893,10 +3004,15 @@ score: scoreDetailsSectionRef,
       return;
     }
 
-    const resolvedBudgetProjectId = realProjectId as string;
+    const resolvedBudgetProjectId = resolveDownloadProjectId(realProjectId as string);
 
     trackEvent("click_download_pdf", {
-      planId,
+      planId: resolvedBudgetProjectId,
+    const resolvedBudgetProjectId = realProjectId as string;
+    const effectivePlanId = resolveEffectivePlanId(planId, resolvedBudgetProjectId);
+
+    trackEvent("click_download_pdf", {
+      planId: effectivePlanId,
       planLevel: commercialPlanForAnalyticsRef.current,
       docType: "budget",
     });
@@ -2939,7 +3055,7 @@ score: scoreDetailsSectionRef,
         headers,
         body: JSON.stringify({
           projectId: resolvedBudgetProjectId,
-          planId,
+          planId: effectivePlanId,
           tier: requestTier,
           mode: requestTier,
           docType: "budget",
@@ -2982,6 +3098,8 @@ score: scoreDetailsSectionRef,
   }, [
     planId,
     projectId,
+    projectLoadState,
+    projectLoadError,
     ensureProjectId,
     resolveDownloadErrorMessage,
     buildCommercialPdfFetchHeaders,
@@ -3152,6 +3270,15 @@ score: scoreDetailsSectionRef,
       forcedTier?: CommercialPlanLevel,
       downloadOpts?: PaidPdfDownloadOpts,
     ) => {
+    if (projectLoadState !== "ready") {
+      setPageLastError(
+        projectLoadError ||
+          "项目数据尚未就绪，请返回 /plan 重新生成后再下载。",
+      );
+      setPageOpOutcome("error");
+      setPageOpLabel("下载完整投标包（ZIP）");
+      return;
+    }
     const requestTier: CommercialPlanLevel = forcedTier ?? "enterprise";
     if (
       (requestTier === "pro" || requestTier === "enterprise") &&
@@ -3179,10 +3306,15 @@ score: scoreDetailsSectionRef,
       return;
     }
 
-    const resolvedZipProjectId = realProjectId as string;
+    const resolvedZipProjectId = resolveDownloadProjectId(realProjectId as string);
 
     trackEvent("click_download_zip", {
-      planId,
+      planId: resolvedZipProjectId,
+    const resolvedZipProjectId = realProjectId as string;
+    const effectivePlanId = resolveEffectivePlanId(planId, resolvedZipProjectId);
+
+    trackEvent("click_download_zip", {
+      planId: effectivePlanId,
       planLevel: commercialPlanForAnalyticsRef.current,
       docType: "enterprise-pack",
     });
@@ -3230,7 +3362,7 @@ score: scoreDetailsSectionRef,
         headers,
         body: JSON.stringify({
           projectId: resolvedZipProjectId,
-          planId,
+          planId: effectivePlanId,
           tier: requestTier,
           mode: requestTier,
           docType: "zip",
@@ -3288,6 +3420,8 @@ score: scoreDetailsSectionRef,
   },
   [
     planId,
+    projectLoadState,
+    projectLoadError,
     ensureProjectId,
     resolveDownloadErrorMessage,
     buildCommercialPdfFetchHeaders,
@@ -3533,6 +3667,7 @@ score: scoreDetailsSectionRef,
 
     try {
       setUploadingTenderFile(true);
+      setTenderUploadError(null);
 
       const lowerName = file.name.toLowerCase();
       setTenderFileName(file.name);
@@ -3583,12 +3718,11 @@ score: scoreDetailsSectionRef,
       }
 
       throw new Error("暂不支持该文件类型，请上传 txt / pdf / docx");
-    } catch (err: any) {
-      console.error(
-        "[handleTenderFileChange] failed",
-        err?.message || "文件上传失败，请稍后重试",
-        err
-      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "文件上传失败，请稍后重试";
+      setTenderUploadError(msg);
+      console.error("[handleTenderFileChange] failed", msg, err);
     } finally {
       setUploadingTenderFile(false);
       e.target.value = "";
@@ -3947,8 +4081,8 @@ score: scoreDetailsSectionRef,
   ]);
 
   const enterpriseZipButtonLabel = useMemo(() => {
-    if (commercialPlan === "free") return "升级企业版下载 ZIP";
-    if (commercialPlan === "pro") return "企业版可用";
+    if (commercialPlan === "free") return "升级 Enterprise 下载 ZIP";
+    if (commercialPlan === "pro") return "升级 Enterprise 下载 ZIP";
     if (zipDownloadFlash) return "下载已开始";
     if (zipDownloadBusy) return "正在生成 ZIP...";
     if (!canProceedWithPaidDownloads) return "先处理风险后下载 ZIP";
@@ -3959,6 +4093,15 @@ score: scoreDetailsSectionRef,
     zipDownloadBusy,
     canProceedWithPaidDownloads,
   ]);
+
+  const enterpriseZipCardButtonLabel = useMemo(() => {
+    if (checkoutBusyTier === "enterprise") return "支付处理中...";
+    if (canDownloadPaidTier("enterprise")) return "下载完整投标包（ZIP）";
+    if (commercialPlan === "pro") return "升级 Enterprise 下载 ZIP";
+    return "开通 Enterprise 下载 ZIP";
+  }, [checkoutBusyTier, canDownloadPaidTier, commercialPlan]);
+
+  const hasEnterpriseZipAccess = canDownloadPaidTier("enterprise");
 
   /** 开发：清空本机授权与登录会话，回到未授权态以便重测 purchase flow；不触发任何下载 */
   const handleDevResetEnterpriseAuth = useCallback(() => {
@@ -4729,7 +4872,7 @@ score: scoreDetailsSectionRef,
         <div className="mb-8">
           <div className="text-3xl font-semibold">Result</div>
           <div className="mt-2 text-white/60">
-            Plan ID：<span className="text-white/90">{planId}</span>
+            Project ID：<span className="text-white/90">{projectId || "—"}</span>
             <span className="ml-3 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs">
               当前模式：{mode === "client" ? "对外（Client）" : "内部（Engine）"}
             </span>
@@ -4778,8 +4921,33 @@ score: scoreDetailsSectionRef,
 
             <div className="mt-6 grid gap-5">
               <div>
-                <div className={labelCls}>Plan ID（内部）</div>
-                <input className={inputCls} value={planId} onChange={(e) => setPlanId(e.target.value)} />
+                <div className={labelCls}>Project ID（主键）</div>
+                <input
+                  className={inputCls}
+                  value={projectId}
+                  readOnly
+                />
+              </div>
+
+              <div>
+                <div className={labelCls}>联系邮箱</div>
+                <input
+                  className={inputCls}
+                  type="email"
+                  value={companyEmail}
+                  readOnly
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className={labelCls}>场景</div>
+                  <input className={inputCls} value={planScenario} readOnly />
+                </div>
+                <div>
+                  <div className={labelCls}>目标</div>
+                  <input className={inputCls} value={planGoal} readOnly />
+                </div>
               </div>
 
               <div>
@@ -4787,7 +4955,7 @@ score: scoreDetailsSectionRef,
                 <input
                   className={inputCls}
                   value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
+                  readOnly
                 />
               </div>
 
@@ -4798,7 +4966,7 @@ score: scoreDetailsSectionRef,
                     className={inputCls}
                     type="number"
                     value={headcount}
-                    onChange={(e) => setHeadcount(Number(e.target.value || 0))}
+                    readOnly
                   />
                   <div className="mt-2 text-xs text-white/50">
                     系统自动归类：{cnSizeLabel(companySizeTier)}
@@ -4811,7 +4979,7 @@ score: scoreDetailsSectionRef,
                     className={inputCls}
                     type="number"
                     value={spaceSqm}
-                    onChange={(e) => setSpaceSqm(Number(e.target.value || 0))}
+                    readOnly
                   />
                 </div>
               </div>
@@ -4822,7 +4990,7 @@ score: scoreDetailsSectionRef,
                   <select
                     className={inputCls}
                     value={budgetTier}
-                    onChange={(e) => setBudgetTier(e.target.value as BudgetTier)}
+                    disabled
                   >
                     <option value="low">低</option>
                     <option value="mid">中</option>
@@ -5055,6 +5223,12 @@ score: scoreDetailsSectionRef,
                   className="w-full min-h-[220px] rounded-xl border p-3"
                 />
 
+                {tenderUploadError ? (
+                  <div className="mt-2 rounded-lg border border-rose-400/40 bg-rose-950/30 px-3 py-2 text-sm text-rose-100">
+                    文件解析失败：{tenderUploadError}
+                  </div>
+                ) : null}
+
                 <TenderAnalysisPanel
                   loading={tenderAnalyzeLoading}
                   error={tenderAnalyzeError}
@@ -5221,7 +5395,62 @@ score: scoreDetailsSectionRef,
                     · 本机已保存付费授权
                   </span>
                 ) : null}
-                。请选择版本完成下载或升级。
+                。Project ID：
+                <span className="font-mono text-white/90">{projectId || "—"}</span>
+              </div>
+              {mounted && projectLoadState === "loading" ? (
+                <div className="mb-3 rounded-xl border border-sky-400/40 bg-sky-950/30 px-3 py-2 text-xs text-sky-100">
+                  项目加载中…完成前下载按钮已禁用，请稍候。
+                </div>
+              ) : null}
+              {mounted && projectLoadError && projectLoadState !== "ready" ? (
+                <div className="mb-3 rounded-xl border border-rose-400/40 bg-rose-950/30 px-3 py-2 text-xs text-rose-100">
+                  {projectLoadError}
+                </div>
+              ) : null}
+              {mounted && !canDownloadDocuments && projectLoadState !== "loading" ? (
+                <div className="mb-3 rounded-xl border border-amber-400/35 bg-amber-950/25 px-3 py-2 text-xs text-amber-100">
+                  {projectLoadError ||
+                    "请先完成 /plan 生成流程。项目未就绪时，所有下载按钮已禁用。"}
+                  {" "}
+                  <a href="/plan" className="underline">
+                    返回 /plan
+                  </a>
+                </div>
+              ) : null}
+              <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs leading-relaxed text-zinc-300">
+                <div className="font-medium text-white/85">套餐下载范围</div>
+                <ul className="mt-1.5 space-y-1">
+                  <li>
+                    <span className="font-medium text-violet-200/95">Pro</span>
+                    ：完整 Plan PDF + Budget PDF（适合内部评审，{" "}
+                    <span className="text-amber-200/90">不含</span> 完整投标包
+                    ZIP）
+                  </li>
+                  <li>
+                    <span className="font-medium text-amber-200/95">
+                      Enterprise
+                    </span>
+                    ：完整投标包 ZIP（含 Plan + Budget + 封面 / 声明 / 投标编号，可直接投标）
+                  </li>
+                </ul>
+              </div>
+              <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs leading-relaxed text-zinc-300">
+                <div className="font-medium text-white/85">套餐下载范围</div>
+                <ul className="mt-1.5 space-y-1">
+                  <li>
+                    <span className="font-medium text-violet-200/95">Pro</span>
+                    ：完整 Plan PDF + Budget PDF（适合内部评审，{" "}
+                    <span className="text-amber-200/90">不含</span> 完整投标包
+                    ZIP）
+                  </li>
+                  <li>
+                    <span className="font-medium text-amber-200/95">
+                      Enterprise
+                    </span>
+                    ：完整投标包 ZIP（含 Plan + Budget + 封面 / 声明 / 投标编号，可直接投标）
+                  </li>
+                </ul>
               </div>
               {mounted && !hasReadyProjectIdForPaidDownload ? (
                 <div className="mb-3 rounded-xl border border-rose-400/40 bg-rose-950/30 px-3 py-2 text-xs text-rose-100">
@@ -5241,8 +5470,23 @@ score: scoreDetailsSectionRef,
                     已授权 · 已激活
                   </div>
                   <div className="mt-1 text-xs leading-relaxed text-emerald-100/90">
-                    本设备已绑定付费授权，可直接使用下方 Pro / Enterprise
-                    下载能力（最终以服务端校验为准）。
+                    {hasEnterpriseZipAccess ? (
+                      <>
+                        本设备已绑定 Enterprise 授权，可下载完整 Plan / Budget
+                        及完整投标包 ZIP（最终以服务端校验为准）。
+                      </>
+                    ) : commercialPlan === "pro" ||
+                      canDownloadPaidTier("pro") ? (
+                      <>
+                        本设备已绑定 Pro 授权，可下载完整 Plan / Budget。
+                        完整投标包 ZIP 需升级至 Enterprise（Pro 无法下载
+                        ZIP）。
+                      </>
+                    ) : (
+                      <>
+                        本设备已绑定付费授权，请按下方套餐说明选择对应下载项（最终以服务端校验为准）。
+                      </>
+                    )}
                   </div>
                 </div>
               ) : null}
@@ -5378,14 +5622,21 @@ score: scoreDetailsSectionRef,
                   </ul>
                   <button
                     type="button"
-                    disabled={pdfDownloadBusy || zipDownloadBusy || checkoutBusyTier !== null}
+                    disabled={
+                      pdfDownloadBusy ||
+                      zipDownloadBusy ||
+                      checkoutBusyTier !== null ||
+                      !canDownloadDocuments
+                    }
                     onClick={() => {
                       console.info("[ui-click] free-plan");
                       if (!canDownloadNow) {
                         handleResolveRiskBeforeDownload();
                         return;
                       }
-                      void handleDownloadPlanPdf("free");
+                      void handleDownloadPlanPdf("free", {
+                        allowTenderGenerate: false,
+                      });
                     }}
                     className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-60"
                   >
@@ -5401,9 +5652,12 @@ score: scoreDetailsSectionRef,
                   <div className="mt-1 text-2xl font-bold text-white">￥299</div>
                   <div className="mt-1 text-xs text-violet-100/90">适合内部评审</div>
                   <ul className="mt-3 space-y-1 text-sm text-zinc-200">
-                    <li>完整版 Plan</li>
-                    <li>Budget 预算书下载</li>
-                    <li>无水印，适合评审会</li>
+                    <li>完整版 Plan PDF</li>
+                    <li>完整版 Budget PDF</li>
+                    <li>无水印，适合内部评审</li>
+                    <li className="text-xs text-zinc-400">
+                      不含完整投标包 ZIP（ZIP 需 Enterprise）
+                    </li>
                   </ul>
                   {!canDownloadPaidTier("pro") ? (
                     <button
@@ -5432,7 +5686,8 @@ score: scoreDetailsSectionRef,
                           pdfDownloadBusy ||
                           zipDownloadBusy ||
                           checkoutBusyTier !== null ||
-                          !hasReadyProjectIdForPaidDownload
+                          !hasReadyProjectIdForPaidDownload ||
+                          !canDownloadDocuments
                         }
                         onClick={() => {
                           console.info("[ui-click] pro-plan");
@@ -5448,7 +5703,8 @@ score: scoreDetailsSectionRef,
                           pdfDownloadBusy ||
                           zipDownloadBusy ||
                           checkoutBusyTier !== null ||
-                          !hasReadyProjectIdForPaidDownload
+                          !hasReadyProjectIdForPaidDownload ||
+                          !canDownloadDocuments
                         }
                         onClick={() => {
                           console.log("[ui-click] pro-budget");
@@ -5472,19 +5728,42 @@ score: scoreDetailsSectionRef,
                   <div className="mt-1 text-2xl font-bold text-white">￥999</div>
                   <div className="mt-1 text-xs text-amber-100">可直接用于投标</div>
                   <ul className="mt-3 space-y-1 text-sm text-zinc-100">
-                    <li>包含：Plan + Budget + 完整投标包（ZIP）</li>
+                    <li>完整投标包 ZIP（含 Plan + Budget）</li>
                     <li>封面 / 声明 / 投标编号</li>
                     <li className="text-xs text-amber-100/80">
-                      一键下载完整 ZIP，无需分别获取 Plan / Budget
+                      一键打包，可直接用于投标提交
                     </li>
                   </ul>
+                  {!hasEnterpriseZipAccess ? (
+                    <div className="mt-3 rounded-lg border border-amber-300/35 bg-amber-400/10 px-3 py-2 text-xs leading-relaxed text-amber-50/95">
+                      {commercialPlan === "pro" ? (
+                        <>
+                          您当前为{" "}
+                          <span className="font-semibold text-amber-100">
+                            Pro
+                          </span>
+                          ，完整投标包 ZIP 仅{" "}
+                          <span className="font-semibold text-amber-100">
+                            Enterprise
+                          </span>{" "}
+                          可用。Pro 请使用左侧卡片下载 Plan / Budget。
+                        </>
+                      ) : (
+                        <>
+                          完整投标包 ZIP 为 Enterprise 专属能力；Pro
+                          仅支持 Plan / Budget 单独下载。
+                        </>
+                      )}
+                    </div>
+                  ) : null}
                   <button
                     type="button"
                     disabled={
                       pdfDownloadBusy ||
                       zipDownloadBusy ||
                       checkoutBusyTier !== null ||
-                      !hasReadyProjectIdForPaidDownload
+                      !hasReadyProjectIdForPaidDownload ||
+                      !canDownloadDocuments
                     }
                     onClick={() => {
                       if (!canDownloadPaidTier("enterprise")) {
@@ -5501,10 +5780,13 @@ score: scoreDetailsSectionRef,
                     }}
                     className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-amber-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {checkoutBusyTier === "enterprise"
-                      ? "支付处理中..."
-                      : "下载完整投标包（ZIP）"}
+                    {enterpriseZipCardButtonLabel}
                   </button>
+                  <p className="mt-2 text-center text-[11px] leading-relaxed text-amber-100/70">
+                    {hasEnterpriseZipAccess
+                      ? "Enterprise 授权 · 可下载完整投标包 ZIP"
+                      : "完整投标包 ZIP 需 Enterprise 授权 · Pro 不含 ZIP"}
+                  </p>
                 </div>
               </div>
 

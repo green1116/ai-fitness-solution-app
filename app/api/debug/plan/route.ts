@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { prisma } from "@/lib/prisma";
+import { blockDebugInProduction } from "@/lib/http/productionRouteGuard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,9 @@ function readFilePlan(planId: string) {
 }
 
 export async function GET(req: NextRequest) {
+  const blocked = blockDebugInProduction();
+  if (blocked) return blocked;
+
   const url = new URL(req.url);
   const planId = (url.searchParams.get("planId") || "").trim();
 

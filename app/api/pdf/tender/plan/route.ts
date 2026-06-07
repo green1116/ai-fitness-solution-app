@@ -12,8 +12,11 @@ import {
   createDevProjectFallback,
   isDatabaseConnectivityError,
 } from "@/lib/pdf/devFallback";
+import { resolveDownloadIds } from "@/lib/http/resolveDownloadIds";
+import { resolveCompanyName } from "@/lib/plan/resolveCompanyName";
 import { prisma } from "@/lib/prisma";
 import { renderPlanPdf } from "@/lib/pdf/renderPlanPdf";
+import { ensureProjectFromPlanJobId } from "@/lib/services/tender/provisionProjectFromPlan";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
 
 export const runtime = "nodejs";
@@ -37,7 +40,7 @@ function projectInputFromRow(p: {
 }): ProjectInput {
   return {
     name: p.name,
-    clientName: p.clientName ?? "投标企业",
+    clientName: p.clientName ?? "示例企业",
     industry: p.industry ?? "enterprise",
     siteType: p.siteType as ProjectInput["siteType"],
     areaM2: p.areaM2 ?? 1200,
@@ -100,19 +103,15 @@ export async function POST(req: Request) {
 
     const { projectId, planId, docType } = body;
 
-    const pid =
-      typeof projectId === "string" && projectId.trim()
-        ? projectId.trim()
-        : "";
-    const requestPlanId =
-      typeof planId === "string" && planId.trim() ? planId.trim() : "";
-
-    if (!pid) {
-      return NextResponse.json({ error: "projectId is required" }, { status: 400 });
+    const ids = resolveDownloadIds({ projectId, planId });
+    if (!ids.ok) {
+      return NextResponse.json(
+        { error: ids.error, message: ids.message },
+        { status: ids.status },
+      );
     }
-    if (!requestPlanId) {
-      return NextResponse.json({ error: "planId is required" }, { status: 400 });
-    }
+    const pid = ids.projectId;
+    const requestPlanId = ids.entitlementId;
 
     const { entitlement, source, userId } = await resolveRequestEntitlement({
       req,
@@ -157,6 +156,30 @@ export async function POST(req: Request) {
     }
 
     if (!project) {
+      const provisioned = await ensureProjectFromPlanJobId(pid);
+      if (provisioned) {
+        try {
+          project = await prisma.project.findUnique({
+            where: { id: pid },
+            include: projectInclude,
+          });
+        } catch (reloadAfterProvision) {
+          if (
+            process.env.NODE_ENV === "production" ||
+            !isDatabaseConnectivityError(reloadAfterProvision)
+          ) {
+            throw reloadAfterProvision;
+          }
+          console.warn(
+            "[tender-plan] DEV DB fallback (reload after provision)",
+            reloadAfterProvision,
+          );
+          project = createDevProjectFallback(pid);
+        }
+      }
+    }
+
+    if (!project) {
       const isDev = process.env.NODE_ENV !== "production";
       if (!isDev) {
         return NextResponse.json(
@@ -179,7 +202,7 @@ export async function POST(req: Request) {
             deliveryMode: "tender",
             areaM2: 120,
             targetUsers: 200,
-            clientName: "投标企业",
+            clientName: "示例企业",
             industry: "enterprise",
             city: "上海市",
             notes: "dev: plan route mock project",
@@ -235,9 +258,25 @@ export async function POST(req: Request) {
 
     const renderTier = normalizeUserTier(entitlement.effectiveLevel);
 
+    const planJob = await prisma.planJob.findUnique({
+      where: { id: pid },
+      select: { input: true },
+    });
+    const resolvedCompany = resolveCompanyName({
+      ...((planJob?.input as Record<string, unknown> | null) ?? {}),
+      clientName: project.clientName,
+    });
+    if (resolvedCompany !== project.clientName) {
+      project = {
+        ...project,
+        clientName: resolvedCompany,
+        name: `${resolvedCompany}员工健身空间建设项目`,
+      };
+    }
+
     const pdfBytes = await renderPlanPdf(
       project,
-      project.solution,
+      project.solution!,
       project.placeholders,
       { tier: renderTier },
     );

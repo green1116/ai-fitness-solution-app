@@ -76,6 +76,9 @@ import {
   FREEZE_STRATEGIC_SIZE,
   FREEZE_TOC_LEADER_DOT_SIZE,
 } from "@/lib/pdf/commercialFreezeDesignSystem";
+import { replaceLegacyBidderNames } from "@/lib/plan/resolveCompanyName";
+
+const DEFAULT_COMPANY_NAME = "示例企业";
 
 const PAGE_WIDTH = PLAN_PAGE_WIDTH;
 const PAGE_HEIGHT = PLAN_PAGE_HEIGHT;
@@ -181,9 +184,9 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number): stri
 function cleanField(value: string | undefined | null, fallback: string): string {
   const v = String(value ?? "").trim();
   if (!v) return fallback;
-  if (v === "示例企业" || v.toLowerCase() === "enterprise") return fallback;
+  if (v.toLowerCase() === "enterprise") return fallback;
   if (v.includes("未提供")) return fallback;
-  return v;
+  return normalizeClientName(v);
 }
 
 function normalizeIndustry(value: string | undefined | null): string {
@@ -194,29 +197,27 @@ function normalizeIndustry(value: string | undefined | null): string {
   return String(value).trim();
 }
 
-function normalizeClientName(value: string | undefined | null): string | undefined {
+function normalizeClientName(value: string | undefined | null): string {
   const v = String(value ?? "").trim();
-  if (!v) return undefined;
+  if (!v) return DEFAULT_COMPANY_NAME;
   const lower = v.toLowerCase();
   if (
-    v === "示例企业" ||
     v.includes("未提供") ||
     lower === "enterprise" ||
+    lower === "insport" ||
+    lower === "投标企业" ||
+    v === "某企业" ||
     lower.includes("attaguy-plan") ||
-    /(^|[-_])plan([-_]|$)/i.test(v) ||
-    /^[a-z0-9-]{8,}$/i.test(v)
+    /(^|[-_])plan([-_]|$)/i.test(v)
   ) {
-    return undefined;
+    return DEFAULT_COMPANY_NAME;
   }
-  return v;
+  return replaceLegacyBidderNames(v, v);
 }
 
 function buildTenderProjectName(clientName: string | undefined): string {
   const safeClientName = normalizeClientName(clientName);
-  if (safeClientName) {
-    return `${safeClientName}员工健身空间建设项目`;
-  }
-  return "某企业员工健身空间建设项目";
+  return `${safeClientName}员工健身空间建设项目`;
 }
 
 export function normalizeProject(project: ProjectLike | ProjectRecord): ProjectRecord {
@@ -349,7 +350,7 @@ function buildTenderContext(
   const projectName = buildTenderProjectName(project.input.clientName);
   return {
     projectName,
-    company: cleanField(project.input.clientName, "某企业"),
+    company: cleanField(project.input.clientName, DEFAULT_COMPANY_NAME),
     city: cleanField(project.input.city, "上海市"),
     industry: normalizeIndustry(project.input.industry),
     areaLabel:
@@ -635,8 +636,12 @@ function buildSections(input: {
   const overviewBullets = [
     `投标主体：${ctx.company}；项目城市：${ctx.city}；行业属性：${ctx.industry}`,
     `建设规模：建筑面积（或服务面积）${ctx.areaLabel}；服务人口规模：${ctx.usersLabel}`,
-    `方案综述：${solution.summary}`,
-    `建设背景与目标：${solution.background || "围绕员工健康促进、空间利用率提升与可持续运营目标，构建安全、专业、易管理的员工健身空间。"}`,
+    `方案综述：${replaceLegacyBidderNames(solution.summary, ctx.company)}`,
+    `建设背景与目标：${replaceLegacyBidderNames(
+      solution.background ||
+        "围绕员工健康促进、空间利用率提升与可持续运营目标，构建安全、专业、易管理的员工健身空间。",
+      ctx.company,
+    )}`,
     `编制范围：覆盖空间规划、设备建议、实施组织、培训验收、运维移交与质保服务；不含招标人另行委托的第三方专项（以合同约定为准）`,
     `质量与安全原则：满足国家及地方相关规范，突出结构安全、用电安全、运动安全与应急管理`,
     `文件体系：与 ${ctx.brand} 品牌技术体系对齐，正文、附件与页眉版本号保持一致，便于归档与追溯`,
@@ -909,7 +914,7 @@ async function drawCover(
 ): Promise<void> {
   const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   await drawCommercialCoverV3(doc, page, font, {
-    companyName: cleanField(input.project.input.clientName, "某企业"),
+    companyName: cleanField(input.project.input.clientName, DEFAULT_COMPANY_NAME),
     projectName: buildTenderProjectName(input.project.input.clientName),
     tenderNo:
       input.tenderDocument?.tenderId ??
@@ -1497,7 +1502,20 @@ async function renderPlanOnly(input: {
   const doc = await PDFDocument.create();
   const font = await loadChineseFont(doc);
 
-  const sections = buildSections({ ...input, tier });
+  const company = cleanField(input.project.input.clientName, DEFAULT_COMPANY_NAME);
+  const mapLine = (line: string) => replaceLegacyBidderNames(line, company);
+  const solution: SolutionRecord = {
+    ...input.solution,
+    summary: mapLine(input.solution.summary),
+    background: mapLine(input.solution.background),
+    requirements: input.solution.requirements.map(mapLine),
+    objectives: input.solution.objectives.map(mapLine),
+    operationsPlan: input.solution.operationsPlan.map(mapLine),
+    riskControl: input.solution.riskControl.map(mapLine),
+    acceptanceCriteria: input.solution.acceptanceCriteria.map(mapLine),
+  };
+
+  const sections = buildSections({ ...input, solution, tier });
   const sectionPages = sections.flatMap((section) => paginateSection(section, font));
 
   const firstPageMap: Record<string, number> = {};
