@@ -13,6 +13,8 @@ import {
   isDatabaseConnectivityError,
 } from "@/lib/pdf/devFallback";
 import { resolveDownloadIds } from "@/lib/http/resolveDownloadIds";
+import { sanitizeProductionClientMessage } from "@/lib/http/sanitizeProductionClient";
+import { DOWNLOAD_SERVICE_UNAVAILABLE } from "@/lib/client/clientFacingMessages";
 import { resolveCompanyName } from "@/lib/plan/resolveCompanyName";
 import { prisma } from "@/lib/prisma";
 import { renderPlanPdf } from "@/lib/pdf/renderPlanPdf";
@@ -156,26 +158,28 @@ export async function POST(req: Request) {
     }
 
     if (!project) {
-      const provisioned = await ensureProjectFromPlanJobId(pid);
-      if (provisioned) {
-        try {
-          project = await prisma.project.findUnique({
-            where: { id: pid },
-            include: projectInclude,
-          });
-        } catch (reloadAfterProvision) {
-          if (
-            process.env.NODE_ENV === "production" ||
-            !isDatabaseConnectivityError(reloadAfterProvision)
-          ) {
-            throw reloadAfterProvision;
-          }
-          console.warn(
-            "[tender-plan] DEV DB fallback (reload after provision)",
-            reloadAfterProvision,
-          );
-          project = createDevProjectFallback(pid);
+      try {
+        await ensureProjectFromPlanJobId(pid);
+      } catch (provisionErr) {
+        console.error("[tender-plan] provision failed (non-fatal)", provisionErr);
+      }
+      try {
+        project = await prisma.project.findUnique({
+          where: { id: pid },
+          include: projectInclude,
+        });
+      } catch (reloadAfterProvision) {
+        if (
+          process.env.NODE_ENV === "production" ||
+          !isDatabaseConnectivityError(reloadAfterProvision)
+        ) {
+          throw reloadAfterProvision;
         }
+        console.warn(
+          "[tender-plan] DEV DB fallback (reload after provision)",
+          reloadAfterProvision,
+        );
+        project = createDevProjectFallback(pid);
       }
     }
 
@@ -291,6 +295,13 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("[tender-plan-error]", err);
-    return new Response(null, { status: 500 });
+    const message = sanitizeProductionClientMessage(
+      err instanceof Error ? err.message : "",
+      DOWNLOAD_SERVICE_UNAVAILABLE,
+    );
+    return NextResponse.json(
+      { error: "INTERNAL_ERROR", message },
+      { status: 500 },
+    );
   }
 }

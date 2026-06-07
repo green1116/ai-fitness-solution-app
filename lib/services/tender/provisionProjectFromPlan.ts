@@ -107,70 +107,68 @@ export async function provisionProjectFromPlan(
   const solutionData = generateSolution(input);
   const budgetData = generateBudget(id, []);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.project.upsert({
-      where: { id },
+  await prisma.project.upsert({
+    where: { id },
+    update: {
+      name: input.name,
+      clientName: input.clientName,
+      industry: input.industry,
+      areaM2: input.areaM2,
+      targetUsers: input.targetUsers,
+      budgetLevel: input.budgetLevel as BudgetLevel,
+      notes: input.notes,
+    },
+    create: {
+      id,
+      name: input.name,
+      clientName: input.clientName,
+      industry: input.industry,
+      siteType: SiteType.office,
+      areaM2: input.areaM2,
+      targetUsers: input.targetUsers,
+      city: input.city ?? "上海市",
+      budgetLevel: input.budgetLevel as BudgetLevel,
+      deliveryMode: DeliveryMode.tender,
+      notes: input.notes,
+    },
+  });
+
+  if (!existing?.solution) {
+    await prisma.solution.upsert({
+      where: { projectId: id },
       update: {
-        name: input.name,
-        clientName: input.clientName,
-        industry: input.industry,
-        areaM2: input.areaM2,
-        targetUsers: input.targetUsers,
-        budgetLevel: input.budgetLevel as BudgetLevel,
-        notes: input.notes,
+        summary: solutionData.summary,
+        background: solutionData.background,
       },
       create: {
-        id,
-        name: input.name,
-        clientName: input.clientName,
-        industry: input.industry,
-        siteType: SiteType.office,
-        areaM2: input.areaM2,
-        targetUsers: input.targetUsers,
-        city: input.city ?? "上海市",
-        budgetLevel: input.budgetLevel as BudgetLevel,
-        deliveryMode: DeliveryMode.tender,
-        notes: input.notes,
+        projectId: id,
+        summary: solutionData.summary,
+        background: solutionData.background,
+        requirements: solutionData.requirements as unknown as Prisma.JsonArray,
+        objectives: solutionData.objectives as unknown as Prisma.JsonArray,
+        zoning: solutionData.zoning as unknown as Prisma.JsonArray,
+        implementationPlan:
+          solutionData.implementationPlan as unknown as Prisma.JsonArray,
+        operationsPlan: solutionData.operationsPlan as unknown as Prisma.JsonArray,
+        riskControl: solutionData.riskControl as unknown as Prisma.JsonArray,
+        acceptanceCriteria:
+          solutionData.acceptanceCriteria as unknown as Prisma.JsonArray,
       },
     });
+  }
 
-    if (!existing?.solution) {
-      await tx.solution.upsert({
-        where: { projectId: id },
-        update: {
-          summary: solutionData.summary,
-          background: solutionData.background,
-        },
-        create: {
-          projectId: id,
-          summary: solutionData.summary,
-          background: solutionData.background,
-          requirements: solutionData.requirements as unknown as Prisma.JsonArray,
-          objectives: solutionData.objectives as unknown as Prisma.JsonArray,
-          zoning: solutionData.zoning as unknown as Prisma.JsonArray,
-          implementationPlan:
-            solutionData.implementationPlan as unknown as Prisma.JsonArray,
-          operationsPlan: solutionData.operationsPlan as unknown as Prisma.JsonArray,
-          riskControl: solutionData.riskControl as unknown as Prisma.JsonArray,
-          acceptanceCriteria:
-            solutionData.acceptanceCriteria as unknown as Prisma.JsonArray,
-        },
-      });
-    }
-
-    if (!existing?.budgets[0]) {
-      await tx.budget.create({
-        data: {
-          projectId: id,
-          currency: budgetData.currency,
-          totalEstimateMin: budgetData.totalEstimateMin,
-          totalEstimateMax: budgetData.totalEstimateMax,
-          items: budgetData.items as unknown as Prisma.JsonArray,
-          assumptions: budgetData.assumptions as unknown as Prisma.JsonArray,
-        },
-      });
-    }
-  });
+  if (!existing?.budgets[0]) {
+    await prisma.budget.create({
+      data: {
+        projectId: id,
+        currency: budgetData.currency,
+        totalEstimateMin: budgetData.totalEstimateMin,
+        totalEstimateMax: budgetData.totalEstimateMax,
+        items: budgetData.items as unknown as Prisma.JsonArray,
+        assumptions: budgetData.assumptions as unknown as Prisma.JsonArray,
+      },
+    });
+  }
 
   return { created: true, projectId: id };
 }

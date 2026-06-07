@@ -79,6 +79,11 @@ import {
   readPlanFormFromStorage,
   type ResultPageFormSnapshot,
 } from "@/lib/plan/planFormBridge";
+import {
+  DOWNLOAD_SERVICE_UNAVAILABLE,
+  toClientFacingError,
+  toTenderIntakeClientError,
+} from "@/lib/client/clientFacingMessages";
 
 const RESULT_PROJECT_ID_STORAGE_KEY = "__result_project_id__";
 /** 与支付回调、用户验收一致的 projectId 存储键 */
@@ -896,12 +901,16 @@ function ResultPageInner() {
         return "项目或方案不存在，请先生成完整结果后再下载。";
       }
       if (status >= 500 && json?.error === "INTERNAL_ERROR") {
-        return "下载服务暂时不可用，请稍后重试。";
+        return DOWNLOAD_SERVICE_UNAVAILABLE;
+      }
+      if (status >= 500) {
+        return DOWNLOAD_SERVICE_UNAVAILABLE;
       }
       if (json?.code?.startsWith("ZIP_") && json?.message) {
-        return String(json.message);
+        return toClientFacingError(String(json.message), DOWNLOAD_SERVICE_UNAVAILABLE);
       }
-      return json?.message || json?.error || rawText || fallback;
+      const resolved = json?.message || json?.error || rawText || fallback;
+      return toClientFacingError(resolved, DOWNLOAD_SERVICE_UNAVAILABLE);
     },
     [],
   );
@@ -2441,7 +2450,7 @@ score: scoreDetailsSectionRef,
     if (!tenderRawText.trim()) {
       const msg = "暂无招标文件正文，无法刷新分析。";
       setAnalysisDetailError(msg);
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setAnalysisDetailBusy(false);
       return;
@@ -2468,7 +2477,7 @@ score: scoreDetailsSectionRef,
       console.error("[handleOpenAnalysisDetails] failed", err);
       const msg = err instanceof Error ? err.message : String(err);
       setAnalysisDetailError(msg);
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setPageOpLabel("查看分析明细");
     } finally {
@@ -2792,7 +2801,7 @@ score: scoreDetailsSectionRef,
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       logDownloadError({ mode: "pack", planId, message: msg });
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setPageOpLabel("下载招标包 PDF");
     }
@@ -2850,7 +2859,7 @@ score: scoreDetailsSectionRef,
       console.info("[projectId-missing]", { phase: "download-plan-pdf" });
       const msg =
         "缺少 projectId：请从生成结果页进入（链接需含 projectId），或先在流程中生成项目。";
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setPageOpLabel("下载计划书 PDF");
       return;
@@ -2942,7 +2951,7 @@ score: scoreDetailsSectionRef,
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       logDownloadError({ mode: "plan", tier: requestTier, planId, message: msg });
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setPageOpLabel("下载计划书 PDF");
     } finally {
@@ -2996,7 +3005,7 @@ score: scoreDetailsSectionRef,
       console.info("[projectId-missing]", { phase: "download-budget-pdf" });
       const msg =
         "缺少 projectId：请从生成结果页进入（链接需含 projectId），或先在流程中生成项目。";
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setPageOpLabel("下载预算书 PDF");
       return;
@@ -3083,7 +3092,7 @@ score: scoreDetailsSectionRef,
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       logDownloadError({ mode: "budget", tier: requestTier, planId, message: msg });
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setPageOpLabel("下载预算书 PDF");
     } finally {
@@ -3122,7 +3131,7 @@ score: scoreDetailsSectionRef,
     } catch (e) {
       if (e instanceof CheckoutRedirectError) return;
       const msg = e instanceof Error ? e.message : String(e);
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setPageOpLabel("开通 Pro");
     } finally {
@@ -3169,7 +3178,7 @@ score: scoreDetailsSectionRef,
       } catch (e) {
         if (e instanceof CheckoutRedirectError) return;
         const msg = e instanceof Error ? e.message : String(e);
-        setPageLastError(msg);
+        setPageLastError(toClientFacingError(msg));
         setPageOpOutcome("error");
         setPageOpLabel("下载计划书 PDF");
         return;
@@ -3231,7 +3240,7 @@ score: scoreDetailsSectionRef,
       } catch (e) {
         if (e instanceof CheckoutRedirectError) return;
         const msg = e instanceof Error ? e.message : String(e);
-        setPageLastError(msg);
+        setPageLastError(toClientFacingError(msg));
         setPageOpOutcome("error");
         setPageOpLabel("下载预算书 PDF");
         return;
@@ -3294,7 +3303,7 @@ score: scoreDetailsSectionRef,
       console.info("[projectId-missing]", { phase: "download-enterprise-zip" });
       const msg =
         "缺少 projectId：请从生成结果页进入（链接需含 projectId），或先在流程中生成项目。";
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setPageOpLabel("下载完整投标包（ZIP）");
       return;
@@ -3401,7 +3410,7 @@ score: scoreDetailsSectionRef,
       setPageOpLabel("完整投标包 ZIP");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setPageOpLabel("下载完整投标包（ZIP）");
     } finally {
@@ -3545,7 +3554,7 @@ score: scoreDetailsSectionRef,
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       logDownloadError({ mode: "zip-pack", planId, message: msg });
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       setPageOpOutcome("error");
       setPageOpLabel("下载 ZIP");
     }
@@ -3709,8 +3718,9 @@ score: scoreDetailsSectionRef,
 
       throw new Error("暂不支持该文件类型，请上传 txt / pdf / docx");
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "文件上传失败，请稍后重试";
+      const msg = toTenderIntakeClientError(
+        err instanceof Error ? err.message : "文件上传失败，请稍后重试",
+      );
       setTenderUploadError(msg);
       console.error("[handleTenderFileChange] failed", msg, err);
     } finally {
@@ -3985,6 +3995,12 @@ score: scoreDetailsSectionRef,
   const userPlan: UserPlan = mounted ? userPlanFromUrl : "free";
   const isProductionPrimaryFlow = process.env.NODE_ENV === "production";
 
+  const displayClientError = useCallback(
+    (message: string | null | undefined, fallback = DOWNLOAD_SERVICE_UNAVAILABLE) =>
+      toClientFacingError(message, fallback),
+    [],
+  );
+
   const effectiveCommercialPlan =
     process.env.NODE_ENV === "development" && devForceFreeMode
       ? ("free" as CommercialPlanLevel)
@@ -4043,7 +4059,7 @@ score: scoreDetailsSectionRef,
     } catch (e) {
       if (e instanceof CheckoutRedirectError) return;
       const msg = e instanceof Error ? e.message : "模拟支付失败";
-      setPageLastError(msg);
+      setPageLastError(toClientFacingError(msg));
       console.error("[simulate-pay-webhook-error]", e);
     } finally {
       setPaySimBusy(false);
@@ -4166,7 +4182,7 @@ score: scoreDetailsSectionRef,
       } catch (e) {
         if (e instanceof CheckoutRedirectError) return;
         const msg = e instanceof Error ? e.message : String(e);
-        setPageLastError(msg);
+        setPageLastError(toClientFacingError(msg));
         setPageOpOutcome("error");
         setPageOpLabel("下载完整投标包（ZIP）");
         return;
@@ -4223,7 +4239,7 @@ score: scoreDetailsSectionRef,
       } catch (e) {
         if (e instanceof CheckoutRedirectError) return;
         const msg = e instanceof Error ? e.message : String(e);
-        setPageLastError(msg);
+        setPageLastError(toClientFacingError(msg));
         setPageOpOutcome("error");
         setPageOpLabel("下载计划书 PDF");
         return;
@@ -4281,7 +4297,7 @@ score: scoreDetailsSectionRef,
       } catch (e) {
         if (e instanceof CheckoutRedirectError) return;
         const msg = e instanceof Error ? e.message : String(e);
-        setPageLastError(msg);
+        setPageLastError(toClientFacingError(msg));
         setPageOpOutcome("error");
         setPageOpLabel("下载预算书 PDF");
         return;
@@ -4455,7 +4471,7 @@ score: scoreDetailsSectionRef,
           throw e;
         }
         const msg = e instanceof Error ? e.message : String(e);
-        setPageLastError(msg);
+        setPageLastError(toClientFacingError(msg));
         setPageOpOutcome("error");
         setPageOpLabel("支付");
         throw e;
@@ -4860,18 +4876,26 @@ score: scoreDetailsSectionRef,
     <div className="min-h-screen bg-[#0b0f14] text-white">
       <div className="mx-auto max-w-6xl px-6 py-10">
         <div className="mb-8">
-          <div className="text-3xl font-semibold">Result</div>
-          <div className="mt-2 text-white/60">
-            Project ID：<span className="text-white/90">{projectId || "—"}</span>
-            <span className="ml-3 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs">
-              当前模式：{mode === "client" ? "对外（Client）" : "内部（Engine）"}
-            </span>
-            <span className="ml-3 text-xs text-white/50">
-              （切换：URL 后加 <code className="text-white/70">?mode=engine</code>）
-            </span>
+          <div className="text-3xl font-semibold">
+            {isProductionPrimaryFlow ? "方案结果" : "Result"}
           </div>
+          {!isProductionPrimaryFlow ? (
+            <div className="mt-2 text-white/60">
+              Project ID：<span className="text-white/90">{projectId || "—"}</span>
+              <span className="ml-3 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs">
+                当前模式：{mode === "client" ? "对外（Client）" : "内部（Engine）"}
+              </span>
+              <span className="ml-3 text-xs text-white/50">
+                （切换：URL 后加 <code className="text-white/70">?mode=engine</code>）
+              </span>
+            </div>
+          ) : (
+            <div className="mt-2 text-white/60">
+              查看推荐方案并下载投标文档
+            </div>
+          )}
 
-          {mode === "engine" && (
+          {!isProductionPrimaryFlow && mode === "engine" && (
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs">
               <span className="font-semibold text-white/80">ENGINE STATUS</span>
 
@@ -4910,14 +4934,16 @@ score: scoreDetailsSectionRef,
             </div>
 
             <div className="mt-6 grid gap-5">
-              <div>
-                <div className={labelCls}>Project ID（主键）</div>
-                <input
-                  className={inputCls}
-                  value={projectId}
-                  readOnly
-                />
-              </div>
+              {!isProductionPrimaryFlow ? (
+                <div>
+                  <div className={labelCls}>Project ID（主键）</div>
+                  <input
+                    className={inputCls}
+                    value={projectId}
+                    readOnly
+                  />
+                </div>
+              ) : null}
 
               <div>
                 <div className={labelCls}>联系邮箱</div>
@@ -5215,7 +5241,7 @@ score: scoreDetailsSectionRef,
 
                 {tenderUploadError ? (
                   <div className="mt-2 rounded-lg border border-rose-400/40 bg-rose-950/30 px-3 py-2 text-sm text-rose-100">
-                    文件解析失败：{tenderUploadError}
+                    {displayClientError(tenderUploadError, toTenderIntakeClientError(tenderUploadError))}
                   </div>
                 ) : null}
 
@@ -5227,6 +5253,8 @@ score: scoreDetailsSectionRef,
                   onAnalyze={runTenderIntelligenceAnalyze}
                 />
 
+                {!isProductionPrimaryFlow ? (
+                  <>
                 <TenderSemanticPanel
                   loading={tenderSemanticLoading}
                   error={tenderSemanticError}
@@ -5258,6 +5286,8 @@ score: scoreDetailsSectionRef,
                   canRefresh={!!tenderRawText.trim()}
                   onRefresh={runExecutiveVisualizationDashboard}
                 />
+                  </>
+                ) : null}
 
                 <TenderResponsePanel
                   loading={tenderComposeLoading}
@@ -5369,42 +5399,54 @@ score: scoreDetailsSectionRef,
                 <AccountAuthBar onSessionChange={handleEntitlementSessionChange} />
               </div>
 
-              <div className="mt-4 mb-2 text-xs text-zinc-400">
-                {downloadGate?.action === "allow"
-                  ? "当前评估允许下载正式文件。"
-                  : downloadGate?.action === "warn"
-                    ? "当前存在风险，下载前请先确认。"
-                    : downloadGate?.action === "block"
-                      ? "当前不建议直接下载，请先处理关键问题。"
-                      : "可根据评估结果下载对应版本文件。"}
-              </div>
+              {!isProductionPrimaryFlow ? (
+                <div className="mt-4 mb-2 text-xs text-zinc-400">
+                  {downloadGate?.action === "allow"
+                    ? "当前评估允许下载正式文件。"
+                    : downloadGate?.action === "warn"
+                      ? "当前存在风险，下载前请先确认。"
+                      : downloadGate?.action === "block"
+                        ? "当前不建议直接下载，请先处理关键问题。"
+                        : "可根据评估结果下载对应版本文件。"}
+                </div>
+              ) : null}
               <div className="mb-2 text-sm text-white/75">
                 当前方案：{commercialPlan.toUpperCase()}
-                {hasClientPaidLicense ? (
+                {hasClientPaidLicense && !isProductionPrimaryFlow ? (
                   <span className="ml-2 font-medium text-emerald-200/95">
                     · 本机已保存付费授权
                   </span>
                 ) : null}
-                。Project ID：
-                <span className="font-mono text-white/90">{projectId || "—"}</span>
+                {!isProductionPrimaryFlow ? (
+                  <>
+                    。Project ID：
+                    <span className="font-mono text-white/90">{projectId || "—"}</span>
+                  </>
+                ) : null}
               </div>
               {mounted && projectLoadState === "loading" ? (
                 <div className="mb-3 rounded-xl border border-sky-400/40 bg-sky-950/30 px-3 py-2 text-xs text-sky-100">
-                  项目加载中…完成前下载按钮已禁用，请稍候。
+                  {isProductionPrimaryFlow
+                    ? "正在准备方案与下载内容，请稍候…"
+                    : "项目加载中…完成前下载按钮已禁用，请稍候。"}
                 </div>
               ) : null}
               {mounted && projectLoadError && projectLoadState !== "ready" ? (
                 <div className="mb-3 rounded-xl border border-rose-400/40 bg-rose-950/30 px-3 py-2 text-xs text-rose-100">
-                  {projectLoadError}
+                  {displayClientError(projectLoadError)}
                 </div>
               ) : null}
               {mounted && !canDownloadDocuments && projectLoadState !== "loading" ? (
                 <div className="mb-3 rounded-xl border border-amber-400/35 bg-amber-950/25 px-3 py-2 text-xs text-amber-100">
-                  {projectLoadError ||
-                    "请先完成 /plan 生成流程。项目未就绪时，所有下载按钮已禁用。"}
+                  {isProductionPrimaryFlow
+                    ? "方案尚未就绪，请返回填写页重新生成后再下载。"
+                    : displayClientError(
+                        projectLoadError,
+                        "请先完成 /plan 生成流程。项目未就绪时，所有下载按钮已禁用。",
+                      )}
                   {" "}
                   <a href="/plan" className="underline">
-                    返回 /plan
+                    返回填写页
                   </a>
                 </div>
               ) : null}
@@ -5425,23 +5467,19 @@ score: scoreDetailsSectionRef,
                   </li>
                 </ul>
               </div>
+              {!isProductionPrimaryFlow ? (
               <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs leading-relaxed text-zinc-300">
-                <div className="font-medium text-white/85">套餐下载范围</div>
+                <div className="font-medium text-white/85">授权状态（调试）</div>
                 <ul className="mt-1.5 space-y-1">
                   <li>
-                    <span className="font-medium text-violet-200/95">Pro</span>
-                    ：完整 Plan PDF + Budget PDF（适合内部评审，{" "}
-                    <span className="text-amber-200/90">不含</span> 完整投标包
-                    ZIP）
+                    projectLoadState: {projectLoadState}
                   </li>
                   <li>
-                    <span className="font-medium text-amber-200/95">
-                      Enterprise
-                    </span>
-                    ：完整投标包 ZIP（含 Plan + Budget + 封面 / 声明 / 投标编号，可直接投标）
+                    canDownloadDocuments: {String(canDownloadDocuments)}
                   </li>
                 </ul>
               </div>
+              ) : null}
               {mounted && !hasReadyProjectIdForPaidDownload ? (
                 <div className="mb-3 rounded-xl border border-rose-400/40 bg-rose-950/30 px-3 py-2 text-xs text-rose-100">
                   未检测到有效的{" "}
@@ -6083,15 +6121,18 @@ score: scoreDetailsSectionRef,
                   ))}
                 </div>
 
+                {!isProductionPrimaryFlow ? (
                 <div className="mt-5 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
                   需要进入内部调试？在地址后加{" "}
                   <code className="text-white/70">?mode=engine</code>。
                 </div>
+                ) : null}
               </>
             )}
           </div>
         </div>
 
+        {!isProductionPrimaryFlow ? (
         <div className="mt-10 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-xs text-zinc-400">
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             <span>
@@ -6119,15 +6160,22 @@ score: scoreDetailsSectionRef,
           </div>
           {pageLastError ? (
             <div className="mt-2 border-t border-white/10 pt-2 text-red-300/95">
-              最近错误：{pageLastError}
+              最近错误：{displayClientError(pageLastError)}
             </div>
           ) : null}
         </div>
+        ) : pageLastError ? (
+          <div className="mt-10 rounded-xl border border-rose-400/35 bg-rose-950/25 px-4 py-3 text-sm text-rose-100">
+            {displayClientError(pageLastError)}
+          </div>
+        ) : null}
 
+        {!isProductionPrimaryFlow ? (
         <div className="mt-10 text-xs text-white/35">
           UI 分层目标：Client 模式用于对外展示与交付；Engine 模式用于内部调试 PDF
           引擎，不向客户暴露。
         </div>
+        ) : null}
       </div>
 
       <EnterpriseLeadForm
