@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  isInternalClientError,
-  TENDER_INTAKE_RETRY,
-  toTenderIntakeClientError,
-} from "@/lib/client/clientFacingMessages";
+import { TENDER_INTAKE_RETRY } from "@/lib/client/clientFacingMessages";
 import { parseTenderDocument } from "@/lib/tender/parser";
 
 export const runtime = "nodejs";
@@ -90,18 +86,11 @@ export async function POST(req: NextRequest) {
       message: "暂支持 PDF / DOCX / TXT",
     });
   } catch (err: unknown) {
-    const raw = err instanceof Error ? err.message : "intake failed";
     console.error("[tender/intake]", err);
-    const message =
-      process.env.NODE_ENV === "production" || isInternalClientError(raw)
-        ? toTenderIntakeClientError(raw)
-        : raw.includes("pdf-parse") || raw.includes("module unavailable")
-          ? "PDF 解析模块不可用，请尝试上传 TXT/DOCX，或直接粘贴文本。"
-          : raw;
     return json(500, {
       ok: false,
       code: "TENDER_INTAKE_FAILED",
-      message: message || TENDER_INTAKE_RETRY,
+      message: TENDER_INTAKE_RETRY,
     });
   }
 }

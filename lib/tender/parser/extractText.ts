@@ -1,18 +1,6 @@
 import type { ParsedPage } from "@/lib/tender/types";
 
-type PdfParseResult = {
-  text?: string;
-  numpages?: number;
-};
-
-async function loadPdfParse(): Promise<
-  (buffer: Buffer) => Promise<PdfParseResult>
-> {
-  const mod = await import("pdf-parse");
-  const fn = (mod as { default?: (b: Buffer) => Promise<PdfParseResult> }).default;
-  if (!fn) throw new Error("pdf-parse module unavailable");
-  return fn;
-}
+import { loadPdfParse } from "./loadPdfParse";
 
 function splitTextIntoPages(fullText: string, numPages: number): string[] {
   const text = String(fullText || "");
@@ -52,22 +40,32 @@ function splitTextIntoPages(fullText: string, numPages: number): string[] {
 
 /** 从 PDF 二进制提取 page-level 文本 */
 export async function extractTextFromPdf(buffer: Buffer): Promise<ParsedPage[]> {
-  const pdfParse = await loadPdfParse();
-  const result = await pdfParse(buffer);
-  const numPages = Math.max(1, result.numpages || 1);
-  const chunks = splitTextIntoPages(String(result.text || ""), numPages);
-  return chunks.map((text, i) => ({
-    page: i + 1,
-    text,
-  }));
+  if (!buffer?.length) return [];
+  try {
+    const pdfParse = await loadPdfParse();
+    const result = await pdfParse(buffer);
+    const numPages = Math.max(1, result.numpages || 1);
+    const chunks = splitTextIntoPages(String(result.text || ""), numPages);
+    return chunks.map((text, i) => ({
+      page: i + 1,
+      text,
+    }));
+  } catch {
+    throw new Error("PDF_PARSE_FAILED");
+  }
 }
 
 /** 从 DOCX 提取（整文作为单页，后续可接分页 OCR） */
 export async function extractTextFromDocx(buffer: Buffer): Promise<ParsedPage[]> {
-  const mammoth = await import("mammoth");
-  const result = await mammoth.extractRawText({ buffer });
-  const text = String(result?.value || "").trim();
-  return text ? [{ page: 1, text }] : [];
+  if (!buffer?.length) return [];
+  try {
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ buffer });
+    const text = String(result?.value || "").trim();
+    return text ? [{ page: 1, text }] : [];
+  } catch {
+    throw new Error("DOCX_PARSE_FAILED");
+  }
 }
 
 export async function extractTextFromPlainText(text: string): Promise<ParsedPage[]> {

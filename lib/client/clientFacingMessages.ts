@@ -15,7 +15,11 @@ const INTERNAL_ERROR_PATTERNS = [
   /P2028/i,
   /connection pool/i,
   /pgbouncer/i,
-  /interactive transaction/i,
+  /PDF_PARSE_FAILED/i,
+  /DOCX_PARSE_FAILED/i,
+  /Invalid PDF/i,
+  /Invalid root reference/i,
+  /PDFDocument/i,
   /nested transaction/i,
   /ENOENT/i,
   /test\/data/i,
@@ -55,7 +59,7 @@ export function toTenderIntakeClientError(
 ): string {
   const raw = String(message ?? "").trim();
   if (!raw) return TENDER_INTAKE_RETRY;
-  if (process.env.NODE_ENV !== "production") return raw;
   if (isInternalClientError(raw)) return TENDER_INTAKE_RETRY;
-  return raw;
+  if (process.env.NODE_ENV !== "production") return raw;
+  return TENDER_INTAKE_RETRY;
 }
