@@ -320,6 +320,8 @@ function readInitialPlanId(fallback = "attaguy-plan"): string {
 /** 下载请求统一使用 projectId（planId 与 projectId 同值，不再混用） */
 function resolveDownloadProjectId(projectId: string): string {
   return (projectId || "").trim();
+}
+
 /** 下载请求使用的 planId：与 projectId 对齐，避免 URL 与 localStorage 陈旧值混用 */
 function resolveEffectivePlanId(planId: string, projectId: string): string {
   const pid = (projectId || "").trim();
@@ -2855,10 +2857,6 @@ score: scoreDetailsSectionRef,
     }
 
     const resolvedProjectId = resolveDownloadProjectId(realProjectId as string);
-
-    trackEvent("click_download_pdf", {
-      planId: resolvedProjectId,
-    const resolvedProjectId = realProjectId as string;
     const effectivePlanId = resolveEffectivePlanId(planId, resolvedProjectId);
 
     trackEvent("click_download_pdf", {
@@ -3005,10 +3003,6 @@ score: scoreDetailsSectionRef,
     }
 
     const resolvedBudgetProjectId = resolveDownloadProjectId(realProjectId as string);
-
-    trackEvent("click_download_pdf", {
-      planId: resolvedBudgetProjectId,
-    const resolvedBudgetProjectId = realProjectId as string;
     const effectivePlanId = resolveEffectivePlanId(planId, resolvedBudgetProjectId);
 
     trackEvent("click_download_pdf", {
@@ -3307,10 +3301,6 @@ score: scoreDetailsSectionRef,
     }
 
     const resolvedZipProjectId = resolveDownloadProjectId(realProjectId as string);
-
-    trackEvent("click_download_zip", {
-      planId: resolvedZipProjectId,
-    const resolvedZipProjectId = realProjectId as string;
     const effectivePlanId = resolveEffectivePlanId(planId, resolvedZipProjectId);
 
     trackEvent("click_download_zip", {

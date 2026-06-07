@@ -38,17 +38,6 @@ export function planJsonToProjectInput(
   return {
     name: `${companyName}员工健身空间建设项目`,
     clientName: companyName,
-  const companySize = Number(cp.company_size ?? cp.companySize ?? 150) || 150;
-  const area = Number(cp.space_area ?? cp.area ?? 200) || 200;
-  const budgetRange = String(
-    cp.budget_range ?? cp.budget ?? formInput?.budget ?? "5-10万",
-  );
-  const email = String(formInput?.email ?? "").trim();
-  const scene = String(cp.scene ?? cp.scenario ?? formInput?.scenario ?? "企业办公");
-
-  return {
-    name: `企业健身方案-${plan.meta.plan_id}`,
-    clientName: email ? email.split("@")[0] : "投标企业",
     industry: cp.industry || "enterprise",
     siteType: "office",
     areaM2: area,
@@ -115,10 +104,6 @@ export async function provisionProjectFromPlan(
     return { created: false, projectId: id };
   }
 
-    return { created: false, projectId: id };
-  }
-
-  const input = planJsonToProjectInput(plan, formInput);
   const solutionData = generateSolution(input);
   const budgetData = generateBudget(id, []);
 
@@ -156,7 +141,6 @@ export async function provisionProjectFromPlan(
           summary: solutionData.summary,
           background: solutionData.background,
         },
-        update: {},
         create: {
           projectId: id,
           summary: solutionData.summary,
@@ -211,8 +195,6 @@ export async function ensureProjectFromPlanJobId(
       generated_at: plan.meta?.generated_at ?? new Date().toISOString().split("T")[0],
       version: plan.meta?.version ?? "v1",
     };
-  if (!plan?.meta?.plan_id) {
-    plan.meta = { ...plan.meta, plan_id: id };
   }
 
   await provisionProjectFromPlan(id, plan, (row.input as Record<string, unknown>) ?? null);
