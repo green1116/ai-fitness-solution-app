@@ -1,9 +1,9 @@
 /**
  * ZIP 下载授权（/api/pdf/tender/zip）。
  *
- * 规则（生产）：
- * - `entitlement.zipEnabled`（enterprise 档位快照）或
- * - 同 planId 存在已支付的 enterprise 订单（购买态优先于仅看 effectiveLevel 的歧义）
+ * 规则（与 budget / plan 路由一致，单一事实来源 = getEntitlement 快照）：
+ * - `entitlement.zipEnabled === true`（含 plan-scope / binding / header-key / 已支付订单合成结果）
+ * - 或同 planId 存在已支付的 enterprise 订单（购买态补强，与快照双重一致）
  *
  * 规则（开发/本地，非 production）：
  * - `DEV_ZIP_ALLOW_ALL=1` → 全部放行
@@ -63,7 +63,7 @@ export function hasPaidEnterpriseOrder(debug: EntitlementDebug): boolean {
   );
 }
 
-/** 生产环境：仅订单或用户绑定 / header key 的 license 可授权 ZIP */
+/** binding / header-key 企业 license（plan-scope 已由 entitlement.zipEnabled 覆盖） */
 export function hasBoundEnterpriseZipLicense(debug: EntitlementDebug): boolean {
   const lw = debug.licenseWinner;
   if (!lw || normalizeLevel(lw.level) !== "enterprise") return false;
@@ -97,9 +97,12 @@ export function evaluateZipAccess(params: {
   const purchaseStatus = deriveZipPurchaseStatus(debug);
   const zipFromEnterprisePurchase = hasPaidEnterpriseOrder(debug);
   const zipFromBoundLicense = hasBoundEnterpriseZipLicense(debug);
-  const zipFromEntitlement = isProductionRuntime()
-    ? zipFromEnterprisePurchase || zipFromBoundLicense
-    : entitlement.zipEnabled === true || zipFromEnterprisePurchase;
+  /** 与 /api/pdf/tender/budget 同源：以 resolveRequestEntitlement 快照为准 */
+  const zipFromEntitlementSnapshot = entitlement.zipEnabled === true;
+  const zipFromEntitlement =
+    zipFromEntitlementSnapshot ||
+    zipFromEnterprisePurchase ||
+    zipFromBoundLicense;
 
   const devListed = isDevZipPlanAllowlist(planId);
   /** 生产环境硬锁：即使 NODE_ENV 误配或 DEV_* 泄漏，也不放行 */
@@ -115,9 +118,11 @@ export function evaluateZipAccess(params: {
         : "dev_default_bypass"
       : zipFromEnterprisePurchase
         ? "enterprise_paid_order"
-        : zipFromBoundLicense
-          ? "bound_enterprise_license"
-          : "entitlement_zip_enabled";
+        : zipFromEntitlementSnapshot
+          ? "entitlement_zip_enabled"
+          : zipFromBoundLicense
+            ? "bound_enterprise_license"
+            : "entitlement_zip_enabled";
 
     return {
       allowed: true,

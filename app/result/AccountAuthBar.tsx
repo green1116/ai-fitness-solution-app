@@ -5,17 +5,17 @@ import { useAuth } from "@/hooks/useAuth";
 
 type Props = {
   onSessionChange?: () => void;
+  /** 仅调试 UI 开启时显示 mock 登录 */
+  debugEnabled?: boolean;
 };
 
 export default function AccountAuthBar(props: Props) {
-  const { onSessionChange } = props;
+  const { onSessionChange, debugEnabled = false } = props;
   const { user, loading, refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const showMockControls =
-    process.env.NODE_ENV !== "production" ||
-    process.env.NEXT_PUBLIC_ENABLE_MOCK_AUTH === "1";
+  const showMockControls = debugEnabled;
 
   const notify = useCallback(() => {
     onSessionChange?.();
@@ -84,11 +84,7 @@ export default function AccountAuthBar(props: Props) {
   }
 
   if (!showMockControls) {
-    return (
-      <div className="rounded-xl border border-amber-400/25 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
-        购买前请先登录（正式 OAuth / 邮箱登录接入后将在此展示）。
-      </div>
-    );
+    return null;
   }
 
   return (

@@ -10,14 +10,8 @@ import React, {
   useState,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import BidDecisionGatePanel from "@/components/BidDecisionGatePanel";
-import TenderRiskCard, {
-  type TenderRiskPayload,
-} from "@/components/TenderRiskCard";
-import TenderRiskTables from "@/components/TenderRiskTables";
-import TenderScoreSimulationCard, {
-  type TenderScoreSimulationPayload,
-} from "@/components/TenderScoreSimulationCard";
+import type { TenderRiskPayload } from "@/components/TenderRiskCard";
+import type { TenderScoreSimulationPayload } from "@/components/TenderScoreSimulationCard";
 import type {
   BidDecisionGateResult,
   BidRiskItem,
@@ -56,23 +50,11 @@ import { executePayPurchaseAndIssueLicense } from "@/lib/commercial/payOrderFulf
 import { logPurchaseEntryPrepared } from "@/lib/commercial/purchasePipeline";
 import { useResultLicense } from "@/hooks/useResultLicense";
 import { useEntitlement } from "@/hooks/useEntitlement";
-import AccountAuthBar from "@/app/result/AccountAuthBar";
-import TenderAnalysisPanel, {
-  type TenderAnalyzePayload,
-} from "@/components/TenderAnalysisPanel";
-import TenderSemanticPanel, {
-  type TenderSemanticPayload,
-} from "@/components/TenderSemanticPanel";
-import TenderResponsePanel, {
-  type TenderComposePayload,
-} from "@/components/TenderResponsePanel";
-import TenderSkuPanel, {
-  type TenderSkuPayload,
-} from "@/components/TenderSkuPanel";
-import TenderCompliancePanel, {
-  type TenderCompliancePayload,
-} from "@/components/TenderCompliancePanel";
-import ExecutiveRuntimeVisualizationPanel from "@/components/ExecutiveRuntimeVisualizationPanel";
+import type { TenderAnalyzePayload } from "@/components/TenderAnalysisPanel";
+import type { TenderSemanticPayload } from "@/components/TenderSemanticPanel";
+import type { TenderComposePayload } from "@/components/TenderResponsePanel";
+import type { TenderSkuPayload } from "@/components/TenderSkuPanel";
+import type { TenderCompliancePayload } from "@/components/TenderCompliancePanel";
 import type { RuntimeVisualizationDashboard } from "@/lib/evidence/types";
 import {
   budgetLabelToTier,
@@ -81,9 +63,13 @@ import {
 } from "@/lib/plan/planFormBridge";
 import {
   DOWNLOAD_SERVICE_UNAVAILABLE,
+  MISSING_PROJECT_CONTEXT,
+  PROJECT_NOT_READY,
   toClientFacingError,
   toTenderIntakeClientError,
 } from "@/lib/client/clientFacingMessages";
+import ResultClientView from "@/app/result/ResultClientView";
+import ResultDebugView from "@/app/result/ResultDebugView";
 
 const RESULT_PROJECT_ID_STORAGE_KEY = "__result_project_id__";
 /** 与支付回调、用户验收一致的 projectId 存储键 */
@@ -464,34 +450,6 @@ function enterpriseZipFilename(planId: string) {
   return `AI_Fitness_Solution_Tender_Pack-enterprise-${planId}.zip`;
 }
 
-function CollapsiblePanel(props: {
-  title: string;
-  right?: React.ReactNode;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const { title, right, defaultOpen = false, children } = props;
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-white/60">{open ? "▼" : "▶"}</span>
-          <div className="text-sm font-semibold">{title}</div>
-        </div>
-        <div onClick={(e) => e.stopPropagation()}>{right}</div>
-      </button>
-
-      {open && <div className="mt-3">{children}</div>}
-    </div>
-  );
-}
-
 function commercialPlanFromUserPlan(userPlan: UserPlan): CommercialPlanLevel {
   if (userPlan === "tender") return "enterprise";
   if (userPlan === "pro") return "pro";
@@ -616,8 +574,6 @@ function logDownloadError(meta: Record<string, unknown>) {
 
 function ResultPageInner() {
   const searchParams = useSearchParams();
-  /** 手动 License、模拟发证等：仅在非 production 构建显示（preview/staging 若走 production 构建则同样隐藏） */
-  const showDevLicensePanel = process.env.NODE_ENV !== "production";
   const [enterpriseUnlockOpen, setEnterpriseUnlockOpen] = useState(false);
   const [enterpriseUnlockEmail, setEnterpriseUnlockEmail] = useState("");
   const [enterpriseUnlockSubmitting, setEnterpriseUnlockSubmitting] =
@@ -758,10 +714,8 @@ function ResultPageInner() {
       const ent = entitlement;
       /** 以后端 entitlement 快照为准，避免 `effectiveLevel` 字符串与其它布尔位短暂不一致 */
       if (requestTier === "enterprise") {
-        if (ent?.zipEnabled === true) return true;
-        if (ent?.enterpriseEnabled === true) return true;
-        if (ent?.effectiveLevel === "enterprise") return true;
-        return false;
+        /** 与 /api/pdf/tender/zip 同源：仅以 entitlement.zipEnabled 为准 */
+        return ent?.zipEnabled === true;
       }
       if (ent?.proEnabled === true) return true;
       if (ent?.effectiveLevel === "enterprise" || ent?.effectiveLevel === "pro")
@@ -1132,7 +1086,7 @@ const setBusinessRowsWithTrace = (rows: TenderRiskRow[], source: string) => {
     const pid = (projectIdFromUrlSources(searchParams) || projectId || "").trim();
     if (!isUsableProjectId(pid)) {
       setProjectLoadState("missing");
-      setProjectLoadError("缺少有效 projectId，请从 /plan 生成方案后进入本页。");
+      setProjectLoadError(MISSING_PROJECT_CONTEXT);
       return;
     }
 
@@ -1889,7 +1843,11 @@ const currentBusinessRows = latestBusinessRowsRef.current;
         
           setDownloadGate(panelGate as any);
           setActiveRiskId(panelGate.risks?.[0]?.id ?? null);
-          setShowDownloadGate(panelGate.action !== "allow");
+          setShowDownloadGate(
+            process.env.NODE_ENV !== "production" &&
+              modeFromUrl === "engine" &&
+              panelGate.action !== "allow",
+          );
         }
 
       } catch (err) {
@@ -1897,6 +1855,7 @@ const currentBusinessRows = latestBusinessRowsRef.current;
       }
     },
     [
+      modeFromUrl,
       planId,
       tenderRawText,
       tenderFileName,
@@ -1964,6 +1923,9 @@ const currentBusinessRows = latestBusinessRowsRef.current;
   ]);
 
   const shouldOpenGateBeforeDownload = useCallback(() => {
+    if (process.env.NODE_ENV === "production" || modeFromUrl !== "engine") {
+      return false;
+    }
     const action = downloadGate?.action;
     if (action === "warn" || action === "block") {
       setShowDownloadGate(true);
@@ -1971,6 +1933,8 @@ const currentBusinessRows = latestBusinessRowsRef.current;
     }
     return false;
   }, [
+    modeFromUrl,
+    downloadGate?.action,
     planId,
     tenderRawText,
     tenderFileName,
@@ -1981,9 +1945,14 @@ const currentBusinessRows = latestBusinessRowsRef.current;
 
   const isDownloadBlocked = downloadGate?.action === "block";
   const isDownloadWarn = downloadGate?.action === "warn";
-  const canDownloadNow =
-    downloadGate?.action === "allow" ||
-    (downloadGate?.risks?.length ?? 0) === 0;
+  const canDownloadNow = useMemo(() => {
+    if (process.env.NODE_ENV === "production") return true;
+    if (modeFromUrl !== "engine") return true;
+    return (
+      downloadGate?.action === "allow" ||
+      (downloadGate?.risks?.length ?? 0) === 0
+    );
+  }, [modeFromUrl, downloadGate?.action, downloadGate?.risks?.length]);
 
   /**
    * 付费资源（Pro/Enterprise 购买与下载）：当服务端 entitlement 已确认档位时，
@@ -2522,8 +2491,9 @@ score: scoreDetailsSectionRef,
     setDownloadGate(gate);
     setActiveRiskId(gate.risks?.[0]?.id ?? null);
     setRiskFixResults({});
+    if (process.env.NODE_ENV === "production" || modeFromUrl !== "engine") return;
     setShowDownloadGate(true);
-  }, []);
+  }, [modeFromUrl]);
 
   const toPanelGate = useCallback((gate: any): BidDecisionGateResult => {
     if (!gate) {
@@ -3374,6 +3344,9 @@ score: scoreDetailsSectionRef,
           code: json?.code,
           message: json?.message,
         });
+        if (res.status === 403 && String(json?.code ?? "").startsWith("ZIP_")) {
+          void refreshEntitlements({ force: true });
+        }
         throw new Error(
           resolveDownloadErrorMessage(
             requestTier,
@@ -3427,6 +3400,7 @@ score: scoreDetailsSectionRef,
     getPaidDownloadLicenseSnapshot,
     entitlementLevel,
     zipEnabled,
+    refreshEntitlements,
   ],
 );
 
@@ -3722,7 +3696,9 @@ score: scoreDetailsSectionRef,
         err instanceof Error ? err.message : "文件上传失败，请稍后重试",
       );
       setTenderUploadError(msg);
-      console.error("[handleTenderFileChange] failed", msg, err);
+      if (process.env.NODE_ENV !== "production") {
+        console.error("[handleTenderFileChange] failed", err);
+      }
     } finally {
       setUploadingTenderFile(false);
       e.target.value = "";
@@ -3993,7 +3969,15 @@ score: scoreDetailsSectionRef,
   // 与 SSR 首帧一致：挂载前不读 URL，避免 canUseEnterprise / radio 等与服务器 HTML 不一致导致 hydration mismatch
   const mode: Mode = mounted ? modeFromUrl : "client";
   const userPlan: UserPlan = mounted ? userPlanFromUrl : "free";
-  const isProductionPrimaryFlow = process.env.NODE_ENV === "production";
+  /**
+   * 前台 / 后台分层：
+   * - 生产环境恒为 client，忽略 ?mode=engine
+   * - showDebugUI 为 true 时才渲染 ResultDebugView / 闸门 / 状态条等
+   */
+  const effectiveMode: Mode =
+    process.env.NODE_ENV === "production" ? "client" : mode;
+  const showDebugUI =
+    process.env.NODE_ENV !== "production" && effectiveMode === "engine";
 
   const displayClientError = useCallback(
     (message: string | null | undefined, fallback = DOWNLOAD_SERVICE_UNAVAILABLE) =>
@@ -4034,7 +4018,7 @@ score: scoreDetailsSectionRef,
    * 正式收银接入后仅替换中间支付层，勿在本函数混入真实结算逻辑。
    */
   const runDevSimulatePayWebhookPersist = useCallback(async () => {
-    if (!showDevLicensePanel) return;
+    if (process.env.NODE_ENV === "production" || modeFromUrl !== "engine") return;
     const targetLevel: "pro" | "enterprise" =
       commercialPlan === "enterprise" ? "enterprise" : "pro";
     setPaySimBusy(true);
@@ -4068,7 +4052,7 @@ score: scoreDetailsSectionRef,
     commercialPlan,
     planId,
     applyWebhookLicensePersist,
-    showDevLicensePanel,
+    modeFromUrl,
     refreshEntitlements,
     ensureProjectId,
   ]);
@@ -4107,7 +4091,8 @@ score: scoreDetailsSectionRef,
     return "开通 Enterprise 下载 ZIP";
   }, [checkoutBusyTier, canDownloadPaidTier, commercialPlan]);
 
-  const hasEnterpriseZipAccess = canDownloadPaidTier("enterprise");
+  /** 与 ZIP 路由一致：zipEnabled 为唯一依据，避免「已激活」与 403 不一致 */
+  const hasEnterpriseZipAccess = zipEnabled;
 
   /** 开发：清空本机授权与登录会话，回到未授权态以便重测 purchase flow；不触发任何下载 */
   const handleDevResetEnterpriseAuth = useCallback(() => {
@@ -4162,11 +4147,8 @@ score: scoreDetailsSectionRef,
       console.info("[projectId-missing]", { gate: "enterprise-zip-with-purchase" });
       return;
     }
-    const serverPaidEnterprise =
-      entitlement?.zipEnabled === true ||
-      entitlement?.effectiveLevel === "enterprise" ||
-      entitlement?.enterpriseEnabled === true;
-    if (!serverPaidEnterprise) {
+    const serverPaidZip = entitlement?.zipEnabled === true;
+    if (!serverPaidZip) {
       console.info("[purchase-flow] click", {
         tier: "enterprise",
         product: "zip-pack",
@@ -4861,1320 +4843,233 @@ score: scoreDetailsSectionRef,
     });
   }
 
-  const cardCls =
-    "rounded-2xl border border-white/10 bg-white/5 shadow-lg backdrop-blur px-6 py-6";
-
-  const labelCls = "text-sm text-white/70";
-  const inputCls =
-    "mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-white/20";
-
   if (!mounted) {
     return null;
   }
 
+  const clearTenderUpload = () => {
+    setTenderRawText("");
+    setTenderFileName("");
+    setTenderIntelligence(null);
+    setTenderAnalyzeError(null);
+    setTenderSemantic(null);
+    setTenderSemanticError(null);
+    setTenderCompose(null);
+    setTenderComposeError(null);
+    setTenderSku(null);
+    setTenderSkuError(null);
+    setTenderCompliance(null);
+    setTenderComplianceError(null);
+  };
+
   return (
     <div className="min-h-screen bg-[#0b0f14] text-white">
       <div className="mx-auto max-w-6xl px-6 py-10">
-        <div className="mb-8">
-          <div className="text-3xl font-semibold">
-            {isProductionPrimaryFlow ? "方案结果" : "Result"}
-          </div>
-          {!isProductionPrimaryFlow ? (
-            <div className="mt-2 text-white/60">
-              Project ID：<span className="text-white/90">{projectId || "—"}</span>
-              <span className="ml-3 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs">
-                当前模式：{mode === "client" ? "对外（Client）" : "内部（Engine）"}
-              </span>
-              <span className="ml-3 text-xs text-white/50">
-                （切换：URL 后加 <code className="text-white/70">?mode=engine</code>）
-              </span>
-            </div>
-          ) : (
-            <div className="mt-2 text-white/60">
-              查看推荐方案并下载投标文档
-            </div>
-          )}
-
-          {!isProductionPrimaryFlow && mode === "engine" && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs">
-              <span className="font-semibold text-white/80">ENGINE STATUS</span>
-
-              <span
-                className={`rounded-full px-3 py-1 ${
-                  budgetOk ? "bg-white/10 text-white/80" : "bg-red-500/10 text-red-200/90"
-                }`}
-              >
-                Budget HEAD: {budgetOk ? "OK" : "FAIL"}
-              </span>
-
-              <span
-                className={`rounded-full px-3 py-1 ${
-                  packOk ? "bg-white/10 text-white/80" : "bg-red-500/10 text-red-200/90"
-                }`}
-              >
-                TenderPack HEAD: {packOk ? "OK" : "FAIL"}
-              </span>
-
-              <button
-                type="button"
-                onClick={copyAuditSummary}
-                className="ml-auto rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 hover:bg-white/10"
-              >
-                复制验收摘要
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className={cardCls}>
-            <div className="text-xl font-semibold">企业信息</div>
-            <div className="mt-1 text-sm text-white/60">
-              用于生成招标级 PDF 的关键输入（已隐藏工程字段）
-            </div>
-
-            <div className="mt-6 grid gap-5">
-              {!isProductionPrimaryFlow ? (
-                <div>
-                  <div className={labelCls}>Project ID（主键）</div>
-                  <input
-                    className={inputCls}
-                    value={projectId}
-                    readOnly
-                  />
-                </div>
-              ) : null}
-
-              <div>
-                <div className={labelCls}>联系邮箱</div>
-                <input
-                  className={inputCls}
-                  type="email"
-                  value={companyEmail}
-                  readOnly
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className={labelCls}>场景</div>
-                  <input className={inputCls} value={planScenario} readOnly />
-                </div>
-                <div>
-                  <div className={labelCls}>目标</div>
-                  <input className={inputCls} value={planGoal} readOnly />
-                </div>
-              </div>
-
-              <div>
-                <div className={labelCls}>企业名称</div>
-                <input
-                  className={inputCls}
-                  value={companyName}
-                  readOnly
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className={labelCls}>员工人数</div>
-                  <input
-                    className={inputCls}
-                    type="number"
-                    value={headcount}
-                    readOnly
-                  />
-                  <div className="mt-2 text-xs text-white/50">
-                    系统自动归类：{cnSizeLabel(companySizeTier)}
-                  </div>
-                </div>
-
-                <div>
-                  <div className={labelCls}>场地面积（㎡）</div>
-                  <input
-                    className={inputCls}
-                    type="number"
-                    value={spaceSqm}
-                    readOnly
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className={labelCls}>预算等级</div>
-                  <select
-                    className={inputCls}
-                    value={budgetTier}
-                    disabled
-                  >
-                    <option value="low">低</option>
-                    <option value="mid">中</option>
-                    <option value="high">高</option>
-                  </select>
-                  <div className="mt-2 text-xs text-white/50">
-                    当前选择：{cnBudgetTierLabel(budgetTier)}档
-                  </div>
-                </div>
-
-                <div>
-                  <div className={labelCls}>建设类型</div>
-                  <select
-                    className={inputCls}
-                    value={buildType}
-                    onChange={(e) => setBuildType(e.target.value as "new_build" | "renovation")}
-                  >
-                    <option value="new_build">新建</option>
-                    <option value="renovation">改造</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <div className={labelCls}>使用强度（系统将自动推导使用比例）</div>
-                <select
-                  className={inputCls}
-                  value={usageIntensity}
-                  onChange={(e) =>
-                    setUsageIntensity(
-                      e.target.value as "conservative" | "standard" | "active"
-                    )
-                  }
-                >
-                  <option value="conservative">保守（低频使用）</option>
-                  <option value="standard">标准（常规企业）</option>
-                  <option value="active">高活跃（健康文化强）</option>
-                </select>
-
-                <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
-                  <div>系统预测使用比例：{Math.round(participationRate * 100)}%</div>
-                  <div>峰值同时使用人数（估算）：{peakUsers} 人</div>
-                  <div className="mt-1 text-xs text-white/50">
-                    说明：使用比例 = 预计经常使用健身房的员工占比，用于器材规模与容量推导。
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPreferSmart((v) => !v)}
-                  className={`rounded-full border px-4 py-2 text-sm ${
-                    preferSmart ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5"
-                  }`}
-                >
-                  偏好智能
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreferQuiet((v) => !v)}
-                  className={`rounded-full border px-4 py-2 text-sm ${
-                    preferQuiet ? "border-white/30 bg-white/10" : "border-white/10 bg-white/5"
-                  }`}
-                >
-                  偏好低噪
-                </button>
-              </div>
-
-              <div style={{ marginTop: 16, marginBottom: 12 }}>
-                <div
-                  style={{
-                    fontWeight: 600,
-                    marginBottom: 8,
-                    fontSize: 14,
-                    color: "rgba(255,255,255,0.9)",
-                  }}
-                >
-                  预算文档版本
-                </div>
-
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: 6,
-                    fontSize: 13,
-                    color: "rgba(255,255,255,0.8)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    checked={budgetLevel === "brand"}
-                    onChange={() => setBudgetLevel("brand")}
-                    style={{ marginRight: 6 }}
-                  />
-                  标准报价版（2页）
-                  <span style={{ marginLeft: 8, fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
-                    默认可用
-                  </span>
-                </label>
-
-                <label
-                  style={{
-                    display: "block",
-                    marginBottom: 6,
-                    fontSize: 13,
-                    color: canUseEnterprise ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.35)",
-                    cursor: canUseEnterprise ? "pointer" : "not-allowed",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    disabled={!canUseEnterprise}
-                    checked={budgetLevel === "enterprise"}
-                    onChange={() => setBudgetLevel("enterprise")}
-                    style={{ marginRight: 6 }}
-                  />
-                  企业评审版（7页）
-                  {!canUseEnterprise && (
-                    <span
-                      style={{ marginLeft: 8, fontSize: 12, color: "rgba(255,255,255,0.45)" }}
-                    >
-                      需升级 Pro
-                    </span>
-                  )}
-                </label>
-
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: 13,
-                    color: canUseGovernment ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.35)",
-                    cursor: canUseGovernment ? "pointer" : "not-allowed",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    disabled={!canUseGovernment}
-                    checked={budgetLevel === "government"}
-                    onChange={() => setBudgetLevel("government")}
-                    style={{ marginRight: 6 }}
-                  />
-                  政府评审版（5页，含编号签章）
-                  {!canUseGovernment && (
-                    <span
-                      style={{ marginLeft: 8, fontSize: 12, color: "rgba(255,255,255,0.45)" }}
-                    >
-                      需升级 Tender
-                    </span>
-                  )}
-                </label>
-
-                {mode === "client" && (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      fontSize: 12,
-                      color: "rgba(255,255,255,0.55)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.03)",
-                      borderRadius: 12,
-                      padding: "10px 12px",
-                    }}
-                  >
-                    当前套餐：
-                    <b style={{ color: "rgba(255,255,255,0.85)" }}>{userPlan.toUpperCase()}</b>
-                    <span style={{ marginLeft: 10 }}>
-                    {userPlan === "free" && "（当前可下载预览版；Pro 解锁完整企业评审版，Tender 解锁政府评审版）"}
-                    {userPlan === "pro" && "（Tender 解锁政府评审版）"}
-                    {userPlan === "tender" && "（已解锁全部版本）"}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6">
-                <label className="mb-2 block text-sm font-medium">
-                  招标文本（测试入口）
-                </label>
-
-                <div className="mb-3 flex flex-wrap items-center gap-3">
-                  <input
-                    type="file"
-                    accept=".txt,.md,.csv,.pdf,.docx"
-                    onChange={handleTenderFileChange}
-                    className="block text-sm"
-                  />
-
-                  {uploadingTenderFile ? (
-                    <span className="text-sm opacity-70">解析中...</span>
-                  ) : null}
-
-                  {tenderFileName ? (
-                    <span className="text-sm opacity-70">已载入：{tenderFileName}</span>
-                  ) : null}
-
-                  {!!tenderRawText && !uploadingTenderFile ? (
-                    <span className="text-sm opacity-70">
-                      文本长度：{tenderRawText.length} 字
-                    </span>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTenderRawText("");
-                      setTenderFileName("");
-                      setTenderIntelligence(null);
-                      setTenderAnalyzeError(null);
-                      setTenderSemantic(null);
-                      setTenderSemanticError(null);
-                      setTenderCompose(null);
-                      setTenderComposeError(null);
-                      setTenderSku(null);
-                      setTenderSkuError(null);
-                      setTenderCompliance(null);
-                      setTenderComplianceError(null);
-                    }}
-                    className="rounded-lg border px-3 py-1 text-sm"
-                  >
-                    清空
-                  </button>
-                </div>
-
-                <textarea
-                  value={tenderRawText}
-                  onChange={(e) => setTenderRawText(e.target.value)}
-                  placeholder="可直接粘贴招标文件正文，或上传 txt / pdf / docx 文件后自动填充..."
-                  className="w-full min-h-[220px] rounded-xl border p-3"
-                />
-
-                {tenderUploadError ? (
-                  <div className="mt-2 rounded-lg border border-rose-400/40 bg-rose-950/30 px-3 py-2 text-sm text-rose-100">
-                    {displayClientError(tenderUploadError, toTenderIntakeClientError(tenderUploadError))}
-                  </div>
-                ) : null}
-
-                <TenderAnalysisPanel
-                  loading={tenderAnalyzeLoading}
-                  error={tenderAnalyzeError}
-                  data={tenderIntelligence}
-                  canAnalyze={!!tenderRawText.trim()}
-                  onAnalyze={runTenderIntelligenceAnalyze}
-                />
-
-                {!isProductionPrimaryFlow ? (
-                  <>
-                <TenderSemanticPanel
-                  loading={tenderSemanticLoading}
-                  error={tenderSemanticError}
-                  data={tenderSemantic}
-                  canRun={!!tenderRawText.trim()}
-                  onRun={runTenderSemanticAnalyze}
-                />
-
-                <TenderSkuPanel
-                  loading={tenderSkuLoading}
-                  error={tenderSkuError}
-                  data={tenderSku}
-                  canRun={!!tenderRawText.trim()}
-                  onRun={runTenderSkuAnalyze}
-                />
-
-                <TenderCompliancePanel
-                  loading={tenderComplianceLoading}
-                  error={tenderComplianceError}
-                  data={tenderCompliance}
-                  canRun={!!tenderRawText.trim()}
-                  onRun={runTenderComplianceAnalyze}
-                />
-
-                <ExecutiveRuntimeVisualizationPanel
-                  loading={executiveVisualizationLoading}
-                  error={executiveVisualizationError}
-                  data={executiveVisualization}
-                  canRefresh={!!tenderRawText.trim()}
-                  onRefresh={runExecutiveVisualizationDashboard}
-                />
-                  </>
-                ) : null}
-
-                <TenderResponsePanel
-                  loading={tenderComposeLoading}
-                  error={tenderComposeError}
-                  data={tenderCompose}
-                  canRun={!!tenderRawText.trim()}
-                  onRun={runTenderCompose}
-                />
-              </div>
-
-            
-              
-              {!isProductionPrimaryFlow ? (
-                <div
-                  ref={riskDetailsSectionRef}
-                  className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4"
-                >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-white">
-                      投标评估摘要
-                    </div>
-
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-
-  {tenderRisk?.level ? (
-    <span className="rounded-full border border-white/10 px-2 py-1 text-white/70">
-      风险级数：
-      {tenderRisk.level === "safe"
-        ? "低"
-        : tenderRisk.level === "caution"
-        ? "中"
-        : "高"}
-    </span>
-  ) : null}
-
-{tenderScoreResult?.score != null && (
-  <span className="rounded-full border border-white/10 px-2 py-1 text-white/70">
-    综合评分： {String(tenderScoreResult.score)} / 100
-  </span>
-)}
-</div>
-
-                    <div className="mt-2 text-sm text-zinc-300">
-                      {downloadGate?.summary || "已完成风险与评分分析"}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={analysisDetailBusy}
-                    onClick={() => void handleOpenAnalysisDetails()}
-                    className="inline-flex items-center justify-center rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {analysisDetailBusy ? "分析中..." : "查看分析明细"}
-                  </button>
-                </div>
-
-                {analysisDetailError ? (
-                  <div className="mt-2 text-sm text-red-300/95">
-                    {analysisDetailError}
-                  </div>
-                ) : null}
-
-                {showTenderRiskDetails ? (
-  <div ref={riskDetailsSectionRef} className="mt-4 space-y-4">
-                    <div
-                      className={[
-                        "rounded-xl border",
-                        getFixHighlightClass("risk-summary"),
-                      ].join(" ")}
-                    >
-                      <TenderRiskCard
-                        risk={tenderRisk}
-                        loading={tenderRiskLoading}
-                        onOptimize={handleTenderOptimize}
-                        optimizeLoading={optimizeLoading}
-                        hasRowsForOptimize={
-                          technicalRows.length > 0 || businessRows.length > 0
-                        }
-                      />
-                    </div>
-
-                    <TenderRiskTables
-                      technicalRows={technicalRows}
-                      businessRows={businessRows}
-                      attachmentCodes={tenderRisk?.missingAttachments ?? []}
-                      techResponseSectionRef={techResponseSectionRef}
-                      bizResponseSectionRef={bizResponseSectionRef}
-                      attachmentSectionRef={attachmentSectionRef}
-                      highlightFixKey={highlightFixKey}
-                      getFixHighlightClass={getFixHighlightClass}
-                      highlightRowKey={highlightRowKey}
-                      getHighlightRowClass={getHighlightRowClass}
-                    />
-
-                    <TenderScoreSimulationCard
-                      result={tenderScoreResult}
-                      profileName={tenderScoreProfileName}
-                      source={tenderScoreSource}
-                      loading={tenderScoreLoading}
-                    />
-                  </div>
-                ) : null}
-                </div>
-              ) : null}
-
-              <div className="mb-3 space-y-2">
-                <AccountAuthBar onSessionChange={handleEntitlementSessionChange} />
-              </div>
-
-              {!isProductionPrimaryFlow ? (
-                <div className="mt-4 mb-2 text-xs text-zinc-400">
-                  {downloadGate?.action === "allow"
-                    ? "当前评估允许下载正式文件。"
-                    : downloadGate?.action === "warn"
-                      ? "当前存在风险，下载前请先确认。"
-                      : downloadGate?.action === "block"
-                        ? "当前不建议直接下载，请先处理关键问题。"
-                        : "可根据评估结果下载对应版本文件。"}
-                </div>
-              ) : null}
-              <div className="mb-2 text-sm text-white/75">
-                当前方案：{commercialPlan.toUpperCase()}
-                {hasClientPaidLicense && !isProductionPrimaryFlow ? (
-                  <span className="ml-2 font-medium text-emerald-200/95">
-                    · 本机已保存付费授权
-                  </span>
-                ) : null}
-                {!isProductionPrimaryFlow ? (
-                  <>
-                    。Project ID：
-                    <span className="font-mono text-white/90">{projectId || "—"}</span>
-                  </>
-                ) : null}
-              </div>
-              {mounted && projectLoadState === "loading" ? (
-                <div className="mb-3 rounded-xl border border-sky-400/40 bg-sky-950/30 px-3 py-2 text-xs text-sky-100">
-                  {isProductionPrimaryFlow
-                    ? "正在准备方案与下载内容，请稍候…"
-                    : "项目加载中…完成前下载按钮已禁用，请稍候。"}
-                </div>
-              ) : null}
-              {mounted && projectLoadError && projectLoadState !== "ready" ? (
-                <div className="mb-3 rounded-xl border border-rose-400/40 bg-rose-950/30 px-3 py-2 text-xs text-rose-100">
-                  {displayClientError(projectLoadError)}
-                </div>
-              ) : null}
-              {mounted && !canDownloadDocuments && projectLoadState !== "loading" ? (
-                <div className="mb-3 rounded-xl border border-amber-400/35 bg-amber-950/25 px-3 py-2 text-xs text-amber-100">
-                  {isProductionPrimaryFlow
-                    ? "方案尚未就绪，请返回填写页重新生成后再下载。"
-                    : displayClientError(
-                        projectLoadError,
-                        "请先完成 /plan 生成流程。项目未就绪时，所有下载按钮已禁用。",
-                      )}
-                  {" "}
-                  <a href="/plan" className="underline">
-                    返回填写页
-                  </a>
-                </div>
-              ) : null}
-              <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs leading-relaxed text-zinc-300">
-                <div className="font-medium text-white/85">套餐下载范围</div>
-                <ul className="mt-1.5 space-y-1">
-                  <li>
-                    <span className="font-medium text-violet-200/95">Pro</span>
-                    ：完整 Plan PDF + Budget PDF（适合内部评审，{" "}
-                    <span className="text-amber-200/90">不含</span> 完整投标包
-                    ZIP）
-                  </li>
-                  <li>
-                    <span className="font-medium text-amber-200/95">
-                      Enterprise
-                    </span>
-                    ：完整投标包 ZIP（含 Plan + Budget + 封面 / 声明 / 投标编号，可直接投标）
-                  </li>
-                </ul>
-              </div>
-              {!isProductionPrimaryFlow ? (
-              <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs leading-relaxed text-zinc-300">
-                <div className="font-medium text-white/85">授权状态（调试）</div>
-                <ul className="mt-1.5 space-y-1">
-                  <li>
-                    projectLoadState: {projectLoadState}
-                  </li>
-                  <li>
-                    canDownloadDocuments: {String(canDownloadDocuments)}
-                  </li>
-                </ul>
-              </div>
-              ) : null}
-              {mounted && !hasReadyProjectIdForPaidDownload ? (
-                <div className="mb-3 rounded-xl border border-rose-400/40 bg-rose-950/30 px-3 py-2 text-xs text-rose-100">
-                  未检测到有效的{" "}
-                  <span className="font-mono text-rose-50">projectId</span>
-                  ：请从生成结果页进入本页（链接中带{" "}
-                  <span className="font-mono">projectId</span>
-                  ），或先在流程中生成项目。{" "}
-                  <span className="text-rose-200/80">
-                    Pro / Enterprise 下载与购买已暂时不可用。
-                  </span>
-                </div>
-              ) : null}
-              {mounted && hasClientPaidLicense ? (
-                <div className="mb-3 rounded-xl border border-emerald-400/40 bg-emerald-950/30 px-3 py-2.5 text-sm text-emerald-50">
-                  <div className="font-semibold text-emerald-100">
-                    已授权 · 已激活
-                  </div>
-                  <div className="mt-1 text-xs leading-relaxed text-emerald-100/90">
-                    {hasEnterpriseZipAccess ? (
-                      <>
-                        本设备已绑定 Enterprise 授权，可下载完整 Plan / Budget
-                        及完整投标包 ZIP（最终以服务端校验为准）。
-                      </>
-                    ) : commercialPlan === "pro" ||
-                      canDownloadPaidTier("pro") ? (
-                      <>
-                        本设备已绑定 Pro 授权，可下载完整 Plan / Budget。
-                        完整投标包 ZIP 需升级至 Enterprise（Pro 无法下载
-                        ZIP）。
-                      </>
-                    ) : (
-                      <>
-                        本设备已绑定付费授权，请按下方套餐说明选择对应下载项（最终以服务端校验为准）。
-                      </>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-
-              {process.env.NODE_ENV === "production" &&
-              mounted &&
-              !hasClientPaidLicense ? (
-                <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs leading-relaxed text-zinc-300">
-                  购买成功后系统将自动在本机激活授权，无需手动填写授权码；若支付完成仍未解锁，请刷新页面或联系支持。
-                </div>
-              ) : null}
-
-              {showDevLicensePanel ? (
-                <div className="mb-3 rounded-xl border border-amber-400/40 bg-amber-50/10 p-3">
-                  <details className="rounded-lg border border-amber-400/25 bg-black/15 [&_summary::-webkit-details-marker]:hidden">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-2 py-2 text-xs font-medium text-amber-100 hover:bg-white/5">
-                      <span>开发调试 · License / 支付模拟</span>
-                      <span className="shrink-0 text-right text-[11px] font-normal leading-snug text-zinc-400">
-                        {licenseSaveMessage ? (
-                          <span className="text-emerald-300">
-                            {licenseSaveMessage}
-                          </span>
-                        ) : (
-                          "展开"
-                        )}
-                      </span>
-                    </summary>
-                    <div className="mt-3 space-y-3 border-t border-amber-400/20 pt-3">
-                      <div className="text-[11px] text-amber-100/75">
-                        非 production
-                        构建专用：可手动写入 License Key、指纹与 planId，或使用测试发证 /
-                        模拟支付链路。正式用户不会看到本面板。
-                      </div>
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                        <input
-                          value={licenseForm.licenseKey}
-                          onChange={(e) => {
-                            setLicenseForm((prev) => {
-                              return { ...prev, licenseKey: e.target.value };
-                            });
-                          }}
-                          placeholder="licenseKey"
-                          className="rounded-lg border border-zinc-400 bg-white px-3 py-2 text-sm text-black placeholder:text-zinc-500"
-                        />
-                        <input
-                          value={licenseForm.fingerprint}
-                          onChange={(e) => {
-                            setLicenseForm((prev) => {
-                              return {
-                                ...prev,
-                                fingerprint: e.target.value,
-                              };
-                            });
-                          }}
-                          placeholder="fingerprint"
-                          className="rounded-lg border border-zinc-400 bg-white px-3 py-2 text-sm text-black placeholder:text-zinc-500"
-                        />
-                        <input
-                          value={licenseForm.planId}
-                          onChange={(e) => {
-                            setLicenseForm((prev) => {
-                              return { ...prev, planId: e.target.value };
-                            });
-                          }}
-                          placeholder="planId"
-                          className="rounded-lg border border-zinc-400 bg-white px-3 py-2 text-sm text-black placeholder:text-zinc-500"
-                        />
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={handleSaveLicense}
-                          className="inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15"
-                        >
-                          保存 license
-                        </button>
-                        <button
-                          type="button"
-                          disabled={paySimBusy}
-                          onClick={() =>
-                            void runDevSimulatePayWebhookPersist()
-                          }
-                          className="inline-flex items-center justify-center rounded-lg border border-sky-400/50 bg-sky-500/20 px-3 py-1.5 text-xs font-medium text-sky-100 hover:bg-sky-500/30 disabled:opacity-50"
-                        >
-                          {paySimBusy ? "模拟支付中…" : "模拟支付并发证"}
-                        </button>
-                      </div>
-                      <div className="space-y-2 border-t border-amber-400/15 pt-3">
-                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-white/55 transition hover:border-white/15 hover:text-white/70">
-                          <input
-                            type="checkbox"
-                            className="h-3.5 w-3.5 accent-emerald-500"
-                            checked={devForceFreeMode}
-                            onChange={() => {
-                              setDevForceFreeMode((prev) => {
-                                const next = !prev;
-                                try {
-                                  sessionStorage.setItem(
-                                    "__result_dev_force_free",
-                                    next ? "1" : "0",
-                                  );
-                                } catch {
-                                  // ignore
-                                }
-                                return next;
-                              });
-                            }}
-                          />
-                          <span>【强制 FREE 模式】</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={handleDevResetEnterpriseAuth}
-                          className="inline-flex w-full items-center justify-center rounded-lg border border-white/[0.08] bg-transparent px-3 py-2 text-xs font-normal text-white/38 transition hover:border-white/15 hover:text-white/55"
-                        >
-                          重置授权（清本机 License / 解锁 + 登出，可重测支付；无自动下载）
-                        </button>
-                      </div>
-                    </div>
-                  </details>
-                </div>
-              ) : null}
-
-              <div className="mt-3 grid grid-cols-1 gap-4 xl:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                  <div className="text-lg font-semibold text-white">Free（免费）</div>
-                  <div className="mt-1 text-2xl font-bold text-white">￥0</div>
-                  <div className="mt-1 text-xs text-amber-200/90">仅供参考，不可投标</div>
-                  <ul className="mt-3 space-y-1 text-sm text-zinc-300">
-                    <li>简版 Plan（前 5 页）</li>
-                    <li>含“仅供参考”水印</li>
-                    <li>不含 Budget / ZIP</li>
-                  </ul>
-                  <button
-                    type="button"
-                    disabled={
-                      pdfDownloadBusy ||
-                      zipDownloadBusy ||
-                      checkoutBusyTier !== null ||
-                      !canDownloadDocuments
-                    }
-                    onClick={() => {
-                      console.info("[ui-click] free-plan");
-                      if (!canDownloadNow) {
-                        handleResolveRiskBeforeDownload();
-                        return;
-                      }
-                      void handleDownloadPlanPdf("free", {
-                        allowTenderGenerate: false,
-                      });
-                    }}
-                    className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    下载计划书（简版）
-                  </button>
-                </div>
-
-                <div className="rounded-2xl border border-violet-400/30 bg-violet-500/[0.08] p-5">
-                  <div className="inline-flex rounded-full border border-violet-300/40 bg-violet-400/20 px-2 py-0.5 text-xs font-semibold text-violet-100">
-                    推荐
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-white">Pro（专业版）</div>
-                  <div className="mt-1 text-2xl font-bold text-white">￥299</div>
-                  <div className="mt-1 text-xs text-violet-100/90">适合内部评审</div>
-                  <ul className="mt-3 space-y-1 text-sm text-zinc-200">
-                    <li>完整版 Plan PDF</li>
-                    <li>完整版 Budget PDF</li>
-                    <li>无水印，适合内部评审</li>
-                    <li className="text-xs text-zinc-400">
-                      不含完整投标包 ZIP（ZIP 需 Enterprise）
-                    </li>
-                  </ul>
-                  {!canDownloadPaidTier("pro") ? (
-                    <button
-                      type="button"
-                      disabled={
-                        checkoutBusyTier !== null ||
-                        pdfDownloadBusy ||
-                        zipDownloadBusy ||
-                        !hasReadyProjectIdForPaidDownload
-                      }
-                      onClick={() => {
-                        console.info("[ui-click] pro-purchase");
-                        void handleProPlanPurchaseFlow();
-                      }}
-                      className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-violet-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {checkoutBusyTier === "pro"
-                        ? "正在处理支付..."
-                        : "立即开通 Pro"}
-                    </button>
-                  ) : (
-                    <div className="mt-4 grid grid-cols-1 gap-2">
-                      <button
-                        type="button"
-                        disabled={
-                          pdfDownloadBusy ||
-                          zipDownloadBusy ||
-                          checkoutBusyTier !== null ||
-                          !hasReadyProjectIdForPaidDownload ||
-                          !canDownloadDocuments
-                        }
-                        onClick={() => {
-                          console.info("[ui-click] pro-plan");
-                          void handleProPlanDownloadWithPurchase();
-                        }}
-                        className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        下载计划书
-                      </button>
-                      <button
-                        type="button"
-                        disabled={
-                          pdfDownloadBusy ||
-                          zipDownloadBusy ||
-                          checkoutBusyTier !== null ||
-                          !hasReadyProjectIdForPaidDownload ||
-                          !canDownloadDocuments
-                        }
-                        onClick={() => {
-                          console.log("[ui-click] pro-budget");
-                          void handleProBudgetDownloadWithPurchase();
-                        }}
-                        className="inline-flex w-full items-center justify-center rounded-xl border border-white/15 bg-transparent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        下载预算书
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-2xl border-2 border-amber-300/60 bg-gradient-to-b from-amber-300/15 to-transparent p-5 shadow-[0_0_30px_rgba(251,191,36,0.18)]">
-                  <div className="inline-flex rounded-full border border-amber-200/60 bg-amber-300/20 px-2 py-0.5 text-xs font-semibold text-amber-100">
-                    最常用 / 投标首选
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    Enterprise（投标版）
-                  </div>
-                  <div className="mt-1 text-2xl font-bold text-white">￥999</div>
-                  <div className="mt-1 text-xs text-amber-100">可直接用于投标</div>
-                  <ul className="mt-3 space-y-1 text-sm text-zinc-100">
-                    <li>完整投标包 ZIP（含 Plan + Budget）</li>
-                    <li>封面 / 声明 / 投标编号</li>
-                    <li className="text-xs text-amber-100/80">
-                      一键打包，可直接用于投标提交
-                    </li>
-                  </ul>
-                  {!hasEnterpriseZipAccess ? (
-                    <div className="mt-3 rounded-lg border border-amber-300/35 bg-amber-400/10 px-3 py-2 text-xs leading-relaxed text-amber-50/95">
-                      {commercialPlan === "pro" ? (
-                        <>
-                          您当前为{" "}
-                          <span className="font-semibold text-amber-100">
-                            Pro
-                          </span>
-                          ，完整投标包 ZIP 仅{" "}
-                          <span className="font-semibold text-amber-100">
-                            Enterprise
-                          </span>{" "}
-                          可用。Pro 请使用左侧卡片下载 Plan / Budget。
-                        </>
-                      ) : (
-                        <>
-                          完整投标包 ZIP 为 Enterprise 专属能力；Pro
-                          仅支持 Plan / Budget 单独下载。
-                        </>
-                      )}
-                    </div>
-                  ) : null}
-                  <button
-                    type="button"
-                    disabled={
-                      pdfDownloadBusy ||
-                      zipDownloadBusy ||
-                      checkoutBusyTier !== null ||
-                      !hasReadyProjectIdForPaidDownload ||
-                      !canDownloadDocuments
-                    }
-                    onClick={() => {
-                      if (!canDownloadPaidTier("enterprise")) {
-                        console.info("[ui-click] enterprise-zip-purchase");
-                        void handleEnterpriseZipDownloadWithPurchase();
-                        return;
-                      }
-                      console.info("[ui-click] enterprise-zip");
-                      if (!canProceedWithPaidDownloads) {
-                        handleResolveRiskBeforeDownload();
-                        return;
-                      }
-                      void handleEnterpriseZipDownloadWithPurchase();
-                    }}
-                    className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-amber-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {enterpriseZipCardButtonLabel}
-                  </button>
-                  <p className="mt-2 text-center text-[11px] leading-relaxed text-amber-100/70">
-                    {hasEnterpriseZipAccess
-                      ? "Enterprise 授权 · 可下载完整投标包 ZIP"
-                      : "完整投标包 ZIP 需 Enterprise 授权 · Pro 不含 ZIP"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-2 flex flex-wrap gap-4">
-                {mode === "engine" && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (
-                        process.env.NODE_ENV === "development" &&
-                        devForceFreeMode
-                      ) {
-                        trackEvent("open_upgrade_modal", {
-                          planId,
-                          planLevel: "free",
-                          reason: "dev_force_free_engine_pack",
-                        });
-                        setUpgradeModalEntryMode("upgrade");
-                        setUpgradeModalOpen(true);
-                        return;
-                      }
-
-                      const ok = await beforeTenderPackDownload();
-                      if (!ok) return;
-                    
-                      const url = new URL(tenderPackUrl, window.location.origin);
-                      url.searchParams.set("forceAllow", "1");
-                    
-                      window.location.href = url.toString();
-
-                    }}
-                    className={`inline-flex items-center justify-center rounded-xl border px-5 py-3 text-sm font-semibold transition ${
-                      isDownloadBlocked
-                        ? "border-white/10 bg-white/5 text-white/50"
-                        : isDownloadWarn
-                          ? "border-white/20 bg-white/5 text-white/85"
-                          : "border-white/15 bg-white/5 text-white hover:bg-white/10"
-                    }`}
-                    title="Engine 模式：合并版招标包（封面 / 目录 / 声明 / 方案 / 预算）"
-                  >
-                    {isDownloadBlocked
-                      ? "先处理风险后查看招标包"
-                      : isDownloadWarn
-                        ? "确认风险后下载招标包"
-                        : "下载招标包（合并版）"}
-                  </button>
-                )}
-              </div>
-
-              {showDownloadGate && downloadGate && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                  <div className="w-[960px] max-w-[96vw]">
-                    <BidDecisionGatePanel
-                      gate={downloadGate}
-                      loading={downloadGateLoading}
-                      activeRiskId={activeRiskId}
-                      fixingRiskId={fixingRiskId}
-                      fixResult={
-                        activeRiskId
-                          ? riskFixResultToDisplay(
-                              riskFixResults[activeRiskId]
-                            )
-                          : null
-                      }
-                      onSelectRisk={handleGateSelectRiskId}
-                      onJumpToRisk={handleJumpToRisk}
-                      onAutoFixRisk={handleAutoFixRisk}
-                      onProceed={handleProceedAfterGate}
-                      onForceProceed={handleProceedAfterGate}
-                      onBackToFix={dismissDownloadGate}
-                      onClose={dismissDownloadGate}
-                      onGoFix={handleGoFixFromGate}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {mode === "engine" && (
-                <CollapsiblePanel
-                  title="预算 PDF 验收信息（HEAD）"
-                  defaultOpen={false}
-                  right={
-                    <button
-                      type="button"
-                      onClick={copyAuditSummary}
-                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 hover:bg-white/10"
-                    >
-                      复制摘要
-                    </button>
-                  }
-                >
-                  <div className="mb-2 text-xs text-white/50">
-                    level=<span className="text-white/80">{budgetLevel}</span>
-                    {budgetLevel === "government" ? (
-                      <span className="ml-2 text-white/50">docSeq=01</span>
-                    ) : null}
-                  </div>
-
-                  <div className="mb-3 break-all text-xs text-white/60">url：{budgetInspectUrl}</div>
-
-                  {budgetHeadLoading ? (
-                    <div className="text-xs text-white/60">读取中...</div>
-                  ) : budgetHeadErr ? (
-                    <div className="text-xs text-red-300/90">读取失败：{budgetHeadErr}</div>
-                  ) : (
-                    <div className="grid gap-2 md:grid-cols-2">
-                      {[
-                        ["X-ENGINE-FP", budgetHead["x-engine-fp"]],
-                        ["X-PDF-VERSION", budgetHead["x-pdf-version"]],
-                        ["X-REQSIG", budgetHead["x-reqsig"]],
-                        ["X-BUDGET-LEVEL", budgetHead["x-budget-level"]],
-                        ["X-BUDGET-DOCSEQ", budgetHead["x-budget-docseq"]],
-                        ["X-BUDGET-DEBUG-ROWS", budgetHead["x-budget-debug-rows"]],
-                        ["X-TENDER-LEVEL", budgetHead["x-tender-level"]],
-                        ["X-THEME", budgetHead["x-theme"]],
-                        ["X-PDF-MODE", budgetHead["x-pdf-mode"]],
-                        ["Content-Type", budgetHead["content-type"]],
-                        ["Content-Disposition", budgetHead["content-disposition"]],
-                        ["Cache-Control", budgetHead["cache-control"]],
-                      ].map(([k, v]) => (
-                        <div
-                          key={k}
-                          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2"
-                        >
-                          <div className="text-[11px] text-white/50">{k}</div>
-                          <div className="mt-1 break-all text-xs text-white/80">
-                            {v || <span className="text-white/35">（空）</span>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsiblePanel>
-              )}
-
-              {mode === "engine" && (
-                <CollapsiblePanel
-                  title="招标包 验收信息（HEAD）"
-                  defaultOpen={false}
-                  right={
-                    <button
-                      type="button"
-                      onClick={copyAuditSummary}
-                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 hover:bg-white/10"
-                    >
-                      复制摘要
-                    </button>
-                  }
-                >
-                  <div className="mb-2 text-xs text-white/50">
-                    packLevel=
-                    <span className="text-white/80">
-                      {budgetLevel === "brand" ? "enterprise" : budgetLevel}
-                    </span>
-                  </div>
-
-                  <div className="mb-3 break-all text-xs text-white/60">url：{tenderPackUrl}</div>
-
-                  {tenderPackHeadLoading ? (
-                    <div className="text-xs text-white/60">读取中...</div>
-                  ) : tenderPackHeadErr ? (
-                    <div className="text-xs text-red-300/90">
-                      读取失败：{tenderPackHeadErr}
-                    </div>
-                  ) : (
-                    <div className="grid gap-2 md:grid-cols-2">
-                      {[
-                        ["X-TENDER-PACK", tenderPackHead["x-tender-pack"]],
-                        ["X-TENDER-LEVEL", tenderPackHead["x-tender-level"]],
-                        ["X-TENDER-NO", tenderPackHead["x-tender-no"]],
-                        ["X-PLAN-VERSION", tenderPackHead["x-plan-version"]],
-                        ["X-BUDGET-VERSION", tenderPackHead["x-budget-version"]],
-                        ["X-PLAN-PAGES", tenderPackHead["x-plan-pages"]],
-                        ["X-BUDGET-PAGES", tenderPackHead["x-budget-pages"]],
-                        ["X-INCLUDE-COVER", tenderPackHead["x-include-cover"]],
-                        ["X-INCLUDE-DECLARATION", tenderPackHead["x-include-declaration"]],
-                        ["X-PACK-BUDGET-SECTIONS", tenderPackHead["x-pack-budget-sections"]],
-                        ["X-PACK-PAGINATION", tenderPackHead["x-pack-pagination"]],
-                        ["X-PACK-SKIP-FIRST", tenderPackHead["x-pack-skip-first"]],
-                        ["X-PACK-FOOTER", tenderPackHead["x-pack-footer"]],
-                        ["X-PACK-THEME", tenderPackHead["x-pack-theme"]],
-                        ["X-PACK-WATERMARK", tenderPackHead["x-pack-watermark"]],
-                        ["X-PACK-TZ", tenderPackHead["x-pack-tz"]],
-                        ["Content-Type", tenderPackHead["content-type"]],
-                        ["Content-Disposition", tenderPackHead["content-disposition"]],
-                        ["Cache-Control", tenderPackHead["cache-control"]],
-                      ].map(([k, v]) => (
-                        <div
-                          key={k}
-                          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2"
-                        >
-                          <div className="text-[11px] text-white/50">{k}</div>
-                          <div className="mt-1 break-all text-xs text-white/80">
-                            {v || <span className="text-white/35">（空）</span>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CollapsiblePanel>
-              )}
-
-              {mode === "engine" ? (
-                <div className="mt-4 rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 text-xs text-yellow-200/80">
-                  当前为 Engine 模式：左侧仍以“对外字段”为主，但右侧会显示模块顺序控制台。
-                </div>
-              ) : (
-                <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
-                  当前为 Client 模式：已隐藏“模块顺序、0-1 参与率、英文模块名”等工程字段，更适合面向客户 / 评审展示。
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className={cardCls}>
-            {mode === "engine" ? (
-              <>
-                <div className="text-xl font-semibold">模块顺序（Engine）</div>
-                <div className="mt-1 text-sm text-white/60">
-                  内部调试用：选择模块并调整顺序（对外不展示）
-                </div>
-
-                <div className="mt-4 text-xs text-white/50">
-                  当前顺序：{sections.join(" / ")}
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {SECTION_META.map((m) => {
-                    const checked = sections.includes(m.id as SectionId);
-                    return (
-                      <div
-                        key={m.id}
-                        className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-                      >
-                        <label className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) =>
-                              toggleSection(m.id as SectionId, e.target.checked)
-                            }
-                            className="mt-1"
-                          />
-                          <div>
-                            <div className="font-semibold">{m.cn}</div>
-                            <div className="text-xs text-white/55">{m.desc}</div>
-                            <div className="text-[11px] text-white/35">id: {m.id}</div>
-                          </div>
-                        </label>
-
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => moveSection(m.id as SectionId, -1)}
-                            disabled={!checked}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs disabled:opacity-40"
-                          >
-                            上移
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveSection(m.id as SectionId, 1)}
-                            disabled={!checked}
-                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs disabled:opacity-40"
-                          >
-                            下移
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-5 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
-                  说明：Engine 模式只用于你内部验收 PDF 结构与渲染稳定性；对外交付请使用
-                  Client 模式默认页面。
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-xl font-semibold">方案结构概览（Client）</div>
-                <div className="mt-1 text-sm text-white/60">
-                  面向客户 / 评审的展示：不暴露工程模块名与顺序控制
-                </div>
-
-                <div className="mt-5 space-y-3">
-                  {[
-                    { t: "项目背景与目标", d: "企业健康支持目标、建设原则与收益说明" },
-                    { t: "需求分析与容量推导", d: "规模、使用强度与峰值容量的推导说明" },
-                    { t: "方案对比与推荐", d: "Lite / Standard / Pro 三档对比与推荐理由" },
-                    { t: "推荐方案详细配置", d: "功能区、器材配置依据与交付范围" },
-                    { t: "实施计划与验收", d: "施工、安装、调试、验收节点与标准" },
-                    { t: "运维与售后保障", d: "质保、响应机制、巡检与培训" },
-                    { t: "风险控制与边界", d: "安全、预算、使用与运营风险控制" },
-                    { t: "附录与声明", d: "参数表、品牌建议、声明函等" },
-                  ].map((x) => (
-                    <div
-                      key={x.t}
-                      className="rounded-xl border border-white/10 bg-black/20 px-4 py-4"
-                    >
-                      <div className="font-semibold">{x.t}</div>
-                      <div className="mt-1 text-xs text-white/55">{x.d}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {!isProductionPrimaryFlow ? (
-                <div className="mt-5 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">
-                  需要进入内部调试？在地址后加{" "}
-                  <code className="text-white/70">?mode=engine</code>。
-                </div>
-                ) : null}
-              </>
-            )}
-          </div>
-        </div>
-
-        {!isProductionPrimaryFlow ? (
-        <div className="mt-10 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-xs text-zinc-400">
-          <div className="flex flex-wrap gap-x-6 gap-y-2">
-            <span>
-              当前操作：
-              <span className="text-zinc-200">{pageOpLabel}</span>
-            </span>
-            <span>
-              状态：
-              <span
-                className={
-                  pageOpOutcome === "success"
-                    ? "text-emerald-400/95"
-                    : pageOpOutcome === "error"
-                      ? "text-red-400/95"
-                      : "text-zinc-500"
+        <ResultClientView
+          mounted={mounted}
+          companyEmail={companyEmail}
+          planScenario={planScenario}
+          planGoal={planGoal}
+          companyName={companyName}
+          headcount={headcount}
+          companySizeTier={companySizeTier}
+          spaceSqm={spaceSqm}
+          budgetTier={budgetTier}
+          commercialPlan={commercialPlan}
+          projectLoading={projectLoadState === "loading"}
+          projectLoadError={projectLoadError}
+          projectNotReady={!canDownloadDocuments}
+          hasReadyProjectIdForPaidDownload={hasReadyProjectIdForPaidDownload}
+          hasClientPaidLicense={hasClientPaidLicense}
+          hasEnterpriseZipAccess={hasEnterpriseZipAccess}
+          canDownloadPaidTier={canDownloadPaidTier}
+          canDownloadDocuments={canDownloadDocuments}
+          pdfDownloadBusy={pdfDownloadBusy}
+          zipDownloadBusy={zipDownloadBusy}
+          checkoutBusyTier={checkoutBusyTier}
+          enterpriseZipCardButtonLabel={enterpriseZipCardButtonLabel}
+          pageLastError={pageLastError}
+          showUpload
+          uploadingTenderFile={uploadingTenderFile}
+          tenderFileName={tenderFileName}
+          tenderUploadError={tenderUploadError}
+          onTenderFileChange={handleTenderFileChange}
+          onDownloadFreePlan={() => {
+            if (!canDownloadNow) {
+              handleResolveRiskBeforeDownload();
+              return;
+            }
+            void handleDownloadPlanPdf("free", { allowTenderGenerate: false });
+          }}
+          onProPurchase={() => void handleProPlanPurchaseFlow()}
+          onProPlanDownload={() => void handleProPlanDownloadWithPurchase()}
+          onProBudgetDownload={() => void handleProBudgetDownloadWithPurchase()}
+          onEnterpriseZip={() => {
+            if (!canDownloadPaidTier("enterprise")) {
+              void handleEnterpriseZipDownloadWithPurchase();
+              return;
+            }
+            if (!canProceedWithPaidDownloads) {
+              handleResolveRiskBeforeDownload();
+              return;
+            }
+            void handleEnterpriseZipDownloadWithPurchase();
+          }}
+        />
+
+        {showDebugUI ? (
+          <ResultDebugView
+            mode={mode}
+            effectiveMode={effectiveMode}
+            projectId={projectId}
+            budgetOk={budgetOk}
+            packOk={packOk}
+            onCopyAuditSummary={copyAuditSummary}
+            pageOpLabel={pageOpLabel}
+            pageOpOutcome={pageOpOutcome}
+            pageLastError={pageLastError}
+            canDownloadNow={canDownloadNow}
+            sections={sections}
+            sectionMeta={SECTION_META.map((m) => ({
+              id: m.id,
+              cn: m.cn,
+              desc: m.desc,
+            }))}
+            onToggleSection={(id, checked) => toggleSection(id as SectionId, checked)}
+            onMoveSection={(id, delta) => moveSection(id as SectionId, delta as 1 | -1)}
+            showDownloadGate={showDownloadGate}
+            downloadGate={downloadGate}
+            downloadGateLoading={downloadGateLoading}
+            activeRiskId={activeRiskId}
+            fixingRiskId={fixingRiskId}
+            riskFixResults={riskFixResults}
+            riskFixResultToDisplay={riskFixResultToDisplay}
+            onSelectRisk={handleGateSelectRiskId}
+            onJumpToRisk={handleJumpToRisk}
+            onAutoFixRisk={handleAutoFixRisk}
+            onProceed={handleProceedAfterGate}
+            onBackToFix={dismissDownloadGate}
+            onClose={dismissDownloadGate}
+            onGoFix={handleGoFixFromGate}
+            buildType={buildType}
+            onBuildTypeChange={setBuildType}
+            usageIntensity={usageIntensity}
+            onUsageIntensityChange={setUsageIntensity}
+            participationRate={participationRate}
+            peakUsers={peakUsers}
+            preferSmart={preferSmart}
+            preferQuiet={preferQuiet}
+            onTogglePreferSmart={() => setPreferSmart((v) => !v)}
+            onTogglePreferQuiet={() => setPreferQuiet((v) => !v)}
+            budgetLevel={budgetLevel}
+            onBudgetLevelChange={(v) => setBudgetLevel(v as typeof budgetLevel)}
+            canUseEnterprise={canUseEnterprise}
+            canUseGovernment={canUseGovernment}
+            userPlan={userPlan}
+            tenderRawText={tenderRawText}
+            tenderFileName={tenderFileName}
+            uploadingTenderFile={uploadingTenderFile}
+            tenderUploadError={tenderUploadError}
+            onTenderFileChange={handleTenderFileChange}
+            onTenderRawTextChange={setTenderRawText}
+            onClearTender={clearTenderUpload}
+            tenderAnalyzeLoading={tenderAnalyzeLoading}
+            tenderAnalyzeError={tenderAnalyzeError}
+            tenderIntelligence={tenderIntelligence}
+            onRunTenderIntelligence={() => void runTenderIntelligenceAnalyze()}
+            tenderSemanticLoading={tenderSemanticLoading}
+            tenderSemanticError={tenderSemanticError}
+            tenderSemantic={tenderSemantic}
+            onRunTenderSemantic={() => void runTenderSemanticAnalyze()}
+            tenderSkuLoading={tenderSkuLoading}
+            tenderSkuError={tenderSkuError}
+            tenderSku={tenderSku}
+            onRunTenderSku={() => void runTenderSkuAnalyze()}
+            tenderComplianceLoading={tenderComplianceLoading}
+            tenderComplianceError={tenderComplianceError}
+            tenderCompliance={tenderCompliance}
+            onRunTenderCompliance={() => void runTenderComplianceAnalyze()}
+            executiveVisualizationLoading={executiveVisualizationLoading}
+            executiveVisualizationError={executiveVisualizationError}
+            executiveVisualization={executiveVisualization}
+            onRefreshExecutiveVisualization={() => void runExecutiveVisualizationDashboard()}
+            tenderComposeLoading={tenderComposeLoading}
+            tenderComposeError={tenderComposeError}
+            tenderCompose={tenderCompose}
+            onRunTenderCompose={() => void runTenderCompose()}
+            tenderRisk={tenderRisk}
+            tenderScoreResult={tenderScoreResult}
+            analysisDetailBusy={analysisDetailBusy}
+            analysisDetailError={analysisDetailError}
+            onOpenAnalysisDetails={() => void handleOpenAnalysisDetails()}
+            showTenderRiskDetails={showTenderRiskDetails}
+            tenderRiskLoading={tenderRiskLoading}
+            onTenderOptimize={() => void handleTenderOptimize()}
+            optimizeLoading={optimizeLoading}
+            technicalRows={technicalRows}
+            businessRows={businessRows}
+            tenderScoreProfileName={tenderScoreProfileName}
+            tenderScoreSource={tenderScoreSource}
+            tenderScoreLoading={tenderScoreLoading}
+            riskDetailsSectionRef={riskDetailsSectionRef}
+            techResponseSectionRef={techResponseSectionRef}
+            bizResponseSectionRef={bizResponseSectionRef}
+            attachmentSectionRef={attachmentSectionRef}
+            getFixHighlightClass={getFixHighlightClass}
+            highlightFixKey={highlightFixKey}
+            highlightRowKey={highlightRowKey}
+            getHighlightRowClass={getHighlightRowClass}
+            projectLoadState={projectLoadState}
+            canDownloadDocuments={canDownloadDocuments}
+            commercialPlan={commercialPlan}
+            hasClientPaidLicense={hasClientPaidLicense}
+            licenseForm={licenseForm}
+            onLicenseFormChange={(field, value) =>
+              setLicenseForm((prev) => ({ ...prev, [field]: value }))
+            }
+            licenseSaveMessage={licenseSaveMessage}
+            onSaveLicense={handleSaveLicense}
+            paySimBusy={paySimBusy}
+            onSimulatePay={() => void runDevSimulatePayWebhookPersist()}
+            devForceFreeMode={devForceFreeMode}
+            onToggleDevForceFree={() =>
+              setDevForceFreeMode((prev) => {
+                const next = !prev;
+                try {
+                  sessionStorage.setItem("__result_dev_force_free", next ? "1" : "0");
+                } catch {
+                  // ignore
                 }
-              >
-                {pageOpOutcome === "success"
-                  ? "成功"
-                  : pageOpOutcome === "error"
-                    ? "失败"
-                    : "—"}
-              </span>
-            </span>
-          </div>
-          {pageLastError ? (
-            <div className="mt-2 border-t border-white/10 pt-2 text-red-300/95">
-              最近错误：{displayClientError(pageLastError)}
-            </div>
-          ) : null}
-        </div>
-        ) : pageLastError ? (
-          <div className="mt-10 rounded-xl border border-rose-400/35 bg-rose-950/25 px-4 py-3 text-sm text-rose-100">
-            {displayClientError(pageLastError)}
-          </div>
+                return next;
+              })
+            }
+            onDevResetAuth={handleDevResetEnterpriseAuth}
+            isDownloadBlocked={isDownloadBlocked}
+            isDownloadWarn={isDownloadWarn}
+            onDownloadMergedPack={async () => {
+              const ok = await beforeTenderPackDownload();
+              if (!ok) return;
+              const url = new URL(tenderPackUrl, window.location.origin);
+              url.searchParams.set("forceAllow", "1");
+              window.location.href = url.toString();
+            }}
+            budgetInspectUrl={budgetInspectUrl}
+            budgetHeadLoading={budgetHeadLoading}
+            budgetHeadErr={budgetHeadErr}
+            budgetHead={budgetHead}
+            tenderPackUrl={tenderPackUrl}
+            tenderPackHeadLoading={tenderPackHeadLoading}
+            tenderPackHeadErr={tenderPackHeadErr}
+            tenderPackHead={tenderPackHead}
+            onEntitlementSessionChange={handleEntitlementSessionChange}
+          />
         ) : null}
 
-        {!isProductionPrimaryFlow ? (
-        <div className="mt-10 text-xs text-white/35">
-          UI 分层目标：Client 模式用于对外展示与交付；Engine 模式用于内部调试 PDF
-          引擎，不向客户暴露。
-        </div>
+        {process.env.NODE_ENV !== "production" && !showDebugUI ? (
+          <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/45">
+            开发调试：在 URL 添加{" "}
+            <code className="text-white/60">?mode=engine</code> 可进入内部面板
+          </div>
         ) : null}
       </div>
 
