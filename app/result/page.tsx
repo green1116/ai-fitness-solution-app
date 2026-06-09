@@ -886,6 +886,7 @@ function ResultPageInner() {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         "x-mode": tier,
+        "x-plan-document-tier": tier,
       };
 
       if (tier === "free") {
@@ -2882,7 +2883,8 @@ score: scoreDetailsSectionRef,
         headers,
         body: JSON.stringify({
           projectId: resolvedProjectId,
-          planId: effectivePlanId,
+          planId: resolvedProjectId,
+          documentTier: requestTier,
           tier: requestTier,
           mode: requestTier,
           docType: "plan",

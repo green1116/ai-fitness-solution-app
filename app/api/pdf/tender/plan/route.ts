@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { BudgetLevel, DeliveryMode, SiteType } from "@prisma/client";
-import { normalizeUserTier } from "@/lib/commercial/userTier";
+import {
+  extractPlanDocumentTierFromRequest,
+  resolvePlanDocumentTier,
+} from "@/lib/commercial/planDocumentTier";
 import type { ProjectInput } from "@/lib/domain/tender";
 import {
   deniedErrorFor,
@@ -101,6 +104,8 @@ export async function POST(req: Request) {
       planId?: string;
       docType?: string;
       tier?: string;
+      mode?: string;
+      documentTier?: string;
     };
 
     const { projectId, planId, docType } = body;
@@ -260,7 +265,37 @@ export async function POST(req: Request) {
       );
     }
 
-    const renderTier = normalizeUserTier(entitlement.effectiveLevel);
+    const extracted = extractPlanDocumentTierFromRequest(req, body);
+    const tierDecision = resolvePlanDocumentTier({
+      requestedTier: extracted.tier,
+      entitlement,
+    });
+
+    if (!tierDecision.ok) {
+      return NextResponse.json(
+        {
+          error: tierDecision.error,
+          message: tierDecision.message,
+        },
+        { status: tierDecision.status },
+      );
+    }
+
+    const renderTier = tierDecision.renderTier;
+    const planFilename =
+      renderTier === "free" ? "plan-preview.pdf" : "plan.pdf";
+
+    console.log("[plan-render-tier]", {
+      planId: requestPlanId,
+      projectId: pid,
+      requestedTier: tierDecision.requestedTier,
+      renderTier,
+      tierSource: extracted.source,
+      decisionSource: tierDecision.source,
+      effectiveLevel: entitlement.effectiveLevel,
+      headerXMode: req.headers.get("x-mode"),
+      headerDocumentTier: req.headers.get("x-plan-document-tier"),
+    });
 
     const planJob = await prisma.planJob.findUnique({
       where: { id: pid },
@@ -289,7 +324,8 @@ export async function POST(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": 'attachment; filename="plan.pdf"',
+        "Content-Disposition": `attachment; filename="${planFilename}"`,
+        "X-Plan-Document-Tier": renderTier,
         "Cache-Control": "no-store",
       },
     });

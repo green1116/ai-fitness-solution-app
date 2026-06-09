@@ -909,6 +909,7 @@ async function drawCover(
   input: {
     project: ProjectRecord;
     solution: SolutionRecord;
+    tier: UserTier;
     tenderDocument?: TenderDocumentContext;
   },
 ): Promise<void> {
@@ -921,7 +922,60 @@ async function drawCover(
       `TF-${input.project.id.slice(0, 8).toUpperCase()}`,
     dateText: formatCoverDateIso(),
     volumeSubtitle: TENDER_PLAN_VOLUME_SUBTITLE,
+    editionBadge: input.tier === "free" ? "免费预览版" : undefined,
   });
+}
+
+export const FREE_PLAN_MAX_PAGES = 5;
+
+function applyFreePlanPageMarks(page: PDFPage, font: PDFFont): void {
+  page.drawRectangle({
+    x: 0,
+    y: PAGE_HEIGHT - 36,
+    width: PAGE_WIDTH,
+    height: 36,
+    color: rgb(0.98, 0.94, 0.88),
+    opacity: 0.92,
+  });
+  page.drawText("FREE PREVIEW · 免费预览版 · NOT FOR TENDER USE", {
+    x: MARGIN_X,
+    y: PAGE_HEIGHT - 24,
+    size: 9,
+    font,
+    color: rgb(0.72, 0.28, 0.08),
+  });
+
+  const lines = [
+    { text: "FOR REFERENCE ONLY", y: PAGE_HEIGHT / 2 + 28, size: 28 },
+    { text: "NOT FOR TENDER USE", y: PAGE_HEIGHT / 2 - 8, size: 22 },
+    { text: "仅供参考 / 非正式投标文件", y: PAGE_HEIGHT / 2 - 44, size: 14 },
+  ];
+  for (const line of lines) {
+    page.drawText(line.text, {
+      x: 72,
+      y: line.y,
+      size: line.size,
+      font,
+      color: rgb(0.82, 0.12, 0.12),
+      rotate: degrees(32),
+      opacity: 0.14,
+    });
+  }
+}
+
+/** 最终强制 Free 商业边界（在 chrome / metadata 之后再次裁剪） */
+function finalizeFreePlanDocument(
+  doc: PDFDocument,
+  font: PDFFont,
+  tier: UserTier,
+): void {
+  if (tier !== "free") return;
+  while (doc.getPageCount() > FREE_PLAN_MAX_PAGES) {
+    doc.removePage(doc.getPageCount() - 1);
+  }
+  for (let i = 0; i < doc.getPageCount(); i++) {
+    applyFreePlanPageMarks(doc.getPage(i), font);
+  }
 }
 
 function drawDeclaration(doc: PDFDocument, font: PDFFont): void {
@@ -1540,7 +1594,7 @@ async function renderPlanOnly(input: {
   const reqsigLine = formatReqsigLine(docCtx.reqsig);
   const generatedDate = formatCoverDateIso();
 
-  await drawCover(doc, font, input);
+  await drawCover(doc, font, { ...input, tier });
   drawTenderDeliveryNoticePage(doc, font, {
     reqsigLine,
     versionLabel: docCtx.version,
@@ -1551,24 +1605,6 @@ async function renderPlanOnly(input: {
   }
   drawToc(doc, font, sections, firstPageMap);
   for (const sp of sectionPages) drawSectionPage(doc, font, sp);
-
-  if (tier === "free") {
-    while (doc.getPageCount() > 5) {
-      doc.removePage(doc.getPageCount() - 1);
-    }
-    for (let i = 0; i < doc.getPageCount(); i++) {
-      const page = doc.getPage(i);
-      page.drawText("仅供参考 / 非正式投标文件", {
-        x: 110,
-        y: PAGE_HEIGHT / 2,
-        size: 32,
-        font,
-        color: rgb(0.86, 0.1, 0.1),
-        rotate: degrees(32),
-        opacity: 0.16,
-      });
-    }
-  }
 
   if (!input.omitChrome) {
     restampTenderDeliveryChrome(doc, font, {
@@ -1581,6 +1617,8 @@ async function renderPlanOnly(input: {
 
     applyTenderDocumentMetadata(doc, docCtx, docCtx.reqsig!, "plan");
   }
+
+  finalizeFreePlanDocument(doc, font, tier);
 
   return Buffer.from(await doc.save());
 }
