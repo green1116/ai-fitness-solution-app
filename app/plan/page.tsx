@@ -73,27 +73,12 @@ export default function PlanPage() {
         throw new Error(plan.error || plan.detail || "生成方案失败");
       }
 
-      const projectId = String(plan.planId || plan.plan_id || "").trim();
-      const storedPlan = {
-        ...plan,
-        planId: projectId,
-        plan_id: projectId,
-        meta: {
-          ...(plan.meta ?? {}),
-          plan_id: projectId || plan.meta?.plan_id,
-        },
-      };
-      localStorage.setItem("attaguy_plan", JSON.stringify(storedPlan));
+      const projectId = String(
+        plan.projectId || plan.planId || plan.plan_id || "",
+      ).trim();
 
-      if (projectId) {
-        try {
-          localStorage.setItem("projectId", projectId);
-        } catch {
-          // ignore
-        }
-        router.push(`/result?projectId=${encodeURIComponent(projectId)}`);
-      } else {
-        router.push("/result");
+      if (!projectId) {
+        throw new Error("服务端未返回 projectId，请稍后重试");
       }
 
       const storedPlan = {
@@ -110,11 +95,10 @@ export default function PlanPage() {
       localStorage.setItem("attaguy_plan", JSON.stringify(storedPlan));
       persistPlanFormForProject(projectId, form);
 
-      try {
+      if (projectId) {
         localStorage.setItem("projectId", projectId);
-      } catch {
-        // ignore
       }
+
       router.push(`/result?projectId=${encodeURIComponent(projectId)}`);
     } catch (err: unknown) {
       console.error("Plan generation error:", err);

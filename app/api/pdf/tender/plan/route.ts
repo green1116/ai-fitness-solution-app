@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { BudgetLevel, DeliveryMode, SiteType } from "@prisma/client";
-import { normalizeUserTier } from "@/lib/commercial/userTier";
+import {
+  extractPlanDocumentTierFromRequest,
+  resolvePlanDocumentTier,
+} from "@/lib/commercial/planDocumentTier";
 import type { ProjectInput } from "@/lib/domain/tender";
 import {
   deniedErrorFor,
@@ -13,6 +16,8 @@ import {
   isDatabaseConnectivityError,
 } from "@/lib/pdf/devFallback";
 import { resolveDownloadIds } from "@/lib/http/resolveDownloadIds";
+import { sanitizeProductionClientMessage } from "@/lib/http/sanitizeProductionClient";
+import { DOWNLOAD_SERVICE_UNAVAILABLE } from "@/lib/client/clientFacingMessages";
 import { resolveCompanyName } from "@/lib/plan/resolveCompanyName";
 import { prisma } from "@/lib/prisma";
 import { renderPlanPdf } from "@/lib/pdf/renderPlanPdf";
@@ -99,6 +104,8 @@ export async function POST(req: Request) {
       planId?: string;
       docType?: string;
       tier?: string;
+      mode?: string;
+      documentTier?: string;
     };
 
     const { projectId, planId, docType } = body;
@@ -156,26 +163,28 @@ export async function POST(req: Request) {
     }
 
     if (!project) {
-      const provisioned = await ensureProjectFromPlanJobId(pid);
-      if (provisioned) {
-        try {
-          project = await prisma.project.findUnique({
-            where: { id: pid },
-            include: projectInclude,
-          });
-        } catch (reloadAfterProvision) {
-          if (
-            process.env.NODE_ENV === "production" ||
-            !isDatabaseConnectivityError(reloadAfterProvision)
-          ) {
-            throw reloadAfterProvision;
-          }
-          console.warn(
-            "[tender-plan] DEV DB fallback (reload after provision)",
-            reloadAfterProvision,
-          );
-          project = createDevProjectFallback(pid);
+      try {
+        await ensureProjectFromPlanJobId(pid);
+      } catch (provisionErr) {
+        console.error("[tender-plan] provision failed (non-fatal)", provisionErr);
+      }
+      try {
+        project = await prisma.project.findUnique({
+          where: { id: pid },
+          include: projectInclude,
+        });
+      } catch (reloadAfterProvision) {
+        if (
+          process.env.NODE_ENV === "production" ||
+          !isDatabaseConnectivityError(reloadAfterProvision)
+        ) {
+          throw reloadAfterProvision;
         }
+        console.warn(
+          "[tender-plan] DEV DB fallback (reload after provision)",
+          reloadAfterProvision,
+        );
+        project = createDevProjectFallback(pid);
       }
     }
 
@@ -256,7 +265,37 @@ export async function POST(req: Request) {
       );
     }
 
-    const renderTier = normalizeUserTier(entitlement.effectiveLevel);
+    const extracted = extractPlanDocumentTierFromRequest(req, body);
+    const tierDecision = resolvePlanDocumentTier({
+      requestedTier: extracted.tier,
+      entitlement,
+    });
+
+    if (!tierDecision.ok) {
+      return NextResponse.json(
+        {
+          error: tierDecision.error,
+          message: tierDecision.message,
+        },
+        { status: tierDecision.status },
+      );
+    }
+
+    const renderTier = tierDecision.renderTier;
+    const planFilename =
+      renderTier === "free" ? "plan-preview.pdf" : "plan.pdf";
+
+    console.log("[plan-render-tier]", {
+      planId: requestPlanId,
+      projectId: pid,
+      requestedTier: tierDecision.requestedTier,
+      renderTier,
+      tierSource: extracted.source,
+      decisionSource: tierDecision.source,
+      effectiveLevel: entitlement.effectiveLevel,
+      headerXMode: req.headers.get("x-mode"),
+      headerDocumentTier: req.headers.get("x-plan-document-tier"),
+    });
 
     const planJob = await prisma.planJob.findUnique({
       where: { id: pid },
@@ -285,12 +324,20 @@ export async function POST(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": 'attachment; filename="plan.pdf"',
+        "Content-Disposition": `attachment; filename="${planFilename}"`,
+        "X-Plan-Document-Tier": renderTier,
         "Cache-Control": "no-store",
       },
     });
   } catch (err) {
     console.error("[tender-plan-error]", err);
-    return new Response(null, { status: 500 });
+    const message = sanitizeProductionClientMessage(
+      err instanceof Error ? err.message : "",
+      DOWNLOAD_SERVICE_UNAVAILABLE,
+    );
+    return NextResponse.json(
+      { error: "INTERNAL_ERROR", message },
+      { status: 500 },
+    );
   }
 }

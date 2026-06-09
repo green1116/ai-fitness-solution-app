@@ -38,17 +38,6 @@ export function planJsonToProjectInput(
   return {
     name: `${companyName}员工健身空间建设项目`,
     clientName: companyName,
-  const companySize = Number(cp.company_size ?? cp.companySize ?? 150) || 150;
-  const area = Number(cp.space_area ?? cp.area ?? 200) || 200;
-  const budgetRange = String(
-    cp.budget_range ?? cp.budget ?? formInput?.budget ?? "5-10万",
-  );
-  const email = String(formInput?.email ?? "").trim();
-  const scene = String(cp.scene ?? cp.scenario ?? formInput?.scenario ?? "企业办公");
-
-  return {
-    name: `企业健身方案-${plan.meta.plan_id}`,
-    clientName: email ? email.split("@")[0] : "投标企业",
     industry: cp.industry || "enterprise",
     siteType: "office",
     areaM2: area,
@@ -115,78 +104,71 @@ export async function provisionProjectFromPlan(
     return { created: false, projectId: id };
   }
 
-    return { created: false, projectId: id };
-  }
-
-  const input = planJsonToProjectInput(plan, formInput);
   const solutionData = generateSolution(input);
   const budgetData = generateBudget(id, []);
 
-  await prisma.$transaction(async (tx) => {
-    await tx.project.upsert({
-      where: { id },
+  await prisma.project.upsert({
+    where: { id },
+    update: {
+      name: input.name,
+      clientName: input.clientName,
+      industry: input.industry,
+      areaM2: input.areaM2,
+      targetUsers: input.targetUsers,
+      budgetLevel: input.budgetLevel as BudgetLevel,
+      notes: input.notes,
+    },
+    create: {
+      id,
+      name: input.name,
+      clientName: input.clientName,
+      industry: input.industry,
+      siteType: SiteType.office,
+      areaM2: input.areaM2,
+      targetUsers: input.targetUsers,
+      city: input.city ?? "上海市",
+      budgetLevel: input.budgetLevel as BudgetLevel,
+      deliveryMode: DeliveryMode.tender,
+      notes: input.notes,
+    },
+  });
+
+  if (!existing?.solution) {
+    await prisma.solution.upsert({
+      where: { projectId: id },
       update: {
-        name: input.name,
-        clientName: input.clientName,
-        industry: input.industry,
-        areaM2: input.areaM2,
-        targetUsers: input.targetUsers,
-        budgetLevel: input.budgetLevel as BudgetLevel,
-        notes: input.notes,
+        summary: solutionData.summary,
+        background: solutionData.background,
       },
       create: {
-        id,
-        name: input.name,
-        clientName: input.clientName,
-        industry: input.industry,
-        siteType: SiteType.office,
-        areaM2: input.areaM2,
-        targetUsers: input.targetUsers,
-        city: input.city ?? "上海市",
-        budgetLevel: input.budgetLevel as BudgetLevel,
-        deliveryMode: DeliveryMode.tender,
-        notes: input.notes,
+        projectId: id,
+        summary: solutionData.summary,
+        background: solutionData.background,
+        requirements: solutionData.requirements as unknown as Prisma.JsonArray,
+        objectives: solutionData.objectives as unknown as Prisma.JsonArray,
+        zoning: solutionData.zoning as unknown as Prisma.JsonArray,
+        implementationPlan:
+          solutionData.implementationPlan as unknown as Prisma.JsonArray,
+        operationsPlan: solutionData.operationsPlan as unknown as Prisma.JsonArray,
+        riskControl: solutionData.riskControl as unknown as Prisma.JsonArray,
+        acceptanceCriteria:
+          solutionData.acceptanceCriteria as unknown as Prisma.JsonArray,
       },
     });
+  }
 
-    if (!existing?.solution) {
-      await tx.solution.upsert({
-        where: { projectId: id },
-        update: {
-          summary: solutionData.summary,
-          background: solutionData.background,
-        },
-        update: {},
-        create: {
-          projectId: id,
-          summary: solutionData.summary,
-          background: solutionData.background,
-          requirements: solutionData.requirements as unknown as Prisma.JsonArray,
-          objectives: solutionData.objectives as unknown as Prisma.JsonArray,
-          zoning: solutionData.zoning as unknown as Prisma.JsonArray,
-          implementationPlan:
-            solutionData.implementationPlan as unknown as Prisma.JsonArray,
-          operationsPlan: solutionData.operationsPlan as unknown as Prisma.JsonArray,
-          riskControl: solutionData.riskControl as unknown as Prisma.JsonArray,
-          acceptanceCriteria:
-            solutionData.acceptanceCriteria as unknown as Prisma.JsonArray,
-        },
-      });
-    }
-
-    if (!existing?.budgets[0]) {
-      await tx.budget.create({
-        data: {
-          projectId: id,
-          currency: budgetData.currency,
-          totalEstimateMin: budgetData.totalEstimateMin,
-          totalEstimateMax: budgetData.totalEstimateMax,
-          items: budgetData.items as unknown as Prisma.JsonArray,
-          assumptions: budgetData.assumptions as unknown as Prisma.JsonArray,
-        },
-      });
-    }
-  });
+  if (!existing?.budgets[0]) {
+    await prisma.budget.create({
+      data: {
+        projectId: id,
+        currency: budgetData.currency,
+        totalEstimateMin: budgetData.totalEstimateMin,
+        totalEstimateMax: budgetData.totalEstimateMax,
+        items: budgetData.items as unknown as Prisma.JsonArray,
+        assumptions: budgetData.assumptions as unknown as Prisma.JsonArray,
+      },
+    });
+  }
 
   return { created: true, projectId: id };
 }
@@ -211,8 +193,6 @@ export async function ensureProjectFromPlanJobId(
       generated_at: plan.meta?.generated_at ?? new Date().toISOString().split("T")[0],
       version: plan.meta?.version ?? "v1",
     };
-  if (!plan?.meta?.plan_id) {
-    plan.meta = { ...plan.meta, plan_id: id };
   }
 
   await provisionProjectFromPlan(id, plan, (row.input as Record<string, unknown>) ?? null);

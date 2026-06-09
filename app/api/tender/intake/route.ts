@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { TENDER_INTAKE_RETRY } from "@/lib/client/clientFacingMessages";
 import { parseTenderDocument } from "@/lib/tender/parser";
 
 export const runtime = "nodejs";
@@ -11,7 +12,23 @@ function json(status: number, body: unknown) {
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch (parseErr: unknown) {
+      console.error(
+        "[tender/intake] formData parse failed",
+        parseErr instanceof Error
+          ? { name: parseErr.name, message: parseErr.message, stack: parseErr.stack }
+          : parseErr,
+      );
+      return json(400, {
+        ok: false,
+        code: "TENDER_INTAKE_FAILED",
+        message: TENDER_INTAKE_RETRY,
+      });
+    }
+
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
@@ -26,12 +43,33 @@ export async function POST(req: NextRequest) {
     const lower = sourceName.toLowerCase();
     const buffer = Buffer.from(await file.arrayBuffer());
 
+    console.log("[tender/intake] upload received", {
+      sourceName,
+      mimeType: file.type || "",
+      size: buffer.length,
+    });
+
     if (lower.endsWith(".pdf")) {
       const parsed = await parseTenderDocument({
         buffer,
         fileName: sourceName,
         mimeType: file.type || "application/pdf",
       });
+
+      console.log("[tender/intake] pdf parsed", {
+        sourceName,
+        pages: parsed.pages?.length ?? 0,
+        chars: parsed.rawText?.length ?? 0,
+        sections: parsed.sections?.length ?? 0,
+      });
+
+      if (!String(parsed.rawText || "").trim()) {
+        return json(422, {
+          ok: false,
+          code: "TENDER_PDF_EMPTY_TEXT",
+          message: "招标文件未提取到可识别文本，请尝试上传可复制文本的 PDF，或改用 TXT / DOCX / 手动粘贴正文。",
+        });
+      }
 
       return json(200, {
         ok: true,
@@ -52,13 +90,31 @@ export async function POST(req: NextRequest) {
         buffer,
         fileName: sourceName,
       });
+
+      console.log("[tender/intake] docx parsed", {
+        sourceName,
+        pages: parsed.pages?.length ?? 0,
+        chars: parsed.rawText?.length ?? 0,
+      });
+
+      if (!String(parsed.rawText || "").trim()) {
+        return json(422, {
+          ok: false,
+          code: "TENDER_DOCX_EMPTY_TEXT",
+          message: "DOCX 未提取到文本，请检查文件内容后重试。",
+        });
+      }
+
       return json(200, {
         ok: true,
         sourceName,
         rawText: parsed.rawText,
         pages: parsed.pages,
         metadata: parsed.metadata,
-        meta: { pageCount: parsed.pages.length, chars: parsed.rawText.length },
+        meta: {
+          pageCount: parsed.pages.length,
+          chars: parsed.rawText.length,
+        },
       });
     }
 
@@ -69,6 +125,21 @@ export async function POST(req: NextRequest) {
     ) {
       const rawText = buffer.toString("utf8");
       const parsed = await parseTenderDocument({ rawText, fileName: sourceName });
+
+      console.log("[tender/intake] text parsed", {
+        sourceName,
+        chars: parsed.rawText?.length ?? 0,
+        pages: parsed.pages?.length ?? 0,
+      });
+
+      if (!String(parsed.rawText || "").trim()) {
+        return json(422, {
+          ok: false,
+          code: "TENDER_TEXT_EMPTY",
+          message: "文件内容为空，请检查后重新上传。",
+        });
+      }
+
       return json(200, {
         ok: true,
         sourceName,
@@ -85,18 +156,21 @@ export async function POST(req: NextRequest) {
       message: "暂支持 PDF / DOCX / TXT",
     });
   } catch (err: unknown) {
-    const raw = err instanceof Error ? err.message : "intake failed";
-    const message =
-      raw.includes("pdf-parse") || raw.includes("module unavailable")
-        ? "PDF 解析模块不可用，请尝试上传 TXT/DOCX，或直接粘贴文本。"
-        : raw.includes("ENOENT") || raw.includes("test/data")
-          ? "文件路径无效，请通过页面上传真实文件，不要使用测试路径。"
-          : raw;
-    console.error("[tender/intake]", err);
+    console.error(
+      "[tender/intake]",
+      err instanceof Error
+        ? {
+            name: err.name,
+            message: err.message,
+            stack: err.stack,
+          }
+        : err
+    );
+
     return json(500, {
       ok: false,
       code: "TENDER_INTAKE_FAILED",
-      message,
+      message: TENDER_INTAKE_RETRY,
     });
   }
 }

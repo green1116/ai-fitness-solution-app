@@ -7,10 +7,14 @@ import JSZip from "jszip";
 import { normalizeUserTier } from "../lib/commercial/userTier";
 import type { EntitlementDebug } from "../lib/entitlement";
 import type { PlanEntitlementSnapshot } from "../lib/entitlements/planEntitlement";
+import { evaluateZipAccess, deriveZipPurchaseStatus } from "../lib/entitlements/zipAccess";
+import { createDevZipProjectBundle } from "../lib/pdf/devFallback";
+import { renderBudgetPdf } from "../lib/pdf/renderBudgetPdf";
+import { renderPlanPdf } from "../lib/pdf/renderPlanPdf";
 import {
-  evaluateZipAccess,
-  deriveZipPurchaseStatus,
-} from "../lib/entitlements/zipAccess";
+  buildTenderDocumentContext,
+  computeTenderPackReqsig,
+} from "../lib/pdf/tenderDocumentContext";
 
 function snap(
   level: PlanEntitlementSnapshot["effectiveLevel"],
@@ -26,15 +30,6 @@ function snap(
     zipEnabled: level === "enterprise",
   };
 }
-import {
-  createDevZipProjectBundle,
-} from "../lib/pdf/devFallback";
-import { renderBudgetPdf } from "../lib/pdf/renderBudgetPdf";
-import { renderPlanPdf } from "../lib/pdf/renderPlanPdf";
-import {
-  buildTenderDocumentContext,
-  computeTenderPackReqsig,
-} from "../lib/pdf/tenderDocumentContext";
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(`ASSERT: ${msg}`);
@@ -119,6 +114,41 @@ function verifyZipAccessRules() {
   assert(entAllowed.allowed, "enterprise entitled");
   assert(entAllowed.zipFromEntitlement, "zip from entitlement");
 
+  const planScopeDebug: EntitlementDebug = {
+    ...baseDebug([]),
+    licenseRank: 2,
+    finalRank: 2,
+    finalLevel: "enterprise",
+    winningSource: "license",
+    licenseWinner: {
+      id: "lic-plan-scope",
+      source: "plan-scope",
+      level: "enterprise",
+      rawPlanLevel: "enterprise",
+    },
+  };
+  const licenseOnlyAllowed = evaluateZipAccess({
+    entitlement: entSnap,
+    debug: planScopeDebug,
+    planId,
+  });
+  assert(
+    licenseOnlyAllowed.allowed,
+    "enterprise plan-scope license (zipEnabled) should allow zip without paid order",
+  );
+  assert(
+    licenseOnlyAllowed.allowedReason === "entitlement_zip_enabled",
+    "allowed via entitlement snapshot",
+  );
+
+  const freeDenied = evaluateZipAccess({
+    entitlement: snap("free", planId),
+    debug: baseDebug([]),
+    planId,
+  });
+  assert(!freeDenied.allowed, "free tier must not download zip");
+  assert(freeDenied.denyReason === "NOT_PURCHASED", "free denied as not purchased");
+
   if (prevNodeEnv !== undefined) env.NODE_ENV = prevNodeEnv;
   else delete env.NODE_ENV;
   if (prevDevZipAll !== undefined) env.DEV_ZIP_ALLOW_ALL = prevDevZipAll;
@@ -130,6 +160,68 @@ function verifyZipAccessRules() {
   }
 
   console.log("✓ ZIP access rules (purchase / tier)");
+}
+
+/** Budget 与 ZIP 共用 entitlement 快照：zipEnabled 时 ZIP 必须放行 */
+function verifyBudgetZipAlignment() {
+  const planId = "align-test-plan";
+  const entSnap = snap("enterprise", planId);
+  const debug: EntitlementDebug = {
+    planId,
+    allOrders: [],
+    paidOrders: [],
+    orderWinner: null,
+    licenseWinner: {
+      id: "lic-1",
+      source: "plan-scope",
+      level: "enterprise",
+      rawPlanLevel: "enterprise",
+    },
+    orderRank: 0,
+    licenseRank: 2,
+    finalRank: 2,
+    finalLevel: "enterprise",
+    winningSource: "license",
+    licenseCandidates: [],
+    priorityExplanation: "test",
+    sourcesDisagree: false,
+    policyVersion: "v1-max-order-license",
+  };
+
+  const zipDecision = evaluateZipAccess({
+    entitlement: entSnap,
+    debug,
+    planId,
+  });
+  if (!entSnap.budgetEnabled || !entSnap.zipEnabled) {
+    throw new Error("ASSERT: enterprise snap should enable budget and zip");
+  }
+  if (!zipDecision.allowed) {
+    throw new Error("ASSERT: zipEnabled enterprise must allow ZIP (budget/ZIP alignment)");
+  }
+
+  const proSnap = snap("pro", planId);
+  const proZip = evaluateZipAccess({
+    entitlement: proSnap,
+    debug: {
+      ...debug,
+      licenseRank: 1,
+      finalRank: 1,
+      finalLevel: "pro",
+      licenseWinner: {
+        id: "lic-pro",
+        source: "plan-scope",
+        level: "pro",
+        rawPlanLevel: "pro",
+      },
+    },
+    planId,
+  });
+  if (proSnap.budgetEnabled && proZip.allowed) {
+    throw new Error("ASSERT: pro tier must not allow ZIP when zipEnabled is false");
+  }
+
+  console.log("✓ Budget / ZIP entitlement alignment");
 }
 
 async function verifyPackPipeline() {
@@ -186,6 +278,7 @@ async function verifyPackPipeline() {
 async function main() {
   verifyRouteSource();
   verifyZipAccessRules();
+  verifyBudgetZipAlignment();
   await verifyPackPipeline();
   console.log("\nverify-pdf-tender-zip-route: PASS");
 }
