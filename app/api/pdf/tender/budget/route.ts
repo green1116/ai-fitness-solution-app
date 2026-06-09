@@ -10,6 +10,8 @@ import {
   isDatabaseConnectivityError,
 } from "@/lib/pdf/devFallback";
 import { resolveDownloadIds } from "@/lib/http/resolveDownloadIds";
+import { sanitizeProductionClientMessage } from "@/lib/http/sanitizeProductionClient";
+import { DOWNLOAD_SERVICE_UNAVAILABLE } from "@/lib/client/clientFacingMessages";
 import { prisma } from "@/lib/prisma";
 import { renderBudgetPdf } from "@/lib/pdf/renderBudgetPdf";
 import { ensureProjectFromPlanJobId } from "@/lib/services/tender/provisionProjectFromPlan";
@@ -123,26 +125,28 @@ export async function POST(req: Request) {
     console.log("[DEBUG][BUDGET][PROJECT]", project);
 
     if (!project) {
-      const provisioned = await ensureProjectFromPlanJobId(resolvedProjectId);
-      if (provisioned) {
-        try {
-          project = await prisma.project.findUnique({
-            where: { id: resolvedProjectId },
-            select: projectSelect,
-          });
-        } catch (reloadAfterProvision) {
-          if (
-            process.env.NODE_ENV === "production" ||
-            !isDatabaseConnectivityError(reloadAfterProvision)
-          ) {
-            throw reloadAfterProvision;
-          }
-          console.warn(
-            "[tender-budget] DEV DB fallback (reload after provision)",
-            reloadAfterProvision,
-          );
-          project = devProjectFallbackBudgetSelect(resolvedProjectId);
+      try {
+        await ensureProjectFromPlanJobId(resolvedProjectId);
+      } catch (provisionErr) {
+        console.error("[tender-budget] provision failed (non-fatal)", provisionErr);
+      }
+      try {
+        project = await prisma.project.findUnique({
+          where: { id: resolvedProjectId },
+          select: projectSelect,
+        });
+      } catch (reloadAfterProvision) {
+        if (
+          process.env.NODE_ENV === "production" ||
+          !isDatabaseConnectivityError(reloadAfterProvision)
+        ) {
+          throw reloadAfterProvision;
         }
+        console.warn(
+          "[tender-budget] DEV DB fallback (reload after provision)",
+          reloadAfterProvision,
+        );
+        project = devProjectFallbackBudgetSelect(resolvedProjectId);
       }
     }
 
@@ -247,7 +251,14 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("[budget pdf error]", error);
-    return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
+    const message = sanitizeProductionClientMessage(
+      error instanceof Error ? error.message : "",
+      DOWNLOAD_SERVICE_UNAVAILABLE,
+    );
+    return NextResponse.json(
+      { error: "INTERNAL_ERROR", message },
+      { status: 500 },
+    );
   }
 }
 

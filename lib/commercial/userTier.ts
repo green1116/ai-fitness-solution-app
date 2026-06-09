@@ -1,9 +1,11 @@
 export type UserTier = "free" | "pro" | "enterprise";
 
 export function normalizeUserTier(value: unknown): UserTier {
-  if (value === "enterprise" || value === "pro" || value === "free") {
-    return value;
+  const v = String(value ?? "").trim().toLowerCase();
+  if (v === "enterprise" || v === "pro" || v === "free") {
+    return v;
   }
+  if (v === "preview") return "free";
   return "free";
 }
 

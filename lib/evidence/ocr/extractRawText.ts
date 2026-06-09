@@ -31,7 +31,8 @@ function resolveMethod(
 
 async function extractPdf(buffer: Buffer): Promise<{ texts: string[]; engine: OcrEngineId }> {
   try {
-    const pdfParse = (await import("pdf-parse")).default;
+    const { loadPdfParse } = await import("@/lib/tender/parser/loadPdfParse");
+    const pdfParse = await loadPdfParse();
     const parsed = await pdfParse(buffer);
     const full = String(parsed.text || "");
     const n = Math.max(1, parsed.numpages || (full ? 1 : 0));

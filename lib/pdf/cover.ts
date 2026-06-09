@@ -34,6 +34,8 @@ export type CommercialCoverInput = {
   dateText: string;
   /** 卷副标题，默认技术方案卷 */
   volumeSubtitle?: string;
+  /** Free 预览：封面角标，如「免费预览版」 */
+  editionBadge?: string;
 };
 
 const PAGE_W = 595.28;
@@ -188,10 +190,19 @@ export async function drawCommercialCoverV3(
   // —— 文件类型层 ——
   drawHRule(page, y, 280);
   y -= 28;
-  drawCentered(page, font, "正式投标文件", y, 17, C.ink);
+  const docTypeLine = input.editionBadge?.trim()
+    ? input.editionBadge.trim()
+    : "正式投标文件";
+  drawCentered(page, font, docTypeLine, y, 17, C.ink);
   y -= 32;
   drawHRule(page, y, 280);
   y -= 42;
+
+  if (input.editionBadge?.trim()) {
+    const badge = "FREE PREVIEW · 免费预览版";
+    drawCentered(page, font, badge, y, 9, rgb(0.75, 0.35, 0.12));
+    y -= 28;
+  }
 
   // —— 元信息层 ——
   const metaLines = [
