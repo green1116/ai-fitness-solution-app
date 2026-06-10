@@ -150,6 +150,17 @@
         "verify:success-playbook": "tsx scripts/verify-success-playbook.ts",
         "verify:success-audit": "tsx scripts/verify-success-audit.ts",
         "verify:customer-success-dashboard": "tsx scripts/verify-customer-success-dashboard.ts",
+<<<<<<< HEAD
+        "verify:product-launch": "tsx scripts/verify-product-launch.ts",
+        "verify:campaign-runtime": "tsx scripts/verify-campaign-runtime.ts",
+        "verify:lead-acquisition": "tsx scripts/verify-lead-acquisition.ts",
+        "verify:outreach-runtime": "tsx scripts/verify-outreach-runtime.ts",
+        "verify:market-segment": "tsx scripts/verify-market-segment.ts",
+        "verify:gtm-analytics": "tsx scripts/verify-gtm-analytics.ts",
+        "verify:gtm-dashboard": "tsx scripts/verify-gtm-dashboard.ts",
+        "verify:commercial-platform": "tsx scripts/verify-commercial-platform.ts",
+=======
+>>>>>>> origin/main
         "verify:expansion-renewal": "tsx scripts/verify-expansion-renewal.ts",
         "verify:evidence": "tsx scripts/run-all-verifications.ts --group=evidence",
         "verify:executive": "tsx scripts/run-all-verifications.ts --group=executive",
