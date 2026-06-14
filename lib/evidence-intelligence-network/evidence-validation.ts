@@ -9,15 +9,22 @@ import {
 import { validateEvidenceRegistry } from "./evidence-registry";
 import type {
   EvidenceIntelligenceNetworkPhase2Validation,
+  EvidenceIntelligenceNetworkPhase3Validation,
   EvidenceIntelligenceNetworkValidation,
   RegistryValidation,
 } from "./shared/types";
 import {
   EVIDENCE_INTELLIGENCE_NETWORK_P1_TAG,
   EVIDENCE_INTELLIGENCE_NETWORK_P2_TAG,
+  EVIDENCE_INTELLIGENCE_NETWORK_P3_TAG,
   EVIDENCE_INTELLIGENCE_NETWORK_VERSION,
 } from "./shared/types";
 import { validateEvidenceGraphRegistry } from "./evidence-graph/evidence-graph-traversal";
+import { validateEvidenceCoverageContext } from "./evidence-coverage/coverage-context";
+import {
+  validateEvidenceCoverageRegistry,
+  validateRequirementStubRegistry,
+} from "./evidence-coverage/coverage-registry";
 
 function validateEngineCompatibility(): RegistryValidation {
   const compatibility = buildEvidenceEngineCompatibility();
@@ -78,5 +85,30 @@ export function getEvidenceIntelligenceNetworkPhase2FreezeMeta() {
   return {
     version: EVIDENCE_INTELLIGENCE_NETWORK_VERSION,
     tag: EVIDENCE_INTELLIGENCE_NETWORK_P2_TAG,
+  };
+}
+
+export function validateEvidenceIntelligenceNetworkPhase3(): EvidenceIntelligenceNetworkPhase3Validation {
+  const phase2 = validateEvidenceIntelligenceNetworkPhase2();
+  const evidenceCoverage = validateEvidenceCoverageRegistry();
+  const requirementStub = validateRequirementStubRegistry();
+  const coverageContext = validateEvidenceCoverageContext();
+
+  return {
+    valid:
+      phase2.valid &&
+      evidenceCoverage.valid &&
+      requirementStub.valid &&
+      coverageContext.valid,
+    phase2,
+    evidenceCoverage,
+    requirementStub,
+  };
+}
+
+export function getEvidenceIntelligenceNetworkPhase3FreezeMeta() {
+  return {
+    version: EVIDENCE_INTELLIGENCE_NETWORK_VERSION,
+    tag: EVIDENCE_INTELLIGENCE_NETWORK_P3_TAG,
   };
 }

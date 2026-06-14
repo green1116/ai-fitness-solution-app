@@ -187,6 +187,7 @@
         "verify:brand-intelligence-network": "tsx scripts/verify-brand-intelligence-network.ts",
         "verify:evidence-intelligence-network-p1": "tsx scripts/verify-evidence-intelligence-network-p1.ts",
         "verify:evidence-intelligence-network-p2": "tsx scripts/verify-evidence-intelligence-network-p2.ts",
+        "verify:evidence-intelligence-network-p3": "tsx scripts/verify-evidence-intelligence-network-p3.ts",
         "verify:bidder-profile": "tsx scripts/verify-bidder-profile.ts",
         "verify:brand-library": "tsx scripts/verify-brand-library.ts",
         "verify:equipment-catalog": "tsx scripts/verify-equipment-catalog.ts",

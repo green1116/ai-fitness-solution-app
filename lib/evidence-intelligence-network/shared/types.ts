@@ -2,12 +2,17 @@ export const EVIDENCE_INTELLIGENCE_NETWORK_VERSION = "v39-evidence-intelligence-
 export const EVIDENCE_INTELLIGENCE_NETWORK_TAG = "v39-evidence-intelligence-network-foundation" as const;
 export const EVIDENCE_INTELLIGENCE_NETWORK_P1_TAG = "v39-evidence-intelligence-network-p1" as const;
 export const EVIDENCE_INTELLIGENCE_NETWORK_P2_TAG = "v39-evidence-intelligence-network-p2" as const;
+export const EVIDENCE_INTELLIGENCE_NETWORK_P3_TAG = "v39-evidence-intelligence-network-p3" as const;
 
 export const EVIDENCE_GRAPH_MIN_NODE_COUNT = 40 as const;
 export const EVIDENCE_GRAPH_MIN_EDGE_COUNT = 50 as const;
 export const EVIDENCE_GRAPH_MIN_BRAND_NODES = 8 as const;
 export const EVIDENCE_GRAPH_MIN_EVIDENCE_NODES = 30 as const;
 export const EVIDENCE_GRAPH_MIN_REQUIREMENT_STUB_PATHS = 3 as const;
+
+export const COVERAGE_MIN_STUB_PATHS = 3 as const;
+export const TENDER_COVERAGE_KIND_THRESHOLD = 60 as const;
+export const REQUIREMENT_EDGE_MIN_MATCH_SCORE = 50 as const;
 
 export type EvidenceIntelligenceMode = "evidence-intelligence-network";
 
@@ -127,6 +132,104 @@ export interface EvidenceIntelligenceNetworkPhase2Validation {
   valid: boolean;
   phase1: EvidenceIntelligenceNetworkValidation;
   evidenceGraph: EvidenceGraphValidation;
+}
+
+export type EvidenceCoverageLevel = "full" | "partial" | "minimal" | "none" | "expired";
+
+export type EvidenceCoverageTargetType = "brand" | "tender" | "requirement" | "proposal";
+
+export type RequirementType =
+  | "technical-compliance"
+  | "commercial-qualification"
+  | "brand-authorization"
+  | "case-reference"
+  | "equipment-spec";
+
+export interface EvidenceCoverageRecord {
+  coverageId: string;
+  targetType: EvidenceCoverageTargetType;
+  targetId: string;
+  brandId?: string;
+  tenderId?: string;
+  proposalId?: string;
+  requirementId?: string;
+  evidenceIds: string[];
+  coverageLevel: EvidenceCoverageLevel;
+  coverageScore: number;
+  kindBreakdown: Partial<Record<EvidenceKind, number>>;
+  gapKinds: EvidenceKind[];
+  expiredCount: number;
+  coverageReady: boolean;
+  mode: EvidenceIntelligenceMode;
+}
+
+export interface EvidenceCoverageContext {
+  contextId: string;
+  records: EvidenceCoverageRecord[];
+  recordCount: number;
+  levelBreakdown: Record<EvidenceCoverageLevel, number>;
+  targetBreakdown: Record<EvidenceCoverageTargetType, number>;
+  averageScore: number;
+  gapBrandCount: number;
+  stubPathCount: number;
+  contextReady: boolean;
+  mode: EvidenceIntelligenceMode;
+}
+
+export interface RequirementStub {
+  requirementId: string;
+  tenderId: string;
+  proposalId?: string;
+  brandId: string;
+  requirementType: RequirementType;
+  mandatory: boolean;
+  evidenceLinkIds: string[];
+  stubReady: boolean;
+  mode: EvidenceIntelligenceMode;
+}
+
+export interface RequirementEvidenceEdge {
+  edgeId: string;
+  requirementId: string;
+  evidenceId: string;
+  brandId: string;
+  matchScore: number;
+  traceRef: string;
+  sourceRecordId: string;
+  mode: EvidenceIntelligenceMode;
+}
+
+export interface RequirementStubValidation {
+  valid: boolean;
+  stubCount: number;
+  edgeCount: number;
+  readyCount: number;
+  pathCount: number;
+  summary: string;
+}
+
+export interface EvidenceCoverageValidation {
+  valid: boolean;
+  count: number;
+  summary: string;
+}
+
+export interface EvidenceIntelligenceNetworkPhase3Validation {
+  valid: boolean;
+  phase2: EvidenceIntelligenceNetworkPhase2Validation;
+  evidenceCoverage: EvidenceCoverageValidation;
+  requirementStub: RequirementStubValidation;
+}
+
+export interface EvidenceCoveragePath {
+  brandId: string;
+  requirementId: string;
+  evidenceId: string;
+  nodeIds: string[];
+  edgeIds: string[];
+  pathKind: "brand-evidence-requirement";
+  matchScore: number;
+  traceRefs: string[];
 }
 
 export const CANONICAL_EVIDENCE_QUERY: EvidenceQuery = {
