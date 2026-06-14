@@ -7,11 +7,17 @@ import {
   EVIDENCE_RUNTIME_LAYER_LABEL,
 } from "./evidence-engine-compat";
 import { validateEvidenceRegistry } from "./evidence-registry";
-import type { EvidenceIntelligenceNetworkValidation, RegistryValidation } from "./shared/types";
+import type {
+  EvidenceIntelligenceNetworkPhase2Validation,
+  EvidenceIntelligenceNetworkValidation,
+  RegistryValidation,
+} from "./shared/types";
 import {
   EVIDENCE_INTELLIGENCE_NETWORK_P1_TAG,
+  EVIDENCE_INTELLIGENCE_NETWORK_P2_TAG,
   EVIDENCE_INTELLIGENCE_NETWORK_VERSION,
 } from "./shared/types";
+import { validateEvidenceGraphRegistry } from "./evidence-graph/evidence-graph-traversal";
 
 function validateEngineCompatibility(): RegistryValidation {
   const compatibility = buildEvidenceEngineCompatibility();
@@ -55,4 +61,22 @@ export function getEvidenceIntelligenceNetworkPhase1FreezeMeta() {
 
 export function validateEvidenceIntelligenceNetworkFoundation(): EvidenceIntelligenceNetworkValidation {
   return validateEvidenceIntelligenceNetworkPhase1();
+}
+
+export function validateEvidenceIntelligenceNetworkPhase2(): EvidenceIntelligenceNetworkPhase2Validation {
+  const phase1 = validateEvidenceIntelligenceNetworkPhase1();
+  const evidenceGraph = validateEvidenceGraphRegistry();
+
+  return {
+    valid: phase1.valid && evidenceGraph.valid,
+    phase1,
+    evidenceGraph,
+  };
+}
+
+export function getEvidenceIntelligenceNetworkPhase2FreezeMeta() {
+  return {
+    version: EVIDENCE_INTELLIGENCE_NETWORK_VERSION,
+    tag: EVIDENCE_INTELLIGENCE_NETWORK_P2_TAG,
+  };
 }

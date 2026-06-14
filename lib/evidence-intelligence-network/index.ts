@@ -23,3 +23,10 @@ export {
 } from "./evidence-registry";
 export * from "./evidence-context";
 export * from "./evidence-validation";
+export * from "./evidence-graph/graph-nodes";
+export * from "./evidence-graph/graph-edges";
+export * from "./evidence-graph/brand-evidence-edge";
+export * from "./evidence-graph/sku-evidence-edge";
+export * from "./evidence-graph/manufacturer-evidence-edge";
+export * from "./evidence-graph/evidence-graph-context";
+export * from "./evidence-graph/evidence-graph-traversal";

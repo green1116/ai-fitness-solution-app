@@ -1,6 +1,13 @@
 export const EVIDENCE_INTELLIGENCE_NETWORK_VERSION = "v39-evidence-intelligence-network-1" as const;
 export const EVIDENCE_INTELLIGENCE_NETWORK_TAG = "v39-evidence-intelligence-network-foundation" as const;
 export const EVIDENCE_INTELLIGENCE_NETWORK_P1_TAG = "v39-evidence-intelligence-network-p1" as const;
+export const EVIDENCE_INTELLIGENCE_NETWORK_P2_TAG = "v39-evidence-intelligence-network-p2" as const;
+
+export const EVIDENCE_GRAPH_MIN_NODE_COUNT = 40 as const;
+export const EVIDENCE_GRAPH_MIN_EDGE_COUNT = 50 as const;
+export const EVIDENCE_GRAPH_MIN_BRAND_NODES = 8 as const;
+export const EVIDENCE_GRAPH_MIN_EVIDENCE_NODES = 30 as const;
+export const EVIDENCE_GRAPH_MIN_REQUIREMENT_STUB_PATHS = 3 as const;
 
 export type EvidenceIntelligenceMode = "evidence-intelligence-network";
 
@@ -108,6 +115,18 @@ export interface EvidenceIntelligenceNetworkValidation {
   evidenceRegistry: RegistryValidation;
   evidenceContext: RegistryValidation;
   engineCompatibility: RegistryValidation;
+}
+
+export interface EvidenceGraphValidation {
+  valid: boolean;
+  count: number;
+  summary: string;
+}
+
+export interface EvidenceIntelligenceNetworkPhase2Validation {
+  valid: boolean;
+  phase1: EvidenceIntelligenceNetworkValidation;
+  evidenceGraph: EvidenceGraphValidation;
 }
 
 export const CANONICAL_EVIDENCE_QUERY: EvidenceQuery = {
