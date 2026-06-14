@@ -8,15 +8,19 @@ import {
 } from "./evidence-engine-compat";
 import { validateEvidenceRegistry } from "./evidence-registry";
 import type {
+  EvidenceIntelligenceNetworkFoundationValidation,
   EvidenceIntelligenceNetworkPhase2Validation,
   EvidenceIntelligenceNetworkPhase3Validation,
+  EvidenceIntelligenceNetworkPhase4Validation,
   EvidenceIntelligenceNetworkValidation,
   RegistryValidation,
 } from "./shared/types";
 import {
+  EVIDENCE_INTELLIGENCE_NETWORK_FOUNDATION_TAG,
   EVIDENCE_INTELLIGENCE_NETWORK_P1_TAG,
   EVIDENCE_INTELLIGENCE_NETWORK_P2_TAG,
   EVIDENCE_INTELLIGENCE_NETWORK_P3_TAG,
+  EVIDENCE_INTELLIGENCE_NETWORK_P4_TAG,
   EVIDENCE_INTELLIGENCE_NETWORK_VERSION,
 } from "./shared/types";
 import { validateEvidenceGraphRegistry } from "./evidence-graph/evidence-graph-traversal";
@@ -25,6 +29,9 @@ import {
   validateEvidenceCoverageRegistry,
   validateRequirementStubRegistry,
 } from "./evidence-coverage/coverage-registry";
+import { validateEvidenceReadinessRegistry } from "./evidence-readiness/readiness-context";
+import { validateEvidenceQueryRegistry } from "./evidence-query";
+import { validateEvidenceMatcherRegistry } from "./evidence-matcher";
 
 function validateEngineCompatibility(): RegistryValidation {
   const compatibility = buildEvidenceEngineCompatibility();
@@ -110,5 +117,63 @@ export function getEvidenceIntelligenceNetworkPhase3FreezeMeta() {
   return {
     version: EVIDENCE_INTELLIGENCE_NETWORK_VERSION,
     tag: EVIDENCE_INTELLIGENCE_NETWORK_P3_TAG,
+  };
+}
+
+export function validateEvidenceIntelligenceNetworkPhase4(): EvidenceIntelligenceNetworkPhase4Validation {
+  const phase3 = validateEvidenceIntelligenceNetworkPhase3();
+  const evidenceReadiness = validateEvidenceReadinessRegistry();
+  const evidenceQuery = validateEvidenceQueryRegistry();
+  const evidenceMatcher = validateEvidenceMatcherRegistry();
+
+  return {
+    valid:
+      phase3.valid &&
+      evidenceReadiness.valid &&
+      evidenceQuery.valid &&
+      evidenceMatcher.valid,
+    phase3,
+    evidenceReadiness,
+    evidenceQuery,
+    evidenceMatcher,
+  };
+}
+
+export function validateEvidenceIntelligenceNetworkFoundationFreeze(): EvidenceIntelligenceNetworkFoundationValidation {
+  const phase4 = validateEvidenceIntelligenceNetworkPhase4();
+  const registry = validateEvidenceRegistry();
+  const graph = validateEvidenceGraphRegistry();
+  const coverage = validateEvidenceCoverageRegistry();
+  const requirementStub = validateRequirementStubRegistry();
+  const compatibility = validateEngineCompatibility();
+
+  return {
+    valid:
+      phase4.valid &&
+      registry.valid &&
+      graph.valid &&
+      coverage.valid &&
+      requirementStub.valid &&
+      compatibility.valid,
+    phase4,
+    registry,
+    graph,
+    coverage,
+    requirementStub,
+    compatibility,
+  };
+}
+
+export function getEvidenceIntelligenceNetworkPhase4FreezeMeta() {
+  return {
+    version: EVIDENCE_INTELLIGENCE_NETWORK_VERSION,
+    tag: EVIDENCE_INTELLIGENCE_NETWORK_P4_TAG,
+  };
+}
+
+export function getEvidenceIntelligenceNetworkFoundationFreezeMeta() {
+  return {
+    version: EVIDENCE_INTELLIGENCE_NETWORK_VERSION,
+    tag: EVIDENCE_INTELLIGENCE_NETWORK_FOUNDATION_TAG,
   };
 }

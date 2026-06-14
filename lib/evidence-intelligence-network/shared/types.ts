@@ -3,6 +3,11 @@ export const EVIDENCE_INTELLIGENCE_NETWORK_TAG = "v39-evidence-intelligence-netw
 export const EVIDENCE_INTELLIGENCE_NETWORK_P1_TAG = "v39-evidence-intelligence-network-p1" as const;
 export const EVIDENCE_INTELLIGENCE_NETWORK_P2_TAG = "v39-evidence-intelligence-network-p2" as const;
 export const EVIDENCE_INTELLIGENCE_NETWORK_P3_TAG = "v39-evidence-intelligence-network-p3" as const;
+export const EVIDENCE_INTELLIGENCE_NETWORK_P4_TAG = "v39-evidence-intelligence-network-p4" as const;
+export const EVIDENCE_INTELLIGENCE_NETWORK_FOUNDATION_TAG =
+  "v39-evidence-intelligence-network-foundation" as const;
+
+export const READINESS_MIN_SCORE = 70 as const;
 
 export const EVIDENCE_GRAPH_MIN_NODE_COUNT = 40 as const;
 export const EVIDENCE_GRAPH_MIN_EDGE_COUNT = 50 as const;
@@ -230,6 +235,87 @@ export interface EvidenceCoveragePath {
   pathKind: "brand-evidence-requirement";
   matchScore: number;
   traceRefs: string[];
+}
+
+export interface EvidenceReadinessScore {
+  readinessId: string;
+  brandId: string;
+  registryScore: number;
+  graphScore: number;
+  coverageScore: number;
+  freshnessScore: number;
+  brandAlignmentScore: number;
+  totalReadinessScore: number;
+  mode: EvidenceIntelligenceMode;
+}
+
+export interface EvidenceReadinessResult {
+  resultId: string;
+  brandId: string;
+  score: EvidenceReadinessScore;
+  readinessReady: boolean;
+  criticalBlockers: string[];
+  warningItems: string[];
+  mode: EvidenceIntelligenceMode;
+}
+
+export interface EvidenceReadinessContext {
+  contextId: string;
+  results: EvidenceReadinessResult[];
+  resultCount: number;
+  readyCount: number;
+  averageReadinessScore: number;
+  contextReady: boolean;
+  mode: EvidenceIntelligenceMode;
+}
+
+export interface UnifiedEvidenceQuery extends EvidenceQuery {
+  coverageLevel?: EvidenceCoverageLevel;
+  minReadinessScore?: number;
+  verifiedOnly?: boolean;
+}
+
+export interface EvidenceQueryContext {
+  queryId: string;
+  query: UnifiedEvidenceQuery;
+  records: EvidenceRecord[];
+  hitCount: number;
+  queryReady: boolean;
+  mode: EvidenceIntelligenceMode;
+}
+
+export type EvidenceMatchTargetType = "brand" | "requirement" | "tender" | "sku";
+
+export interface EvidenceMatchResult {
+  matchId: string;
+  evidenceId?: string;
+  brandId: string;
+  targetType: EvidenceMatchTargetType;
+  targetId: string;
+  matchScore: number;
+  matchReason: string;
+  matchedEvidenceIds: string[];
+  unmatchedGaps: EvidenceKind[];
+  matchReady: boolean;
+  mode: EvidenceIntelligenceMode;
+}
+
+export interface EvidenceIntelligenceNetworkPhase4Validation {
+  valid: boolean;
+  phase3: EvidenceIntelligenceNetworkPhase3Validation;
+  evidenceReadiness: RegistryValidation;
+  evidenceQuery: RegistryValidation;
+  evidenceMatcher: RegistryValidation;
+}
+
+export interface EvidenceIntelligenceNetworkFoundationValidation {
+  valid: boolean;
+  phase4: EvidenceIntelligenceNetworkPhase4Validation;
+  registry: RegistryValidation;
+  graph: RegistryValidation;
+  coverage: RegistryValidation;
+  requirementStub: RequirementStubValidation;
+  compatibility: RegistryValidation;
 }
 
 export const CANONICAL_EVIDENCE_QUERY: EvidenceQuery = {

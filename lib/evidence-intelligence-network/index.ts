@@ -61,3 +61,22 @@ export {
   buildEnrichedRequirementStubRecords,
   findEnrichedRequirementStubById,
 } from "./requirement-stub/requirement-evidence-edge";
+export * from "./evidence-readiness/readiness-scoring";
+export * from "./evidence-readiness/readiness-context";
+export {
+  findEvidence,
+  findEvidenceByBrand as findEvidenceQueryByBrand,
+  findEvidenceByKind as findEvidenceQueryByKind,
+  findVerifiedEvidence,
+  findTopEvidence,
+  findEvidenceByCoverageLevel,
+  findEvidenceByReadiness,
+  validateEvidenceQueryRegistry,
+} from "./evidence-query";
+export {
+  matchEvidenceToBrand,
+  matchEvidenceToRequirement,
+  matchEvidenceToTender,
+  matchEvidenceToSku,
+  validateEvidenceMatcherRegistry,
+} from "./evidence-matcher";
