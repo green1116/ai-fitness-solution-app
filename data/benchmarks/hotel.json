@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge"
+  ],
+  "industry": "hotel",
+  "profiles": [
+    {
+      "benchmarkId": "bench-hotel",
+      "industry": "hotel",
+      "city": "Beijing",
+      "avgWinProbability": 68,
+      "avgProposalScore": 78,
+      "avgMarginPercent": 12,
+      "sampleSize": 4,
+      "mode": "tender-knowledge"
+    }
+  ],
+  "summary": {
+    "industryLabel": "Hotel Fitness",
+    "primaryCity": "Beijing",
+    "avgWinProbability": 68,
+    "avgProposalScore": 78,
+    "avgMarginPercent": 12
+  }
+}

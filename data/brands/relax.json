@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v20-real-catalog"
+  ],
+  "brand": {
+    "brandId": "brand-relax",
+    "brandName": "Relax",
+    "manufacturer": "Relax Fitness Equipment Co., Ltd.",
+    "originCountry": "China",
+    "headquarters": "Ningbo, Zhejiang, China",
+    "brandTier": "commercial",
+    "marketPosition": "Mid-tier commercial fitness brand for hotel and community projects",
+    "chinaDistributor": "Relax China Regional Agents",
+    "officialWebsite": "https://www.relaxfitness.cn",
+    "targetSegments": [
+      "hotel",
+      "community",
+      "enterprise"
+    ],
+    "competitiveAdvantages": [
+      "Competitive mid-market pricing",
+      "Fast regional delivery",
+      "Hotel compliance packages"
+    ],
+    "mode": "real-catalog"
+  },
+  "equipment": [
+    {
+      "sku": "RX-TM-001",
+      "modelId": "equip-relax-tm",
+      "modelName": "Relax Treadmill Pro",
+      "brandId": "brand-relax",
+      "brandName": "Relax",
+      "category": "cardio",
+      "subCategory": "Treadmill",
+      "dimensionsCm": {
+        "length": 180,
+        "width": 80,
+        "height": 140
+      },
+      "weightKg": 60,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 150,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 30,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-RX-TM-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "RX-BK-002",
+      "modelId": "equip-relax-bk",
+      "modelName": "Relax Studio Bike",
+      "brandId": "brand-relax",
+      "brandName": "Relax",
+      "category": "group-training",
+      "subCategory": "Bike",
+      "dimensionsCm": {
+        "length": 185,
+        "width": 82,
+        "height": 143
+      },
+      "weightKg": 75,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 160,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 21,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-RX-BK-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "RX-EL-003",
+      "modelId": "equip-relax-el",
+      "modelName": "Relax Cross Trainer",
+      "brandId": "brand-relax",
+      "brandName": "Relax",
+      "category": "cardio",
+      "subCategory": "Elliptical",
+      "dimensionsCm": {
+        "length": 190,
+        "width": 84,
+        "height": 146
+      },
+      "weightKg": 90,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 170,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 28,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-RX-EL-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "RX-ST-004",
+      "modelId": "equip-relax-st",
+      "modelName": "Relax Strength Rack",
+      "brandId": "brand-relax",
+      "brandName": "Relax",
+      "category": "strength",
+      "subCategory": "Strength",
+      "dimensionsCm": {
+        "length": 195,
+        "width": 86,
+        "height": 149
+      },
+      "weightKg": 105,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 180,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 14,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-RX-ST-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "RX-FN-005",
+      "modelId": "equip-relax-fn",
+      "modelName": "Relax Functional Trainer",
+      "brandId": "brand-relax",
+      "brandName": "Relax",
+      "category": "functional",
+      "subCategory": "Functional",
+      "dimensionsCm": {
+        "length": 200,
+        "width": 88,
+        "height": 152
+      },
+      "weightKg": 120,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 190,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 18,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-RX-FN-v1.0",
+      "mode": "real-catalog"
+    }
+  ]
+}

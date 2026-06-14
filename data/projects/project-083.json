@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge",
+    "v24-proposal-intelligence",
+    "v23-bid-commercial"
+  ],
+  "projectId": "project-083",
+  "historicalTender": {
+    "projectId": "project-083",
+    "city": "Guangzhou",
+    "industry": "campus",
+    "area": 2000,
+    "budget": 700000,
+    "brand": "Matrix",
+    "sku": "MX-EL-001",
+    "result": "lost"
+  },
+  "historicalProposal": {
+    "score": 74,
+    "winProbability": 78,
+    "strategy": "balanced"
+  },
+  "historicalBidOutcome": {
+    "result": "lost",
+    "winningPrice": null,
+    "grossMargin": null
+  },
+  "tender": {
+    "tenderId": "tender-083-campus",
+    "projectName": "Guangzhou campus Equipment Project 83",
+    "city": "Guangzhou",
+    "industry": "campus",
+    "budgetMin": 630000,
+    "budgetMax": 805000,
+    "tenderDate": "2025-11-02",
+    "status": "completed",
+    "mode": "tender-knowledge"
+  },
+  "proposal": {
+    "proposalId": "proposal-083",
+    "tenderId": "tender-083-campus",
+    "sku": "MX-EL-001",
+    "brand": "Matrix",
+    "quantity": 14,
+    "finalPrice": 50000,
+    "proposalScore": 74,
+    "winProbability": 78,
+    "strategyType": "balanced",
+    "submittedAt": "2025-11-15",
+    "mode": "tender-knowledge"
+  },
+  "outcome": {
+    "outcomeId": "outcome-083",
+    "tenderId": "tender-083-campus",
+    "proposalId": "proposal-083",
+    "outcome": "lost",
+    "winPrice": null,
+    "competitorCount": 5,
+    "marginPercent": null,
+    "recordedAt": "2025-12-01",
+    "mode": "tender-knowledge"
+  },
+  "knowledgeAssisted": {
+    "baselineProbability": 78,
+    "calibratedProbability": null,
+    "confidence": "medium"
+  }
+}

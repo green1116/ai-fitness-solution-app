@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v21-regional-supplier"
+  ],
+  "supplier": {
+    "id": "supplier-shuhua",
+    "brand": "Shuhua",
+    "supplierName": "Shandong Shuhua Sports Equipment Co., Ltd.",
+    "region": "Southwest China",
+    "authorizationLevel": "national",
+    "contact": "sales@shuhua.com.cn",
+    "status": "active",
+    "mode": "supplier-network"
+  },
+  "dealers": [
+    {
+      "id": "dealer-shuhua-chengdu",
+      "dealerName": "Shuhua Chengdu Dealer",
+      "city": "Chengdu",
+      "coverageArea": "Chengdu",
+      "warehouseCapability": true,
+      "serviceLevel": "premium",
+      "status": "active",
+      "mode": "supplier-network"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "inv-shuhua-chengdu",
+      "sku": "SH-TM-001",
+      "stockStatus": "in-stock",
+      "availableQuantity": 20,
+      "safetyStock": 3,
+      "replenishmentLeadTime": "7-14 days",
+      "warehouseLocation": "Chengdu Warehouse",
+      "lastUpdated": "2026-06-13",
+      "mode": "supplier-network"
+    }
+  ]
+}

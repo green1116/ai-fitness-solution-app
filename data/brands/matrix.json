@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v20-real-catalog"
+  ],
+  "brand": {
+    "brandId": "brand-matrix",
+    "brandName": "Matrix",
+    "manufacturer": "Johnson Health Tech (Matrix Fitness)",
+    "originCountry": "USA",
+    "headquarters": "Cottage Grove, Wisconsin, USA",
+    "brandTier": "mid-market",
+    "marketPosition": "Commercial mid-market fitness with strong price-performance ratio",
+    "chinaDistributor": "Matrix Fitness China (Shanghai)",
+    "officialWebsite": "https://www.matrixfitness.com",
+    "targetSegments": [
+      "enterprise",
+      "campus",
+      "community"
+    ],
+    "competitiveAdvantages": [
+      "Modern UX",
+      "Competitive pricing",
+      "Compact footprint options"
+    ],
+    "mode": "real-catalog"
+  },
+  "equipment": [
+    {
+      "sku": "MX-TM-001",
+      "modelId": "equip-matrix-tm",
+      "modelName": "Matrix Treadmill Pro",
+      "brandId": "brand-matrix",
+      "brandName": "Matrix",
+      "category": "cardio",
+      "subCategory": "Treadmill",
+      "dimensionsCm": {
+        "length": 180,
+        "width": 80,
+        "height": 140
+      },
+      "weightKg": 60,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 150,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 30,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-MX-TM-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "MX-BK-002",
+      "modelId": "equip-matrix-bk",
+      "modelName": "Matrix Studio Bike",
+      "brandId": "brand-matrix",
+      "brandName": "Matrix",
+      "category": "group-training",
+      "subCategory": "Bike",
+      "dimensionsCm": {
+        "length": 185,
+        "width": 82,
+        "height": 143
+      },
+      "weightKg": 75,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 160,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 21,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-MX-BK-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "MX-EL-003",
+      "modelId": "equip-matrix-el",
+      "modelName": "Matrix Cross Trainer",
+      "brandId": "brand-matrix",
+      "brandName": "Matrix",
+      "category": "cardio",
+      "subCategory": "Elliptical",
+      "dimensionsCm": {
+        "length": 190,
+        "width": 84,
+        "height": 146
+      },
+      "weightKg": 90,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 170,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 28,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-MX-EL-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "MX-ST-004",
+      "modelId": "equip-matrix-st",
+      "modelName": "Matrix Strength Rack",
+      "brandId": "brand-matrix",
+      "brandName": "Matrix",
+      "category": "strength",
+      "subCategory": "Strength",
+      "dimensionsCm": {
+        "length": 195,
+        "width": 86,
+        "height": 149
+      },
+      "weightKg": 105,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 180,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 14,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-MX-ST-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "MX-FN-005",
+      "modelId": "equip-matrix-fn",
+      "modelName": "Matrix Functional Trainer",
+      "brandId": "brand-matrix",
+      "brandName": "Matrix",
+      "category": "functional",
+      "subCategory": "Functional",
+      "dimensionsCm": {
+        "length": 200,
+        "width": 88,
+        "height": 152
+      },
+      "weightKg": 120,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 190,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 18,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-MX-FN-v1.0",
+      "mode": "real-catalog"
+    }
+  ]
+}

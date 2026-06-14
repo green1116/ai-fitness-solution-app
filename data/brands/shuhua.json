@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v20-real-catalog"
+  ],
+  "brand": {
+    "brandId": "brand-shuhua",
+    "brandName": "Shuhua",
+    "manufacturer": "Shandong Shuhua Sports Equipment Co., Ltd.",
+    "originCountry": "China",
+    "headquarters": "Dezhou, Shandong, China",
+    "brandTier": "domestic",
+    "marketPosition": "Leading domestic fitness equipment brand for government procurement",
+    "chinaDistributor": "Direct factory sales + provincial agents",
+    "officialWebsite": "https://www.shuhua.com.cn",
+    "targetSegments": [
+      "government",
+      "campus",
+      "community",
+      "school"
+    ],
+    "competitiveAdvantages": [
+      "Government procurement compliance",
+      "Fast domestic delivery",
+      "Lowest TCO"
+    ],
+    "mode": "real-catalog"
+  },
+  "equipment": [
+    {
+      "sku": "SH-TM-001",
+      "modelId": "equip-shuhua-tm",
+      "modelName": "Shuhua Treadmill Pro",
+      "brandId": "brand-shuhua",
+      "brandName": "Shuhua",
+      "category": "cardio",
+      "subCategory": "Treadmill",
+      "dimensionsCm": {
+        "length": 180,
+        "width": 80,
+        "height": 140
+      },
+      "weightKg": 60,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 150,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 30,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-SH-TM-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "SH-BK-002",
+      "modelId": "equip-shuhua-bk",
+      "modelName": "Shuhua Studio Bike",
+      "brandId": "brand-shuhua",
+      "brandName": "Shuhua",
+      "category": "group-training",
+      "subCategory": "Bike",
+      "dimensionsCm": {
+        "length": 185,
+        "width": 82,
+        "height": 143
+      },
+      "weightKg": 75,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 160,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 21,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-SH-BK-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "SH-EL-003",
+      "modelId": "equip-shuhua-el",
+      "modelName": "Shuhua Cross Trainer",
+      "brandId": "brand-shuhua",
+      "brandName": "Shuhua",
+      "category": "cardio",
+      "subCategory": "Elliptical",
+      "dimensionsCm": {
+        "length": 190,
+        "width": 84,
+        "height": 146
+      },
+      "weightKg": 90,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 170,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 28,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-SH-EL-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "SH-ST-004",
+      "modelId": "equip-shuhua-st",
+      "modelName": "Shuhua Strength Rack",
+      "brandId": "brand-shuhua",
+      "brandName": "Shuhua",
+      "category": "strength",
+      "subCategory": "Strength",
+      "dimensionsCm": {
+        "length": 195,
+        "width": 86,
+        "height": 149
+      },
+      "weightKg": 105,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 180,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 14,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-SH-ST-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "SH-FN-005",
+      "modelId": "equip-shuhua-fn",
+      "modelName": "Shuhua Functional Trainer",
+      "brandId": "brand-shuhua",
+      "brandName": "Shuhua",
+      "category": "functional",
+      "subCategory": "Functional",
+      "dimensionsCm": {
+        "length": 200,
+        "width": 88,
+        "height": 152
+      },
+      "weightKg": 120,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 190,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 18,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-SH-FN-v1.0",
+      "mode": "real-catalog"
+    }
+  ]
+}

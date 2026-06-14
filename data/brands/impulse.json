@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v20-real-catalog"
+  ],
+  "brand": {
+    "brandId": "brand-impulse",
+    "brandName": "Impulse",
+    "manufacturer": "Impulse Health Tech Ltd.",
+    "originCountry": "China",
+    "headquarters": "Qingdao, Shandong, China",
+    "brandTier": "value",
+    "marketPosition": "Value commercial strength equipment for budget-conscious projects",
+    "chinaDistributor": "Impulse direct + regional dealers",
+    "officialWebsite": "https://www.impulsefitness.com",
+    "targetSegments": [
+      "government",
+      "community",
+      "school"
+    ],
+    "competitiveAdvantages": [
+      "Low unit cost",
+      "Fast domestic fulfillment",
+      "Wide strength line"
+    ],
+    "mode": "real-catalog"
+  },
+  "equipment": [
+    {
+      "sku": "IM-TM-001",
+      "modelId": "equip-impulse-tm",
+      "modelName": "Impulse Treadmill Pro",
+      "brandId": "brand-impulse",
+      "brandName": "Impulse",
+      "category": "cardio",
+      "subCategory": "Treadmill",
+      "dimensionsCm": {
+        "length": 180,
+        "width": 80,
+        "height": 140
+      },
+      "weightKg": 60,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 150,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 30,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-IM-TM-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "IM-BK-002",
+      "modelId": "equip-impulse-bk",
+      "modelName": "Impulse Studio Bike",
+      "brandId": "brand-impulse",
+      "brandName": "Impulse",
+      "category": "group-training",
+      "subCategory": "Bike",
+      "dimensionsCm": {
+        "length": 185,
+        "width": 82,
+        "height": 143
+      },
+      "weightKg": 75,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 160,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 21,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-IM-BK-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "IM-EL-003",
+      "modelId": "equip-impulse-el",
+      "modelName": "Impulse Cross Trainer",
+      "brandId": "brand-impulse",
+      "brandName": "Impulse",
+      "category": "cardio",
+      "subCategory": "Elliptical",
+      "dimensionsCm": {
+        "length": 190,
+        "width": 84,
+        "height": 146
+      },
+      "weightKg": 90,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 170,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 28,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-IM-EL-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "IM-ST-004",
+      "modelId": "equip-impulse-st",
+      "modelName": "Impulse Strength Rack",
+      "brandId": "brand-impulse",
+      "brandName": "Impulse",
+      "category": "strength",
+      "subCategory": "Strength",
+      "dimensionsCm": {
+        "length": 195,
+        "width": 86,
+        "height": 149
+      },
+      "weightKg": 105,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 180,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 14,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-IM-ST-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "IM-FN-005",
+      "modelId": "equip-impulse-fn",
+      "modelName": "Impulse Functional Trainer",
+      "brandId": "brand-impulse",
+      "brandName": "Impulse",
+      "category": "functional",
+      "subCategory": "Functional",
+      "dimensionsCm": {
+        "length": 200,
+        "width": 88,
+        "height": 152
+      },
+      "weightKg": 120,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 190,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 18,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-IM-FN-v1.0",
+      "mode": "real-catalog"
+    }
+  ]
+}

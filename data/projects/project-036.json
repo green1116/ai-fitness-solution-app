@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge",
+    "v24-proposal-intelligence",
+    "v23-bid-commercial"
+  ],
+  "projectId": "project-036",
+  "historicalTender": {
+    "projectId": "project-036",
+    "city": "Hangzhou",
+    "industry": "commercial-gym",
+    "area": 1450,
+    "budget": 2010000,
+    "brand": "Precor",
+    "sku": "PC-TM-001",
+    "result": "won"
+  },
+  "historicalProposal": {
+    "score": 75,
+    "winProbability": 75,
+    "strategy": "balanced"
+  },
+  "historicalBidOutcome": {
+    "result": "won",
+    "winningPrice": 2010000,
+    "grossMargin": 14
+  },
+  "tender": {
+    "tenderId": "tender-036-commercial-gym",
+    "projectName": "Hangzhou commercial gym Equipment Project 36",
+    "city": "Hangzhou",
+    "industry": "commercial-gym",
+    "budgetMin": 1809000,
+    "budgetMax": 2311500,
+    "tenderDate": "2025-12-09",
+    "status": "completed",
+    "mode": "tender-knowledge"
+  },
+  "proposal": {
+    "proposalId": "proposal-036",
+    "tenderId": "tender-036-commercial-gym",
+    "sku": "PC-TM-001",
+    "brand": "Precor",
+    "quantity": 15,
+    "finalPrice": 134000,
+    "proposalScore": 75,
+    "winProbability": 75,
+    "strategyType": "balanced",
+    "submittedAt": "2025-12-15",
+    "mode": "tender-knowledge"
+  },
+  "outcome": {
+    "outcomeId": "outcome-036",
+    "tenderId": "tender-036-commercial-gym",
+    "proposalId": "proposal-036",
+    "outcome": "won",
+    "winPrice": 2010000,
+    "competitorCount": 6,
+    "marginPercent": 14,
+    "recordedAt": "2025-13-01",
+    "mode": "tender-knowledge"
+  },
+  "knowledgeAssisted": {
+    "baselineProbability": 75,
+    "calibratedProbability": null,
+    "confidence": "medium"
+  }
+}

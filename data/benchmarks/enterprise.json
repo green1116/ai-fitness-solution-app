@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge"
+  ],
+  "industry": "enterprise",
+  "profiles": [
+    {
+      "benchmarkId": "bench-enterprise",
+      "industry": "enterprise",
+      "city": "Shanghai",
+      "avgWinProbability": 76,
+      "avgProposalScore": 83,
+      "avgMarginPercent": 16,
+      "sampleSize": 4,
+      "mode": "tender-knowledge"
+    }
+  ],
+  "summary": {
+    "industryLabel": "Enterprise Wellness",
+    "primaryCity": "Shanghai",
+    "avgWinProbability": 76,
+    "avgProposalScore": 83,
+    "avgMarginPercent": 16
+  }
+}

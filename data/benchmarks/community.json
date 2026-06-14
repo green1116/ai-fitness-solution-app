@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge"
+  ],
+  "industry": "community",
+  "profiles": [
+    {
+      "benchmarkId": "bench-community",
+      "industry": "community",
+      "city": "Chengdu",
+      "avgWinProbability": 79,
+      "avgProposalScore": 82,
+      "avgMarginPercent": 14,
+      "sampleSize": 4,
+      "mode": "tender-knowledge"
+    }
+  ],
+  "summary": {
+    "industryLabel": "Community Sports Center",
+    "primaryCity": "Chengdu",
+    "avgWinProbability": 79,
+    "avgProposalScore": 82,
+    "avgMarginPercent": 14
+  }
+}

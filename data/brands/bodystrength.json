@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v20-real-catalog"
+  ],
+  "brand": {
+    "brandId": "brand-bodystrength",
+    "brandName": "BodyStrong",
+    "manufacturer": "BodyStrong Fitness Equipment Co., Ltd.",
+    "originCountry": "China",
+    "headquarters": "Xingtai, Hebei, China",
+    "brandTier": "value",
+    "marketPosition": "Value strength and functional training equipment for budget projects",
+    "chinaDistributor": "BodyStrong national dealer network",
+    "officialWebsite": "https://www.bodystrength.cn",
+    "targetSegments": [
+      "community",
+      "school",
+      "enterprise"
+    ],
+    "competitiveAdvantages": [
+      "Lowest strength unit cost",
+      "Wide functional line",
+      "Fast fulfillment"
+    ],
+    "mode": "real-catalog"
+  },
+  "equipment": [
+    {
+      "sku": "BS-TM-001",
+      "modelId": "equip-bodystrength-tm",
+      "modelName": "BodyStrong Treadmill Pro",
+      "brandId": "brand-bodystrength",
+      "brandName": "BodyStrong",
+      "category": "cardio",
+      "subCategory": "Treadmill",
+      "dimensionsCm": {
+        "length": 180,
+        "width": 80,
+        "height": 140
+      },
+      "weightKg": 60,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 150,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 30,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-BS-TM-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "BS-BK-002",
+      "modelId": "equip-bodystrength-bk",
+      "modelName": "BodyStrong Studio Bike",
+      "brandId": "brand-bodystrength",
+      "brandName": "BodyStrong",
+      "category": "group-training",
+      "subCategory": "Bike",
+      "dimensionsCm": {
+        "length": 185,
+        "width": 82,
+        "height": 143
+      },
+      "weightKg": 75,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 160,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 21,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-BS-BK-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "BS-EL-003",
+      "modelId": "equip-bodystrength-el",
+      "modelName": "BodyStrong Cross Trainer",
+      "brandId": "brand-bodystrength",
+      "brandName": "BodyStrong",
+      "category": "cardio",
+      "subCategory": "Elliptical",
+      "dimensionsCm": {
+        "length": 190,
+        "width": 84,
+        "height": 146
+      },
+      "weightKg": 90,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 170,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 28,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-BS-EL-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "BS-ST-004",
+      "modelId": "equip-bodystrength-st",
+      "modelName": "BodyStrong Strength Rack",
+      "brandId": "brand-bodystrength",
+      "brandName": "BodyStrong",
+      "category": "strength",
+      "subCategory": "Strength",
+      "dimensionsCm": {
+        "length": 195,
+        "width": 86,
+        "height": 149
+      },
+      "weightKg": 105,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 180,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 14,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-BS-ST-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "BS-FN-005",
+      "modelId": "equip-bodystrength-fn",
+      "modelName": "BodyStrong Functional Trainer",
+      "brandId": "brand-bodystrength",
+      "brandName": "BodyStrong",
+      "category": "functional",
+      "subCategory": "Functional",
+      "dimensionsCm": {
+        "length": 200,
+        "width": 88,
+        "height": 152
+      },
+      "weightKg": 120,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 190,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 18,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-BS-FN-v1.0",
+      "mode": "real-catalog"
+    }
+  ]
+}

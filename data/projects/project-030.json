@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge",
+    "v24-proposal-intelligence",
+    "v23-bid-commercial"
+  ],
+  "projectId": "project-030",
+  "historicalTender": {
+    "projectId": "project-030",
+    "city": "Xi'an",
+    "industry": "enterprise",
+    "area": 1000,
+    "budget": 558000,
+    "brand": "SportsArt",
+    "sku": "SA-FN-001",
+    "result": "won"
+  },
+  "historicalProposal": {
+    "score": 85,
+    "winProbability": 69,
+    "strategy": "cost-optimized"
+  },
+  "historicalBidOutcome": {
+    "result": "won",
+    "winningPrice": 558000,
+    "grossMargin": 16
+  },
+  "tender": {
+    "tenderId": "tender-030-enterprise",
+    "projectName": "Xi'an enterprise Equipment Project 30",
+    "city": "Xi'an",
+    "industry": "enterprise",
+    "budgetMin": 502200,
+    "budgetMax": 641700,
+    "tenderDate": "2025-06-03",
+    "status": "completed",
+    "mode": "tender-knowledge"
+  },
+  "proposal": {
+    "proposalId": "proposal-030",
+    "tenderId": "tender-030-enterprise",
+    "sku": "SA-FN-001",
+    "brand": "SportsArt",
+    "quantity": 9,
+    "finalPrice": 62000,
+    "proposalScore": 85,
+    "winProbability": 69,
+    "strategyType": "cost-optimized",
+    "submittedAt": "2025-06-15",
+    "mode": "tender-knowledge"
+  },
+  "outcome": {
+    "outcomeId": "outcome-030",
+    "tenderId": "tender-030-enterprise",
+    "proposalId": "proposal-030",
+    "outcome": "won",
+    "winPrice": 558000,
+    "competitorCount": 4,
+    "marginPercent": 16,
+    "recordedAt": "2025-07-01",
+    "mode": "tender-knowledge"
+  },
+  "knowledgeAssisted": {
+    "baselineProbability": 69,
+    "calibratedProbability": null,
+    "confidence": "medium"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge"
+  ],
+  "industry": "campus",
+  "profiles": [
+    {
+      "benchmarkId": "bench-campus",
+      "industry": "campus",
+      "city": "Guangzhou",
+      "avgWinProbability": 74,
+      "avgProposalScore": 80,
+      "avgMarginPercent": 13,
+      "sampleSize": 4,
+      "mode": "tender-knowledge"
+    }
+  ],
+  "summary": {
+    "industryLabel": "Campus Gym",
+    "primaryCity": "Guangzhou",
+    "avgWinProbability": 74,
+    "avgProposalScore": 80,
+    "avgMarginPercent": 13
+  }
+}

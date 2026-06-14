@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge",
+    "v24-proposal-intelligence",
+    "v23-bid-commercial"
+  ],
+  "projectId": "project-015",
+  "historicalTender": {
+    "projectId": "project-015",
+    "city": "Chengdu",
+    "industry": "enterprise",
+    "area": 850,
+    "budget": 588000,
+    "brand": "Shuhua",
+    "sku": "SH-FN-001",
+    "result": "won"
+  },
+  "historicalProposal": {
+    "score": 86,
+    "winProbability": 76,
+    "strategy": "balanced"
+  },
+  "historicalBidOutcome": {
+    "result": "won",
+    "winningPrice": 588000,
+    "grossMargin": 17
+  },
+  "tender": {
+    "tenderId": "tender-015-enterprise",
+    "projectName": "Chengdu enterprise Equipment Project 15",
+    "city": "Chengdu",
+    "industry": "enterprise",
+    "budgetMin": 529200,
+    "budgetMax": 676200,
+    "tenderDate": "2025-03-15",
+    "status": "completed",
+    "mode": "tender-knowledge"
+  },
+  "proposal": {
+    "proposalId": "proposal-015",
+    "tenderId": "tender-015-enterprise",
+    "sku": "SH-FN-001",
+    "brand": "Shuhua",
+    "quantity": 6,
+    "finalPrice": 98000,
+    "proposalScore": 86,
+    "winProbability": 76,
+    "strategyType": "balanced",
+    "submittedAt": "2025-03-15",
+    "mode": "tender-knowledge"
+  },
+  "outcome": {
+    "outcomeId": "outcome-015",
+    "tenderId": "tender-015-enterprise",
+    "proposalId": "proposal-015",
+    "outcome": "won",
+    "winPrice": 588000,
+    "competitorCount": 5,
+    "marginPercent": 17,
+    "recordedAt": "2025-04-01",
+    "mode": "tender-knowledge"
+  },
+  "knowledgeAssisted": {
+    "baselineProbability": 76,
+    "calibratedProbability": null,
+    "confidence": "medium"
+  }
+}

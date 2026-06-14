@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v20-real-catalog"
+  ],
+  "brand": {
+    "brandId": "brand-technogym",
+    "brandName": "Technogym",
+    "manufacturer": "Technogym S.p.A.",
+    "originCountry": "Italy",
+    "headquarters": "Cesena, Italy",
+    "brandTier": "premium",
+    "marketPosition": "Global premium wellness and design-led fitness equipment leader",
+    "chinaDistributor": "Technogym China (Shanghai)",
+    "officialWebsite": "https://www.technogym.com",
+    "targetSegments": [
+      "hotel",
+      "enterprise",
+      "flagship-campus"
+    ],
+    "competitiveAdvantages": [
+      "Italian design IP",
+      "Mywellness digital ecosystem",
+      "Flagship venue prestige"
+    ],
+    "mode": "real-catalog"
+  },
+  "equipment": [
+    {
+      "sku": "TG-TM-001",
+      "modelId": "equip-technogym-tm",
+      "modelName": "Technogym Treadmill Pro",
+      "brandId": "brand-technogym",
+      "brandName": "Technogym",
+      "category": "cardio",
+      "subCategory": "Treadmill",
+      "dimensionsCm": {
+        "length": 180,
+        "width": 80,
+        "height": 140
+      },
+      "weightKg": 60,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 150,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 3,
+      "leadTimeDays": 30,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-TG-TM-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "TG-BK-002",
+      "modelId": "equip-technogym-bk",
+      "modelName": "Technogym Studio Bike",
+      "brandId": "brand-technogym",
+      "brandName": "Technogym",
+      "category": "group-training",
+      "subCategory": "Bike",
+      "dimensionsCm": {
+        "length": 185,
+        "width": 82,
+        "height": 143
+      },
+      "weightKg": 75,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 160,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 3,
+      "leadTimeDays": 21,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-TG-BK-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "TG-EL-003",
+      "modelId": "equip-technogym-el",
+      "modelName": "Technogym Cross Trainer",
+      "brandId": "brand-technogym",
+      "brandName": "Technogym",
+      "category": "cardio",
+      "subCategory": "Elliptical",
+      "dimensionsCm": {
+        "length": 190,
+        "width": 84,
+        "height": 146
+      },
+      "weightKg": 90,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 170,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 3,
+      "leadTimeDays": 28,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-TG-EL-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "TG-ST-004",
+      "modelId": "equip-technogym-st",
+      "modelName": "Technogym Strength Rack",
+      "brandId": "brand-technogym",
+      "brandName": "Technogym",
+      "category": "strength",
+      "subCategory": "Strength",
+      "dimensionsCm": {
+        "length": 195,
+        "width": 86,
+        "height": 149
+      },
+      "weightKg": 105,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 180,
+      "connectivity": [],
+      "warrantyYears": 3,
+      "leadTimeDays": 14,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-TG-ST-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "TG-FN-005",
+      "modelId": "equip-technogym-fn",
+      "modelName": "Technogym Functional Trainer",
+      "brandId": "brand-technogym",
+      "brandName": "Technogym",
+      "category": "functional",
+      "subCategory": "Functional",
+      "dimensionsCm": {
+        "length": 200,
+        "width": 88,
+        "height": 152
+      },
+      "weightKg": 120,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 190,
+      "connectivity": [],
+      "warrantyYears": 3,
+      "leadTimeDays": 18,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-TG-FN-v1.0",
+      "mode": "real-catalog"
+    }
+  ]
+}

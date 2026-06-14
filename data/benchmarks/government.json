@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge"
+  ],
+  "industry": "government",
+  "profiles": [
+    {
+      "benchmarkId": "bench-government",
+      "industry": "government",
+      "city": "Beijing",
+      "avgWinProbability": 72,
+      "avgProposalScore": 81,
+      "avgMarginPercent": 11,
+      "sampleSize": 8,
+      "mode": "tender-knowledge"
+    }
+  ],
+  "summary": {
+    "industryLabel": "Government Sports Facility",
+    "primaryCity": "Beijing",
+    "avgWinProbability": 72,
+    "avgProposalScore": 81,
+    "avgMarginPercent": 11
+  }
+}

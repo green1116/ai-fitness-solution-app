@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge",
+    "v24-proposal-intelligence",
+    "v23-bid-commercial"
+  ],
+  "projectId": "project-061",
+  "historicalTender": {
+    "projectId": "project-061",
+    "city": "Shanghai",
+    "industry": "commercial-gym",
+    "area": 1200,
+    "budget": 440000,
+    "brand": "Life Fitness",
+    "sku": "LF-TM-001",
+    "result": "lost"
+  },
+  "historicalProposal": {
+    "score": 84,
+    "winProbability": 78,
+    "strategy": "balanced"
+  },
+  "historicalBidOutcome": {
+    "result": "lost",
+    "winningPrice": null,
+    "grossMargin": null
+  },
+  "tender": {
+    "tenderId": "tender-061-commercial-gym",
+    "projectName": "Shanghai commercial gym Equipment Project 61",
+    "city": "Shanghai",
+    "industry": "commercial-gym",
+    "budgetMin": 396000,
+    "budgetMax": 506000,
+    "tenderDate": "2025-01-07",
+    "status": "completed",
+    "mode": "tender-knowledge"
+  },
+  "proposal": {
+    "proposalId": "proposal-061",
+    "tenderId": "tender-061-commercial-gym",
+    "sku": "LF-TM-001",
+    "brand": "Life Fitness",
+    "quantity": 4,
+    "finalPrice": 110000,
+    "proposalScore": 84,
+    "winProbability": 78,
+    "strategyType": "balanced",
+    "submittedAt": "2025-01-15",
+    "mode": "tender-knowledge"
+  },
+  "outcome": {
+    "outcomeId": "outcome-061",
+    "tenderId": "tender-061-commercial-gym",
+    "proposalId": "proposal-061",
+    "outcome": "lost",
+    "winPrice": null,
+    "competitorCount": 3,
+    "marginPercent": null,
+    "recordedAt": "2025-02-01",
+    "mode": "tender-knowledge"
+  },
+  "knowledgeAssisted": {
+    "baselineProbability": 78,
+    "calibratedProbability": null,
+    "confidence": "medium"
+  }
+}

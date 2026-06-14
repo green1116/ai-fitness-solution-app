@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v20-real-catalog"
+  ],
+  "brand": {
+    "brandId": "brand-dhz",
+    "brandName": "DHZ",
+    "manufacturer": "Dezhou DHZ Fitness Equipment Co., Ltd.",
+    "originCountry": "China",
+    "headquarters": "Dezhou, Shandong, China",
+    "brandTier": "domestic",
+    "marketPosition": "Domestic commercial fitness brand for campus and community projects",
+    "chinaDistributor": "DHZ factory direct + provincial agents",
+    "officialWebsite": "https://www.dhzfitness.com",
+    "targetSegments": [
+      "campus",
+      "community",
+      "enterprise"
+    ],
+    "competitiveAdvantages": [
+      "Factory-direct pricing",
+      "Fast domestic lead time",
+      "Campus project experience"
+    ],
+    "mode": "real-catalog"
+  },
+  "equipment": [
+    {
+      "sku": "DH-TM-001",
+      "modelId": "equip-dhz-tm",
+      "modelName": "DHZ Treadmill Pro",
+      "brandId": "brand-dhz",
+      "brandName": "DHZ",
+      "category": "cardio",
+      "subCategory": "Treadmill",
+      "dimensionsCm": {
+        "length": 180,
+        "width": 80,
+        "height": 140
+      },
+      "weightKg": 60,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 150,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 30,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-DH-TM-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "DH-BK-002",
+      "modelId": "equip-dhz-bk",
+      "modelName": "DHZ Studio Bike",
+      "brandId": "brand-dhz",
+      "brandName": "DHZ",
+      "category": "group-training",
+      "subCategory": "Bike",
+      "dimensionsCm": {
+        "length": 185,
+        "width": 82,
+        "height": 143
+      },
+      "weightKg": 75,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 160,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 21,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-DH-BK-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "DH-EL-003",
+      "modelId": "equip-dhz-el",
+      "modelName": "DHZ Cross Trainer",
+      "brandId": "brand-dhz",
+      "brandName": "DHZ",
+      "category": "cardio",
+      "subCategory": "Elliptical",
+      "dimensionsCm": {
+        "length": 190,
+        "width": 84,
+        "height": 146
+      },
+      "weightKg": 90,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 170,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 28,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-DH-EL-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "DH-ST-004",
+      "modelId": "equip-dhz-st",
+      "modelName": "DHZ Strength Rack",
+      "brandId": "brand-dhz",
+      "brandName": "DHZ",
+      "category": "strength",
+      "subCategory": "Strength",
+      "dimensionsCm": {
+        "length": 195,
+        "width": 86,
+        "height": 149
+      },
+      "weightKg": 105,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 180,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 14,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-DH-ST-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "DH-FN-005",
+      "modelId": "equip-dhz-fn",
+      "modelName": "DHZ Functional Trainer",
+      "brandId": "brand-dhz",
+      "brandName": "DHZ",
+      "category": "functional",
+      "subCategory": "Functional",
+      "dimensionsCm": {
+        "length": 200,
+        "width": 88,
+        "height": 152
+      },
+      "weightKg": 120,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 190,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 18,
+      "procurementAvailability": "in-stock",
+      "datasheetRef": "DS-DH-FN-v1.0",
+      "mode": "real-catalog"
+    }
+  ]
+}

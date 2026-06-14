@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v20-real-catalog"
+  ],
+  "brand": {
+    "brandId": "brand-precor",
+    "brandName": "Precor",
+    "manufacturer": "Precor Incorporated (Peloton)",
+    "originCountry": "USA",
+    "headquarters": "Woodinville, Washington, USA",
+    "brandTier": "premium",
+    "marketPosition": "Premium commercial cardio with biomechanically optimized motion",
+    "chinaDistributor": "Precor China (Shanghai)",
+    "officialWebsite": "https://www.precor.com",
+    "targetSegments": [
+      "hotel",
+      "enterprise",
+      "commercial-gym"
+    ],
+    "competitiveAdvantages": [
+      "Biomechanical engineering",
+      "Low maintenance design",
+      "Premium hotel adoption"
+    ],
+    "mode": "real-catalog"
+  },
+  "equipment": [
+    {
+      "sku": "PC-TM-001",
+      "modelId": "equip-precor-tm",
+      "modelName": "Precor Treadmill Pro",
+      "brandId": "brand-precor",
+      "brandName": "Precor",
+      "category": "cardio",
+      "subCategory": "Treadmill",
+      "dimensionsCm": {
+        "length": 180,
+        "width": 80,
+        "height": 140
+      },
+      "weightKg": 60,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 150,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 3,
+      "leadTimeDays": 30,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-PC-TM-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "PC-BK-002",
+      "modelId": "equip-precor-bk",
+      "modelName": "Precor Studio Bike",
+      "brandId": "brand-precor",
+      "brandName": "Precor",
+      "category": "group-training",
+      "subCategory": "Bike",
+      "dimensionsCm": {
+        "length": 185,
+        "width": 82,
+        "height": 143
+      },
+      "weightKg": 75,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 160,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 3,
+      "leadTimeDays": 21,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-PC-BK-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "PC-EL-003",
+      "modelId": "equip-precor-el",
+      "modelName": "Precor Cross Trainer",
+      "brandId": "brand-precor",
+      "brandName": "Precor",
+      "category": "cardio",
+      "subCategory": "Elliptical",
+      "dimensionsCm": {
+        "length": 190,
+        "width": 84,
+        "height": 146
+      },
+      "weightKg": 90,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 170,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 3,
+      "leadTimeDays": 28,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-PC-EL-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "PC-ST-004",
+      "modelId": "equip-precor-st",
+      "modelName": "Precor Strength Rack",
+      "brandId": "brand-precor",
+      "brandName": "Precor",
+      "category": "strength",
+      "subCategory": "Strength",
+      "dimensionsCm": {
+        "length": 195,
+        "width": 86,
+        "height": 149
+      },
+      "weightKg": 105,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 180,
+      "connectivity": [],
+      "warrantyYears": 3,
+      "leadTimeDays": 14,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-PC-ST-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "PC-FN-005",
+      "modelId": "equip-precor-fn",
+      "modelName": "Precor Functional Trainer",
+      "brandId": "brand-precor",
+      "brandName": "Precor",
+      "category": "functional",
+      "subCategory": "Functional",
+      "dimensionsCm": {
+        "length": 200,
+        "width": 88,
+        "height": 152
+      },
+      "weightKg": 120,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 190,
+      "connectivity": [],
+      "warrantyYears": 3,
+      "leadTimeDays": 18,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-PC-FN-v1.0",
+      "mode": "real-catalog"
+    }
+  ]
+}

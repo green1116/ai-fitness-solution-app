@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v21-regional-supplier"
+  ],
+  "supplier": {
+    "id": "supplier-matrix-cn",
+    "brand": "Matrix",
+    "supplierName": "Matrix Fitness China",
+    "region": "South China",
+    "authorizationLevel": "regional",
+    "contact": "matrix.cn@johnsonhealthtech.com",
+    "status": "active",
+    "mode": "supplier-network"
+  },
+  "dealers": [
+    {
+      "id": "dealer-matrix-guangzhou",
+      "dealerName": "Matrix Guangzhou Dealer",
+      "city": "Guangzhou",
+      "coverageArea": "Guangzhou",
+      "warehouseCapability": true,
+      "serviceLevel": "premium",
+      "status": "active",
+      "mode": "supplier-network"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "inv-matrix-guangzhou",
+      "sku": "MX-TM-001",
+      "stockStatus": "in-stock",
+      "availableQuantity": 8,
+      "safetyStock": 3,
+      "replenishmentLeadTime": "14-30 days",
+      "warehouseLocation": "Guangzhou Warehouse",
+      "lastUpdated": "2026-06-13",
+      "mode": "supplier-network"
+    }
+  ]
+}

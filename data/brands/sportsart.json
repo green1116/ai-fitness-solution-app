@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v20-real-catalog"
+  ],
+  "brand": {
+    "brandId": "brand-sportsart",
+    "brandName": "SportsArt",
+    "manufacturer": "SportsArt Fitness International",
+    "originCountry": "Taiwan",
+    "headquarters": "Taichung, Taiwan",
+    "brandTier": "commercial",
+    "marketPosition": "Eco-friendly commercial cardio with ECO-POWR technology",
+    "chinaDistributor": "SportsArt China (Beijing)",
+    "officialWebsite": "https://www.gosportsart.com",
+    "targetSegments": [
+      "hotel",
+      "enterprise",
+      "commercial-gym"
+    ],
+    "competitiveAdvantages": [
+      "ECO-POWR green technology",
+      "Hotel chain adoption",
+      "Connected cardio platform"
+    ],
+    "mode": "real-catalog"
+  },
+  "equipment": [
+    {
+      "sku": "SA-TM-001",
+      "modelId": "equip-sportsart-tm",
+      "modelName": "SportsArt Treadmill Pro",
+      "brandId": "brand-sportsart",
+      "brandName": "SportsArt",
+      "category": "cardio",
+      "subCategory": "Treadmill",
+      "dimensionsCm": {
+        "length": 180,
+        "width": 80,
+        "height": 140
+      },
+      "weightKg": 60,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 150,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 30,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-SA-TM-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "SA-BK-002",
+      "modelId": "equip-sportsart-bk",
+      "modelName": "SportsArt Studio Bike",
+      "brandId": "brand-sportsart",
+      "brandName": "SportsArt",
+      "category": "group-training",
+      "subCategory": "Bike",
+      "dimensionsCm": {
+        "length": 185,
+        "width": 82,
+        "height": 143
+      },
+      "weightKg": 75,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 160,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 21,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-SA-BK-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "SA-EL-003",
+      "modelId": "equip-sportsart-el",
+      "modelName": "SportsArt Cross Trainer",
+      "brandId": "brand-sportsart",
+      "brandName": "SportsArt",
+      "category": "cardio",
+      "subCategory": "Elliptical",
+      "dimensionsCm": {
+        "length": 190,
+        "width": 84,
+        "height": 146
+      },
+      "weightKg": 90,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 170,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 2,
+      "leadTimeDays": 28,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-SA-EL-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "SA-ST-004",
+      "modelId": "equip-sportsart-st",
+      "modelName": "SportsArt Strength Rack",
+      "brandId": "brand-sportsart",
+      "brandName": "SportsArt",
+      "category": "strength",
+      "subCategory": "Strength",
+      "dimensionsCm": {
+        "length": 195,
+        "width": 86,
+        "height": 149
+      },
+      "weightKg": 105,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 180,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 14,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-SA-ST-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "SA-FN-005",
+      "modelId": "equip-sportsart-fn",
+      "modelName": "SportsArt Functional Trainer",
+      "brandId": "brand-sportsart",
+      "brandName": "SportsArt",
+      "category": "functional",
+      "subCategory": "Functional",
+      "dimensionsCm": {
+        "length": 200,
+        "width": 88,
+        "height": 152
+      },
+      "weightKg": 120,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 190,
+      "connectivity": [],
+      "warrantyYears": 2,
+      "leadTimeDays": 18,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-SA-FN-v1.0",
+      "mode": "real-catalog"
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge",
+    "v24-proposal-intelligence",
+    "v23-bid-commercial"
+  ],
+  "projectId": "project-084",
+  "historicalTender": {
+    "projectId": "project-084",
+    "city": "Shenzhen",
+    "industry": "community",
+    "area": 1150,
+    "budget": 930000,
+    "brand": "Relax",
+    "sku": "RX-ST-001",
+    "result": "lost"
+  },
+  "historicalProposal": {
+    "score": 75,
+    "winProbability": 79,
+    "strategy": "balanced"
+  },
+  "historicalBidOutcome": {
+    "result": "lost",
+    "winningPrice": null,
+    "grossMargin": null
+  },
+  "tender": {
+    "tenderId": "tender-084-community",
+    "projectName": "Shenzhen community Equipment Project 84",
+    "city": "Shenzhen",
+    "industry": "community",
+    "budgetMin": 837000,
+    "budgetMax": 1069500,
+    "tenderDate": "2025-12-03",
+    "status": "completed",
+    "mode": "tender-knowledge"
+  },
+  "proposal": {
+    "proposalId": "proposal-084",
+    "tenderId": "tender-084-community",
+    "sku": "RX-ST-001",
+    "brand": "Relax",
+    "quantity": 15,
+    "finalPrice": 62000,
+    "proposalScore": 75,
+    "winProbability": 79,
+    "strategyType": "balanced",
+    "submittedAt": "2025-12-15",
+    "mode": "tender-knowledge"
+  },
+  "outcome": {
+    "outcomeId": "outcome-084",
+    "tenderId": "tender-084-community",
+    "proposalId": "proposal-084",
+    "outcome": "lost",
+    "winPrice": null,
+    "competitorCount": 6,
+    "marginPercent": null,
+    "recordedAt": "2025-13-01",
+    "mode": "tender-knowledge"
+  },
+  "knowledgeAssisted": {
+    "baselineProbability": 79,
+    "calibratedProbability": null,
+    "confidence": "medium"
+  }
+}

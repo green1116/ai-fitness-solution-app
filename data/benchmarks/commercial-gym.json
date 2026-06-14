@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge"
+  ],
+  "industry": "commercial-gym",
+  "profiles": [
+    {
+      "benchmarkId": "bench-commercial-gym",
+      "industry": "commercial-gym",
+      "city": "Shanghai",
+      "avgWinProbability": 80,
+      "avgProposalScore": 84,
+      "avgMarginPercent": 16,
+      "sampleSize": 4,
+      "mode": "tender-knowledge"
+    }
+  ],
+  "summary": {
+    "industryLabel": "Commercial Gym",
+    "primaryCity": "Shanghai",
+    "avgWinProbability": 80,
+    "avgProposalScore": 84,
+    "avgMarginPercent": 16
+  }
+}

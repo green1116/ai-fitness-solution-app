@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge",
+    "v24-proposal-intelligence",
+    "v23-bid-commercial"
+  ],
+  "projectId": "project-002",
+  "historicalTender": {
+    "projectId": "project-002",
+    "city": "Beijing",
+    "industry": "hotel",
+    "area": 700,
+    "budget": 250000,
+    "brand": "Technogym",
+    "sku": "TG-BK-001",
+    "result": "won"
+  },
+  "historicalProposal": {
+    "score": 73,
+    "winProbability": 63,
+    "strategy": "cost-optimized"
+  },
+  "historicalBidOutcome": {
+    "result": "won",
+    "winningPrice": 250000,
+    "grossMargin": 12
+  },
+  "tender": {
+    "tenderId": "tender-002-hotel",
+    "projectName": "Beijing hotel Equipment Project 2",
+    "city": "Beijing",
+    "industry": "hotel",
+    "budgetMin": 225000,
+    "budgetMax": 287500,
+    "tenderDate": "2025-02-02",
+    "status": "completed",
+    "mode": "tender-knowledge"
+  },
+  "proposal": {
+    "proposalId": "proposal-002",
+    "tenderId": "tender-002-hotel",
+    "sku": "TG-BK-001",
+    "brand": "Technogym",
+    "quantity": 5,
+    "finalPrice": 50000,
+    "proposalScore": 73,
+    "winProbability": 63,
+    "strategyType": "cost-optimized",
+    "submittedAt": "2025-02-15",
+    "mode": "tender-knowledge"
+  },
+  "outcome": {
+    "outcomeId": "outcome-002",
+    "tenderId": "tender-002-hotel",
+    "proposalId": "proposal-002",
+    "outcome": "won",
+    "winPrice": 250000,
+    "competitorCount": 4,
+    "marginPercent": 12,
+    "recordedAt": "2025-03-01",
+    "mode": "tender-knowledge"
+  },
+  "knowledgeAssisted": {
+    "baselineProbability": 63,
+    "calibratedProbability": null,
+    "confidence": "medium"
+  }
+}

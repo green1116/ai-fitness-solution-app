@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge",
+    "v24-proposal-intelligence",
+    "v23-bid-commercial"
+  ],
+  "projectId": "project-007",
+  "historicalTender": {
+    "projectId": "project-007",
+    "city": "Nanjing",
+    "industry": "hotel",
+    "area": 650,
+    "budget": 1100000,
+    "brand": "Impulse",
+    "sku": "IM-BK-001",
+    "result": "won"
+  },
+  "historicalProposal": {
+    "score": 78,
+    "winProbability": 68,
+    "strategy": "cost-optimized"
+  },
+  "historicalBidOutcome": {
+    "result": "won",
+    "winningPrice": 1100000,
+    "grossMargin": 17
+  },
+  "tender": {
+    "tenderId": "tender-007-hotel",
+    "projectName": "Nanjing hotel Equipment Project 7",
+    "city": "Nanjing",
+    "industry": "hotel",
+    "budgetMin": 990000,
+    "budgetMax": 1265000,
+    "tenderDate": "2025-07-07",
+    "status": "completed",
+    "mode": "tender-knowledge"
+  },
+  "proposal": {
+    "proposalId": "proposal-007",
+    "tenderId": "tender-007-hotel",
+    "sku": "IM-BK-001",
+    "brand": "Impulse",
+    "quantity": 10,
+    "finalPrice": 110000,
+    "proposalScore": 78,
+    "winProbability": 68,
+    "strategyType": "cost-optimized",
+    "submittedAt": "2025-07-15",
+    "mode": "tender-knowledge"
+  },
+  "outcome": {
+    "outcomeId": "outcome-007",
+    "tenderId": "tender-007-hotel",
+    "proposalId": "proposal-007",
+    "outcome": "won",
+    "winPrice": 1100000,
+    "competitorCount": 5,
+    "marginPercent": 17,
+    "recordedAt": "2025-08-01",
+    "mode": "tender-knowledge"
+  },
+  "knowledgeAssisted": {
+    "baselineProbability": 68,
+    "calibratedProbability": null,
+    "confidence": "medium"
+  }
+}

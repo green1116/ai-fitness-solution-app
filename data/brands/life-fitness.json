@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v20-real-catalog"
+  ],
+  "brand": {
+    "brandId": "brand-life-fitness",
+    "brandName": "Life Fitness",
+    "manufacturer": "Life Fitness LLC (KPS Capital Partners)",
+    "originCountry": "USA",
+    "headquarters": "Rosemont, Illinois, USA",
+    "brandTier": "premium",
+    "marketPosition": "Global commercial cardio and strength equipment leader",
+    "chinaDistributor": "Life Fitness Asia Pacific (Shanghai)",
+    "officialWebsite": "https://www.lifefitness.com",
+    "targetSegments": [
+      "enterprise",
+      "government",
+      "commercial-gym"
+    ],
+    "competitiveAdvantages": [
+      "Industry-leading durability",
+      "Global service network",
+      "Broad product portfolio"
+    ],
+    "mode": "real-catalog"
+  },
+  "equipment": [
+    {
+      "sku": "LF-TM-001",
+      "modelId": "equip-life-fitness-tm",
+      "modelName": "Life Fitness Treadmill Pro",
+      "brandId": "brand-life-fitness",
+      "brandName": "Life Fitness",
+      "category": "cardio",
+      "subCategory": "Treadmill",
+      "dimensionsCm": {
+        "length": 180,
+        "width": 80,
+        "height": 140
+      },
+      "weightKg": 60,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 150,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 3,
+      "leadTimeDays": 30,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-LF-TM-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "LF-BK-002",
+      "modelId": "equip-life-fitness-bk",
+      "modelName": "Life Fitness Studio Bike",
+      "brandId": "brand-life-fitness",
+      "brandName": "Life Fitness",
+      "category": "group-training",
+      "subCategory": "Bike",
+      "dimensionsCm": {
+        "length": 185,
+        "width": 82,
+        "height": 143
+      },
+      "weightKg": 75,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 160,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 3,
+      "leadTimeDays": 21,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-LF-BK-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "LF-EL-003",
+      "modelId": "equip-life-fitness-el",
+      "modelName": "Life Fitness Cross Trainer",
+      "brandId": "brand-life-fitness",
+      "brandName": "Life Fitness",
+      "category": "cardio",
+      "subCategory": "Elliptical",
+      "dimensionsCm": {
+        "length": 190,
+        "width": 84,
+        "height": 146
+      },
+      "weightKg": 90,
+      "powerRequirement": "220V / 10A",
+      "maxUserWeightKg": 170,
+      "connectivity": [
+        "Bluetooth"
+      ],
+      "warrantyYears": 3,
+      "leadTimeDays": 28,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-LF-EL-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "LF-ST-004",
+      "modelId": "equip-life-fitness-st",
+      "modelName": "Life Fitness Strength Rack",
+      "brandId": "brand-life-fitness",
+      "brandName": "Life Fitness",
+      "category": "strength",
+      "subCategory": "Strength",
+      "dimensionsCm": {
+        "length": 195,
+        "width": 86,
+        "height": 149
+      },
+      "weightKg": 105,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 180,
+      "connectivity": [],
+      "warrantyYears": 3,
+      "leadTimeDays": 14,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-LF-ST-v1.0",
+      "mode": "real-catalog"
+    },
+    {
+      "sku": "LF-FN-005",
+      "modelId": "equip-life-fitness-fn",
+      "modelName": "Life Fitness Functional Trainer",
+      "brandId": "brand-life-fitness",
+      "brandName": "Life Fitness",
+      "category": "functional",
+      "subCategory": "Functional",
+      "dimensionsCm": {
+        "length": 200,
+        "width": 88,
+        "height": 152
+      },
+      "weightKg": 120,
+      "powerRequirement": "N/A",
+      "maxUserWeightKg": 190,
+      "connectivity": [],
+      "warrantyYears": 3,
+      "leadTimeDays": 18,
+      "procurementAvailability": "import-lead-time",
+      "datasheetRef": "DS-LF-FN-v1.0",
+      "mode": "real-catalog"
+    }
+  ]
+}

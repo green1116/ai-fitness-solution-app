@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge",
+    "v24-proposal-intelligence",
+    "v23-bid-commercial"
+  ],
+  "projectId": "project-009",
+  "historicalTender": {
+    "projectId": "project-009",
+    "city": "Suzhou",
+    "industry": "community",
+    "area": 1000,
+    "budget": 1608000,
+    "brand": "BodyStrong",
+    "sku": "BS-ST-001",
+    "result": "won"
+  },
+  "historicalProposal": {
+    "score": 80,
+    "winProbability": 70,
+    "strategy": "balanced"
+  },
+  "historicalBidOutcome": {
+    "result": "won",
+    "winningPrice": 1608000,
+    "grossMargin": 11
+  },
+  "tender": {
+    "tenderId": "tender-009-community",
+    "projectName": "Suzhou community Equipment Project 9",
+    "city": "Suzhou",
+    "industry": "community",
+    "budgetMin": 1447200,
+    "budgetMax": 1849200,
+    "tenderDate": "2025-09-09",
+    "status": "completed",
+    "mode": "tender-knowledge"
+  },
+  "proposal": {
+    "proposalId": "proposal-009",
+    "tenderId": "tender-009-community",
+    "sku": "BS-ST-001",
+    "brand": "BodyStrong",
+    "quantity": 12,
+    "finalPrice": 134000,
+    "proposalScore": 80,
+    "winProbability": 70,
+    "strategyType": "balanced",
+    "submittedAt": "2025-09-15",
+    "mode": "tender-knowledge"
+  },
+  "outcome": {
+    "outcomeId": "outcome-009",
+    "tenderId": "tender-009-community",
+    "proposalId": "proposal-009",
+    "outcome": "won",
+    "winPrice": 1608000,
+    "competitorCount": 3,
+    "marginPercent": 11,
+    "recordedAt": "2025-10-01",
+    "mode": "tender-knowledge"
+  },
+  "knowledgeAssisted": {
+    "baselineProbability": 70,
+    "calibratedProbability": null,
+    "confidence": "medium"
+  }
+}

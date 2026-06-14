@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v21-regional-supplier"
+  ],
+  "supplier": {
+    "id": "supplier-dhz-cn",
+    "brand": "DHZ",
+    "supplierName": "DHZ Fitness Guangzhou",
+    "region": "South China",
+    "authorizationLevel": "regional",
+    "contact": "sales@dhzfitness.com",
+    "status": "active",
+    "mode": "supplier-network"
+  },
+  "dealers": [
+    {
+      "id": "dealer-dhz-guangzhou",
+      "dealerName": "DHZ Guangzhou Dealer",
+      "city": "Guangzhou",
+      "coverageArea": "Guangzhou",
+      "warehouseCapability": true,
+      "serviceLevel": "premium",
+      "status": "active",
+      "mode": "supplier-network"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "inv-dhz-guangzhou",
+      "sku": "DH-TM-001",
+      "stockStatus": "in-stock",
+      "availableQuantity": 20,
+      "safetyStock": 3,
+      "replenishmentLeadTime": "7-14 days",
+      "warehouseLocation": "Guangzhou Warehouse",
+      "lastUpdated": "2026-06-13",
+      "mode": "supplier-network"
+    }
+  ]
+}

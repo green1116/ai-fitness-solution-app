@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v21-regional-supplier"
+  ],
+  "supplier": {
+    "id": "supplier-precor-cn",
+    "brand": "Precor",
+    "supplierName": "Precor China (Shanghai)",
+    "region": "East China",
+    "authorizationLevel": "national",
+    "contact": "china@precor.com",
+    "status": "active",
+    "mode": "supplier-network"
+  },
+  "dealers": [
+    {
+      "id": "dealer-precor-shanghai",
+      "dealerName": "Precor Shanghai Dealer",
+      "city": "Shanghai",
+      "coverageArea": "Shanghai",
+      "warehouseCapability": true,
+      "serviceLevel": "premium",
+      "status": "active",
+      "mode": "supplier-network"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "inv-precor-shanghai",
+      "sku": "PC-TM-001",
+      "stockStatus": "in-stock",
+      "availableQuantity": 8,
+      "safetyStock": 3,
+      "replenishmentLeadTime": "14-30 days",
+      "warehouseLocation": "Shanghai Warehouse",
+      "lastUpdated": "2026-06-13",
+      "mode": "supplier-network"
+    }
+  ]
+}

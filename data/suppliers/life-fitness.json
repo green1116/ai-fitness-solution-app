@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v21-regional-supplier"
+  ],
+  "supplier": {
+    "id": "supplier-life-fitness-cn",
+    "brand": "Life Fitness",
+    "supplierName": "Life Fitness Asia Pacific",
+    "region": "East China",
+    "authorizationLevel": "national",
+    "contact": "china@lifefitness.com",
+    "status": "active",
+    "mode": "supplier-network"
+  },
+  "dealers": [
+    {
+      "id": "dealer-life-fitness-shanghai",
+      "dealerName": "Life Fitness Shanghai Dealer",
+      "city": "Shanghai",
+      "coverageArea": "Shanghai",
+      "warehouseCapability": true,
+      "serviceLevel": "premium",
+      "status": "active",
+      "mode": "supplier-network"
+    },
+    {
+      "id": "dealer-life-fitness-beijing",
+      "dealerName": "Life Fitness Beijing Dealer",
+      "city": "Beijing",
+      "coverageArea": "Beijing",
+      "warehouseCapability": false,
+      "serviceLevel": "standard",
+      "status": "active",
+      "mode": "supplier-network"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "inv-life-fitness-shanghai",
+      "sku": "LF-TM-001",
+      "stockStatus": "in-stock",
+      "availableQuantity": 8,
+      "safetyStock": 3,
+      "replenishmentLeadTime": "14-30 days",
+      "warehouseLocation": "Shanghai Warehouse",
+      "lastUpdated": "2026-06-13",
+      "mode": "supplier-network"
+    },
+    {
+      "id": "inv-life-fitness-beijing",
+      "sku": "LF-TM-001",
+      "stockStatus": "made-to-order",
+      "availableQuantity": 5,
+      "safetyStock": 3,
+      "replenishmentLeadTime": "14-30 days",
+      "warehouseLocation": "Beijing Warehouse",
+      "lastUpdated": "2026-06-13",
+      "mode": "supplier-network"
+    }
+  ]
+}

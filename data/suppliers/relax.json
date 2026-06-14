@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v21-regional-supplier"
+  ],
+  "supplier": {
+    "id": "supplier-relax-cn",
+    "brand": "Relax",
+    "supplierName": "Relax Fitness Shenzhen",
+    "region": "South China",
+    "authorizationLevel": "regional",
+    "contact": "sales@relaxfitness.cn",
+    "status": "active",
+    "mode": "supplier-network"
+  },
+  "dealers": [
+    {
+      "id": "dealer-relax-shenzhen",
+      "dealerName": "Relax Shenzhen Dealer",
+      "city": "Shenzhen",
+      "coverageArea": "Shenzhen",
+      "warehouseCapability": true,
+      "serviceLevel": "premium",
+      "status": "active",
+      "mode": "supplier-network"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "inv-relax-shenzhen",
+      "sku": "RX-TM-001",
+      "stockStatus": "in-stock",
+      "availableQuantity": 8,
+      "safetyStock": 3,
+      "replenishmentLeadTime": "14-30 days",
+      "warehouseLocation": "Shenzhen Warehouse",
+      "lastUpdated": "2026-06-13",
+      "mode": "supplier-network"
+    }
+  ]
+}

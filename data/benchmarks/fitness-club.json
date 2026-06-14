@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge"
+  ],
+  "industry": "fitness-club",
+  "profiles": [
+    {
+      "benchmarkId": "bench-fitness-club",
+      "industry": "fitness-club",
+      "city": "Shanghai",
+      "avgWinProbability": 77,
+      "avgProposalScore": 83,
+      "avgMarginPercent": 15,
+      "sampleSize": 8,
+      "mode": "tender-knowledge"
+    }
+  ],
+  "summary": {
+    "industryLabel": "Fitness Club Chain",
+    "primaryCity": "Shanghai",
+    "avgWinProbability": 77,
+    "avgProposalScore": 83,
+    "avgMarginPercent": 15
+  }
+}

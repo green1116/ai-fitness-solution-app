@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v25-tender-knowledge",
+    "v24-proposal-intelligence",
+    "v23-bid-commercial"
+  ],
+  "projectId": "project-028",
+  "historicalTender": {
+    "projectId": "project-028",
+    "city": "Wuhan",
+    "industry": "campus",
+    "area": 1950,
+    "budget": 266000,
+    "brand": "DHZ",
+    "sku": "DH-EL-001",
+    "result": "won"
+  },
+  "historicalProposal": {
+    "score": 83,
+    "winProbability": 67,
+    "strategy": "cost-optimized"
+  },
+  "historicalBidOutcome": {
+    "result": "won",
+    "winningPrice": 266000,
+    "grossMargin": 14
+  },
+  "tender": {
+    "tenderId": "tender-028-campus",
+    "projectName": "Wuhan campus Equipment Project 28",
+    "city": "Wuhan",
+    "industry": "campus",
+    "budgetMin": 239400,
+    "budgetMax": 305900,
+    "tenderDate": "2025-04-01",
+    "status": "completed",
+    "mode": "tender-knowledge"
+  },
+  "proposal": {
+    "proposalId": "proposal-028",
+    "tenderId": "tender-028-campus",
+    "sku": "DH-EL-001",
+    "brand": "DHZ",
+    "quantity": 7,
+    "finalPrice": 38000,
+    "proposalScore": 83,
+    "winProbability": 67,
+    "strategyType": "cost-optimized",
+    "submittedAt": "2025-04-15",
+    "mode": "tender-knowledge"
+  },
+  "outcome": {
+    "outcomeId": "outcome-028",
+    "tenderId": "tender-028-campus",
+    "proposalId": "proposal-028",
+    "outcome": "won",
+    "winPrice": 266000,
+    "competitorCount": 6,
+    "marginPercent": 14,
+    "recordedAt": "2025-05-01",
+    "mode": "tender-knowledge"
+  },
+  "knowledgeAssisted": {
+    "baselineProbability": 67,
+    "calibratedProbability": null,
+    "confidence": "medium"
+  }
+}

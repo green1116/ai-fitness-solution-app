@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.0",
+  "compatibleLayers": [
+    "v21-regional-supplier"
+  ],
+  "supplier": {
+    "id": "supplier-impulse-cn",
+    "brand": "Impulse",
+    "supplierName": "Impulse Health Tech China",
+    "region": "Southwest China",
+    "authorizationLevel": "national",
+    "contact": "sales@impulsefitness.com",
+    "status": "active",
+    "mode": "supplier-network"
+  },
+  "dealers": [
+    {
+      "id": "dealer-impulse-chengdu",
+      "dealerName": "Impulse Chengdu Dealer",
+      "city": "Chengdu",
+      "coverageArea": "Chengdu",
+      "warehouseCapability": true,
+      "serviceLevel": "premium",
+      "status": "active",
+      "mode": "supplier-network"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "inv-impulse-chengdu",
+      "sku": "IM-TM-001",
+      "stockStatus": "in-stock",
+      "availableQuantity": 8,
+      "safetyStock": 3,
+      "replenishmentLeadTime": "14-30 days",
+      "warehouseLocation": "Chengdu Warehouse",
+      "lastUpdated": "2026-06-13",
+      "mode": "supplier-network"
+    }
+  ]
+}
