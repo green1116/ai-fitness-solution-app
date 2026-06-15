@@ -1,6 +1,15 @@
 export const REQUIREMENT_INTELLIGENCE_VERSION = "v40-requirement-intelligence-1" as const;
 export const REQUIREMENT_INTELLIGENCE_TAG = "v40-requirement-intelligence-foundation" as const;
 export const REQUIREMENT_INTELLIGENCE_P1_TAG = "v40-requirement-intelligence-p1" as const;
+export const REQUIREMENT_INTELLIGENCE_P2_TAG = "v40-requirement-intelligence-p2" as const;
+
+export const REQUIREMENT_GRAPH_MIN_NODE_COUNT = 80 as const;
+export const REQUIREMENT_GRAPH_MIN_EDGE_COUNT = 120 as const;
+export const REQUIREMENT_GRAPH_MIN_TENDER_NODES = 15 as const;
+export const REQUIREMENT_GRAPH_MIN_REQUIREMENT_NODES = 50 as const;
+export const REQUIREMENT_GRAPH_MIN_EVIDENCE_NODES = 30 as const;
+export const REQUIREMENT_GRAPH_MIN_BRAND_NODES = 8 as const;
+export const REQUIREMENT_GRAPH_MIN_TENDER_EVIDENCE_PATHS = 3 as const;
 
 export type RequirementIntelligenceMode = "requirement-intelligence";
 
@@ -125,6 +134,18 @@ export interface RequirementIntelligenceNetworkValidation {
   requirementRegistry: RequirementValidation;
   requirementContext: RequirementValidation;
   engineCompatibility: RequirementValidation;
+}
+
+export interface RequirementGraphValidation {
+  valid: boolean;
+  count: number;
+  summary: string;
+}
+
+export interface RequirementIntelligencePhase2Validation {
+  valid: boolean;
+  phase1: RequirementIntelligenceNetworkValidation;
+  requirementGraph: RequirementGraphValidation;
 }
 
 export const CANONICAL_REQUIREMENT_QUERY: RequirementQuery = {

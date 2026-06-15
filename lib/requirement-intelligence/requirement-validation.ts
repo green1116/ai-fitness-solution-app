@@ -4,9 +4,15 @@ import { validateRequirementContext } from "./requirement-context";
 import { buildRequirementEngineCompatibility } from "./requirement-engine-compat";
 import { validateRequirementRegistry } from "./requirement-registry";
 import { validateRequirementQueryRegistry } from "./requirement-query";
-import type { RequirementIntelligenceNetworkValidation, RequirementValidation } from "./shared/types";
+import { validateRequirementGraphRegistry } from "./requirement-graph/requirement-graph-traversal";
+import type {
+  RequirementIntelligenceNetworkValidation,
+  RequirementIntelligencePhase2Validation,
+  RequirementValidation,
+} from "./shared/types";
 import {
   REQUIREMENT_INTELLIGENCE_P1_TAG,
+  REQUIREMENT_INTELLIGENCE_P2_TAG,
   REQUIREMENT_INTELLIGENCE_VERSION,
 } from "./shared/types";
 
@@ -57,3 +63,21 @@ export function validateRequirementIntelligenceNetworkFoundation(): RequirementI
 }
 
 export { validateRequirementQueryRegistry };
+
+export function validateRequirementIntelligenceNetworkPhase2(): RequirementIntelligencePhase2Validation {
+  const phase1 = validateRequirementIntelligenceNetworkPhase1();
+  const requirementGraph = validateRequirementGraphRegistry();
+
+  return {
+    valid: phase1.valid && requirementGraph.valid,
+    phase1,
+    requirementGraph,
+  };
+}
+
+export function getRequirementIntelligenceNetworkPhase2FreezeMeta() {
+  return {
+    version: REQUIREMENT_INTELLIGENCE_VERSION,
+    tag: REQUIREMENT_INTELLIGENCE_P2_TAG,
+  };
+}

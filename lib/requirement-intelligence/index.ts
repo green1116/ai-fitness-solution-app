@@ -32,3 +32,10 @@ export {
   validateRequirementQueryRegistry,
 } from "./requirement-query";
 export * from "./requirement-validation";
+export * from "./requirement-graph/graph-nodes";
+export * from "./requirement-graph/graph-edges";
+export * from "./requirement-graph/tender-requirement-edge";
+export * from "./requirement-graph/requirement-evidence-edge";
+export * from "./requirement-graph/requirement-brand-edge";
+export * from "./requirement-graph/requirement-graph-context";
+export * from "./requirement-graph/requirement-graph-traversal";
