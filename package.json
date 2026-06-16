@@ -107,6 +107,7 @@
         "verify:tender-intelligence-p3": "tsx scripts/verify-tender-intelligence-p3.ts",
         "verify:tender-intelligence-p4": "tsx scripts/verify-tender-intelligence-p4.ts",
         "verify:equivalent-product-intelligence-p1": "tsx scripts/verify-equivalent-product-intelligence-p1.ts",
+        "verify:equivalent-product-intelligence-p2": "tsx scripts/verify-equivalent-product-intelligence-p2.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",
         "verify:equipment-knowledge": "tsx scripts/verify-equipment-knowledge.ts",
