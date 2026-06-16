@@ -81,3 +81,19 @@ export {
   validateTenderIntelligenceNetworkPhase3,
   getTenderKnowledgeGraphPhase3FreezeMeta,
 } from "./optimization/optimization-validation";
+export * from "./bid-strategy/bid-strategy-types";
+export { buildBidStrategyContext } from "./bid-strategy/bid-strategy-context";
+export { buildBidGapReasoning } from "./bid-strategy/bid-gap-reasoning";
+export { generateBidStrategies } from "./bid-strategy/bid-strategy-builder";
+export { rankBidStrategies } from "./bid-strategy/bid-strategy-ranking";
+export { simulateBidStrategy } from "./bid-strategy/bid-strategy-simulation";
+export { buildBidRecommendation } from "./bid-strategy/bid-recommendation";
+export {
+  runBidDecisionEngine,
+  decideOptimalBidStrategy,
+} from "./bid-strategy/bid-decision-engine";
+export {
+  validateBidStrategy,
+  validateTenderIntelligenceNetworkPhase4,
+  getTenderKnowledgeGraphPhase4FreezeMeta,
+} from "./bid-strategy/bid-validation";

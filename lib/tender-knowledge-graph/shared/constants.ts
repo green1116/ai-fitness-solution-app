@@ -2,6 +2,7 @@ export const TENDER_KNOWLEDGE_GRAPH_VERSION = "v41-tender-knowledge-graph-1" as 
 export const TENDER_KNOWLEDGE_GRAPH_P1_TAG = "v41-tender-knowledge-graph-p1" as const;
 export const TENDER_KNOWLEDGE_GRAPH_P2_TAG = "v41-tender-knowledge-graph-p2" as const;
 export const TENDER_KNOWLEDGE_GRAPH_P3_TAG = "v41-tender-knowledge-graph-p3" as const;
+export const TENDER_KNOWLEDGE_GRAPH_P4_TAG = "v41-tender-knowledge-graph-p4" as const;
 
 export const TKG_MIN_TENDER_COUNT = 10 as const;
 export const TKG_MIN_REQUIREMENT_COUNT = 50 as const;
