@@ -39,3 +39,8 @@ export * from "./requirement-graph/requirement-evidence-edge";
 export * from "./requirement-graph/requirement-brand-edge";
 export * from "./requirement-graph/requirement-graph-context";
 export * from "./requirement-graph/requirement-graph-traversal";
+export * from "./requirement-compliance/compliance-builder";
+export * from "./requirement-compliance/compliance-gap";
+export * from "./requirement-compliance/compliance-registry";
+export * from "./requirement-compliance/compliance-context";
+export * from "./requirement-compliance/compliance-matrix";

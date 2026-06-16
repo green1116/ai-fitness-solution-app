@@ -5,14 +5,22 @@ import { buildRequirementEngineCompatibility } from "./requirement-engine-compat
 import { validateRequirementRegistry } from "./requirement-registry";
 import { validateRequirementQueryRegistry } from "./requirement-query";
 import { validateRequirementGraphRegistry } from "./requirement-graph/requirement-graph-traversal";
+import {
+  validateRequirementCompliance,
+  validateRequirementComplianceGap,
+  validateRequirementComplianceMatrix,
+  validateTenderCompliance,
+} from "./requirement-compliance/compliance-context";
 import type {
   RequirementIntelligenceNetworkValidation,
   RequirementIntelligencePhase2Validation,
+  RequirementIntelligencePhase3Validation,
   RequirementValidation,
 } from "./shared/types";
 import {
   REQUIREMENT_INTELLIGENCE_P1_TAG,
   REQUIREMENT_INTELLIGENCE_P2_TAG,
+  REQUIREMENT_INTELLIGENCE_P3_TAG,
   REQUIREMENT_INTELLIGENCE_VERSION,
 } from "./shared/types";
 
@@ -79,5 +87,34 @@ export function getRequirementIntelligenceNetworkPhase2FreezeMeta() {
   return {
     version: REQUIREMENT_INTELLIGENCE_VERSION,
     tag: REQUIREMENT_INTELLIGENCE_P2_TAG,
+  };
+}
+
+export function validateRequirementIntelligenceNetworkPhase3(): RequirementIntelligencePhase3Validation {
+  const phase2 = validateRequirementIntelligenceNetworkPhase2();
+  const requirementCompliance = validateRequirementCompliance();
+  const requirementComplianceMatrix = validateRequirementComplianceMatrix();
+  const requirementComplianceGap = validateRequirementComplianceGap();
+  const tenderCompliance = validateTenderCompliance();
+
+  return {
+    valid:
+      phase2.valid &&
+      requirementCompliance.valid &&
+      requirementComplianceMatrix.valid &&
+      requirementComplianceGap.valid &&
+      tenderCompliance.valid,
+    phase2,
+    requirementCompliance,
+    requirementComplianceMatrix,
+    requirementComplianceGap,
+    tenderCompliance,
+  };
+}
+
+export function getRequirementIntelligenceNetworkPhase3FreezeMeta() {
+  return {
+    version: REQUIREMENT_INTELLIGENCE_VERSION,
+    tag: REQUIREMENT_INTELLIGENCE_P3_TAG,
   };
 }
