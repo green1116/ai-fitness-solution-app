@@ -5,7 +5,7 @@ import {
 } from "@/lib/evidence-intelligence-network";
 import { buildRequirementRegistryRecords } from "@/lib/requirement-intelligence";
 import type { RequirementRecord } from "@/lib/requirement-intelligence/shared/types";
-import { TKG_MIN_EVIDENCE_COUNT } from "../shared/types";
+import { TKG_MIN_EVIDENCE_COUNT } from "../shared/constants";
 import { buildTenderGraphEdge } from "./graph-edges";
 import {
   buildTkgEvidenceNodeId,

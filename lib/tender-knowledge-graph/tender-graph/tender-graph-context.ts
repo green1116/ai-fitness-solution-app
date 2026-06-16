@@ -7,7 +7,7 @@ import {
   TKG_MIN_TENDER_BRAND_COVERAGE,
   TKG_MIN_TENDER_COUNT,
   TKG_MIN_TENDER_REQUIREMENT_COVERAGE,
-} from "../shared/types";
+} from "../shared/constants";
 import { dedupeTenderGraphEdges } from "./graph-edges";
 import { buildTenderGraphNodeRecords } from "./graph-nodes";
 import {

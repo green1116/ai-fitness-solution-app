@@ -7,7 +7,7 @@ import type {
   TenderGraphValidation,
   TenderKnowledgeGraphPhase1Validation,
 } from "./shared/types";
-import { TKG_MIN_TENDER_COUNT } from "./shared/types";
+import { TKG_MIN_TENDER_COUNT } from "./shared/constants";
 
 let cachedPhase1Validation: TenderKnowledgeGraphPhase1Validation | undefined;
 

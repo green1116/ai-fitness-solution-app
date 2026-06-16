@@ -1,5 +1,5 @@
 import type { TenderRegistryContext } from "./shared/types";
-import { TKG_MIN_TENDER_COUNT } from "./shared/types";
+import { TKG_MIN_TENDER_COUNT } from "./shared/constants";
 import { buildTenderRegistryRecords } from "./tender-registry";
 
 export function buildTenderRegistryContext(): TenderRegistryContext {

@@ -1,6 +1,6 @@
 import { buildBrandRegistryRecords } from "@/lib/brand-intelligence-network";
 import { buildRequirementRegistryRecords } from "@/lib/requirement-intelligence";
-import { TKG_MIN_BRAND_COUNT } from "../shared/types";
+import { TKG_MIN_BRAND_COUNT } from "../shared/constants";
 import { buildTenderGraphEdge } from "./graph-edges";
 import {
   buildTkgBrandNodeId,

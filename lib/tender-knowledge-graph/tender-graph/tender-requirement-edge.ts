@@ -1,6 +1,6 @@
 import { buildRequirementRegistryRecords } from "@/lib/requirement-intelligence";
 import { buildTenderRegistryRecords } from "../tender-registry";
-import { CANONICAL_TENDER_GRAPH_TENDER_ID } from "../shared/types";
+import { CANONICAL_TENDER_GRAPH_TENDER_ID } from "../shared/constants";
 import { buildTenderGraphEdge } from "./graph-edges";
 import {
   buildTenderGraphNodeId,

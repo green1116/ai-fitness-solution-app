@@ -12,7 +12,7 @@ import type {
 import {
   TKG_WIN_HIGH_THRESHOLD,
   TKG_WIN_MEDIUM_THRESHOLD,
-} from "./shared/types";
+} from "./shared/constants";
 import { findTenderGraphRecordById, buildTenderRegistryRecords } from "./tender-registry";
 import { buildTenderBrandEdges } from "./tender-graph/tender-brand-edge";
 

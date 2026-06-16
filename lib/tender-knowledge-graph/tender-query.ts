@@ -1,5 +1,5 @@
 import { buildTenderRegistryRecords, findTenderGraphRecordById } from "./tender-registry";
-import { CANONICAL_TENDER_GRAPH_TENDER_ID } from "./shared/types";
+import { CANONICAL_TENDER_GRAPH_TENDER_ID } from "./shared/constants";
 
 export function findTendersByRegion(region: string) {
   return buildTenderRegistryRecords().filter((record) => record.region === region);

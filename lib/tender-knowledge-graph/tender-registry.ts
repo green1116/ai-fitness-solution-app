@@ -2,7 +2,7 @@ import { buildTenderRegistryRecords as buildTenderHubRegistryRecords } from "@/l
 import { getAllTenderProfiles } from "@/lib/tender-marketplace/tender-profile/data";
 import { buildRequirementRegistryRecords } from "@/lib/requirement-intelligence";
 import type { TenderGraphRecord, TenderPriority, TenderRegistry, TenderGraphValidation } from "./shared/types";
-import { CANONICAL_TENDER_GRAPH_TENDER_ID, TKG_MIN_TENDER_COUNT } from "./shared/types";
+import { CANONICAL_TENDER_GRAPH_TENDER_ID, TKG_MIN_TENDER_COUNT } from "./shared/constants";
 
 function resolvePriority(score: number, mandatory?: boolean): TenderPriority {
   if (mandatory && score >= 85) return "critical";
