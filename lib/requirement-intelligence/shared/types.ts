@@ -3,6 +3,13 @@ export const REQUIREMENT_INTELLIGENCE_TAG = "v40-requirement-intelligence-founda
 export const REQUIREMENT_INTELLIGENCE_P1_TAG = "v40-requirement-intelligence-p1" as const;
 export const REQUIREMENT_INTELLIGENCE_P2_TAG = "v40-requirement-intelligence-p2" as const;
 export const REQUIREMENT_INTELLIGENCE_P3_TAG = "v40-requirement-intelligence-p3" as const;
+export const REQUIREMENT_INTELLIGENCE_P4_TAG = "v40-requirement-intelligence-p4" as const;
+
+export const REQUIREMENT_READINESS_MIN_SCORE = 70 as const;
+export const REQUIREMENT_READINESS_MIN_READY_COUNT = 10 as const;
+export const REQUIREMENT_READINESS_MIN_PARTIAL_COUNT = 10 as const;
+export const REQUIREMENT_READINESS_MIN_BLOCKED_COUNT = 1 as const;
+export const REQUIREMENT_MATCHER_MIN_MATCH_SCORE = 50 as const;
 
 export const REQUIREMENT_COMPLIANCE_MIN_RECORDS = 50 as const;
 export const REQUIREMENT_COMPLIANCE_MIN_MATRIX_RECORDS = 50 as const;
@@ -249,6 +256,155 @@ export interface RequirementIntelligencePhase3Validation {
   requirementComplianceGap: RequirementComplianceValidation;
   tenderCompliance: RequirementComplianceValidation;
 }
+
+export type RequirementReadinessStatus = "ready" | "partial" | "blocked" | "not-ready";
+
+export interface RequirementReadinessScore {
+  readinessId: string;
+  requirementId: string;
+  registryScore: number;
+  graphScore: number;
+  complianceScore: number;
+  evidenceCoverageScore: number;
+  evidenceReadinessScore: number;
+  freshnessScore: number;
+  confidenceScore: number;
+  priorityAlignmentScore: number;
+  totalRequirementReadiness: number;
+  mode: RequirementIntelligenceMode;
+}
+
+export interface RequirementReadinessResult {
+  resultId: string;
+  requirementId: string;
+  requirementRef: string;
+  tenderId: string;
+  brandId?: string;
+  score: RequirementReadinessScore;
+  readinessStatus: RequirementReadinessStatus;
+  criticalBlockers: string[];
+  warningItems: string[];
+  readinessReady: boolean;
+  mode: RequirementIntelligenceMode;
+}
+
+export interface RequirementReadinessContext {
+  contextId: string;
+  results: RequirementReadinessResult[];
+  resultCount: number;
+  readyCount: number;
+  partialCount: number;
+  blockedCount: number;
+  notReadyCount: number;
+  averageReadinessScore: number;
+  contextReady: boolean;
+  mode: RequirementIntelligenceMode;
+}
+
+export type RequirementMatchTargetType = "evidence" | "brand" | "tender" | "proposal";
+
+export interface RequirementMatchResult {
+  matchId: string;
+  requirementId: string;
+  targetType: RequirementMatchTargetType;
+  targetId: string;
+  brandId?: string;
+  matchScore: number;
+  matchReason: string;
+  matchedIds: string[];
+  unmatchedGaps: string[];
+  matchReady: boolean;
+  mode: RequirementIntelligenceMode;
+}
+
+export interface RequirementQuerySnapshot {
+  canonical: RequirementRecord[];
+  byTender: RequirementRecord[];
+  byBrand: RequirementRecord[];
+  byKind: RequirementRecord[];
+  byPriority: RequirementRecord[];
+  top: RequirementRecord[];
+  satisfied: RequirementRecord[];
+  blocked: RequirementRecord[];
+  critical: RequirementRecord[];
+  all: RequirementRecord[];
+}
+
+export interface RequirementMatcherContext {
+  contextId: string;
+  sampleRequirementId?: string;
+  canonicalQueryRequirementId?: string;
+  evidenceMatch?: RequirementMatchResult;
+  brandMatch?: RequirementMatchResult;
+  tenderMatch?: RequirementMatchResult;
+  proposalMatch?: RequirementMatchResult;
+  contextReady: boolean;
+  mode: RequirementIntelligenceMode;
+}
+
+export interface RequirementFoundationValidations {
+  registry: RequirementValidation;
+  requirementContext: RequirementValidation;
+  graph: RequirementGraphValidation;
+  compliance: RequirementComplianceValidation;
+  complianceMatrix: RequirementComplianceValidation;
+  complianceGap: RequirementComplianceValidation;
+  tenderCompliance: RequirementComplianceValidation;
+  readiness: RequirementValidation;
+  query: RequirementValidation;
+  matcher: RequirementValidation;
+  engineCompatibility: RequirementValidation;
+  queryRegistry: RequirementValidation;
+  evidenceNetwork?: RequirementValidation;
+}
+
+export interface RequirementFoundationRegression {
+  phase1Valid: boolean;
+  phase2Valid: boolean;
+  phase3Valid: boolean;
+}
+
+export interface RequirementFoundationCanonical {
+  requirement?: RequirementRecord;
+  readiness?: RequirementReadinessResult;
+}
+
+export interface RequirementFoundationContext {
+  contextId: string;
+  query: RequirementQuerySnapshot;
+  readiness: RequirementReadinessContext;
+  matcher: RequirementMatcherContext;
+  validations: RequirementFoundationValidations;
+  regression: RequirementFoundationRegression;
+  canonical: RequirementFoundationCanonical;
+  contextReady: boolean;
+  mode: RequirementIntelligenceMode;
+}
+
+export interface RequirementFoundationContextOptions {
+  includePhaseRegression?: boolean;
+  includeEvidenceNetwork?: boolean;
+}
+
+export interface RequirementIntelligencePhase4Validation {
+  valid: boolean;
+  phase3: RequirementIntelligencePhase3Validation;
+  requirementReadiness: RequirementValidation;
+  requirementQuery: RequirementValidation;
+  requirementMatcher: RequirementValidation;
+}
+
+export interface RequirementIntelligenceFoundationValidation {
+  valid: boolean;
+  phase4: RequirementIntelligencePhase4Validation;
+  requirementRegistry: RequirementValidation;
+  requirementGraph: RequirementGraphValidation;
+  requirementCompliance: RequirementComplianceValidation;
+  engineCompatibility: RequirementValidation;
+}
+
+export const CANONICAL_REQUIREMENT_MATCHER_TENDER_ID = "tender-sh-commercial-gym-2025-001" as const;
+export const CANONICAL_REQUIREMENT_MATCHER_BRAND_ID = "brand-life-fitness" as const;
 
 export const CANONICAL_REQUIREMENT_QUERY: RequirementQuery = {
   tenderId: "tender-sh-commercial-gym-2025-001",

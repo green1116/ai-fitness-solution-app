@@ -3,24 +3,35 @@ import { validateEvidenceIntelligenceNetworkFoundationFreeze } from "@/lib/evide
 import { validateRequirementContext } from "./requirement-context";
 import { buildRequirementEngineCompatibility } from "./requirement-engine-compat";
 import { validateRequirementRegistry } from "./requirement-registry";
-import { validateRequirementQueryRegistry } from "./requirement-query";
-import { validateRequirementGraphRegistry } from "./requirement-graph/requirement-graph-traversal";
 import {
   validateRequirementCompliance,
   validateRequirementComplianceGap,
   validateRequirementComplianceMatrix,
   validateTenderCompliance,
 } from "./requirement-compliance/compliance-context";
+import {
+  buildRequirementFoundationContext,
+  validateRequirementIntelligenceNetworkFoundationFreezeFromContext,
+  validateRequirementIntelligenceNetworkPhase4FromContext,
+} from "./requirement-foundation/foundation-context";
+import { validateRequirementGraphRegistry } from "./requirement-graph/requirement-graph-traversal";
+import { validateRequirementMatcher } from "./requirement-matcher";
+import { validateRequirementQuery, validateRequirementQueryRegistry } from "./requirement-query";
+import { validateRequirementReadiness } from "./requirement-readiness/readiness-context";
 import type {
+  RequirementIntelligenceFoundationValidation,
   RequirementIntelligenceNetworkValidation,
   RequirementIntelligencePhase2Validation,
   RequirementIntelligencePhase3Validation,
+  RequirementIntelligencePhase4Validation,
   RequirementValidation,
 } from "./shared/types";
 import {
   REQUIREMENT_INTELLIGENCE_P1_TAG,
   REQUIREMENT_INTELLIGENCE_P2_TAG,
   REQUIREMENT_INTELLIGENCE_P3_TAG,
+  REQUIREMENT_INTELLIGENCE_P4_TAG,
+  REQUIREMENT_INTELLIGENCE_TAG,
   REQUIREMENT_INTELLIGENCE_VERSION,
 } from "./shared/types";
 
@@ -118,3 +129,52 @@ export function getRequirementIntelligenceNetworkPhase3FreezeMeta() {
     tag: REQUIREMENT_INTELLIGENCE_P3_TAG,
   };
 }
+
+export function validateRequirementGraph(): RequirementValidation {
+  const graph = validateRequirementGraphRegistry();
+  return {
+    valid: graph.valid,
+    count: graph.count,
+    summary: graph.summary,
+  };
+}
+
+export { validateRequirementCompliance };
+
+export function validateRequirementIntelligenceNetworkPhase4(): RequirementIntelligencePhase4Validation {
+  return validateRequirementIntelligenceNetworkPhase4FromContext(
+    buildRequirementFoundationContext({ includePhaseRegression: true }),
+  );
+}
+
+export function getRequirementIntelligenceNetworkPhase4FreezeMeta() {
+  return {
+    version: REQUIREMENT_INTELLIGENCE_VERSION,
+    tag: REQUIREMENT_INTELLIGENCE_P4_TAG,
+  };
+}
+
+export function validateRequirementIntelligenceNetworkFoundationFreeze(): RequirementIntelligenceFoundationValidation {
+  return validateRequirementIntelligenceNetworkFoundationFreezeFromContext(
+    buildRequirementFoundationContext({
+      includePhaseRegression: true,
+      includeEvidenceNetwork: true,
+    }),
+  );
+}
+
+export function getRequirementIntelligenceNetworkFoundationFreezeMeta() {
+  return {
+    version: REQUIREMENT_INTELLIGENCE_VERSION,
+    tag: REQUIREMENT_INTELLIGENCE_TAG,
+  };
+}
+
+export {
+  buildRequirementFoundationContext,
+  resetRequirementFoundationContext,
+  validateRequirementIntelligenceNetworkPhase4FromContext,
+  validateRequirementIntelligenceNetworkFoundationFreezeFromContext,
+} from "./requirement-foundation/foundation-context";
+
+export { validateRequirementReadiness, validateRequirementQuery, validateRequirementMatcher };

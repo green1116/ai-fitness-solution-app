@@ -44,3 +44,31 @@ export * from "./requirement-compliance/compliance-gap";
 export * from "./requirement-compliance/compliance-registry";
 export * from "./requirement-compliance/compliance-context";
 export * from "./requirement-compliance/compliance-matrix";
+export * from "./requirement-readiness/readiness-scoring";
+export {
+  buildRequirementReadinessContext,
+  validateRequirementReadinessFromContext,
+} from "./requirement-readiness/readiness-context";
+export {
+  findRequirement,
+  findRequirementByKindQuery,
+  findRequirementByPriorityQuery,
+  findSatisfiedRequirementRecords,
+  findBlockedRequirements,
+  findCriticalRequirements,
+  buildRequirementQuerySnapshot,
+  validateRequirementQuery,
+  validateRequirementQueryFromSnapshot,
+  validateRequirementQueryRegistryFromSnapshot,
+} from "./requirement-query";
+export {
+  buildRequirementMatcherContext,
+  validateRequirementMatcher,
+  validateRequirementMatcherFromContext,
+} from "./requirement-matcher";
+export {
+  matchRequirementToBrand,
+  matchRequirementToEvidence,
+  matchRequirementToProposal,
+  matchRequirementToTender,
+} from "./requirement-matcher";

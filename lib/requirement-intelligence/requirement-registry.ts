@@ -383,7 +383,13 @@ function seedFromTenderRequirements(): RequirementRecord[] {
   });
 }
 
+let cachedRegistryRecords: RequirementRecord[] | undefined;
+
 export function buildRequirementRegistryRecords(): RequirementRecord[] {
+  if (cachedRegistryRecords) {
+    return cachedRegistryRecords;
+  }
+
   const seeded = [
     ...seedFromRequirementStubs(),
     ...seedFromRequirementProfiles(),
@@ -399,7 +405,8 @@ export function buildRequirementRegistryRecords(): RequirementRecord[] {
     }
   }
 
-  return merged;
+  cachedRegistryRecords = merged;
+  return cachedRegistryRecords;
 }
 
 export function buildRequirementRegistry(): RequirementRegistry {
@@ -425,6 +432,7 @@ export function buildRequirementRegistry(): RequirementRegistry {
 export function registerRequirement(record: RequirementRecord): RequirementRecord {
   const normalized = { ...record, mode: "requirement-intelligence" as const };
   requirementOverrides.set(record.requirementId, normalized);
+  cachedRegistryRecords = undefined;
   return normalized;
 }
 
@@ -443,6 +451,7 @@ export function updateRequirement(
     mode: "requirement-intelligence",
   };
   requirementOverrides.set(requirementId, updated);
+  cachedRegistryRecords = undefined;
   return updated;
 }
 

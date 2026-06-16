@@ -54,7 +54,13 @@ export function buildRequirementGraphEdges(): RequirementGraphEdge[] {
   ]);
 }
 
+let cachedRequirementGraph: RequirementGraph | undefined;
+
 export function buildRequirementGraph(): RequirementGraph {
+  if (cachedRequirementGraph) {
+    return cachedRequirementGraph;
+  }
+
   const tenderEdges = buildTenderRequirementEdges();
   const evidenceEdges = buildRequirementEvidenceEdges();
   const brandEdges = buildRequirementBrandEdges();
@@ -71,7 +77,7 @@ export function buildRequirementGraph(): RequirementGraph {
   );
   const nodes = buildRequirementGraphNodeRecords(linkedEvidenceIds, brandIds);
 
-  return {
+  cachedRequirementGraph = {
     graphId: "requirement-graph-v40-p2",
     nodes,
     edges,
@@ -80,6 +86,7 @@ export function buildRequirementGraph(): RequirementGraph {
     graphReady: nodes.length >= 80 && edges.length >= 120,
     mode: "requirement-intelligence",
   };
+  return cachedRequirementGraph;
 }
 
 function countNodesByType(
