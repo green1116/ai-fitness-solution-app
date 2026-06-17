@@ -1,164 +1,90 @@
-import type { RealCatalogBundle } from "@/lib/real-catalog-foundation/bridge/catalog-bridge";
-import type { SupplierNetworkBundle } from "@/lib/regional-supplier-foundation/shared/types";
+import type { PI_P1_PHASE, PI_P1_TAG } from "./constants";
 
-export const PROCUREMENT_INTELLIGENCE_VERSION = "v22-procurement-intelligence-3" as const;
+export type SupplierAvailabilityStatus =
+  | "in-stock"
+  | "limited"
+  | "backorder"
+  | "unavailable";
 
-export type ProcurementDataMode = "procurement-intelligence";
+export type SupplierPricingSourceType =
+  | "catalog"
+  | "real-catalog"
+  | "tender"
+  | "estimate";
 
-export type ProcurementStatus = "active" | "inactive" | "draft";
+export type ProcurementLevel =
+  | "preferred"
+  | "acceptable"
+  | "fallback"
+  | "defer";
 
-export type PricingChannel = "manufacturer" | "authorized-dealer" | "project" | "bulk";
-
-export type ProjectType = "commercial-gym" | "hotel" | "campus" | "community" | "enterprise";
-
-export type ProjectSize = "small" | "medium" | "large" | "enterprise";
-
-export type DiscountType = "percentage" | "fixed" | "tiered";
-
-export type DiscountAppliesTo = "channel" | "project" | "bulk" | "all";
-
-export type LeadTimeSource = "warehouse" | "manufacturer" | "regional-depot" | "made-to-order";
-
-export type AvailabilityLevel = "in-stock" | "low-stock" | "made-to-order" | "unavailable";
-
-export type LeadTimePriority = "standard" | "expedited" | "critical";
-
-export interface ChannelPricingEntry {
+export interface SupplierRecord {
   id: string;
-  brand: string;
-  sku: string;
-  channel: PricingChannel;
-  listPrice: number;
-  dealerPrice: number;
-  projectPrice: number;
-  bulkPrice: number;
+  name: string;
+  brandIds: string[];
+  capabilityTags: string[];
+  region?: string;
+  availabilityStatus: SupplierAvailabilityStatus;
+  reliabilityScore: number;
+  source: string;
+}
+
+export interface SupplierCapabilityRecord {
+  supplierId: string;
+  capabilityTag: string;
+  strengthScore: number;
+  evidenceIds: string[];
+}
+
+export interface SupplierAvailabilityRecord {
+  supplierId: string;
+  productId?: string;
+  availabilityStatus: SupplierAvailabilityStatus;
+  etaDays?: number;
+  confidence: number;
+}
+
+export interface SupplierPricingRecord {
+  supplierId: string;
+  productId?: string;
+  priceLow: number;
+  priceHigh: number;
   currency: string;
-  region: string;
-  status: ProcurementStatus;
-  mode: ProcurementDataMode;
+  confidence: number;
+  sourceType: SupplierPricingSourceType;
 }
 
-export interface ProjectPricingEntry {
-  id: string;
-  brand: string;
-  sku: string;
-  projectType: ProjectType;
-  projectSize: ProjectSize;
-  basePrice: number;
-  discountRate: number;
-  finalPrice: number;
-  currency: string;
-  status: ProcurementStatus;
-  mode: ProcurementDataMode;
+export interface ProcurementMatchRecord {
+  requirementId: string;
+  decisionId: string;
+  supplierId: string;
+  productId: string;
+  matchScore: number;
+  procurementFitScore: number;
+  deliveryFitScore: number;
+  priceFitScore: number;
+  availabilityFitScore: number;
+  evidenceFitScore: number;
 }
 
-export interface DiscountRuleEntry {
-  id: string;
-  ruleName: string;
-  brand: string;
-  sku: string;
-  quantityThreshold: number;
-  discountType: DiscountType;
-  discountValue: number;
-  appliesTo: DiscountAppliesTo;
-  status: ProcurementStatus;
-  mode: ProcurementDataMode;
+export interface ProcurementRecommendation {
+  requirementId: string;
+  decisionId: string;
+  optimalSupplierId: string;
+  optimalProductId: string;
+  candidateSupplierIds: string[];
+  candidateProductIds: string[];
+  procurementLevel: ProcurementLevel;
+  recommendationReason: string[];
+  riskReason: string[];
+  costSummary: string;
+  leadTimeSummary: string;
+  availabilitySummary: string;
 }
 
-export interface LeadTimeIntelligenceEntry {
-  id: string;
-  brand: string;
-  sku: string;
-  region: string;
-  source: LeadTimeSource;
-  leadTimeDays: number;
-  availability: AvailabilityLevel;
-  priority: LeadTimePriority;
-  status: ProcurementStatus;
-  mode: ProcurementDataMode;
-}
-
-export interface ProcurementBundle {
-  bundleId: string;
-  sku: string;
-  region: string;
-  projectType: ProjectType;
-  quantity: number;
-  channelPricing: ChannelPricingEntry;
-  projectPricing: ProjectPricingEntry | undefined;
-  discountRule: DiscountRuleEntry | undefined;
-  leadTime: LeadTimeIntelligenceEntry | undefined;
-  finalPrice: number;
-  savings: number;
-  bundleReadiness: number;
-}
-
-export interface CommercialBundle {
-  bundleId: string;
-  sku: string;
-  city: string;
-  quantity: number;
-  projectType: ProjectType;
-  region: string;
-  catalog: RealCatalogBundle | null;
-  supplierNetwork: SupplierNetworkBundle;
-  procurement: ProcurementBundle;
-  finalPrice: number;
-  savings: number;
-  leadTime: LeadTimeIntelligenceEntry | undefined;
-  readinessScore: number;
-}
-
-export interface CommercialBundleReport {
-  version: typeof PROCUREMENT_INTELLIGENCE_VERSION;
-  reportId: string;
-  bundleValidation: {
-    valid: boolean;
-    catalogExists: boolean;
-    supplierExists: boolean;
-    inventoryExists: boolean;
-    serviceExists: boolean;
-    pricingExists: boolean;
-  };
-  exampleBundle: CommercialBundle | null;
-  readinessScore: number;
-  summary: string;
-  generatedAt: string;
-}
-
-export interface ProcurementReport {
-  version: typeof PROCUREMENT_INTELLIGENCE_VERSION;
-  reportId: string;
-  channelPricingCount: number;
-  projectPricingCount: number;
-  discountRuleCount: number;
-  leadTimeCount: number;
-  bundleValidation: {
-    valid: boolean;
-    skuExists: boolean;
-    pricingExists: boolean;
-    leadTimeExists: boolean;
-    discountCalculable: boolean;
-  };
-  exampleBundle: ProcurementBundle | null;
-  summary: string;
-  generatedAt: string;
-}
-
-export interface ProcurementIntelligencePhase1Report {
-  version: typeof PROCUREMENT_INTELLIGENCE_VERSION;
-  reportId: string;
-  channelPricingCount: number;
-  projectPricingCount: number;
-  discountRuleCount: number;
-  leadTimeCount: number;
-  validation: {
-    valid: boolean;
-    channelPricingValid: boolean;
-    projectPricingValid: boolean;
-    discountRulesValid: boolean;
-    leadTimeValid: boolean;
-  };
-  summary: string;
-  generatedAt: string;
+export interface ProcurementIntelligencePhase1FreezeMeta {
+  tag: typeof PI_P1_TAG;
+  version: typeof PI_P1_TAG;
+  phase: typeof PI_P1_PHASE;
+  valid: boolean;
 }
