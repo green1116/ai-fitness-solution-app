@@ -50,3 +50,51 @@ export {
   validateEquivalentProductIntelligencePhase2,
   getEquivalentProductIntelligencePhase2FreezeMeta,
 } from "./equivalent-graph/equivalent-graph-validation";
+export * from "./substitution/substitution-types";
+export { calculateSubstitutionRisk, resolveSubstitutionRiskLevel } from "./substitution/substitution-risk-scoring";
+export {
+  buildCompatibilityMatrix,
+  resolveCompatibilityLevelFromRatio,
+  getSpecificationLabel,
+} from "./substitution/compatibility-matrix";
+export { buildCompatibilityGaps } from "./substitution/compatibility-gap";
+export { buildSubstitutionReasoning } from "./substitution/substitution-reasoning";
+export { buildSubstitutionContext, resolveProductWithSpecifications } from "./substitution/substitution-context";
+export {
+  assessSubstitution,
+  buildAllSubstitutionAssessments,
+  buildSubstitutionCompatibilityEngine,
+  isSubstitutionBlocked,
+} from "./substitution/substitution-compatibility-engine";
+export {
+  validateSubstitutionLayer,
+  validateEquivalentProductIntelligencePhase3,
+  getEquivalentProductIntelligencePhase3FreezeMeta,
+} from "./substitution/substitution-validation";
+export * from "./equivalent-decision/equivalent-decision-types";
+export {
+  matchRequirementToProduct,
+  findPrimaryProductForRequirement,
+  findEquivalentProductsForRequirement,
+} from "./equivalent-decision/equivalent-matcher";
+export {
+  rankEquivalentCandidates,
+  findTopEquivalentCandidate,
+  resolveEquivalentDecisionLevel,
+} from "./equivalent-decision/equivalent-ranking";
+export { simulateEquivalentSubstitution } from "./equivalent-decision/equivalent-simulation";
+export { buildEquivalentRecommendation } from "./equivalent-decision/equivalent-recommendation";
+export {
+  runEquivalentDecisionEngine,
+  decideOptimalEquivalentProduct,
+} from "./equivalent-decision/equivalent-decision-engine";
+export {
+  buildEquivalentProductIntelligenceFoundationContext,
+  validateEquivalentProductIntelligenceFoundationFreeze,
+  getEquivalentProductIntelligenceFoundationFreezeMeta,
+} from "./equivalent-decision/foundation-context";
+export {
+  validateEquivalentDecisionLayer,
+  validateEquivalentProductIntelligencePhase4,
+  getEquivalentProductIntelligencePhase4FreezeMeta,
+} from "./equivalent-decision/equivalent-validation";
