@@ -22,6 +22,11 @@ export const COMMERCIAL_PRODUCTS_ROUTE_TIERS: ApiRouteTierEntry[] = [
     tier: "heavy",
     description: "Summary PDF runtime (lazy-loaded)",
   },
+  {
+    path: "/api/commercial-products/pdf/deliverable",
+    tier: "heavy",
+    description: "Unified deliverable router (summary/plan/budget/zip)",
+  },
 ];
 
 export const HEAVY_PDF_ROUTE_PREFIXES = [

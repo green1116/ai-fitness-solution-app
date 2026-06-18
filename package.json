@@ -122,6 +122,7 @@
         "verify:commercial-quote": "tsx scripts/verify-commercial-quote.ts",
         "verify:commercial-portal": "tsx scripts/verify-commercial-portal.ts",
         "verify:commercial-summary-pdf": "tsx scripts/verify-commercial-summary-pdf.ts",
+        "verify:commercial-deliverable-router": "tsx scripts/verify-commercial-deliverable-router.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",
         "verify:equipment-knowledge": "tsx scripts/verify-equipment-knowledge.ts",

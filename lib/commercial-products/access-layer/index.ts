@@ -28,6 +28,24 @@ export {
   getQuoteSnapshotById,
   clearQuoteSnapshotRegistry,
 } from "./pdf/quote-snapshot-registry";
+export {
+  runDeliverablePdfRuntime,
+  getDeliverablePdfRuntimeMeta,
+} from "./pdf/deliverable-pdf-runtime";
+export { routeDeliverablePdf, buildDeliverableRoutingContext } from "./pdf/deliverable-pdf-router";
+export { runDeliverablePdfRuntimeHeavy } from "./runtime/heavy-deliverable-pdf";
+export { validateCommercialDeliverableRouter } from "./validation/deliverable-router-validation";
+export type {
+  DeliverablePdfRequest,
+  DeliverablePdfResult,
+  DeliverableRoutingContext,
+  CommercialDeliverableRouterValidation,
+} from "./pdf/deliverable-pdf-types";
+export type {
+  DeliverableRouteType,
+  DeliverablePdfSource,
+} from "./shared/deliverable-types";
+export { DELIVERABLE_ROUTE_TYPE, CP_DELIVERABLE_PDF_API_PATH } from "./shared/deliverable-types";
 export type {
   SummaryPdfRequest,
   SummaryPdfResult,
