@@ -13,3 +13,18 @@ export type PerformanceStatus = (typeof PERFORMANCE_STATUS)[number];
 
 export const PI_MIN_PERFORMANCE_COUNT = 5 as const;
 export const PI_MIN_AVERAGE_PERFORMANCE_SCORE = 60 as const;
+
+export const PI_P2_VERSION = "v46-performance-intelligence-p2" as const;
+export const PI_P2_TAG = PI_P2_VERSION;
+export const PI_P2_PHASE = 2 as const;
+
+export const PI_MIN_BRAND_BENCHMARK_COUNT = 3 as const;
+export const PI_MIN_SUPPLIER_BENCHMARK_COUNT = 3 as const;
+export const PI_MIN_PRODUCT_BENCHMARK_COUNT = 3 as const;
+export const PI_MIN_PROJECT_BENCHMARK_COUNT = 5 as const;
+
+export const PI_UPSTREAM_BRAND_LAYER = "v38-brand-intelligence-network-foundation" as const;
+export const PI_UPSTREAM_DECISION_LAYER =
+  "v42-equivalent-product-intelligence-foundation" as const;
+export const PI_UPSTREAM_PROCUREMENT_LAYER =
+  "v43-procurement-intelligence-foundation" as const;

@@ -13,3 +13,11 @@ export { buildPerformanceRegistry } from "./performance-foundation/performance-r
 export { calculatePerformanceMetrics } from "./performance-foundation/performance-metrics";
 export { buildPerformanceContext } from "./performance-foundation/performance-context";
 export { validatePerformanceFoundation } from "./performance-foundation/performance-validation";
+
+export * from "./benchmark-layer/benchmark-types";
+export { buildBrandBenchmarkRegistry } from "./benchmark-layer/brand-benchmark-registry";
+export { buildSupplierBenchmarkRegistry } from "./benchmark-layer/supplier-benchmark-registry";
+export { buildProductBenchmarkRegistry } from "./benchmark-layer/product-benchmark-registry";
+export { buildProjectBenchmarkRegistry } from "./benchmark-layer/project-benchmark-registry";
+export { buildBenchmarkContext } from "./benchmark-layer/benchmark-context";
+export { validateBenchmarkLayer } from "./benchmark-layer/benchmark-validation";

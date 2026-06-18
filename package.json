@@ -115,6 +115,7 @@
         "verify:risk-issue-layer": "tsx scripts/verify-risk-issue-layer.ts",
         "verify:acceptance-layer": "tsx scripts/verify-acceptance-layer.ts",
         "verify:performance-foundation": "tsx scripts/verify-performance-foundation.ts",
+        "verify:benchmark-layer": "tsx scripts/verify-benchmark-layer.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",
         "verify:equipment-knowledge": "tsx scripts/verify-equipment-knowledge.ts",
