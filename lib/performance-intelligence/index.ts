@@ -21,3 +21,13 @@ export { buildProductBenchmarkRegistry } from "./benchmark-layer/product-benchma
 export { buildProjectBenchmarkRegistry } from "./benchmark-layer/project-benchmark-registry";
 export { buildBenchmarkContext } from "./benchmark-layer/benchmark-context";
 export { validateBenchmarkLayer } from "./benchmark-layer/benchmark-validation";
+
+export * from "./optimization-layer/optimization-types";
+export { buildOptimizationOpportunityRegistry } from "./optimization-layer/optimization-opportunity-registry";
+export { buildOptimizationRecommendationRegistry } from "./optimization-layer/optimization-recommendation-registry";
+export {
+  buildOptimizationReasoning,
+  buildOptimizationReasoningForOpportunity,
+} from "./optimization-layer/optimization-reasoning";
+export { buildOptimizationContext } from "./optimization-layer/optimization-context";
+export { validateOptimizationLayer } from "./optimization-layer/optimization-validation";
