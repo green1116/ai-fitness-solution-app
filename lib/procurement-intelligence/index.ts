@@ -58,3 +58,13 @@ export {
   validatePricingAvailability,
   getPricingAvailabilityContextSummary,
 } from "./pricing-availability/pricing-availability-validation";
+
+/** Legacy commercial bundle API (V22/V23 backward compatibility). */
+export {
+  buildCommercialBundle,
+  resolveRegionFromCity,
+} from "./bridge/commercial-bridge";
+export {
+  buildProcurementBundle,
+  buildProcurementSnapshot,
+} from "./bridge/procurement-bridge";

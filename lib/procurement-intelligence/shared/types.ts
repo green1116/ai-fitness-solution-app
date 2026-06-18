@@ -1,5 +1,7 @@
 import type { PI_P1_PHASE, PI_P1_TAG } from "./constants";
 
+export * from "./commercial-types";
+
 export type SupplierAvailabilityStatus =
   | "in-stock"
   | "limited"

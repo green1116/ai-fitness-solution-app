@@ -10,6 +10,8 @@ export type ReasonCategory =
   | "procurement"
   | "decision";
 
+export type { TenderOutcomeStatus } from "../shared/types";
+
 export interface OutcomeReason {
   tenderId: string;
   outcome: TenderOutcomeStatus;
