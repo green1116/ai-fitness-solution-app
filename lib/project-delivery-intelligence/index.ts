@@ -43,3 +43,10 @@ export {
 } from "./risk-issue-layer/issue-scoring";
 export { buildRiskIssueContext } from "./risk-issue-layer/risk-issue-context";
 export { validateRiskIssueLayer } from "./risk-issue-layer/risk-issue-validation";
+
+export * from "./acceptance-layer/acceptance-types";
+export { buildAcceptanceCriteriaRegistry } from "./acceptance-layer/acceptance-criteria-registry";
+export { buildAcceptanceChecks } from "./acceptance-layer/acceptance-check-builder";
+export { assessDeliveryReadiness } from "./acceptance-layer/delivery-readiness";
+export { buildProjectDeliveryFoundationContext } from "./acceptance-layer/foundation-context";
+export { validateAcceptanceLayer } from "./acceptance-layer/acceptance-validation";

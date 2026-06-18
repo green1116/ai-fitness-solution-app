@@ -78,3 +78,23 @@ export const PDI_MIN_DELIVERY_OPEN_ISSUE_COUNT = 3 as const;
 
 export const PDI_UPSTREAM_WIN_LOSS_LAYER =
   "v44-win-loss-intelligence-foundation" as const;
+
+export const PDI_P4_VERSION = "v45-project-delivery-intelligence-p4" as const;
+export const PDI_P4_TAG = PDI_P4_VERSION;
+export const PDI_P4_PHASE = 4 as const;
+export const PDI_FREEZE_TAG = "v45-project-delivery-intelligence-freeze" as const;
+
+export const ACCEPTANCE_CRITERIA_CATEGORY = [
+  "requirement",
+  "product",
+  "procurement",
+  "execution",
+] as const;
+export type AcceptanceCriteriaCategory = (typeof ACCEPTANCE_CRITERIA_CATEGORY)[number];
+
+export const ACCEPTANCE_CHECK_STATUS = ["pass", "warning", "fail"] as const;
+export type AcceptanceCheckStatus = (typeof ACCEPTANCE_CHECK_STATUS)[number];
+
+export const PDI_MIN_ACCEPTANCE_CRITERIA_COUNT = 10 as const;
+export const PDI_MIN_ACCEPTANCE_PASS_RATE = 0.6 as const;
+export const PDI_MIN_DELIVERY_READINESS_SCORE = 60 as const;
