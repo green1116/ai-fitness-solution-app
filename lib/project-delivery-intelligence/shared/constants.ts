@@ -27,3 +27,25 @@ export const PDI_MIN_PROJECT_COUNT = 5 as const;
 export const PDI_MIN_MILESTONE_COUNT = 20 as const;
 export const PDI_MIN_TENDER_LINK_COUNT = 5 as const;
 export const PDI_MIN_REQUIREMENT_LINK_COUNT = 10 as const;
+
+export const PDI_P2_VERSION = "v45-project-delivery-intelligence-p2" as const;
+export const PDI_P2_TAG = PDI_P2_VERSION;
+export const PDI_P2_PHASE = 2 as const;
+
+export const EXECUTION_STATUS = [
+  "planned",
+  "in-progress",
+  "blocked",
+  "completed",
+] as const;
+export type ExecutionStatus = (typeof EXECUTION_STATUS)[number];
+
+export const PDI_MIN_EXECUTION_TASK_COUNT = 20 as const;
+export const PDI_MIN_EXECUTION_STATUS_COVERAGE = 0.8 as const;
+export const PDI_MIN_EXECUTION_PROCUREMENT_LINK_COUNT = 10 as const;
+export const PDI_MIN_EXECUTION_DECISION_LINK_COUNT = 10 as const;
+
+export const PDI_UPSTREAM_DECISION_LAYER =
+  "v42-equivalent-product-intelligence-foundation" as const;
+export const PDI_UPSTREAM_PROCUREMENT_LAYER =
+  "v43-procurement-intelligence-foundation" as const;

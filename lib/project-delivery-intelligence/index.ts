@@ -14,3 +14,16 @@ export { buildMilestoneRegistry } from "./project-foundation/milestone-registry"
 export { buildProjectTenderLinks } from "./project-foundation/project-tender-link";
 export { buildProjectRequirementLinks } from "./project-foundation/project-requirement-link";
 export { validateProjectFoundation } from "./project-foundation/foundation-validation";
+
+export * from "./execution-layer/execution-types";
+export { buildExecutionTaskRegistry } from "./execution-layer/execution-task-registry";
+export {
+  EXECUTION_STATUS,
+  buildExecutionStatusRegistry,
+  calculateExecutionProgress,
+  analyzeExecutionStatusCoverage,
+} from "./execution-layer/execution-status-registry";
+export { buildExecutionProcurementLinks } from "./execution-layer/execution-procurement-link";
+export { buildExecutionDecisionLinks } from "./execution-layer/execution-decision-link";
+export { buildExecutionContext } from "./execution-layer/execution-context";
+export { validateExecutionLayer } from "./execution-layer/execution-validation";
