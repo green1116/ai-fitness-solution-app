@@ -49,3 +49,32 @@ export const PDI_UPSTREAM_DECISION_LAYER =
   "v42-equivalent-product-intelligence-foundation" as const;
 export const PDI_UPSTREAM_PROCUREMENT_LAYER =
   "v43-procurement-intelligence-foundation" as const;
+
+export const PDI_P3_VERSION = "v45-project-delivery-intelligence-p3" as const;
+export const PDI_P3_TAG = PDI_P3_VERSION;
+export const PDI_P3_PHASE = 3 as const;
+
+export const DELIVERY_RISK_LEVEL = ["low", "medium", "high"] as const;
+export type DeliveryRiskLevel = (typeof DELIVERY_RISK_LEVEL)[number];
+
+export const DELIVERY_RISK_CATEGORY = [
+  "availability",
+  "leadTime",
+  "supplier",
+  "execution",
+] as const;
+export type DeliveryRiskCategory = (typeof DELIVERY_RISK_CATEGORY)[number];
+
+export const DELIVERY_ISSUE_SEVERITY = ["minor", "major", "critical"] as const;
+export type DeliveryIssueSeverity = (typeof DELIVERY_ISSUE_SEVERITY)[number];
+
+export const DELIVERY_ISSUE_STATUS = ["open", "mitigating", "closed"] as const;
+export type DeliveryIssueStatus = (typeof DELIVERY_ISSUE_STATUS)[number];
+
+export const PDI_MIN_DELIVERY_RISK_COUNT = 10 as const;
+export const PDI_MIN_DELIVERY_ISSUE_COUNT = 5 as const;
+export const PDI_MIN_DELIVERY_HIGH_RISK_COUNT = 3 as const;
+export const PDI_MIN_DELIVERY_OPEN_ISSUE_COUNT = 3 as const;
+
+export const PDI_UPSTREAM_WIN_LOSS_LAYER =
+  "v44-win-loss-intelligence-foundation" as const;

@@ -27,3 +27,19 @@ export { buildExecutionProcurementLinks } from "./execution-layer/execution-proc
 export { buildExecutionDecisionLinks } from "./execution-layer/execution-decision-link";
 export { buildExecutionContext } from "./execution-layer/execution-context";
 export { validateExecutionLayer } from "./execution-layer/execution-validation";
+
+export * from "./risk-issue-layer/risk-issue-types";
+export { buildDeliveryRiskRegistry } from "./risk-issue-layer/delivery-risk-registry";
+export { buildDeliveryIssueRegistry } from "./risk-issue-layer/delivery-issue-registry";
+export {
+  calculateDeliveryRiskScore,
+  resolveDeliveryRiskLevel,
+  RISK_SCORE_WEIGHTS,
+  RISK_SCORE_REASON_CODES,
+} from "./risk-issue-layer/risk-scoring";
+export {
+  calculateDeliveryIssueSeverity,
+  calculateDeliveryIssueSeverityFromReasons,
+} from "./risk-issue-layer/issue-scoring";
+export { buildRiskIssueContext } from "./risk-issue-layer/risk-issue-context";
+export { validateRiskIssueLayer } from "./risk-issue-layer/risk-issue-validation";
