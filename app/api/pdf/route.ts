@@ -4,13 +4,7 @@ if (process.env.NODE_ENV !== "production") {
   console.log("[PDF_ROUTE]", "20260312_TOKEN_GUARD_UNIFIED");
 }
 import { NextRequest, NextResponse } from "next/server";
-import {
-  BUDGET_ENGINE_FP,
-  BUDGET_PDF_VERSION,
-  renderBudgetPdfBuffer,
-} from "@/lib/pdf/budgetRender";
 import { getBudgetSummary } from "@/lib/services/budgetService";
-import { renderPdf } from "@/lib/pdf/render";
 import {
   parseTenderLevel,
   parseTheme,
@@ -20,9 +14,10 @@ import {
 import { logPdfDownloadSafe, getReqIp } from "@/lib/audit/pdfLog";
 import { requireAndConsumeDownloadToken } from "@/lib/download-token";
 import { webcrypto } from "crypto";
+import { loadBudgetPdfRenderer, loadPlanPdfRenderer } from "@/lib/runtime/lazy-pdf-modules";
+import { runtime, dynamic } from "@/lib/runtime/api-route-policy";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export { runtime, dynamic };
 
 function isInternalPack(req: NextRequest) {
   const flag = (req.headers.get("x-internal-pack") || "").trim();
@@ -190,6 +185,9 @@ export async function GET(req: NextRequest) {
 
     // ---------------- budget ----------------
     if (mode === "budget") {
+      const budgetPdf = await loadBudgetPdfRenderer();
+      const { BUDGET_ENGINE_FP, BUDGET_PDF_VERSION, renderBudgetPdfBuffer } = budgetPdf;
+
       const companyName = safeStr(searchParams.get("companyName"), "示例企业");
       const companySize = toInt(searchParams.get("companySize"), 200);
 
@@ -480,7 +478,8 @@ export async function GET(req: NextRequest) {
       if (deny) return deny;
     }
 
-    const planResult = await renderPdf(planId, {
+    const planPdf = await loadPlanPdfRenderer();
+    const planResult = await planPdf.renderPdf(planId, {
       mode,
       variant,
       internalPack: isInternalPack(req),
@@ -587,6 +586,9 @@ export async function HEAD(req: NextRequest) {
 
     // ---------------- budget HEAD ----------------
     if (mode === "budget") {
+      const budgetPdf = await loadBudgetPdfRenderer();
+      const { BUDGET_ENGINE_FP, BUDGET_PDF_VERSION } = budgetPdf;
+
       const companyName = safeStr(searchParams.get("companyName"), "示例企业");
       const companySize = toInt(searchParams.get("companySize"), 200);
 
