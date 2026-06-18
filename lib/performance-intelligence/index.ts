@@ -31,3 +31,12 @@ export {
 } from "./optimization-layer/optimization-reasoning";
 export { buildOptimizationContext } from "./optimization-layer/optimization-context";
 export { validateOptimizationLayer } from "./optimization-layer/optimization-validation";
+
+export type { PerformanceFoundationContext } from "./freeze-layer/performance-foundation-context";
+export { buildPerformanceFoundationContext } from "./freeze-layer/performance-foundation-context";
+export type { PerformanceSummary } from "./freeze-layer/performance-summary";
+export { buildPerformanceSummary } from "./freeze-layer/performance-summary";
+export type { PerformanceFreezeValidation } from "./freeze-layer/performance-freeze-validation";
+export { validatePerformanceFreeze } from "./freeze-layer/performance-freeze-validation";
+export type { PerformanceFreeze } from "./freeze-layer/performance-freeze";
+export { buildPerformanceFreeze } from "./freeze-layer/performance-freeze";

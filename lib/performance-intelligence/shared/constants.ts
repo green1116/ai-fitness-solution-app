@@ -64,3 +64,11 @@ export const PI_MIN_OPTIMIZATION_OPPORTUNITY_COUNT = 10 as const;
 export const PI_MIN_OPTIMIZATION_RECOMMENDATION_COUNT = 10 as const;
 export const PI_MIN_OPTIMIZATION_HIGH_PRIORITY_COUNT = 3 as const;
 export const PI_MIN_OPTIMIZATION_AVERAGE_CONFIDENCE = 60 as const;
+
+export const PI_P4_VERSION = "v46-performance-intelligence-p4" as const;
+export const PI_P4_TAG = PI_P4_VERSION;
+export const PI_P4_PHASE = 4 as const;
+export const PI_FREEZE_TAG = "v46-performance-intelligence-freeze" as const;
+
+export const PI_MIN_FREEZE_BENCHMARK_COUNT = 10 as const;
+export const PI_MIN_FREEZE_RECOMMENDATION_COUNT = 10 as const;
