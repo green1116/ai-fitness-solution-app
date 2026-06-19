@@ -50,7 +50,7 @@ async function main() {
   console.log("✓ health route boundary ok");
 
   assert(
-    SAAS_PRODUCT_API_META.tag.startsWith("v51-api-exposure-p"),
+    SAAS_PRODUCT_API_META.tag.startsWith("v51-api-exposure-"),
     "API meta tag must remain in v51 exposure lineage",
   );
   assert(SAAS_PRODUCT_API_META.dependencyTag === V50_PERSISTENCE_DEPENDENCY_TAG, "V50 dependency");

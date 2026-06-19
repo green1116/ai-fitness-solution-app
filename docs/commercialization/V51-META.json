@@ -1,0 +1,9 @@
+{
+  "tag": "v51-api-exposure-final",
+  "dependencyTag": "v50-production-persistence-final",
+  "routeCount": 11,
+  "endpointCount": 15,
+  "tenantProtectedCount": 14,
+  "auditStatus": "pass",
+  "frozen": true
+}

@@ -4,6 +4,9 @@ export const SAAS_PRODUCT_API_P3_TAG = "v51-api-exposure-p3" as const;
 export const SAAS_PRODUCT_API_P4_TAG = "v51-api-exposure-p4" as const;
 export const SAAS_PRODUCT_API_P5_TAG = "v51-api-exposure-p5" as const;
 export const SAAS_PRODUCT_API_P6_TAG = "v51-api-exposure-p6" as const;
+export const SAAS_PRODUCT_API_P7_TAG = "v51-api-exposure-p7" as const;
+export const SAAS_PRODUCT_API_P8_TAG = "v51-api-exposure-p8" as const;
+export const SAAS_PRODUCT_API_FINAL_TAG = "v51-api-exposure-final" as const;
 
 export const SAAS_PRODUCT_API_VERSION = "v51-api-exposure" as const;
 

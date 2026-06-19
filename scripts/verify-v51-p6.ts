@@ -14,6 +14,7 @@ import {
   API_ERROR_CODES,
   SAAS_PRODUCT_API_META,
   SAAS_PRODUCT_API_P6_TAG,
+  V50_PERSISTENCE_DEPENDENCY_TAG,
   resetPersistenceRuntimeForTests,
   validateApiP6,
   withApiContext,
@@ -180,9 +181,12 @@ async function main() {
   assert(eventsLines.length < 15, "workflow events route stays thin");
   console.log("✓ audit routes boundary ok");
 
-  assert(SAAS_PRODUCT_API_META.tag === SAAS_PRODUCT_API_P6_TAG, "API meta tag");
-  assert(SAAS_PRODUCT_API_META.phase === "v51-api-exposure-p6", "API meta phase");
-  console.log("✓ API meta ok");
+  assert(
+    SAAS_PRODUCT_API_META.tag.startsWith("v51-api-exposure-"),
+    "API meta tag must remain in v51 exposure lineage",
+  );
+  assert(SAAS_PRODUCT_API_META.dependencyTag === V50_PERSISTENCE_DEPENDENCY_TAG, "V50 dependency");
+  console.log("✓ API meta ok (P6 audit read regression; current meta tag may advance beyond P6)");
 
   console.log(`tag=${SAAS_PRODUCT_API_P6_TAG}`);
   console.log("V51 P6 PASS");

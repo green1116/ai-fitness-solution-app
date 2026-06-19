@@ -1,3 +1,4 @@
+import type { SaasProductApiAuditReport } from "../audit/audit-types";
 import type {
   PersistenceBackend,
   PersistenceRuntime,
@@ -15,6 +16,7 @@ import type {
   SAAS_PRODUCT_API_P4_TAG,
   SAAS_PRODUCT_API_P5_TAG,
   SAAS_PRODUCT_API_P6_TAG,
+  SAAS_PRODUCT_API_P7_TAG,
   SAAS_PRODUCT_API_VERSION,
 } from "./api-constants";
 
@@ -39,7 +41,8 @@ export interface ApiResponseMeta {
     | typeof SAAS_PRODUCT_API_P3_TAG
     | typeof SAAS_PRODUCT_API_P4_TAG
     | typeof SAAS_PRODUCT_API_P5_TAG
-    | typeof SAAS_PRODUCT_API_P6_TAG;
+    | typeof SAAS_PRODUCT_API_P6_TAG
+    | typeof SAAS_PRODUCT_API_P7_TAG;
   version: typeof SAAS_PRODUCT_API_VERSION;
 }
 
@@ -135,4 +138,20 @@ export interface WorkflowEventListApiData {
 export interface ApiP6Validation {
   valid: boolean;
   summary: string;
+}
+
+export interface ApiP7Validation {
+  valid: boolean;
+  summary: string;
+  report?: SaasProductApiAuditReport;
+}
+
+export interface ApiP8Validation {
+  valid: boolean;
+  summary: string;
+  metaLocked?: boolean;
+  documentationReady?: boolean;
+  auditStatus?: string;
+  routeCount?: number;
+  endpointCount?: number;
 }
