@@ -1,0 +1,20 @@
+{
+  "tag": "v52-portal-ui-p2",
+  "phase": "v52-portal-ui-p2",
+  "status": "freeze-ready",
+  "frozen": true,
+  "version": "v52-portal-ui",
+  "dependencyTag": "v52-portal-ui-p1",
+  "apiDependencyTag": "v51-api-exposure-final",
+  "sessionFlow": "cookie → session user → membership → tenant → GET /api/saas-product/me → portal session → portal UI",
+  "routes": ["/saas-product", "/saas-product/settings"],
+  "verifyChecks": [
+    "SESSION_NO_TENANT_PARAM",
+    "COOKIE_RESOLUTION",
+    "ME_ENDPOINT_USAGE",
+    "NO_DIRECT_TENANT_ACCESS",
+    "NO_PRISMA",
+    "NO_V49_V50"
+  ],
+  "nextHorizon": "V52 P3 Workspace UI (not started)"
+}

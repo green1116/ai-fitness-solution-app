@@ -10,6 +10,7 @@ import {
   SAAS_PRODUCT_PORTAL_P2_TAG,
 } from "../lib/saas-product-portal/shared/portal-constants";
 import { SAAS_PRODUCT_PORTAL_META } from "../lib/saas-product-portal/index-meta";
+import { SAAS_PRODUCT_PORTAL_P2_FREEZE } from "../lib/saas-product-portal/freeze/v52-p2-meta";
 
 const PORTAL_ROOT = join(process.cwd(), "lib", "saas-product-portal");
 const APP_PORTAL_ROOT = join(process.cwd(), "app", "saas-product");
@@ -98,10 +99,19 @@ async function main() {
 
   assert(SAAS_PRODUCT_PORTAL_META.tag === SAAS_PRODUCT_PORTAL_P2_TAG, "portal meta tag");
   assert(SAAS_PRODUCT_PORTAL_META.phase === "v52-portal-ui-p2", "portal meta phase");
+  assert(SAAS_PRODUCT_PORTAL_META.status === "freeze-ready", "portal meta status");
+  assert(SAAS_PRODUCT_PORTAL_P2_FREEZE.frozen === true, "P2 freeze lock");
+  assert(SAAS_PRODUCT_PORTAL_P2_FREEZE.status === "freeze-ready", "P2 freeze-ready status");
+  for (const deliverable of SAAS_PRODUCT_PORTAL_P2_FREEZE.deliverables) {
+    assert(existsSync(join(process.cwd(), deliverable)), deliverable);
+  }
   console.log("✓ portal meta ok");
+  console.log("✓ P2 deliverables ok");
+  console.log("✓ P2 freeze-ready ok");
 
   console.log(`tag=${SAAS_PRODUCT_PORTAL_P2_TAG}`);
-  console.log("V52 P2 PASS");
+  console.log("status=freeze-ready");
+  console.log("V52 P2 FREEZE READY");
 }
 
 main().catch((error) => {

@@ -7,7 +7,7 @@ export function DashboardPageContent() {
       <section className="space-y-2">
         <h3 className="text-2xl font-semibold">Enterprise Portal</h3>
         <p className="text-sm text-zinc-400">
-          V52 P1 shell foundation · Workspace / Quote / Workflow surfaces arrive in P3~P6.
+          V52 P2 session wired · functional surfaces remain in future V52 phases (not started).
         </p>
       </section>
 
