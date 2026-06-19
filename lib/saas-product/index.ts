@@ -23,8 +23,21 @@ export {
   validateWorkspaceProductBinding,
   assertV48LayersUnmodified,
 } from "./validation/validate-saas-product-p1";
+export * from "./shared/context-types";
+export * from "./shared/context-errors";
+export { bindTenantContext } from "./context/tenant-context";
+export { bindWorkspaceContext } from "./context/workspace-context";
+export { bindProductContext } from "./context/product-context";
+export { resolveProductContext } from "./context/resolve-product-context";
+export {
+  validateProductContextShape,
+  validateProductContextCompatibility,
+  validateResolvedProductContext,
+  validateSaasProductP2ModuleExports,
+} from "./validation/validate-saas-product-p2";
 
 export const SAAS_PRODUCT_META = {
-  version: "v49-saas-product-p1",
-  tag: "v49-saas-product-p1",
+  version: "v49-saas-product-p2",
+  tag: "v49-saas-product-p2",
+  phases: ["v49-saas-product-p1", "v49-saas-product-p2"],
 } as const;
