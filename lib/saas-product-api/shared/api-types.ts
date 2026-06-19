@@ -1,4 +1,11 @@
-import type { PersistenceBackend, PersistenceRuntime, QuoteRecord, WorkflowRecord } from "@/lib/saas-product-persistence";
+import type {
+  PersistenceBackend,
+  PersistenceRuntime,
+  QuoteRecord,
+  WorkflowEventRecord,
+  WorkflowHistoryRecord,
+  WorkflowRecord,
+} from "@/lib/saas-product-persistence";
 import type { ApiErrorCode } from "./api-errors";
 import type { WorkspaceRecord } from "@/lib/saas-product-persistence";
 import type {
@@ -6,6 +13,7 @@ import type {
   SAAS_PRODUCT_API_P2_TAG,
   SAAS_PRODUCT_API_P3_TAG,
   SAAS_PRODUCT_API_P4_TAG,
+  SAAS_PRODUCT_API_P5_TAG,
   SAAS_PRODUCT_API_VERSION,
 } from "./api-constants";
 
@@ -28,7 +36,8 @@ export interface ApiResponseMeta {
     | typeof SAAS_PRODUCT_API_P1_TAG
     | typeof SAAS_PRODUCT_API_P2_TAG
     | typeof SAAS_PRODUCT_API_P3_TAG
-    | typeof SAAS_PRODUCT_API_P4_TAG;
+    | typeof SAAS_PRODUCT_API_P4_TAG
+    | typeof SAAS_PRODUCT_API_P5_TAG;
   version: typeof SAAS_PRODUCT_API_VERSION;
 }
 
@@ -90,6 +99,25 @@ export interface QuoteListApiData {
 }
 
 export interface ApiP4Validation {
+  valid: boolean;
+  summary: string;
+}
+
+export interface WorkflowGetApiData {
+  workflow: WorkflowRecord;
+}
+
+export interface WorkflowListApiData {
+  workflows: WorkflowRecord[];
+}
+
+export interface WorkflowTransitionApiData {
+  workflow: WorkflowRecord;
+  history: WorkflowHistoryRecord;
+  event: WorkflowEventRecord;
+}
+
+export interface ApiP5Validation {
   valid: boolean;
   summary: string;
 }

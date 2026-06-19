@@ -1,5 +1,5 @@
 import {
-  SAAS_PRODUCT_API_P4_TAG,
+  SAAS_PRODUCT_API_P5_TAG,
   SAAS_PRODUCT_API_VERSION,
   V50_PERSISTENCE_DEPENDENCY_TAG,
 } from "./shared/api-constants";
@@ -24,14 +24,20 @@ export {
   handleListQuotes,
   handleUpdateQuote,
 } from "./handlers/quote-handlers";
+export {
+  handleGetWorkflow,
+  handleListWorkflows,
+  handleTransitionWorkflow,
+} from "./handlers/workflow-handlers";
 export { validateApiP1 } from "./validation/validate-api-p1";
 export { validateApiP2 } from "./validation/validate-api-p2";
 export { validateApiP3 } from "./validation/validate-api-p3";
 export { validateApiP4 } from "./validation/validate-api-p4";
+export { validateApiP5 } from "./validation/validate-api-p5";
 
 export const SAAS_PRODUCT_API_META = {
   version: SAAS_PRODUCT_API_VERSION,
-  tag: SAAS_PRODUCT_API_P4_TAG,
-  phase: "v51-api-exposure-p4",
+  tag: SAAS_PRODUCT_API_P5_TAG,
+  phase: "v51-api-exposure-p5",
   dependencyTag: V50_PERSISTENCE_DEPENDENCY_TAG,
 } as const;
