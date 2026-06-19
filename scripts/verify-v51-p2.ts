@@ -13,6 +13,7 @@ import {
   SAAS_PRODUCT_API_META,
   SAAS_PRODUCT_API_P2_TAG,
   API_ERROR_CODES,
+  V50_PERSISTENCE_DEPENDENCY_TAG,
   validateApiP2,
   withApiContext,
   handleMe,
@@ -73,9 +74,12 @@ async function main() {
   assert(routeLines.length < 15, "me route stays thin");
   console.log("✓ me route boundary ok");
 
-  assert(SAAS_PRODUCT_API_META.tag === SAAS_PRODUCT_API_P2_TAG, "API meta tag");
-  assert(SAAS_PRODUCT_API_META.phase === "v51-api-exposure-p2", "API meta phase");
-  console.log("✓ API meta ok");
+  assert(
+    SAAS_PRODUCT_API_META.tag.startsWith("v51-api-exposure-p"),
+    "API meta tag must remain in v51 exposure lineage",
+  );
+  assert(SAAS_PRODUCT_API_META.dependencyTag === V50_PERSISTENCE_DEPENDENCY_TAG, "V50 dependency");
+  console.log("✓ API meta ok (P2 tenant regression; current meta tag may advance beyond P2)");
 
   console.log(`tag=${SAAS_PRODUCT_API_P2_TAG}`);
   console.log("V51 P2 PASS");

@@ -1,6 +1,12 @@
 import type { PersistenceBackend, PersistenceRuntime } from "@/lib/saas-product-persistence";
 import type { ApiErrorCode } from "./api-errors";
-import type { SAAS_PRODUCT_API_P1_TAG, SAAS_PRODUCT_API_P2_TAG, SAAS_PRODUCT_API_VERSION } from "./api-constants";
+import type { WorkspaceRecord } from "@/lib/saas-product-persistence";
+import type {
+  SAAS_PRODUCT_API_P1_TAG,
+  SAAS_PRODUCT_API_P2_TAG,
+  SAAS_PRODUCT_API_P3_TAG,
+  SAAS_PRODUCT_API_VERSION,
+} from "./api-constants";
 
 export interface ApiErrorBody {
   ok: false;
@@ -17,7 +23,10 @@ export interface ApiSuccessBody<T> {
 export type ApiResponseBody<T> = ApiSuccessBody<T> | ApiErrorBody;
 
 export interface ApiResponseMeta {
-  tag: typeof SAAS_PRODUCT_API_P1_TAG | typeof SAAS_PRODUCT_API_P2_TAG;
+  tag:
+    | typeof SAAS_PRODUCT_API_P1_TAG
+    | typeof SAAS_PRODUCT_API_P2_TAG
+    | typeof SAAS_PRODUCT_API_P3_TAG;
   version: typeof SAAS_PRODUCT_API_VERSION;
 }
 
@@ -48,6 +57,19 @@ export interface MeApiData {
 }
 
 export interface ApiP2Validation {
+  valid: boolean;
+  summary: string;
+}
+
+export interface WorkspaceApiData {
+  workspace: WorkspaceRecord;
+}
+
+export interface WorkspaceListApiData {
+  workspaces: WorkspaceRecord[];
+}
+
+export interface ApiP3Validation {
   valid: boolean;
   summary: string;
 }

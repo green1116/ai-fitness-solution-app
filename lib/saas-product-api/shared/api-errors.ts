@@ -32,3 +32,11 @@ export function apiUnauthorized(message = "Unauthorized"): SaasProductApiError {
 export function apiTenantRequired(message = "tenantId is required"): SaasProductApiError {
   return new SaasProductApiError(API_ERROR_CODES.API_TENANT_REQUIRED, message, 401);
 }
+
+export function apiNotFound(message = "Not found"): SaasProductApiError {
+  return new SaasProductApiError(API_ERROR_CODES.API_NOT_FOUND, message, 404);
+}
+
+export function apiValidationFailed(message: string): SaasProductApiError {
+  return new SaasProductApiError(API_ERROR_CODES.API_VALIDATION_FAILED, message, 400);
+}
