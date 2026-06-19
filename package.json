@@ -143,6 +143,7 @@
         "verify:saas-product-p3": "tsx scripts/verify-saas-product-p3.ts",
         "verify:saas-product-p4": "tsx scripts/verify-saas-product-p4.ts",
         "verify:saas-product-p5": "tsx scripts/verify-saas-product-p5.ts",
+        "verify:saas-product-p6": "tsx scripts/verify-saas-product-p6.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",
         "verify:equipment-knowledge": "tsx scripts/verify-equipment-knowledge.ts",

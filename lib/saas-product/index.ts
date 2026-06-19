@@ -109,15 +109,34 @@ export {
   recordWorkflowP5Event,
 } from "./workflow-runtime/business-process-runtime";
 export { validateSaasProductP5Runtime } from "./validation/validate-saas-product-p5";
+export * from "./shared/portal-runtime-types";
+export * from "./shared/portal-runtime-errors";
+export {
+  resolvePortalContext,
+  composePortalModel,
+  buildPortalView,
+  listPortalProducts,
+  getPortalCapabilities,
+  buildPortalRoutingMap,
+  resolvePortalRoute,
+  PORTAL_ROUTE_PATTERNS,
+  readProductContextForPortal,
+  readWorkspaceProductsForPortal,
+  readWorkspaceProductForPortal,
+  readWorkflowsForWorkspaceProduct,
+  readAllWorkflowsForPortal,
+} from "./portal/portal-runtime";
+export { validateSaasProductP6Runtime } from "./validation/validate-saas-product-p6";
 
 export const SAAS_PRODUCT_META = {
-  version: "v49-saas-product-p5",
-  tag: "v49-saas-product-p5",
+  version: "v49-saas-product-p6",
+  tag: "v49-saas-product-p6",
   phases: [
     "v49-saas-product-p1",
     "v49-saas-product-p2",
     "v49-saas-product-p3",
     "v49-saas-product-p4",
     "v49-saas-product-p5",
+    "v49-saas-product-p6",
   ],
 } as const;
