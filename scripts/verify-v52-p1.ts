@@ -4,10 +4,10 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import {
-  SAAS_PRODUCT_PORTAL_META,
   SAAS_PRODUCT_PORTAL_P1_TAG,
   runPortalBoundaryAudit,
   validatePortalP1,
+  SAAS_PRODUCT_PORTAL_P1_FREEZE,
 } from "../lib/saas-product-portal";
 
 function assert(cond: boolean, msg: string) {
@@ -40,9 +40,8 @@ async function main() {
   assertRouteLinesUnderLimit(join(appRoot, "settings", "page.tsx"), 15);
   console.log("✓ portal app routes boundary ok");
 
-  assert(SAAS_PRODUCT_PORTAL_META.tag === SAAS_PRODUCT_PORTAL_P1_TAG, "portal meta tag");
-  assert(SAAS_PRODUCT_PORTAL_META.phase === "v52-portal-ui-p1", "portal meta phase");
-  console.log("✓ portal meta ok");
+  assert(SAAS_PRODUCT_PORTAL_P1_FREEZE.tag === SAAS_PRODUCT_PORTAL_P1_TAG, "portal p1 freeze tag");
+  console.log("✓ portal p1 freeze tag ok");
 
   console.log(`tag=${SAAS_PRODUCT_PORTAL_P1_TAG}`);
   console.log("V52 P1 PASS");

@@ -1,6 +1,6 @@
-import { SettingsPageContent, requirePortalSessionServer } from "@/lib/saas-product-portal";
+import { SettingsPageContent, requirePortalSession } from "@/lib/saas-product-portal";
 
 export default async function SaasProductSettingsPage() {
-  const session = await requirePortalSessionServer();
+  const session = await requirePortalSession();
   return <SettingsPageContent session={session} />;
 }

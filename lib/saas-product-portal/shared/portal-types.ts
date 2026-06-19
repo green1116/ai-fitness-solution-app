@@ -14,10 +14,24 @@ export interface PortalTenant {
   tenantId: string;
 }
 
+export interface PortalMembership {
+  id: string;
+  userId: string;
+  tenantId: string;
+  organizationId?: string;
+  workspaceId?: string;
+  roleSystemCode?: string;
+  portalType?: string;
+}
+
+export type PortalSessionSource = "cookie" | "headers" | "none";
+
 export interface PortalSessionState {
   user: PortalUser | null;
   tenant: PortalTenant | null;
   role?: string;
+  membership?: PortalMembership | null;
+  sessionSource?: PortalSessionSource;
   portalDisplayName?: string;
   loading: boolean;
   error: string | null;
@@ -26,6 +40,8 @@ export interface PortalSessionState {
 export interface PortalSessionSnapshot extends PortalSessionState {
   user: PortalUser;
   tenant: PortalTenant;
+  membership: PortalMembership;
+  sessionSource: PortalSessionSource;
   navigation: NavigationItem[];
 }
 
@@ -51,4 +67,13 @@ export interface PortalKpiSnapshot {
 export interface PortalP1Validation {
   valid: boolean;
   summary: string;
+}
+
+export interface PortalSessionValidation {
+  valid: boolean;
+  summary: string;
+  userId?: string;
+  tenantId?: string;
+  role?: string;
+  membershipId?: string;
 }

@@ -1,5 +1,7 @@
 export const SAAS_PRODUCT_PORTAL_P1_TAG = "v52-portal-ui-p1" as const;
 
+export const SAAS_PRODUCT_PORTAL_P2_TAG = "v52-portal-ui-p2" as const;
+
 export const SAAS_PRODUCT_PORTAL_VERSION = "v52-portal-ui" as const;
 
 export const SAAS_PRODUCT_PORTAL_ROUTE_PREFIX = "/saas-product" as const;
@@ -13,6 +15,10 @@ export const SAAS_PRODUCT_API_ROUTE_PREFIX = "/api/saas-product" as const;
 export const SAAS_PRODUCT_API_ME_PATH = `${SAAS_PRODUCT_API_ROUTE_PREFIX}/me` as const;
 
 export const V51_API_DEPENDENCY_TAG = "v51-api-exposure-final" as const;
+
+export const PORTAL_SESSION_HEADER_USER_ID = "x-user-id" as const;
+
+export const PORTAL_SESSION_HEADER_USER_EMAIL = "x-user-email" as const;
 
 export const PORTAL_PRODUCT_NAV_PATHS: Record<string, string> = {
   dashboard: SAAS_PRODUCT_PORTAL_DASHBOARD_PATH,

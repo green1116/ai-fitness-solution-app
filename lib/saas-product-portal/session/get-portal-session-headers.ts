@@ -1,20 +1,22 @@
-import { cookies } from "next/headers";
-import { getDefaultMockMembershipUserId } from "@/lib/saas-runtime";
+import {
+  PORTAL_SESSION_HEADER_USER_EMAIL,
+  PORTAL_SESSION_HEADER_USER_ID,
+} from "../shared/portal-constants";
+import { resolveSessionUserFromCookieOrHeaders } from "./resolve-cookie-session-user";
 
 /**
- * P1 session bridge: when an auth session cookie exists, map to V48 mock enterprise headers
- * so /api/saas-product/me can resolve tenant via resolveTenantContext.
- * P2 will replace this with cookie-backed membership resolution.
+ * Real session resolver (V52 P2).
+ * Sources: HttpOnly session cookie → membership userId, or trusted internal x-user-* headers.
+ * Never reads tenantId from query or body.
  */
 export async function getPortalSessionHeaders(): Promise<Record<string, string> | null> {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("session")?.value;
-  if (!sessionCookie) {
+  const resolved = await resolveSessionUserFromCookieOrHeaders();
+  if (!resolved) {
     return null;
   }
 
   return {
-    "x-user-id": getDefaultMockMembershipUserId(),
-    "x-user-email": "owner@example.com",
+    [PORTAL_SESSION_HEADER_USER_ID]: resolved.sessionUser.userId,
+    [PORTAL_SESSION_HEADER_USER_EMAIL]: resolved.sessionUser.email,
   };
 }
