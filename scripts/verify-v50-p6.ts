@@ -85,7 +85,7 @@ async function main() {
     assert(comparison.passed, "parity comparison passed");
     console.log("✓ memory vs prisma parity ok");
 
-    assert(SAAS_PRODUCT_PERSISTENCE_META.readyToFreeze === true, "ready to freeze");
+    assert(SAAS_PRODUCT_PERSISTENCE_META.frozen === true, "frozen");
     console.log("✓ ready to freeze ok");
 
     if (comparison.cleanup) {

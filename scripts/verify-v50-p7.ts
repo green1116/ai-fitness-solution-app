@@ -69,7 +69,7 @@ async function main() {
   assert(flow.workflow.workflowType === "QUOTE", "workflow create in loop");
   console.log("✓ runtime verification ok");
 
-  assert(SAAS_PRODUCT_PERSISTENCE_META.readyToFreeze === true, "ready to freeze");
+  assert(SAAS_PRODUCT_PERSISTENCE_META.frozen === true, "frozen");
   console.log("✓ ready to freeze ok");
 
   console.log(`tag=${SAAS_PRODUCT_PERSISTENCE_P7_TAG}`);

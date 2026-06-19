@@ -97,7 +97,7 @@ async function main() {
   console.log("✓ memory workflow transition ok");
 
   assert(PERSISTENCE_ADAPTER_OPERATIONS.length === 2, "adapter operation catalog");
-  assert(SAAS_PRODUCT_PERSISTENCE_META.readyToFreeze === true, "ready to freeze");
+  assert(SAAS_PRODUCT_PERSISTENCE_META.frozen === true, "frozen");
   console.log("✓ ready to freeze ok");
 
   console.log(`tag=${SAAS_PRODUCT_PERSISTENCE_P5_TAG}`);

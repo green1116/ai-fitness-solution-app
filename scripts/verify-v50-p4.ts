@@ -144,7 +144,7 @@ async function main() {
       PERSISTENCE_QUOTE_WORKFLOW_RUNTIME_OPERATIONS.length === 3,
       "quote workflow runtime operation catalog",
     );
-    assert(SAAS_PRODUCT_PERSISTENCE_META.readyToFreeze === true, "ready to freeze");
+    assert(SAAS_PRODUCT_PERSISTENCE_META.frozen === true, "frozen");
     console.log("✓ ready to freeze ok");
 
     console.log(`tag=${SAAS_PRODUCT_PERSISTENCE_P4_TAG}`);

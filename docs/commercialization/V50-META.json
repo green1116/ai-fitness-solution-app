@@ -1,0 +1,215 @@
+{
+  "tag": "v50-production-persistence-final",
+  "p8Tag": "v50-production-persistence-p8",
+  "version": "v50-production-persistence-layer",
+  "status": "frozen",
+  "layerStack": [
+    {
+      "phase": "P1",
+      "name": "Schema Foundation",
+      "tag": "v50-production-persistence-p1"
+    },
+    {
+      "phase": "P2",
+      "name": "Repository Foundation",
+      "tag": "v50-production-persistence-p2"
+    },
+    {
+      "phase": "P3",
+      "name": "Workspace Persistence Runtime",
+      "tag": "v50-production-persistence-p3"
+    },
+    {
+      "phase": "P4",
+      "name": "Quote Workflow Persistence",
+      "tag": "v50-production-persistence-p4"
+    },
+    {
+      "phase": "P5",
+      "name": "Persistence Adapter Foundation",
+      "tag": "v50-production-persistence-p5"
+    },
+    {
+      "phase": "P6",
+      "name": "Parity System",
+      "tag": "v50-production-persistence-p6"
+    },
+    {
+      "phase": "P7",
+      "name": "Audit Sweep",
+      "tag": "v50-production-persistence-p7"
+    },
+    {
+      "phase": "P8",
+      "name": "Production Persistence Freeze",
+      "tag": "v50-production-persistence-final"
+    }
+  ],
+  "dependencyGraph": {
+    "direction": "P1 → P2 → P3/P4 → P5 → P6 → P7 → P8",
+    "edges": [
+      {
+        "from": "P1",
+        "to": "P2",
+        "via": "Prisma schema → Repository contracts"
+      },
+      {
+        "from": "P2",
+        "to": "P3",
+        "via": "WorkspaceRepository → Workspace Runtime"
+      },
+      {
+        "from": "P2",
+        "to": "P4",
+        "via": "Workflow/History/Event repositories → Quote Workflow Runtime"
+      },
+      {
+        "from": "P3/P4",
+        "to": "P5",
+        "via": "memory + prisma adapter unification"
+      },
+      {
+        "from": "P5",
+        "to": "P6",
+        "via": "backend parity validation"
+      },
+      {
+        "from": "P1~P7",
+        "to": "P7",
+        "via": "freeze-pre audit sweep"
+      },
+      {
+        "from": "P1~P7",
+        "to": "P8",
+        "via": "meta freeze + documentation lock"
+      }
+    ],
+    "forbidden": [
+      "V50 → mutate V49 saas-product runtime",
+      "V50 → mutate V48 SaaS foundation layers",
+      "Runtime → direct Prisma import",
+      "P1~P7 → Approval / Delivery / Release workflows",
+      "P8 → API routes or UI (deferred to V51)"
+    ]
+  },
+  "frozenRuntimeContracts": [
+    {
+      "name": "createWorkspacePersisted",
+      "layer": "P3",
+      "frozen": true
+    },
+    {
+      "name": "resolveWorkspacePersisted",
+      "layer": "P3",
+      "frozen": true
+    },
+    {
+      "name": "createQuoteWorkflow",
+      "layer": "P4",
+      "frozen": true
+    },
+    {
+      "name": "transitionQuoteWorkflow",
+      "layer": "P4",
+      "frozen": true
+    },
+    {
+      "name": "createPersistenceRuntime",
+      "layer": "P5",
+      "frozen": true
+    },
+    {
+      "name": "resolvePersistenceBackend",
+      "layer": "P5",
+      "frozen": true
+    },
+    {
+      "name": "runMemoryPrismaParity",
+      "layer": "P6",
+      "frozen": true
+    },
+    {
+      "name": "runPersistenceAuditSweep",
+      "layer": "P7",
+      "frozen": true
+    }
+  ],
+  "frozenTypeContracts": [
+    "WorkspaceRecord",
+    "QuoteRecord",
+    "WorkflowRecord",
+    "WorkflowHistoryRecord",
+    "WorkflowEventRecord",
+    "PersistenceRuntime",
+    "QuoteWorkflowMutationResult"
+  ],
+  "apiMap": {
+    "schema": [
+      "saas_product_workspace",
+      "saas_product_quote",
+      "saas_product_workflow_instance",
+      "saas_product_workflow_history",
+      "saas_product_workflow_event"
+    ],
+    "repositories": [
+      "WorkspaceRepository",
+      "QuoteRepository",
+      "WorkflowRepository",
+      "WorkflowHistoryRepository",
+      "WorkflowEventRepository"
+    ],
+    "workspaceRuntime": [
+      "createWorkspacePersisted",
+      "resolveWorkspacePersisted",
+      "listWorkspacesPersisted",
+      "updateWorkspaceStatusPersisted",
+      "archiveWorkspacePersisted"
+    ],
+    "quoteWorkflowRuntime": [
+      "createQuoteWorkflow",
+      "transitionQuoteWorkflow",
+      "listQuoteWorkflows"
+    ],
+    "adapter": [
+      "createPersistenceRuntime",
+      "resolvePersistenceBackend"
+    ],
+    "parity": [
+      "runMemoryPrismaParity",
+      "detectParityMismatches",
+      "buildParityDiffReport"
+    ],
+    "audit": [
+      "tenant-isolation",
+      "repository-boundary",
+      "runtime-boundary",
+      "v49-frozen-boundary",
+      "v48-frozen-boundary",
+      "persistence-closed-loop",
+      "commercial-readiness"
+    ],
+    "backends": [
+      "memory",
+      "prisma"
+    ]
+  },
+  "layerBoundaries": {
+    "v38_v48": "frozen — no modifications",
+    "v49": "frozen memory runtime — parallel to V50 persistence, no cross-import",
+    "v50_persistence": "frozen — P1~P7 implementation + P8 meta lock",
+    "database": "Prisma only inside repository layer",
+    "api_routes": "no V50 API routes — deferred to V51",
+    "ui": "no V50 UI"
+  },
+  "phaseTags": [
+    "v50-production-persistence-p1",
+    "v50-production-persistence-p2",
+    "v50-production-persistence-p3",
+    "v50-production-persistence-p4",
+    "v50-production-persistence-p5",
+    "v50-production-persistence-p6",
+    "v50-production-persistence-p7",
+    "v50-production-persistence-final"
+  ],
+  "nextHorizon": "V51 API Exposure Layer"
+}

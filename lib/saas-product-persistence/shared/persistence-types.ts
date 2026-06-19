@@ -161,6 +161,11 @@ export interface PersistenceP7Validation {
   audit: import("../audit/audit-types").PersistenceAuditResult;
 }
 
+export interface PersistenceP8Validation {
+  valid: boolean;
+  summary: string;
+}
+
 export type PersistenceBackend = (typeof PERSISTENCE_BACKENDS)[number];
 
 export interface CreatePersistenceRuntimeOptions {

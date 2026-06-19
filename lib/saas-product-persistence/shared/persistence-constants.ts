@@ -5,6 +5,8 @@ export const SAAS_PRODUCT_PERSISTENCE_P4_TAG = "v50-production-persistence-p4" a
 export const SAAS_PRODUCT_PERSISTENCE_P5_TAG = "v50-production-persistence-p5" as const;
 export const SAAS_PRODUCT_PERSISTENCE_P6_TAG = "v50-production-persistence-p6" as const;
 export const SAAS_PRODUCT_PERSISTENCE_P7_TAG = "v50-production-persistence-p7" as const;
+export const SAAS_PRODUCT_PERSISTENCE_P8_TAG = "v50-production-persistence-p8" as const;
+export const SAAS_PRODUCT_PERSISTENCE_FINAL_TAG = "v50-production-persistence-final" as const;
 
 export const PERSISTENCE_BACKEND_ENV_KEY = "SAAS_PRODUCT_PERSISTENCE_BACKEND" as const;
 
