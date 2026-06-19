@@ -32,6 +32,11 @@ export const COMMERCIAL_PRODUCTS_ROUTE_TIERS: ApiRouteTierEntry[] = [
     tier: "heavy",
     description: "Product deliverable package (cover/summary/plan/budget/manifest/zip)",
   },
+  {
+    path: "/api/commercial-products/delivery",
+    tier: "heavy",
+    description: "Delivery orchestration engine (policy/decision/plan)",
+  },
 ];
 
 export const HEAVY_PDF_ROUTE_PREFIXES = [
