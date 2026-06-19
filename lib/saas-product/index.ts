@@ -51,9 +51,39 @@ export {
   getWorkspaceProductRepositorySize,
 } from "./workspace-runtime/workspace-product-runtime";
 export { validateSaasProductP3Runtime } from "./validation/validate-saas-product-p3";
+export * from "./shared/workflow-runtime-types";
+export * from "./shared/workflow-runtime-errors";
+export {
+  QUOTE_WORKFLOW_STATES,
+  QUOTE_WORKFLOW_TRANSITIONS,
+} from "./workflow-runtime/workflow-types";
+export {
+  createQuoteWorkflow,
+  resolveWorkflow,
+  listWorkflowInstances,
+  transitionWorkflow,
+  validateTransition,
+  getAllowedTransitions,
+  assertValidWorkflowState,
+  appendWorkflowHistory,
+  mapWorkflowToCommercialAdapterContext,
+  validateWorkflowInstance,
+  assertValidWorkflowInstance,
+  clearWorkflowRepository,
+  getWorkflowRepositorySize,
+  clearWorkflowEvents,
+  listWorkflowEvents,
+  getWorkflowEventCount,
+} from "./workflow-runtime/quote-workflow-runtime";
+export { validateSaasProductP4Runtime } from "./validation/validate-saas-product-p4";
 
 export const SAAS_PRODUCT_META = {
-  version: "v49-saas-product-p3",
-  tag: "v49-saas-product-p3",
-  phases: ["v49-saas-product-p1", "v49-saas-product-p2", "v49-saas-product-p3"],
+  version: "v49-saas-product-p4",
+  tag: "v49-saas-product-p4",
+  phases: [
+    "v49-saas-product-p1",
+    "v49-saas-product-p2",
+    "v49-saas-product-p3",
+    "v49-saas-product-p4",
+  ],
 } as const;
