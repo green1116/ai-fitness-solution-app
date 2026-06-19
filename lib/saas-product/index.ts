@@ -76,14 +76,48 @@ export {
   getWorkflowEventCount,
 } from "./workflow-runtime/quote-workflow-runtime";
 export { validateSaasProductP4Runtime } from "./validation/validate-saas-product-p4";
+export * from "./shared/workflow-p5-types";
+export * from "./shared/workflow-runtime-errors-p5";
+export {
+  APPROVAL_WORKFLOW_STATES,
+  APPROVAL_WORKFLOW_TRANSITIONS,
+  DELIVERY_WORKFLOW_STATES,
+  DELIVERY_WORKFLOW_TRANSITIONS,
+  RELEASE_WORKFLOW_STATES,
+  RELEASE_WORKFLOW_TRANSITIONS,
+  createApprovalWorkflow,
+  createDeliveryWorkflow,
+  createReleaseWorkflow,
+  transitionBusinessWorkflow,
+  validateBusinessTransition,
+  getBusinessAllowedTransitions,
+  assertValidBusinessWorkflowState,
+  getInitialBusinessWorkflowState,
+  getTerminalBusinessWorkflowState,
+  WORKFLOW_DEPENDENCY_RULES,
+  getWorkflowDependencyRule,
+  checkWorkflowDependency,
+  assertWorkflowDependency,
+  validateBusinessWorkflowInstance,
+  assertValidBusinessWorkflowInstance,
+  buildBusinessProcessAdapterContext,
+  isBusinessProcessReady,
+  recordBusinessProcessReadyEvent,
+  clearWorkflowP5Events,
+  listWorkflowP5Events,
+  getWorkflowP5EventCount,
+  recordWorkflowP5Event,
+} from "./workflow-runtime/business-process-runtime";
+export { validateSaasProductP5Runtime } from "./validation/validate-saas-product-p5";
 
 export const SAAS_PRODUCT_META = {
-  version: "v49-saas-product-p4",
-  tag: "v49-saas-product-p4",
+  version: "v49-saas-product-p5",
+  tag: "v49-saas-product-p5",
   phases: [
     "v49-saas-product-p1",
     "v49-saas-product-p2",
     "v49-saas-product-p3",
     "v49-saas-product-p4",
+    "v49-saas-product-p5",
   ],
 } as const;
