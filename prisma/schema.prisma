@@ -45,7 +45,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  bindings LicenseBinding[]
+  bindings    LicenseBinding[]
+  memberships SaasMembership[]
 }
 
 model LicenseBinding {
@@ -370,4 +371,198 @@ enum DocumentType {
   budget
   merged
   zip
+}
+
+// ═══════════════════════════════════════════════════════════
+// V48 Production SaaS Foundation — Phase 1
+// Tag: v48-saas-foundation-p1
+//
+// Relations:
+//   SaasTenant -> SaasOrganization / SaasWorkspace / SaasMembership / SaasSubscription / SaasEntitlementGrant
+//   SaasOrganization -> SaasWorkspace / SaasMembership
+//   SaasWorkspace -> SaasMembership
+//   SaasMembership -> User / SaasOrganization / SaasWorkspace
+//   SaasRole -> SaasPermission (via SaasRolePermission)
+//   SaasPlan -> SaasSubscription (features/quota JSON on SaasPlan)
+// ═══════════════════════════════════════════════════════════
+
+model SaasTenant {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  name       String
+  status     String   @default("active")
+  portalType String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  organizations SaasOrganization[]
+  workspaces    SaasWorkspace[]
+  memberships   SaasMembership[]
+  subscription  SaasSubscription?
+  grants        SaasEntitlementGrant[]
+
+  @@index([status])
+  @@index([portalType])
+  @@map("saas_tenant")
+}
+
+model SaasOrganization {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  orgType   String
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      SaasTenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workspaces  SaasWorkspace[]
+  memberships SaasMembership[]
+
+  @@index([tenantId])
+  @@index([tenantId, orgType])
+  @@map("saas_organization")
+}
+
+model SaasWorkspace {
+  id             String   @id @default(cuid())
+  tenantId       String
+  organizationId String
+  name           String
+  workspaceType  String
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant       SaasTenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization SaasOrganization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships  SaasMembership[]
+
+  @@index([tenantId])
+  @@index([organizationId])
+  @@index([tenantId, organizationId])
+  @@map("saas_workspace")
+}
+
+model SaasMembership {
+  id             String   @id @default(cuid())
+  tenantId       String
+  organizationId String
+  workspaceId    String
+  userId         String
+  roleId         String
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant       SaasTenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization SaasOrganization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace    SaasWorkspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         SaasRole         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, userId])
+  @@index([tenantId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([tenantId, organizationId])
+  @@map("saas_membership")
+}
+
+model SaasRole {
+  id         String   @id @default(cuid())
+  tenantId   String?
+  systemCode String?  @unique
+  name       String
+  scope      String
+  portalType String?
+  isSystem   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  permissions SaasRolePermission[]
+  memberships SaasMembership[]
+
+  @@index([tenantId])
+  @@index([portalType])
+  @@map("saas_role")
+}
+
+model SaasPermission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  resource    String
+  action      String
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles SaasRolePermission[]
+
+  @@index([resource])
+  @@map("saas_permission")
+}
+
+model SaasRolePermission {
+  roleId       String
+  permissionId String
+
+  role       SaasRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission SaasPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("saas_role_permission")
+}
+
+model SaasPlan {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  priceMonthly Int      @default(0)
+  features     Json
+  quotas       Json
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subscriptions SaasSubscription[]
+
+  @@map("saas_plan")
+}
+
+model SaasSubscription {
+  id                 String    @id @default(cuid())
+  tenantId           String    @unique
+  planId             String
+  status             String    @default("trialing")
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  canceledAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  tenant SaasTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   SaasPlan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@map("saas_subscription")
+}
+
+model SaasEntitlementGrant {
+  id        String    @id @default(cuid())
+  tenantId  String
+  feature   String
+  enabled   Boolean   @default(true)
+  quota     Int?
+  used      Int       @default(0)
+  expiresAt DateTime?
+  source    String    @default("subscription")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenant SaasTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, feature])
+  @@index([tenantId])
+  @@map("saas_entitlement_grant")
 }

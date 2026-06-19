@@ -129,6 +129,8 @@
         "verify:commercial-approval": "tsx scripts/verify-commercial-approval.ts",
         "verify:commercial-audit": "tsx scripts/verify-commercial-audit.ts",
         "verify:commercial-release": "tsx scripts/verify-commercial-release.ts",
+        "seed:saas-foundation": "tsx scripts/seed-saas-foundation.ts",
+        "verify:saas-foundation-p1": "tsx scripts/verify-saas-foundation-p1.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",
         "verify:equipment-knowledge": "tsx scripts/verify-equipment-knowledge.ts",
