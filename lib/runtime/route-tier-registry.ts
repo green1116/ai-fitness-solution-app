@@ -47,6 +47,16 @@ export const COMMERCIAL_PRODUCTS_ROUTE_TIERS: ApiRouteTierEntry[] = [
     tier: "light",
     description: "Approval workflow (draft/review/approved/delivered)",
   },
+  {
+    path: "/api/commercial-products/audit",
+    tier: "light",
+    description: "Audit and compliance event tracking",
+  },
+  {
+    path: "/api/commercial-products/release",
+    tier: "light",
+    description: "Commercial release ledger and manifest",
+  },
 ];
 
 export const HEAVY_PDF_ROUTE_PREFIXES = [
