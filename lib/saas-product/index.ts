@@ -35,9 +35,25 @@ export {
   validateResolvedProductContext,
   validateSaasProductP2ModuleExports,
 } from "./validation/validate-saas-product-p2";
+export * from "./shared/workspace-runtime-types";
+export * from "./shared/workspace-runtime-errors";
+export {
+  createProductWorkspace,
+  resolveWorkspaceProduct,
+  listWorkspaceProducts,
+  bindWorkspaceProduct,
+  mapSaasWorkspaceToV47CustomerWorkspace,
+  buildV47CustomerWorkspaceMapping,
+  validateV47CustomerWorkspaceMapping,
+  assertValidProductContextForWorkspace,
+  validateWorkspaceProductInstance,
+  clearWorkspaceProductRepository,
+  getWorkspaceProductRepositorySize,
+} from "./workspace-runtime/workspace-product-runtime";
+export { validateSaasProductP3Runtime } from "./validation/validate-saas-product-p3";
 
 export const SAAS_PRODUCT_META = {
-  version: "v49-saas-product-p2",
-  tag: "v49-saas-product-p2",
-  phases: ["v49-saas-product-p1", "v49-saas-product-p2"],
+  version: "v49-saas-product-p3",
+  tag: "v49-saas-product-p3",
+  phases: ["v49-saas-product-p1", "v49-saas-product-p2", "v49-saas-product-p3"],
 } as const;

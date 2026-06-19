@@ -140,6 +140,7 @@
         "verify:production-saas-foundation": "tsx scripts/verify-production-saas-foundation.ts",
         "verify:saas-product-p1": "tsx scripts/verify-saas-product-p1.ts",
         "verify:saas-product-p2": "tsx scripts/verify-saas-product-p2.ts",
+        "verify:saas-product-p3": "tsx scripts/verify-saas-product-p3.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",
         "verify:equipment-knowledge": "tsx scripts/verify-equipment-knowledge.ts",
