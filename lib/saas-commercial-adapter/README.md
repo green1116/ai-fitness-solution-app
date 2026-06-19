@@ -1,22 +1,28 @@
 # SaaS Commercial Adapter
 
-Phase 1 keeps this package **type-only**.
+Phase 4 connects SaaS Runtime to the frozen V47 Commercial Engine.
 
 ## Rules
 
-- Do **not** import `lib/commercial-products/**` in Phase 1.
-- Phase 4 (`Commercial Adapter`) is the only layer allowed to call V47 frozen runtime functions.
-- SaaS persistence lives outside V47; V47 remains an in-process engine hydrated per request.
+- **Do not modify** `lib/commercial-products/**`
+- Only **read-only calls** into V47 quote runtime + snapshot registry
+- SaaS quote state lives in `lib/saas-commercial-adapter/quote/` (in-memory in P4)
 
-## Future bridge flow (P4)
+## Bridge flow
 
 ```txt
-SaaS DB (SaasQuoteRecord)
-  -> saas-commercial-adapter/hydrator
-  -> V47 registerQuoteSnapshot() / createQuote()
-  -> result persisted back to SaaS DB
+TenantContext
+  -> mapTenantToV47Context
+SaasQuote (adapter repository)
+  -> hydrateQuote
+  -> registerQuoteSnapshot() [V47]
+  -> executeCommercialQuote
+  -> createQuote() [V47]
 ```
 
-## Phase 1 files
+## Phase 4 exports
 
-- `boundary-types.ts` — bridge contracts only
+- `hydrateQuote`
+- `executeCommercialQuote`
+- `mapTenantToV47Context`
+

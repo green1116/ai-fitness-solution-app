@@ -44,10 +44,8 @@ export function validateSaasFoundationP1(): SaasFoundationP1Validation {
   const roleValidation = validateRoleCatalog();
   const planValidation = validatePlanCatalog();
   const foundationRoot = join(process.cwd(), "lib", "saas-foundation");
-  const adapterRoot = join(process.cwd(), "lib", "saas-commercial-adapter");
   const foundationViolations = scanForbiddenImports(foundationRoot);
-  const adapterViolations = scanForbiddenImports(adapterRoot).filter((path) => !path.endsWith("README.md"));
-  const boundaryClean = foundationViolations.length === 0 && adapterViolations.length === 0;
+  const boundaryClean = foundationViolations.length === 0;
 
   const valid =
     permissionValidation.valid &&
