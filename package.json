@@ -125,6 +125,8 @@
         "verify:commercial-deliverable-router": "tsx scripts/verify-commercial-deliverable-router.ts",
         "verify:commercial-deliverable-package": "tsx scripts/verify-commercial-deliverable-package.ts",
         "verify:commercial-delivery-orchestrator": "tsx scripts/verify-commercial-delivery-orchestrator.ts",
+        "verify:commercial-workspace": "tsx scripts/verify-commercial-workspace.ts",
+        "verify:commercial-approval": "tsx scripts/verify-commercial-approval.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",
         "verify:equipment-knowledge": "tsx scripts/verify-equipment-knowledge.ts",

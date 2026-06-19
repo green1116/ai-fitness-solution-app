@@ -37,6 +37,16 @@ export const COMMERCIAL_PRODUCTS_ROUTE_TIERS: ApiRouteTierEntry[] = [
     tier: "heavy",
     description: "Delivery orchestration engine (policy/decision/plan)",
   },
+  {
+    path: "/api/commercial-products/workspace",
+    tier: "light",
+    description: "Customer workspace registry and download center",
+  },
+  {
+    path: "/api/commercial-products/approval",
+    tier: "light",
+    description: "Approval workflow (draft/review/approved/delivered)",
+  },
 ];
 
 export const HEAVY_PDF_ROUTE_PREFIXES = [
