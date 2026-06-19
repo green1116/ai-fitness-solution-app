@@ -14,6 +14,7 @@ import {
   API_ERROR_CODES,
   SAAS_PRODUCT_API_META,
   SAAS_PRODUCT_API_P3_TAG,
+  V50_PERSISTENCE_DEPENDENCY_TAG,
   resetPersistenceRuntimeForTests,
   validateApiP3,
   withApiContext,
@@ -146,9 +147,12 @@ async function main() {
   assert(itemLines.length < 15, "workspace item route stays thin");
   console.log("✓ workspace routes boundary ok");
 
-  assert(SAAS_PRODUCT_API_META.tag === SAAS_PRODUCT_API_P3_TAG, "API meta tag");
-  assert(SAAS_PRODUCT_API_META.phase === "v51-api-exposure-p3", "API meta phase");
-  console.log("✓ API meta ok");
+  assert(
+    SAAS_PRODUCT_API_META.tag.startsWith("v51-api-exposure-p"),
+    "API meta tag must remain in v51 exposure lineage",
+  );
+  assert(SAAS_PRODUCT_API_META.dependencyTag === V50_PERSISTENCE_DEPENDENCY_TAG, "V50 dependency");
+  console.log("✓ API meta ok (P3 workspace regression; current meta tag may advance beyond P3)");
 
   console.log(`tag=${SAAS_PRODUCT_API_P3_TAG}`);
   console.log("V51 P3 PASS");
