@@ -137,6 +137,7 @@
         "verify:saas-rbac-p5": "tsx scripts/verify-saas-rbac-p5.ts",
         "verify:saas-subscription-p6": "tsx scripts/verify-saas-subscription-p6.ts",
         "verify:saas-portal-p7": "tsx scripts/verify-saas-portal-p7.ts",
+        "verify:production-saas-foundation": "tsx scripts/verify-production-saas-foundation.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",
         "verify:equipment-knowledge": "tsx scripts/verify-equipment-knowledge.ts",
