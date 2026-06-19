@@ -566,3 +566,95 @@ model SaasEntitlementGrant {
   @@index([tenantId])
   @@map("saas_entitlement_grant")
 }
+
+// ═══════════════════════════════════════════════════════════
+// V50 Production Persistence — P1 Schema Foundation
+// Scope: Workspace / Quote / Workflow / History / Event (Audit)
+// Does not modify V48 SaasWorkspace or V49 runtime modules.
+// ═══════════════════════════════════════════════════════════
+
+model Workspace {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quotes    Quote[]
+  workflows WorkflowInstance[]
+
+  @@index([tenantId])
+  @@map("saas_product_workspace")
+}
+
+model Quote {
+  id          String   @id @default(cuid())
+  workspaceId String
+  tenantId    String
+  title       String
+  status      String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workflows WorkflowInstance[]
+
+  @@index([workspaceId])
+  @@index([tenantId])
+  @@map("saas_product_quote")
+}
+
+model WorkflowInstance {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  quoteId      String?
+  workflowType String
+  currentState String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  quote     Quote?            @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  history   WorkflowHistory[]
+  events    WorkflowEvent[]
+
+  @@index([workspaceId])
+  @@index([quoteId])
+  @@index([workflowType])
+  @@map("saas_product_workflow_instance")
+}
+
+model WorkflowHistory {
+  id         String   @id @default(cuid())
+  workflowId String
+  fromState  String
+  toState    String
+  actor      String?
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  workflow WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@map("saas_product_workflow_history")
+}
+
+model WorkflowEvent {
+  id         String   @id @default(cuid())
+  workflowId String
+  eventType  String
+  fromState  String?
+  toState    String?
+  actor      String?
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  workflow WorkflowInstance @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([eventType])
+  @@map("saas_product_workflow_event")
+}
