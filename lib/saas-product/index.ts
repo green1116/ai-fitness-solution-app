@@ -127,10 +127,25 @@ export {
   readAllWorkflowsForPortal,
 } from "./portal/portal-runtime";
 export { validateSaasProductP6Runtime } from "./validation/validate-saas-product-p6";
+export * from "./shared/ops-runtime-types";
+export * from "./shared/ops-runtime-errors";
+export {
+  calculateProductHealth,
+  calculateWorkflowMetrics,
+  calculateWorkspaceMetrics,
+  runHealthChecks,
+  activateProduct,
+  suspendProduct,
+  archiveProduct,
+  restoreProduct,
+  buildProductOpsDashboard,
+  buildProductOpsRuntime,
+} from "./ops/ops-runtime";
+export { validateSaasProductP7Runtime } from "./validation/validate-saas-product-p7";
 
 export const SAAS_PRODUCT_META = {
-  version: "v49-saas-product-p6",
-  tag: "v49-saas-product-p6",
+  version: "v49-saas-product-p7",
+  tag: "v49-saas-product-p7",
   phases: [
     "v49-saas-product-p1",
     "v49-saas-product-p2",
@@ -138,5 +153,6 @@ export const SAAS_PRODUCT_META = {
     "v49-saas-product-p4",
     "v49-saas-product-p5",
     "v49-saas-product-p6",
+    "v49-saas-product-p7",
   ],
 } as const;
