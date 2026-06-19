@@ -14,6 +14,7 @@ import type {
   SAAS_PRODUCT_API_P3_TAG,
   SAAS_PRODUCT_API_P4_TAG,
   SAAS_PRODUCT_API_P5_TAG,
+  SAAS_PRODUCT_API_P6_TAG,
   SAAS_PRODUCT_API_VERSION,
 } from "./api-constants";
 
@@ -37,7 +38,8 @@ export interface ApiResponseMeta {
     | typeof SAAS_PRODUCT_API_P2_TAG
     | typeof SAAS_PRODUCT_API_P3_TAG
     | typeof SAAS_PRODUCT_API_P4_TAG
-    | typeof SAAS_PRODUCT_API_P5_TAG;
+    | typeof SAAS_PRODUCT_API_P5_TAG
+    | typeof SAAS_PRODUCT_API_P6_TAG;
   version: typeof SAAS_PRODUCT_API_VERSION;
 }
 
@@ -118,6 +120,19 @@ export interface WorkflowTransitionApiData {
 }
 
 export interface ApiP5Validation {
+  valid: boolean;
+  summary: string;
+}
+
+export interface WorkflowHistoryListApiData {
+  history: WorkflowHistoryRecord[];
+}
+
+export interface WorkflowEventListApiData {
+  events: WorkflowEventRecord[];
+}
+
+export interface ApiP6Validation {
   valid: boolean;
   summary: string;
 }

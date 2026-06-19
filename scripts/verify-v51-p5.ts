@@ -14,6 +14,7 @@ import {
   API_ERROR_CODES,
   SAAS_PRODUCT_API_META,
   SAAS_PRODUCT_API_P5_TAG,
+  V50_PERSISTENCE_DEPENDENCY_TAG,
   resetPersistenceRuntimeForTests,
   validateApiP5,
   withApiContext,
@@ -197,9 +198,12 @@ async function main() {
   assert(transitionLines.length < 15, "workflow transition route stays thin");
   console.log("✓ workflow routes boundary ok");
 
-  assert(SAAS_PRODUCT_API_META.tag === SAAS_PRODUCT_API_P5_TAG, "API meta tag");
-  assert(SAAS_PRODUCT_API_META.phase === "v51-api-exposure-p5", "API meta phase");
-  console.log("✓ API meta ok");
+  assert(
+    SAAS_PRODUCT_API_META.tag.startsWith("v51-api-exposure-p"),
+    "API meta tag must remain in v51 exposure lineage",
+  );
+  assert(SAAS_PRODUCT_API_META.dependencyTag === V50_PERSISTENCE_DEPENDENCY_TAG, "V50 dependency");
+  console.log("✓ API meta ok (P5 workflow regression; current meta tag may advance beyond P5)");
 
   console.log(`tag=${SAAS_PRODUCT_API_P5_TAG}`);
   console.log("V51 P5 PASS");
