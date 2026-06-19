@@ -142,10 +142,30 @@ export {
   buildProductOpsRuntime,
 } from "./ops/ops-runtime";
 export { validateSaasProductP7Runtime } from "./validation/validate-saas-product-p7";
+export {
+  V49_META,
+  SAAS_PRODUCT_FINAL_TAG,
+  SAAS_PRODUCT_P8_TAG,
+  V49_PHASE_TAGS,
+  V49_LAYER_STACK,
+  V49_DEPENDENCY_GRAPH,
+  V49_FROZEN_RUNTIME_CONTRACTS,
+  V49_FROZEN_TYPE_CONTRACTS,
+  V49_API_MAP,
+  V49_LAYER_BOUNDARIES,
+} from "./freeze/v49-final-meta";
+export type { V49Meta } from "./freeze/v49-final-meta";
+export {
+  validateSaasProductP8Freeze,
+  validateSaasProductP8Runtime,
+} from "./validation/validate-saas-product-p8";
+export type { SaasProductP8AuditResult } from "./validation/validate-saas-product-p8";
 
 export const SAAS_PRODUCT_META = {
-  version: "v49-saas-product-p7",
-  tag: "v49-saas-product-p7",
+  version: "v49-saas-product-final",
+  tag: "v49-saas-product-final",
+  p8Tag: "v49-saas-product-p8",
+  frozen: true,
   phases: [
     "v49-saas-product-p1",
     "v49-saas-product-p2",
@@ -154,5 +174,6 @@ export const SAAS_PRODUCT_META = {
     "v49-saas-product-p5",
     "v49-saas-product-p6",
     "v49-saas-product-p7",
+    "v49-saas-product-final",
   ],
 } as const;
