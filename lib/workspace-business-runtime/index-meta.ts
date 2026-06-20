@@ -26,3 +26,6 @@ export const WORKSPACE_BUSINESS_RUNTIME_ACTIVE_META = WORKSPACE_BUSINESS_RUNTIME
 
 /** P4 latest phase meta */
 export const WORKSPACE_BUSINESS_RUNTIME_LATEST_META = WORKSPACE_BUSINESS_RUNTIME_P4_META;
+
+/** P5 entry phase meta — current active business entry foundation */
+export { WORKSPACE_BUSINESS_RUNTIME_P5_META as WORKSPACE_BUSINESS_RUNTIME_ENTRY_META } from "./entry/workspace-business-entry-meta";

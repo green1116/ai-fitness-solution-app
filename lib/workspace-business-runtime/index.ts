@@ -107,4 +107,38 @@ export {
   WORKSPACE_BUSINESS_RUNTIME_CURRENT_META,
   WORKSPACE_BUSINESS_RUNTIME_ACTIVE_META,
   WORKSPACE_BUSINESS_RUNTIME_LATEST_META,
+  WORKSPACE_BUSINESS_RUNTIME_ENTRY_META,
 } from "./index-meta";
+export * from "./entry/workspace-business-entry-types";
+export {
+  resolveBusinessEntryState,
+  resolveBusinessEntryStatus,
+  describeWorkspaceBusinessEntry,
+  assertBusinessEntryScope,
+  assertWorkspaceBusinessEntryShape,
+} from "./entry/workspace-business-entry";
+export { createWorkspaceBusinessEntry } from "./entry/workspace-business-entry-factory";
+export {
+  registerWorkspaceBusinessEntry,
+  resolveWorkspaceBusinessEntry,
+  hasWorkspaceBusinessEntry,
+  clearWorkspaceBusinessEntryRegistry,
+} from "./entry/workspace-business-entry-registry";
+export {
+  validateWorkspaceBusinessEntry,
+  assertEntryContract,
+  assertEntryStateContract,
+  assertEntryFactoryContract,
+  assertEntryRegistryContract,
+  assertEntryValidationContract,
+  assertEntryConsumesOrchestrationOnly,
+  assertEntryFoundationOnlyScope,
+  assertMountedBusinessEntryState,
+  assertEntryAggregatesOrchestration,
+} from "./entry/workspace-business-entry-validation";
+export {
+  WORKSPACE_BUSINESS_RUNTIME_P5_TAG,
+  WORKSPACE_BUSINESS_ENTRY_VERSION,
+  WORKSPACE_BUSINESS_RUNTIME_P5_META,
+  V54_BUSINESS_P5_VERIFY_CHECKS,
+} from "./entry/workspace-business-entry-meta";

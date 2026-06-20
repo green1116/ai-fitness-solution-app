@@ -183,6 +183,7 @@
         "verify:v54-p2": "tsx scripts/verify-v54-p2.ts",
         "verify:v54-p3": "tsx scripts/verify-v54-p3.ts",
         "verify:v54-p4": "tsx scripts/verify-v54-p4.ts",
+        "verify:v54-p5": "tsx scripts/verify-v54-p5.ts",
         "generate:v49-meta": "tsx scripts/generate-v49-meta.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",
