@@ -1,0 +1,12 @@
+import { WORKSPACE_QUOTE_RUNTIME_P3_META, WORKSPACE_QUOTE_RUNTIME_P3_TAG } from "./v55-p3-meta";
+
+export const WORKSPACE_QUOTE_RUNTIME_P3_FREEZE = {
+  tag: WORKSPACE_QUOTE_RUNTIME_P3_TAG,
+  version: WORKSPACE_QUOTE_RUNTIME_P3_META.version,
+  status: WORKSPACE_QUOTE_RUNTIME_P3_META.status,
+  frozen: false,
+  dependencyTag: WORKSPACE_QUOTE_RUNTIME_P3_META.dependencyTag,
+  verifyChecks: WORKSPACE_QUOTE_RUNTIME_P3_META.verifyChecks,
+  nextHorizon: WORKSPACE_QUOTE_RUNTIME_P3_META.nextHorizon,
+  note: WORKSPACE_QUOTE_RUNTIME_P3_META.note,
+} as const;
