@@ -206,6 +206,45 @@ export interface ProjectEntryPlaceholderCard {
   status: ProjectEntryPlaceholderCardStatus;
 }
 
+export interface PortalP8Validation {
+  valid: boolean;
+  summary: string;
+}
+
+export interface ReportEntryRegistryMount {
+  key: string;
+  segment: string;
+  layer: "business-entry";
+  status: WorkspaceProductEntryStatus;
+  capability: "entry-only";
+  note: string;
+}
+
+export interface ReportEntryNavMount {
+  key: string;
+  label: string;
+  segment: string;
+  layer: "business-entry";
+}
+
+export interface ReportEntryStatusView {
+  phase: string;
+  layer: "business-entry";
+  capability: "entry-only";
+  reportRuntime: false;
+  label: string;
+  summary: string;
+}
+
+export type ReportEntryPlaceholderCardStatus = "coming-soon" | "placeholder";
+
+export interface ReportEntryPlaceholderCard {
+  key: string;
+  title: string;
+  description: string;
+  status: ReportEntryPlaceholderCardStatus;
+}
+
 export interface WorkspaceMetadataView {
   id: string;
   name: string;

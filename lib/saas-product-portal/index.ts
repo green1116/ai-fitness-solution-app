@@ -89,6 +89,26 @@ export {
 } from "./project-entry/project-entry-navigation-extension";
 export { PROJECT_ENTRY_STATUS_VIEW, getProjectEntryStatusView } from "./project-entry/project-entry-status";
 export { PROJECT_ENTRY_PLACEHOLDER_CARDS, listProjectEntryPlaceholderCards } from "./project-entry/project-entry-placeholder-cards";
+export { ReportEntryPageContent } from "./pages/report-entry-page-content";
+export { ReportEntryHeader } from "./components/report-entry-header";
+export { ReportEntryCard } from "./components/report-entry-card";
+export { ReportEntryEmptyState } from "./components/report-entry-empty-state";
+export {
+  REPORT_ENTRY_REGISTRY_KEY,
+  REPORT_ENTRY_REGISTRY_MOUNT,
+  REPORT_ENTRY_REGISTRY_SEGMENT,
+  assertReportEntryRegisteredInWorkspaceRegistry,
+  getReportEntryFromWorkspaceRegistry,
+} from "./report-entry/report-entry-registry-extension";
+export {
+  REPORT_ENTRY_NAV_KEY,
+  REPORT_ENTRY_NAV_MOUNT,
+  assertReportsNavExistsInWorkspaceNavigation,
+  getReportNavItemFromWorkspaceNavigation,
+  resolveReportEntryHref,
+} from "./report-entry/report-entry-navigation-extension";
+export { REPORT_ENTRY_STATUS_VIEW, getReportEntryStatusView } from "./report-entry/report-entry-status";
+export { REPORT_ENTRY_PLACEHOLDER_CARDS, listReportEntryPlaceholderCards } from "./report-entry/report-entry-placeholder-cards";
 export { validatePortalP1, runPortalBoundaryAudit } from "./validation/validate-portal-p1";
 export { validatePortalSession, assertPortalSessionResolverContract } from "./validation/validate-session";
 export { validatePortalP3, assertWorkspaceApiClientContract } from "./validation/validate-workspace-p3";
@@ -104,6 +124,11 @@ export {
   assertProjectEntryUiContract,
   assertProjectCapabilityOnlyScope,
 } from "./validation/validate-workspace-p7";
+export {
+  validatePortalP8,
+  assertReportEntryUiContract,
+  assertReportCapabilityOnlyScope,
+} from "./validation/validate-workspace-p8";
 export { applyWorkspaceListQuery, DEFAULT_WORKSPACE_LIST_QUERY } from "./workspace/workspace-list-utils";
 export { validateWorkspaceName, getWorkspaceNameConstraints } from "./workspace/workspace-create-validation";
 export { formatPortalTimestamp, formatPortalRelativeTimestamp } from "./workspace/workspace-format";
@@ -114,5 +139,6 @@ export { SAAS_PRODUCT_PORTAL_P4_FREEZE } from "./freeze/v52-p4-meta";
 export { SAAS_PRODUCT_PORTAL_P5_FREEZE } from "./freeze/v52-p5-meta";
 export { SAAS_PRODUCT_PORTAL_P6_FREEZE } from "./freeze/v52-p6-meta";
 export { SAAS_PRODUCT_PORTAL_P7_FREEZE } from "./freeze/v52-p7-meta";
+export { SAAS_PRODUCT_PORTAL_P8_FREEZE } from "./freeze/v52-p8-meta";
 
 export { SAAS_PRODUCT_PORTAL_META } from "./index-meta";

@@ -16,7 +16,6 @@ import {
   SAAS_PRODUCT_PORTAL_P7_TAG,
   SAAS_PRODUCT_PORTAL_WORKSPACES_PATH,
 } from "../lib/saas-product-portal/shared/portal-constants";
-import { SAAS_PRODUCT_PORTAL_META } from "../lib/saas-product-portal/index-meta";
 import { SAAS_PRODUCT_PORTAL_P7_FREEZE } from "../lib/saas-product-portal/freeze/v52-p7-meta";
 
 const APP_PORTAL_ROOT = join(process.cwd(), "app", "saas-product");
@@ -85,8 +84,8 @@ async function main() {
   assert(assertProjectCapabilityOnlyScope(), "PROJECT_CAPABILITY_ONLY");
   console.log("✓ PROJECT_CAPABILITY_ONLY");
 
-  assert(SAAS_PRODUCT_PORTAL_META.tag === SAAS_PRODUCT_PORTAL_P7_TAG, "portal meta tag");
-  assert(SAAS_PRODUCT_PORTAL_META.phase === "v52-portal-ui-p7", "portal meta phase");
+  assert(SAAS_PRODUCT_PORTAL_P7_FREEZE.tag === SAAS_PRODUCT_PORTAL_P7_TAG, "P7 freeze tag");
+  assert(SAAS_PRODUCT_PORTAL_P7_FREEZE.status === "project-entry-ui", "P7 freeze status");
   assert(
     SAAS_PRODUCT_PORTAL_P7_FREEZE.routes.includes(`${SAAS_PRODUCT_PORTAL_WORKSPACES_PATH}/[id]/projects`),
     "project route meta",

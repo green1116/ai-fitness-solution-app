@@ -12,6 +12,8 @@ export const SAAS_PRODUCT_PORTAL_P6_TAG = "v52-portal-ui-p6" as const;
 
 export const SAAS_PRODUCT_PORTAL_P7_TAG = "v52-portal-ui-p7" as const;
 
+export const SAAS_PRODUCT_PORTAL_P8_TAG = "v52-portal-ui-p8" as const;
+
 export const SAAS_PRODUCT_PORTAL_VERSION = "v52-portal-ui" as const;
 
 export const SAAS_PRODUCT_PORTAL_ROUTE_PREFIX = "/saas-product" as const;
@@ -40,6 +42,10 @@ export function saasProductPortalWorkspaceQuotesPath(workspaceId: string): strin
 
 export function saasProductPortalWorkspaceProjectsPath(workspaceId: string): string {
   return saasProductPortalWorkspaceProductPath(workspaceId, "projects");
+}
+
+export function saasProductPortalWorkspaceReportsPath(workspaceId: string): string {
+  return saasProductPortalWorkspaceProductPath(workspaceId, "reports");
 }
 
 export const SAAS_PRODUCT_API_ROUTE_PREFIX = "/api/saas-product" as const;
