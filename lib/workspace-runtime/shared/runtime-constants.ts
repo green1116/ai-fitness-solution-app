@@ -39,3 +39,7 @@ export const RUNTIME_SURFACE_VERSION = "v53-p7" as const;
 export const WORKSPACE_RUNTIME_P8_TAG = "v53-workspace-runtime-p8" as const;
 
 export const RUNTIME_ASSEMBLY_VERSION = "v53-p8" as const;
+
+export const WORKSPACE_RUNTIME_FINAL_TAG = "v53-workspace-runtime-final" as const;
+
+export const WORKSPACE_RUNTIME_FINAL_VERSION = "v53-final" as const;

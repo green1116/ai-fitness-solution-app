@@ -16,7 +16,6 @@ import {
 } from "../lib/workspace-runtime/validation/validate-runtime-p8";
 import { createWorkspaceRuntimeAssemblyContext } from "../lib/workspace-runtime/runtime-workspace-assembly-context";
 import { hasAssembly } from "../lib/workspace-runtime/runtime-workspace-assembly";
-import { WORKSPACE_RUNTIME_META } from "../lib/workspace-runtime/index-meta";
 import { WORKSPACE_RUNTIME_P8_FREEZE } from "../lib/workspace-runtime/freeze/v53-p8-meta";
 import { WORKSPACE_RUNTIME_P8_TAG } from "../lib/workspace-runtime/shared/runtime-constants";
 
@@ -113,8 +112,7 @@ async function main() {
 
   assert(assertRuntimeWorkspaceAssemblyMappingFoundation(), "assembly mappings foundation");
   assert(assertRuntimeWorkspaceAssemblyRegistrationFoundation(), "assembly registration");
-  assert(WORKSPACE_RUNTIME_META.tag === WORKSPACE_RUNTIME_P8_TAG, "runtime meta tag");
-  assert(WORKSPACE_RUNTIME_META.phase === "v53-workspace-runtime-p8", "runtime meta phase");
+  assert(WORKSPACE_RUNTIME_P8_FREEZE.tag === WORKSPACE_RUNTIME_P8_TAG, "runtime freeze tag");
   assert(WORKSPACE_RUNTIME_P8_FREEZE.status === "runtime-workspace-assembly-foundation", "runtime freeze status");
   console.log("✓ runtime meta ok");
 

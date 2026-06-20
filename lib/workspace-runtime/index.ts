@@ -250,6 +250,22 @@ export {
   assertRuntimeWorkspaceAssemblyFoundationOnlyScope,
 } from "./validation/validate-runtime-p8";
 export { WORKSPACE_RUNTIME_P8_FREEZE } from "./freeze/v53-p8-meta";
+export {
+  V53_RUNTIME_FINAL_FREEZE,
+  V53_RUNTIME_LAYER_STACK,
+  V53_RUNTIME_KERNEL_STACK,
+  V53_RUNTIME_CONTEXT_CHAIN,
+  V53_RUNTIME_LAYER_BOUNDARIES,
+  V53_RUNTIME_PHASE_TAGS,
+  V53_RUNTIME_FINAL_VERIFY_CHECKS,
+} from "./freeze/v53-runtime-final";
+export {
+  V53_RUNTIME_SNAPSHOT_BASE,
+  buildV53RuntimeKernelSnapshot,
+  assertV53RuntimeSnapshotLocked,
+  assertRuntimeKernelIntegrityLocked,
+} from "./freeze/v53-runtime-snapshot";
+export { V53_RUNTIME_META } from "./freeze/v53-runtime-meta";
 export * from "./runtime-lifecycle-types";
 export * from "./runtime-lifecycle-validation";
 export {

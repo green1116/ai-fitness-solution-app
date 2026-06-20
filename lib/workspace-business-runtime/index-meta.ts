@@ -1,0 +1,15 @@
+import { WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE } from "./freeze/v54-p1-meta";
+import {
+  WORKSPACE_BUSINESS_RUNTIME_P1_TAG,
+  WORKSPACE_BUSINESS_RUNTIME_VERSION,
+} from "./shared/business-constants";
+
+export const WORKSPACE_BUSINESS_RUNTIME_META = {
+  version: WORKSPACE_BUSINESS_RUNTIME_VERSION,
+  tag: WORKSPACE_BUSINESS_RUNTIME_P1_TAG,
+  phase: "v54-workspace-business-p1",
+  status: WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE.status,
+  dependencyTag: WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE.dependencyTag,
+  frozen: WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE.frozen,
+  nextHorizon: WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE.nextHorizon,
+} as const;
