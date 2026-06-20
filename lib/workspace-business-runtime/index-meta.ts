@@ -1,4 +1,5 @@
 import { WORKSPACE_BUSINESS_RUNTIME_P2_META } from "./context/workspace-business-context-meta";
+import { WORKSPACE_BUSINESS_RUNTIME_P3_META } from "./domain/workspace-business-domain-meta";
 import { WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE } from "./freeze/v54-p1-meta";
 import {
   WORKSPACE_BUSINESS_RUNTIME_P1_TAG,
@@ -16,5 +17,8 @@ export const WORKSPACE_BUSINESS_RUNTIME_META = {
   nextHorizon: WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE.nextHorizon,
 } as const;
 
-/** Current workspace business runtime phase meta */
+/** P2 meta pointer — kept for historical verify:v54-p2 compatibility */
 export const WORKSPACE_BUSINESS_RUNTIME_CURRENT_META = WORKSPACE_BUSINESS_RUNTIME_P2_META;
+
+/** P3 active phase meta */
+export const WORKSPACE_BUSINESS_RUNTIME_ACTIVE_META = WORKSPACE_BUSINESS_RUNTIME_P3_META;
