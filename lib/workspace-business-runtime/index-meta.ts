@@ -1,9 +1,11 @@
+import { WORKSPACE_BUSINESS_RUNTIME_P2_META } from "./context/workspace-business-context-meta";
 import { WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE } from "./freeze/v54-p1-meta";
 import {
   WORKSPACE_BUSINESS_RUNTIME_P1_TAG,
   WORKSPACE_BUSINESS_RUNTIME_VERSION,
 } from "./shared/business-constants";
 
+/** P1 meta pointer — kept for historical verify:v54-p1 compatibility */
 export const WORKSPACE_BUSINESS_RUNTIME_META = {
   version: WORKSPACE_BUSINESS_RUNTIME_VERSION,
   tag: WORKSPACE_BUSINESS_RUNTIME_P1_TAG,
@@ -13,3 +15,6 @@ export const WORKSPACE_BUSINESS_RUNTIME_META = {
   frozen: WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE.frozen,
   nextHorizon: WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE.nextHorizon,
 } as const;
+
+/** Current workspace business runtime phase meta */
+export const WORKSPACE_BUSINESS_RUNTIME_CURRENT_META = WORKSPACE_BUSINESS_RUNTIME_P2_META;

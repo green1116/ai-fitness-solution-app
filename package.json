@@ -180,6 +180,7 @@
         "verify:v53-p8": "tsx scripts/verify-v53-p8.ts",
         "verify:v53-final": "tsx scripts/verify-v53-final.ts",
         "verify:v54-p1": "tsx scripts/verify-v54-p1.ts",
+        "verify:v54-p2": "tsx scripts/verify-v54-p2.ts",
         "generate:v49-meta": "tsx scripts/generate-v49-meta.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",
