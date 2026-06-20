@@ -1,0 +1,19 @@
+import {
+  WORKSPACE_BUSINESS_RUNTIME_P4_META,
+  WORKSPACE_BUSINESS_RUNTIME_P4_TAG,
+  V54_BUSINESS_P4_VERIFY_CHECKS,
+} from "../orchestration/workspace-business-orchestration-meta";
+import { WORKSPACE_BUSINESS_RUNTIME_VERSION } from "../shared/business-constants";
+
+export { V54_BUSINESS_P4_VERIFY_CHECKS };
+
+export const WORKSPACE_BUSINESS_RUNTIME_P4_FREEZE = {
+  tag: WORKSPACE_BUSINESS_RUNTIME_P4_TAG,
+  version: WORKSPACE_BUSINESS_RUNTIME_VERSION,
+  status: WORKSPACE_BUSINESS_RUNTIME_P4_META.status,
+  frozen: false,
+  dependencyTag: WORKSPACE_BUSINESS_RUNTIME_P4_META.dependencyTag,
+  verifyChecks: V54_BUSINESS_P4_VERIFY_CHECKS,
+  nextHorizon: WORKSPACE_BUSINESS_RUNTIME_P4_META.nextHorizon,
+  note: WORKSPACE_BUSINESS_RUNTIME_P4_META.note,
+} as const;

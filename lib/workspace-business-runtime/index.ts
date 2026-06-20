@@ -73,4 +73,38 @@ export {
   WORKSPACE_BUSINESS_RUNTIME_P3_META,
 } from "./domain/workspace-business-domain-meta";
 export { WORKSPACE_BUSINESS_RUNTIME_P3_FREEZE, V54_BUSINESS_P3_VERIFY_CHECKS } from "./freeze/v54-p3-meta";
-export { WORKSPACE_BUSINESS_RUNTIME_META, WORKSPACE_BUSINESS_RUNTIME_CURRENT_META, WORKSPACE_BUSINESS_RUNTIME_ACTIVE_META } from "./index-meta";
+export * from "./orchestration/workspace-business-orchestration-types";
+export {
+  resolveBusinessOrchestrationState,
+  resolveBusinessOrchestrationStatus,
+} from "./orchestration/workspace-business-orchestration-rules";
+export {
+  describeWorkspaceBusinessOrchestration,
+  assertBusinessOrchestrationScope,
+  assertWorkspaceBusinessOrchestrationShape,
+} from "./orchestration/workspace-business-orchestration";
+export { createWorkspaceBusinessOrchestration } from "./orchestration/workspace-business-orchestration-factory";
+export {
+  validateWorkspaceBusinessOrchestration,
+  assertOrchestrationContract,
+  assertOrchestrationStateContract,
+  assertOrchestrationFactoryContract,
+  assertOrchestrationRulesContract,
+  assertOrchestrationValidationContract,
+  assertOrchestrationConsumesDomainOnly,
+  assertOrchestrationFoundationOnlyScope,
+  assertMountedBusinessOrchestrationState,
+  assertOrchestrationAggregatesDomain,
+} from "./orchestration/workspace-business-orchestration-validation";
+export {
+  WORKSPACE_BUSINESS_RUNTIME_P4_TAG,
+  WORKSPACE_BUSINESS_ORCHESTRATION_VERSION,
+  WORKSPACE_BUSINESS_RUNTIME_P4_META,
+} from "./orchestration/workspace-business-orchestration-meta";
+export { WORKSPACE_BUSINESS_RUNTIME_P4_FREEZE, V54_BUSINESS_P4_VERIFY_CHECKS } from "./freeze/v54-p4-meta";
+export {
+  WORKSPACE_BUSINESS_RUNTIME_META,
+  WORKSPACE_BUSINESS_RUNTIME_CURRENT_META,
+  WORKSPACE_BUSINESS_RUNTIME_ACTIVE_META,
+  WORKSPACE_BUSINESS_RUNTIME_LATEST_META,
+} from "./index-meta";

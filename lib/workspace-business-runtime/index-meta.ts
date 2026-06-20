@@ -1,5 +1,6 @@
-import { WORKSPACE_BUSINESS_RUNTIME_P2_META } from "./context/workspace-business-context-meta";
 import { WORKSPACE_BUSINESS_RUNTIME_P3_META } from "./domain/workspace-business-domain-meta";
+import { WORKSPACE_BUSINESS_RUNTIME_P4_META } from "./orchestration/workspace-business-orchestration-meta";
+import { WORKSPACE_BUSINESS_RUNTIME_P2_META } from "./context/workspace-business-context-meta";
 import { WORKSPACE_BUSINESS_RUNTIME_P1_FREEZE } from "./freeze/v54-p1-meta";
 import {
   WORKSPACE_BUSINESS_RUNTIME_P1_TAG,
@@ -20,5 +21,8 @@ export const WORKSPACE_BUSINESS_RUNTIME_META = {
 /** P2 meta pointer — kept for historical verify:v54-p2 compatibility */
 export const WORKSPACE_BUSINESS_RUNTIME_CURRENT_META = WORKSPACE_BUSINESS_RUNTIME_P2_META;
 
-/** P3 active phase meta */
+/** P3 meta pointer — kept for historical verify:v54-p3 compatibility */
 export const WORKSPACE_BUSINESS_RUNTIME_ACTIVE_META = WORKSPACE_BUSINESS_RUNTIME_P3_META;
+
+/** P4 latest phase meta */
+export const WORKSPACE_BUSINESS_RUNTIME_LATEST_META = WORKSPACE_BUSINESS_RUNTIME_P4_META;
