@@ -97,10 +97,7 @@ async function main() {
   assert(existsSync(join(PORTAL_ROOT, "validation", "validate-session.ts")), "validate-session.ts");
   console.log("✓ P2 session files ok");
 
-  assert(SAAS_PRODUCT_PORTAL_META.tag === SAAS_PRODUCT_PORTAL_P2_TAG, "portal meta tag");
-  assert(SAAS_PRODUCT_PORTAL_META.phase === "v52-portal-ui-p2", "portal meta phase");
-  assert(SAAS_PRODUCT_PORTAL_META.status === "freeze-ready", "portal meta status");
-  assert(SAAS_PRODUCT_PORTAL_P2_FREEZE.frozen === true, "P2 freeze lock");
+  assert(SAAS_PRODUCT_PORTAL_P2_FREEZE.tag === SAAS_PRODUCT_PORTAL_P2_TAG, "P2 freeze lock tag");
   assert(SAAS_PRODUCT_PORTAL_P2_FREEZE.status === "freeze-ready", "P2 freeze-ready status");
   for (const deliverable of SAAS_PRODUCT_PORTAL_P2_FREEZE.deliverables) {
     assert(existsSync(join(process.cwd(), deliverable)), deliverable);

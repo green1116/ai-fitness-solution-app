@@ -10,6 +10,16 @@ interface PortalShellProps {
   children: ReactNode;
 }
 
+function isNavigationItemActive(pathname: string, itemKey: string, itemPath: string): boolean {
+  if (itemKey === "dashboard") {
+    return pathname === itemPath;
+  }
+  if (itemKey === "workspace") {
+    return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
+  }
+  return pathname === itemPath;
+}
+
 function resolveBreadcrumb(pathname: string): string {
   if (pathname === "/saas-product") return "Dashboard";
   if (pathname.startsWith("/saas-product/settings")) return "Settings";
@@ -33,7 +43,7 @@ export function PortalShell({ session, children }: PortalShellProps) {
 
           <nav className="space-y-1">
             {session.navigation.map((item) => {
-              const active = pathname === item.path;
+              const active = isNavigationItemActive(pathname, item.key, item.path);
               return (
                 <Link
                   key={item.key}
