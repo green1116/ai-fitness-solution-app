@@ -168,6 +168,7 @@
         "verify:v52-p4": "tsx scripts/verify-v52-p4.ts",
         "verify:v52-p5": "tsx scripts/verify-v52-p5.ts",
         "verify:v52-p6": "tsx scripts/verify-v52-p6.ts",
+        "verify:v52-p7": "tsx scripts/verify-v52-p7.ts",
         "generate:v49-meta": "tsx scripts/generate-v49-meta.ts",
         "verify:tender-dashboard": "tsx scripts/verify-tender-dashboard.ts",
         "verify:project-knowledge": "tsx scripts/verify-project-knowledge.ts",

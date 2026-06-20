@@ -16,7 +16,6 @@ import {
   SAAS_PRODUCT_PORTAL_P6_TAG,
   SAAS_PRODUCT_PORTAL_WORKSPACES_PATH,
 } from "../lib/saas-product-portal/shared/portal-constants";
-import { SAAS_PRODUCT_PORTAL_META } from "../lib/saas-product-portal/index-meta";
 import { SAAS_PRODUCT_PORTAL_P6_FREEZE } from "../lib/saas-product-portal/freeze/v52-p6-meta";
 
 const APP_PORTAL_ROOT = join(process.cwd(), "app", "saas-product");
@@ -85,8 +84,8 @@ async function main() {
   assert(assertQuoteCapabilityOnlyScope(), "QUOTE_CAPABILITY_ONLY");
   console.log("✓ QUOTE_CAPABILITY_ONLY");
 
-  assert(SAAS_PRODUCT_PORTAL_META.tag === SAAS_PRODUCT_PORTAL_P6_TAG, "portal meta tag");
-  assert(SAAS_PRODUCT_PORTAL_META.phase === "v52-portal-ui-p6", "portal meta phase");
+  assert(SAAS_PRODUCT_PORTAL_P6_FREEZE.tag === SAAS_PRODUCT_PORTAL_P6_TAG, "P6 freeze tag");
+  assert(SAAS_PRODUCT_PORTAL_P6_FREEZE.status === "quote-entry-ui", "P6 freeze status");
   assert(
     SAAS_PRODUCT_PORTAL_P6_FREEZE.routes.includes(`${SAAS_PRODUCT_PORTAL_WORKSPACES_PATH}/[id]/quotes`),
     "quote route meta",

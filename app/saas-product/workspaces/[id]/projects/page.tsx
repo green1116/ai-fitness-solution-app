@@ -1,5 +1,5 @@
-import { WorkspaceEntryPlaceholderPageContent } from "@/lib/saas-product-portal";
+import { ProjectEntryPageContent } from "@/lib/saas-product-portal";
 
 export default function SaasProductWorkspaceProjectsPage() {
-  return <WorkspaceEntryPlaceholderPageContent entryKey="project" />;
+  return <ProjectEntryPageContent />;
 }
