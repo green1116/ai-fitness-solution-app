@@ -1,0 +1,15 @@
+import {
+  WORKSPACE_QUOTE_LIFECYCLE_P1_META,
+  WORKSPACE_QUOTE_LIFECYCLE_P1_TAG,
+} from "./v58-p1-meta";
+
+export const WORKSPACE_QUOTE_LIFECYCLE_P1_FREEZE = {
+  tag: WORKSPACE_QUOTE_LIFECYCLE_P1_TAG,
+  version: WORKSPACE_QUOTE_LIFECYCLE_P1_META.version,
+  status: WORKSPACE_QUOTE_LIFECYCLE_P1_META.status,
+  frozen: false,
+  dependencyTag: WORKSPACE_QUOTE_LIFECYCLE_P1_META.dependencyTag,
+  verifyChecks: WORKSPACE_QUOTE_LIFECYCLE_P1_META.verifyChecks,
+  nextHorizon: WORKSPACE_QUOTE_LIFECYCLE_P1_META.nextHorizon,
+  note: WORKSPACE_QUOTE_LIFECYCLE_P1_META.note,
+} as const;

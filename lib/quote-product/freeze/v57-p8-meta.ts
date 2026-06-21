@@ -1,0 +1,75 @@
+import {
+  WORKSPACE_QUOTE_PRODUCT_P8_TAG,
+  WORKSPACE_QUOTE_PRODUCT_FINAL_TAG,
+  WORKSPACE_QUOTE_PRODUCT_FINAL_VERSION,
+} from "../shared/quote-product-constants";
+import {
+  V57_PRODUCT_FROZEN,
+  V57_QUOTE_PRODUCT_FINAL_VERIFY_CHECKS,
+  WORKSPACE_QUOTE_PRODUCT_FINAL_FREEZE,
+} from "./v57-final-frozen";
+import { WORKSPACE_QUOTE_PRODUCT_P7_TAG } from "./v57-p7-meta";
+
+export const V57_PRODUCT_LOCKED = "V57_PRODUCT_LOCKED" as const;
+
+export const V57_QUOTE_P8_VERIFY_CHECKS = [
+  "ALL_PHASES_PASS",
+  "HAS_SINGLE_PORTAL_ENTRY",
+  "HAS_SURFACE_ONLY_RENDERING",
+  "NO_LEGACY_ENTRY_ROUTE",
+  "NO_DIRECT_RUNTIME_ACCESS",
+  "HAS_LOADER_HYDRATION",
+  "V57_PRODUCT_LOCKED",
+  "HAS_FINAL_FREEZE_FILE",
+] as const;
+
+export const WORKSPACE_QUOTE_PRODUCT_P8_META = {
+  tag: WORKSPACE_QUOTE_PRODUCT_P8_TAG,
+  version: WORKSPACE_QUOTE_PRODUCT_FINAL_VERSION,
+  phase: "v57-quote-product-p8",
+  status: "full-portal-verification",
+  frozen: false,
+  dependencyTag: WORKSPACE_QUOTE_PRODUCT_P7_TAG,
+  verifyChecks: V57_QUOTE_P8_VERIFY_CHECKS,
+  productLocked: V57_PRODUCT_LOCKED,
+  nextHorizon: "V57 final freeze (not started)",
+  note: "V57 P8 verifies full portal wiring and locks the production product surface baseline",
+} as const;
+
+export const WORKSPACE_QUOTE_PRODUCT_FINAL_META = {
+  tag: WORKSPACE_QUOTE_PRODUCT_FINAL_TAG,
+  version: WORKSPACE_QUOTE_PRODUCT_FINAL_VERSION,
+  phase: "v57-quote-product-final",
+  status: "quote-product-surface-final",
+  state: "FROZEN" as const,
+  frozen: true,
+  layers: WORKSPACE_QUOTE_PRODUCT_FINAL_FREEZE.layers,
+  productFrozen: V57_PRODUCT_FROZEN,
+  productLocked: V57_PRODUCT_LOCKED,
+  dependencyTag: WORKSPACE_QUOTE_PRODUCT_P8_TAG,
+  phaseTags: WORKSPACE_QUOTE_PRODUCT_FINAL_FREEZE.phaseTags,
+  layerStack: WORKSPACE_QUOTE_PRODUCT_FINAL_FREEZE.layerStack,
+  verifyChecks: V57_QUOTE_PRODUCT_FINAL_VERIFY_CHECKS,
+  nextHorizon: WORKSPACE_QUOTE_PRODUCT_FINAL_FREEZE.nextHorizon,
+  note: WORKSPACE_QUOTE_PRODUCT_FINAL_FREEZE.note,
+} as const;
+
+export {
+  V57_PRODUCT_FROZEN,
+  V57_QUOTE_PRODUCT_ARCHITECTURE_SNAPSHOT,
+  V57_QUOTE_PRODUCT_ENTRY_FLOW,
+  V57_QUOTE_PRODUCT_EXECUTION_CHAIN,
+  V57_QUOTE_PRODUCT_FINAL_VERIFY_CHECKS,
+  V57_QUOTE_PRODUCT_LAYER_STACK,
+  V57_QUOTE_PRODUCT_PHASE_TAGS,
+  V57_QUOTE_PRODUCT_RUNTIME_BOUNDARY_RULES,
+  V57_QUOTE_PRODUCT_SURFACE_CONTRACT,
+  V57_QUOTE_PRODUCT_UI_STATE_MODEL,
+  WORKSPACE_QUOTE_PRODUCT_FINAL_FREEZE,
+} from "./v57-final-frozen";
+
+export {
+  WORKSPACE_QUOTE_PRODUCT_FINAL_TAG,
+  WORKSPACE_QUOTE_PRODUCT_FINAL_VERSION,
+  WORKSPACE_QUOTE_PRODUCT_P8_TAG,
+} from "../shared/quote-product-constants";

@@ -243,3 +243,35 @@ export {
   assertMountedQuotePortalWiring,
 } from "./validation/validate-quote-product-p7";
 export type { QuoteProductP7Validation } from "./validation/validate-quote-product-p7";
+export {
+  WORKSPACE_QUOTE_PRODUCT_P8_META,
+  WORKSPACE_QUOTE_PRODUCT_P8_TAG,
+  WORKSPACE_QUOTE_PRODUCT_FINAL_META,
+  WORKSPACE_QUOTE_PRODUCT_FINAL_TAG,
+  WORKSPACE_QUOTE_PRODUCT_FINAL_VERSION,
+  V57_PRODUCT_LOCKED,
+  V57_QUOTE_P8_VERIFY_CHECKS,
+  V57_PRODUCT_FROZEN,
+  V57_QUOTE_PRODUCT_ARCHITECTURE_SNAPSHOT,
+  V57_QUOTE_PRODUCT_SURFACE_CONTRACT,
+  V57_QUOTE_PRODUCT_EXECUTION_CHAIN,
+  V57_QUOTE_PRODUCT_UI_STATE_MODEL,
+  V57_QUOTE_PRODUCT_ENTRY_FLOW,
+  V57_QUOTE_PRODUCT_RUNTIME_BOUNDARY_RULES,
+  V57_QUOTE_PRODUCT_FINAL_VERIFY_CHECKS,
+  V57_QUOTE_PRODUCT_LAYER_STACK,
+  V57_QUOTE_PRODUCT_PHASE_TAGS,
+  WORKSPACE_QUOTE_PRODUCT_FINAL_FREEZE,
+} from "./freeze/v57-p8-meta";
+export {
+  validateQuoteProductP8,
+  validateQuoteProductFinal,
+  assertV57ProductFrozen,
+  assertV57ProductLocked,
+  assertAllQuoteProductPhasesPass,
+  assertHasFinalFreezeFileP8,
+} from "./validation/validate-quote-product-p8";
+export type {
+  QuoteProductP8Validation,
+  QuoteProductFinalValidation,
+} from "./validation/validate-quote-product-p8";

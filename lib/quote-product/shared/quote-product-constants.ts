@@ -14,6 +14,12 @@ export const WORKSPACE_QUOTE_PRODUCT_P6_TAG = "v57-quote-product-p6" as const;
 
 export const WORKSPACE_QUOTE_PRODUCT_P7_TAG = "v57-quote-product-p7" as const;
 
+export const WORKSPACE_QUOTE_PRODUCT_P8_TAG = "v57-quote-product-p8" as const;
+
+export const WORKSPACE_QUOTE_PRODUCT_FINAL_TAG = "v57-quote-product-final" as const;
+
+export const WORKSPACE_QUOTE_PRODUCT_FINAL_VERSION = "v57-quote-product-final-v1" as const;
+
 export const QUOTE_UI_LOADING_IDLE = "IDLE" as const;
 export const QUOTE_UI_LOADING_LOADING = "LOADING" as const;
 export const QUOTE_UI_LOADING_SUBMITTING = "SUBMITTING" as const;
