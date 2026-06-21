@@ -1,0 +1,45 @@
+import {
+  WORKSPACE_QUOTE_INTEGRATION_FINAL_TAG,
+  WORKSPACE_QUOTE_INTEGRATION_FINAL_VERSION,
+  WORKSPACE_QUOTE_INTEGRATION_VERSION,
+} from "../shared/integration-constants";
+import { WORKSPACE_QUOTE_INTEGRATION_P8_TAG, V56_INTEGRATION_LOCKED } from "./v56-p8-meta";
+import {
+  V56_INTEGRATION_FROZEN,
+  V56_QUOTE_INTEGRATION_FINAL_FREEZE,
+  V56_QUOTE_INTEGRATION_FINAL_VERIFY_CHECKS,
+  V56_QUOTE_INTEGRATION_LAYER_STACK,
+  V56_QUOTE_INTEGRATION_PHASE_TAGS,
+} from "./v56-final";
+
+export const WORKSPACE_QUOTE_INTEGRATION_FINAL_META = {
+  tag: WORKSPACE_QUOTE_INTEGRATION_FINAL_TAG,
+  version: WORKSPACE_QUOTE_INTEGRATION_FINAL_VERSION,
+  integrationVersion: WORKSPACE_QUOTE_INTEGRATION_VERSION,
+  phase: "v56-quote-runtime-integration-final",
+  status: "quote-runtime-integration-final",
+  state: "FROZEN" as const,
+  frozen: true,
+  layers: 8,
+  integrationFrozen: V56_INTEGRATION_FROZEN,
+  integrityLocked: V56_INTEGRATION_LOCKED,
+  dependencyTag: WORKSPACE_QUOTE_INTEGRATION_P8_TAG,
+  phaseTags: V56_QUOTE_INTEGRATION_PHASE_TAGS,
+  layerStack: V56_QUOTE_INTEGRATION_LAYER_STACK,
+  verifyChecks: V56_QUOTE_INTEGRATION_FINAL_VERIFY_CHECKS,
+  nextHorizon: "Commercial expansion / portal wiring (not started)",
+  note: "V56 quote runtime integration final baseline — P1 through P8 execution stack locked",
+} as const;
+
+export type WorkspaceQuoteIntegrationFinalMeta = typeof WORKSPACE_QUOTE_INTEGRATION_FINAL_META;
+
+export { V56_QUOTE_INTEGRATION_FINAL_FREEZE as WORKSPACE_QUOTE_INTEGRATION_FINAL_FREEZE };
+
+export {
+  V56_INTEGRATION_FROZEN,
+  V56_QUOTE_INTEGRATION_FINAL_VERIFY_CHECKS,
+  V56_QUOTE_INTEGRATION_PHASE_TAGS,
+  V56_QUOTE_INTEGRATION_LAYER_STACK,
+} from "./v56-final";
+
+export { WORKSPACE_QUOTE_INTEGRATION_FINAL_TAG, WORKSPACE_QUOTE_INTEGRATION_FINAL_VERSION } from "../shared/integration-constants";

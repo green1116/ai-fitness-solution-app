@@ -1,0 +1,15 @@
+import {
+  WORKSPACE_QUOTE_PRODUCT_P7_META,
+  WORKSPACE_QUOTE_PRODUCT_P7_TAG,
+} from "./v57-p7-meta";
+
+export const WORKSPACE_QUOTE_PRODUCT_P7_FREEZE = {
+  tag: WORKSPACE_QUOTE_PRODUCT_P7_TAG,
+  version: WORKSPACE_QUOTE_PRODUCT_P7_META.version,
+  status: WORKSPACE_QUOTE_PRODUCT_P7_META.status,
+  frozen: false,
+  dependencyTag: WORKSPACE_QUOTE_PRODUCT_P7_META.dependencyTag,
+  verifyChecks: WORKSPACE_QUOTE_PRODUCT_P7_META.verifyChecks,
+  nextHorizon: WORKSPACE_QUOTE_PRODUCT_P7_META.nextHorizon,
+  note: WORKSPACE_QUOTE_PRODUCT_P7_META.note,
+} as const;
