@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const lead = await prisma.lead.create({
+    const lead = await prisma.marketingLead.create({
       data: {
         email,
         planId: planId || null,

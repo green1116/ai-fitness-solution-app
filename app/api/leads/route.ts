@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   const intent = body?.intent ?? "contact_consultant";
   const payload = body?.payload ?? null;
 
-  await prisma.lead.create({
+  await prisma.marketingLead.create({
     data: {
       email,
       planId,

@@ -30,14 +30,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const lead = await prisma.lead.create({
+    const lead = await prisma.marketingLead.create({
       data: {
         planId,
         email,
         company,
         name,
         note: note || null,
-        // 兼容当前 Lead 模型的既有必填字段
         intent: "consult",
         source: "download",
         status: "new",

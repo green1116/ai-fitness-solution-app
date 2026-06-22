@@ -42,10 +42,46 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String?
+  password  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  bindings LicenseBinding[]
+  bindings            LicenseBinding[]
+  organizationMembers OrganizationMember[]
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members       OrganizationMember[]
+  projects      Project[]
+  quotes        Quote[]
+  subscriptions Subscription[]
+  usageRecords  UsageRecord[]
+  invoices      SaasInvoice[]
+  payments      Payment[]
+  crmCustomers  Customer[]
+
+  @@map("organization")
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String   @default("member")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_member")
 }
 
 model LicenseBinding {
@@ -157,7 +193,8 @@ model PdfDownloadTokenState {
   @@index([revoked, expAt])
 }
 
-model Lead {
+/// Marketing Lead (FIXED)
+model MarketingLead {
   id        String   @id @default(cuid())
   email     String
   phone     String?
@@ -240,24 +277,28 @@ model UpgradeOrder {
 }
 
 model Project {
-  id           String               @id @default(cuid())
-  name         String
-  clientName   String?
-  industry     String?
-  siteType     SiteType
-  areaM2       Float?
-  targetUsers  Int?
-  city         String?
-  budgetLevel  BudgetLevel
-  deliveryMode DeliveryMode
-  notes        String?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  description  String?
-  budgets      Budget[]
-  documents    DocumentExport[]
-  placeholders ProductPlaceholder[]
-  solution     Solution?
+  id             String               @id @default(cuid())
+  name           String
+  clientName     String?
+  industry       String?
+  siteType       SiteType
+  areaM2         Float?
+  targetUsers    Int?
+  city           String?
+  budgetLevel    BudgetLevel
+  deliveryMode   DeliveryMode
+  notes          String?
+  organizationId String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  description    String?
+  budgets        Budget[]
+  documents      DocumentExport[]
+  placeholders   ProductPlaceholder[]
+  solution       Solution?
+  organization   Organization?        @relation(fields: [organizationId], references: [id])
+  quotes         Quote[]
+  tenders        Tender[]
 }
 
 model Solution {
@@ -309,6 +350,7 @@ model Budget {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tenders          Tender[]
 }
 
 model DocumentExport {
@@ -370,4 +412,247 @@ enum DocumentType {
   budget
   merged
   zip
+  tender
+}
+
+/// V59 — Quote record (Product layer, orchestrated via V58)
+model Quote {
+  id              String       @id @default(cuid())
+  projectId       String
+  organizationId  String?
+  workspaceId     String
+  status          QuoteStatus  @default(DRAFT)
+  companyInfo     Json?
+  content         Json?
+  orchestrationId String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  tenders      Tender[]
+
+  @@index([projectId])
+  @@index([organizationId])
+  @@index([workspaceId])
+  @@map("quote")
+}
+
+/// V59 — Tender document record (PDF export target)
+model Tender {
+  id            String       @id @default(cuid())
+  projectId     String
+  quoteId       String?
+  budgetId      String?
+  status        TenderStatus @default(PENDING)
+  fileName      String?
+  fileUrl       String?
+  renderVersion String       @default("v59-1")
+  metadata      Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  quote   Quote?  @relation(fields: [quoteId], references: [id])
+  budget  Budget? @relation(fields: [budgetId], references: [id])
+
+  @@index([projectId])
+  @@index([quoteId])
+  @@map("tender")
+}
+
+enum QuoteStatus {
+  DRAFT
+  GENERATING
+  READY
+  FAILED
+}
+
+enum TenderStatus {
+  PENDING
+  GENERATING
+  READY
+  FAILED
+}
+
+/// V59 SaaS — Subscription
+model Subscription {
+  id                   String        @id @default(cuid())
+  organizationId       String
+  plan                 SaasPlan      @default(BASIC)
+  status               SaasSubStatus @default(ACTIVE)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices     SaasInvoice[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([stripeSubscriptionId])
+  @@map("subscription")
+}
+
+/// V59.4 — Stripe Payment record
+model Payment {
+  id              String   @id @default(cuid())
+  organizationId  String
+  stripeSessionId String   @unique
+  amount          Int
+  currency        String   @default("usd")
+  status          String   @default("pending")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("payment")
+}
+
+/// V59.4 — Idempotent Stripe webhook processing
+model StripeWebhookEvent {
+  stripeEventId String   @id
+  eventType     String
+  processedAt   DateTime @default(now())
+
+  @@map("stripe_webhook_event")
+}
+
+/// V59 SaaS — Usage tracking
+model UsageRecord {
+  id             String        @id @default(cuid())
+  organizationId String
+  type           UsageType
+  count          Int           @default(1)
+  createdAt      DateTime      @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, type, createdAt])
+  @@map("usage_record")
+}
+
+/// V59 SaaS — Invoice
+model SaasInvoice {
+  id              String   @id @default(cuid())
+  organizationId  String
+  subscriptionId  String?
+  amount          Int
+  currency        String   @default("usd")
+  status          String   @default("DRAFT")
+  stripeInvoiceId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([organizationId])
+  @@map("saas_invoice")
+}
+
+enum SaasPlan {
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum SaasSubStatus {
+  ACTIVE
+  CANCELED
+}
+
+enum UsageType {
+  QUOTE
+  BUDGET
+  TENDER
+  PDF
+}
+
+/// V60 P2 — CRM Customer
+model Customer {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  industry       String   @default("")
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leads         Lead[]
+  opportunities Opportunity[]
+  activities    CRMActivity[]
+
+  @@index([organizationId])
+  @@map("crm_customer")
+}
+
+/// V60 P2 — CRM Lead (sales pipeline)
+model Lead {
+  id         String   @id @default(cuid())
+  customerId String
+  source     String   @default("unknown")
+  score      Int      @default(0)
+  status     String   @default("NEW")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([status])
+  @@map("crm_lead")
+}
+
+/// V60 P2 — CRM Opportunity
+model Opportunity {
+  id         String   @id @default(cuid())
+  customerId String
+  leadId     String?
+  stage      String   @default("INIT")
+  value      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@index([customerId])
+  @@index([stage])
+  @@map("crm_opportunity")
+}
+
+/// V60 P2 — CRM Deal
+model Deal {
+  id            String   @id @default(cuid())
+  opportunityId String
+  amount        Int      @default(0)
+  status        String   @default("OPEN")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([opportunityId])
+  @@index([status])
+  @@map("crm_deal")
+}
+
+/// V60 P2 — CRM Activity
+model CRMActivity {
+  id         String   @id @default(cuid())
+  customerId String
+  type       String
+  meta       Json?
+  timestamp  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, timestamp])
+  @@map("crm_activity")
 }
