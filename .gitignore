@@ -83,3 +83,9 @@ prisma/*.bak*
 prisma_diff.sql
 scripts/pdf_hashes.py
 scripts/promote-golden.ps1
+
+# Prisma stability runtime artifacts
+.prisma-stability/audit/
+.prisma-stability/snapshots/latest.json
+.prisma-stability/snapshots/pre-migration-*.json
+.prisma-stability/snapshots/post-migration-*.json

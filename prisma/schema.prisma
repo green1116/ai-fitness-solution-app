@@ -193,7 +193,8 @@ model PdfDownloadTokenState {
   @@index([revoked, expAt])
 }
 
-model Lead {
+/// Marketing Lead (FIXED)
+model MarketingLead {
   id        String   @id @default(cuid())
   email     String
   phone     String?
@@ -591,7 +592,7 @@ model Customer {
   @@map("crm_customer")
 }
 
-/// V60 P2 — CRM Lead
+/// V60 P2 — CRM Lead (sales pipeline)
 model Lead {
   id         String   @id @default(cuid())
   customerId String

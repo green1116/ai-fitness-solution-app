@@ -1,0 +1,3165 @@
+{
+  "id": "baseline-1782126702031",
+  "kind": "baseline",
+  "capturedAt": "2026-06-22T11:11:42.031Z",
+  "capturedBy": "ai.executor@local.dev",
+  "schemaHash": "9d79246b0923fc93ef8a09797f18edb045143b329e96848e087ae84ff9ddd893",
+  "schemaPath": "D:\\AI\\AI-FITNESS-SOLUTION\\prisma\\schema.prisma",
+  "models": [
+    {
+      "name": "PlanJob",
+      "mapName": "planjob",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "input",
+          "type": "Json",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "plan",
+          "type": "Json",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "EmailOtp",
+      "fields": [
+        {
+          "name": "email",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "code",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "expiresAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "Session",
+      "mapName": "session",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "tokenHash",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "userId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "expiresAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@index([email], map: \"Session_email_idx\")"
+      ]
+    },
+    {
+      "name": "User",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "password",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "bindings",
+          "type": "LicenseBinding",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "organizationMembers",
+          "type": "OrganizationMember",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "Organization",
+      "mapName": "organization",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "slug",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "members",
+          "type": "OrganizationMember",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "projects",
+          "type": "Project",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "quotes",
+          "type": "Quote",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "subscriptions",
+          "type": "Subscription",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "usageRecords",
+          "type": "UsageRecord",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "invoices",
+          "type": "SaasInvoice",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "payments",
+          "type": "Payment",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "crmCustomers",
+          "type": "Customer",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "OrganizationMember",
+      "mapName": "organization_member",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organizationId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "userId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "role",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organization",
+          "type": "Organization",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "user",
+          "type": "User",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@unique([organizationId, userId])",
+        "@@index([userId])"
+      ]
+    },
+    {
+      "name": "LicenseBinding",
+      "fields": [
+        {
+          "name": "userId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "licenseId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "fingerprint",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "user",
+          "type": "User",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "license",
+          "type": "LicenseKey",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([userId])",
+        "@@index([licenseId])"
+      ]
+    },
+    {
+      "name": "Order",
+      "mapName": "order",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "amount",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@index([planId])",
+        "@@index([email])"
+      ]
+    },
+    {
+      "name": "LicenseKey",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "keyHash",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "maxDownloads",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "usedCount",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "expiresAt",
+          "type": "DateTime",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "requireLogin",
+          "type": "Boolean",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "note",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planLevel",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "bindings",
+          "type": "LicenseBinding",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "PdfDownloadLog",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "ip",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "ok",
+          "type": "Boolean",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "reason",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "error",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "userAgent",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "route",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "method",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "mode",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "level",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "format",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "theme",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "pdfVersion",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planVersion",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "budgetVersion",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "reqsig",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "docSeq",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "pages",
+          "type": "Int",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "bytes",
+          "type": "Int",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "ua",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "extra",
+          "type": "Json",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@index([planId, createdAt])",
+        "@@index([createdAt])"
+      ]
+    },
+    {
+      "name": "LicenseConsume",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "licenseId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "fingerprint",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@unique([licenseId, fingerprint])",
+        "@@index([planId, createdAt])"
+      ]
+    },
+    {
+      "name": "PdfDownloadTokenDeny",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "tokenHash",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "reason",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@index([planId, createdAt])"
+      ]
+    },
+    {
+      "name": "PdfDownloadTokenState",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "tokenHash",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "mode",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "expAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "maxUses",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "usedCount",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "revoked",
+          "type": "Boolean",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@index([planId, createdAt])",
+        "@@index([revoked, expAt])"
+      ]
+    },
+    {
+      "name": "MarketingLead",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "phone",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "company",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "title",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "intent",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "source",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "score",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "note",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "payload",
+          "type": "Json",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@index([email, createdAt])",
+        "@@index([planId, createdAt])",
+        "@@index([status])"
+      ]
+    },
+    {
+      "name": "EmailVerifyCode",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "code",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "mode",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planLevel",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "expiresAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "usedAt",
+          "type": "DateTime",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@index([email, mode, planId, planLevel])",
+        "@@index([expiresAt])"
+      ]
+    },
+    {
+      "name": "DownloadLead",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "mode",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "verifiedAt",
+          "type": "DateTime",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "downloadedAt",
+          "type": "DateTime",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@index([email])",
+        "@@index([planId])",
+        "@@index([mode])"
+      ]
+    },
+    {
+      "name": "UnlockIntent",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "ip",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "ua",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@index([planId])",
+        "@@index([createdAt])"
+      ]
+    },
+    {
+      "name": "UpgradeOrder",
+      "mapName": "upgrade_order",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "planId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "projectId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "targetLevel",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "amount",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "userId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "clientFingerprint",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "paymentProvider",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": [
+        "@@index([planId, createdAt])",
+        "@@index([status])"
+      ]
+    },
+    {
+      "name": "Project",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "clientName",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "industry",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "siteType",
+          "type": "SiteType",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "areaM2",
+          "type": "Float",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "targetUsers",
+          "type": "Int",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "city",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "budgetLevel",
+          "type": "BudgetLevel",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "deliveryMode",
+          "type": "DeliveryMode",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "notes",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organizationId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "description",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "budgets",
+          "type": "Budget",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "documents",
+          "type": "DocumentExport",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "placeholders",
+          "type": "ProductPlaceholder",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "solution",
+          "type": "Solution",
+          "optional": true,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "organization",
+          "type": "Organization",
+          "optional": true,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "quotes",
+          "type": "Quote",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "tenders",
+          "type": "Tender",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "Solution",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "projectId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "summary",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "background",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "requirements",
+          "type": "Json",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "objectives",
+          "type": "Json",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "zoning",
+          "type": "Json",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "implementationPlan",
+          "type": "Json",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "operationsPlan",
+          "type": "Json",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "riskControl",
+          "type": "Json",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "acceptanceCriteria",
+          "type": "Json",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "project",
+          "type": "Project",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "ProductPlaceholder",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "projectId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "category",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "subCategory",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "specTags",
+          "type": "Json",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "quantity",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "priceBand",
+          "type": "PriceBand",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "recommendationReason",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "replaceable",
+          "type": "Boolean",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "skuId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "skuName",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "brand",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "model",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "imageUrl",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "project",
+          "type": "Project",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "skuMapping",
+          "type": "SkuMapping",
+          "optional": true,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "Budget",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "projectId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "currency",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "totalEstimateMin",
+          "type": "Float",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "totalEstimateMax",
+          "type": "Float",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "items",
+          "type": "Json",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "assumptions",
+          "type": "Json",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "project",
+          "type": "Project",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "tenders",
+          "type": "Tender",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "DocumentExport",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "projectId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "docType",
+          "type": "DocumentType",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "fileName",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "fileUrl",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "renderVersion",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "metadata",
+          "type": "Json",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "project",
+          "type": "Project",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "SkuMapping",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "placeholderId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "skuId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "skuName",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "brand",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "model",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "imageUrl",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "unitPrice",
+          "type": "Float",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "placeholder",
+          "type": "ProductPlaceholder",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "Quote",
+      "mapName": "quote",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "projectId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organizationId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "workspaceId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "QuoteStatus",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "companyInfo",
+          "type": "Json",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "content",
+          "type": "Json",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "orchestrationId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "project",
+          "type": "Project",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "organization",
+          "type": "Organization",
+          "optional": true,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "tenders",
+          "type": "Tender",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([projectId])",
+        "@@index([organizationId])",
+        "@@index([workspaceId])"
+      ]
+    },
+    {
+      "name": "Tender",
+      "mapName": "tender",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "projectId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "quoteId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "budgetId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "TenderStatus",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "fileName",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "fileUrl",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "renderVersion",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "metadata",
+          "type": "Json",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "project",
+          "type": "Project",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "quote",
+          "type": "Quote",
+          "optional": true,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "budget",
+          "type": "Budget",
+          "optional": true,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([projectId])",
+        "@@index([quoteId])"
+      ]
+    },
+    {
+      "name": "Subscription",
+      "mapName": "subscription",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organizationId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "plan",
+          "type": "SaasPlan",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "status",
+          "type": "SaasSubStatus",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "stripeCustomerId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "stripeSubscriptionId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "currentPeriodEnd",
+          "type": "DateTime",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organization",
+          "type": "Organization",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "invoices",
+          "type": "SaasInvoice",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([organizationId])",
+        "@@index([status])",
+        "@@index([stripeSubscriptionId])"
+      ]
+    },
+    {
+      "name": "Payment",
+      "mapName": "payment",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organizationId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "stripeSessionId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "amount",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "currency",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organization",
+          "type": "Organization",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([organizationId])"
+      ]
+    },
+    {
+      "name": "StripeWebhookEvent",
+      "mapName": "stripe_webhook_event",
+      "fields": [
+        {
+          "name": "stripeEventId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "eventType",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "processedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "UsageRecord",
+      "mapName": "usage_record",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organizationId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "type",
+          "type": "UsageType",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "count",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organization",
+          "type": "Organization",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([organizationId, type, createdAt])"
+      ]
+    },
+    {
+      "name": "SaasInvoice",
+      "mapName": "saas_invoice",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organizationId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "subscriptionId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "amount",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "currency",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "stripeInvoiceId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organization",
+          "type": "Organization",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "subscription",
+          "type": "Subscription",
+          "optional": true,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([organizationId])"
+      ]
+    },
+    {
+      "name": "Customer",
+      "mapName": "crm_customer",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organizationId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "industry",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "organization",
+          "type": "Organization",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "leads",
+          "type": "Lead",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "opportunities",
+          "type": "Opportunity",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        },
+        {
+          "name": "activities",
+          "type": "CRMActivity",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([organizationId])"
+      ]
+    },
+    {
+      "name": "Lead",
+      "mapName": "crm_lead",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "customerId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "source",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "score",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "customer",
+          "type": "Customer",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([customerId])",
+        "@@index([status])"
+      ]
+    },
+    {
+      "name": "Opportunity",
+      "mapName": "crm_opportunity",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "customerId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "leadId",
+          "type": "String",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "stage",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "value",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "customer",
+          "type": "Customer",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        },
+        {
+          "name": "deals",
+          "type": "Deal",
+          "optional": false,
+          "isList": true,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([customerId])",
+        "@@index([stage])"
+      ]
+    },
+    {
+      "name": "Deal",
+      "mapName": "crm_deal",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "opportunityId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "amount",
+          "type": "Int",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "createdAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "updatedAt",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "opportunity",
+          "type": "Opportunity",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([opportunityId])",
+        "@@index([status])"
+      ]
+    },
+    {
+      "name": "CRMActivity",
+      "mapName": "crm_activity",
+      "fields": [
+        {
+          "name": "id",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "customerId",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "type",
+          "type": "String",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "meta",
+          "type": "Json",
+          "optional": true,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "timestamp",
+          "type": "DateTime",
+          "optional": false,
+          "isList": false,
+          "isRelation": false
+        },
+        {
+          "name": "customer",
+          "type": "Customer",
+          "optional": false,
+          "isList": false,
+          "isRelation": true
+        }
+      ],
+      "indexes": [
+        "@@index([customerId, timestamp])"
+      ]
+    }
+  ],
+  "enums": [
+    {
+      "name": "SiteType",
+      "values": [
+        "office",
+        "factory",
+        "park",
+        "school",
+        "hospital",
+        "mixed"
+      ]
+    },
+    {
+      "name": "BudgetLevel",
+      "values": [
+        "low",
+        "mid",
+        "high",
+        "custom"
+      ]
+    },
+    {
+      "name": "DeliveryMode",
+      "values": [
+        "standard",
+        "enterprise",
+        "tender"
+      ]
+    },
+    {
+      "name": "PriceBand",
+      "values": [
+        "low",
+        "mid",
+        "high"
+      ]
+    },
+    {
+      "name": "DocumentType",
+      "values": [
+        "plan",
+        "budget",
+        "merged",
+        "zip",
+        "tender"
+      ]
+    },
+    {
+      "name": "QuoteStatus",
+      "values": [
+        "DRAFT",
+        "GENERATING",
+        "READY",
+        "FAILED"
+      ]
+    },
+    {
+      "name": "TenderStatus",
+      "values": [
+        "PENDING",
+        "GENERATING",
+        "READY",
+        "FAILED"
+      ]
+    },
+    {
+      "name": "SaasPlan",
+      "values": [
+        "BASIC",
+        "PRO",
+        "ENTERPRISE"
+      ]
+    },
+    {
+      "name": "SaasSubStatus",
+      "values": [
+        "ACTIVE",
+        "CANCELED"
+      ]
+    },
+    {
+      "name": "UsageType",
+      "values": [
+        "QUOTE",
+        "BUDGET",
+        "TENDER",
+        "PDF"
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "model": "User",
+      "field": "bindings",
+      "target": "LicenseBinding"
+    },
+    {
+      "model": "User",
+      "field": "organizationMembers",
+      "target": "OrganizationMember"
+    },
+    {
+      "model": "Organization",
+      "field": "members",
+      "target": "OrganizationMember"
+    },
+    {
+      "model": "Organization",
+      "field": "projects",
+      "target": "Project"
+    },
+    {
+      "model": "Organization",
+      "field": "quotes",
+      "target": "Quote"
+    },
+    {
+      "model": "Organization",
+      "field": "subscriptions",
+      "target": "Subscription"
+    },
+    {
+      "model": "Organization",
+      "field": "usageRecords",
+      "target": "UsageRecord"
+    },
+    {
+      "model": "Organization",
+      "field": "invoices",
+      "target": "SaasInvoice"
+    },
+    {
+      "model": "Organization",
+      "field": "payments",
+      "target": "Payment"
+    },
+    {
+      "model": "Organization",
+      "field": "crmCustomers",
+      "target": "Customer"
+    },
+    {
+      "model": "OrganizationMember",
+      "field": "organization",
+      "target": "Organization"
+    },
+    {
+      "model": "OrganizationMember",
+      "field": "user",
+      "target": "User"
+    },
+    {
+      "model": "LicenseBinding",
+      "field": "user",
+      "target": "User"
+    },
+    {
+      "model": "LicenseBinding",
+      "field": "license",
+      "target": "LicenseKey"
+    },
+    {
+      "model": "LicenseKey",
+      "field": "bindings",
+      "target": "LicenseBinding"
+    },
+    {
+      "model": "Project",
+      "field": "siteType",
+      "target": "SiteType"
+    },
+    {
+      "model": "Project",
+      "field": "budgetLevel",
+      "target": "BudgetLevel"
+    },
+    {
+      "model": "Project",
+      "field": "deliveryMode",
+      "target": "DeliveryMode"
+    },
+    {
+      "model": "Project",
+      "field": "budgets",
+      "target": "Budget"
+    },
+    {
+      "model": "Project",
+      "field": "documents",
+      "target": "DocumentExport"
+    },
+    {
+      "model": "Project",
+      "field": "placeholders",
+      "target": "ProductPlaceholder"
+    },
+    {
+      "model": "Project",
+      "field": "solution",
+      "target": "Solution"
+    },
+    {
+      "model": "Project",
+      "field": "organization",
+      "target": "Organization"
+    },
+    {
+      "model": "Project",
+      "field": "quotes",
+      "target": "Quote"
+    },
+    {
+      "model": "Project",
+      "field": "tenders",
+      "target": "Tender"
+    },
+    {
+      "model": "Solution",
+      "field": "project",
+      "target": "Project"
+    },
+    {
+      "model": "ProductPlaceholder",
+      "field": "priceBand",
+      "target": "PriceBand"
+    },
+    {
+      "model": "ProductPlaceholder",
+      "field": "project",
+      "target": "Project"
+    },
+    {
+      "model": "ProductPlaceholder",
+      "field": "skuMapping",
+      "target": "SkuMapping"
+    },
+    {
+      "model": "Budget",
+      "field": "project",
+      "target": "Project"
+    },
+    {
+      "model": "Budget",
+      "field": "tenders",
+      "target": "Tender"
+    },
+    {
+      "model": "DocumentExport",
+      "field": "docType",
+      "target": "DocumentType"
+    },
+    {
+      "model": "DocumentExport",
+      "field": "project",
+      "target": "Project"
+    },
+    {
+      "model": "SkuMapping",
+      "field": "placeholder",
+      "target": "ProductPlaceholder"
+    },
+    {
+      "model": "Quote",
+      "field": "status",
+      "target": "QuoteStatus"
+    },
+    {
+      "model": "Quote",
+      "field": "project",
+      "target": "Project"
+    },
+    {
+      "model": "Quote",
+      "field": "organization",
+      "target": "Organization"
+    },
+    {
+      "model": "Quote",
+      "field": "tenders",
+      "target": "Tender"
+    },
+    {
+      "model": "Tender",
+      "field": "status",
+      "target": "TenderStatus"
+    },
+    {
+      "model": "Tender",
+      "field": "project",
+      "target": "Project"
+    },
+    {
+      "model": "Tender",
+      "field": "quote",
+      "target": "Quote"
+    },
+    {
+      "model": "Tender",
+      "field": "budget",
+      "target": "Budget"
+    },
+    {
+      "model": "Subscription",
+      "field": "plan",
+      "target": "SaasPlan"
+    },
+    {
+      "model": "Subscription",
+      "field": "status",
+      "target": "SaasSubStatus"
+    },
+    {
+      "model": "Subscription",
+      "field": "organization",
+      "target": "Organization"
+    },
+    {
+      "model": "Subscription",
+      "field": "invoices",
+      "target": "SaasInvoice"
+    },
+    {
+      "model": "Payment",
+      "field": "organization",
+      "target": "Organization"
+    },
+    {
+      "model": "UsageRecord",
+      "field": "type",
+      "target": "UsageType"
+    },
+    {
+      "model": "UsageRecord",
+      "field": "organization",
+      "target": "Organization"
+    },
+    {
+      "model": "SaasInvoice",
+      "field": "organization",
+      "target": "Organization"
+    },
+    {
+      "model": "SaasInvoice",
+      "field": "subscription",
+      "target": "Subscription"
+    },
+    {
+      "model": "Customer",
+      "field": "organization",
+      "target": "Organization"
+    },
+    {
+      "model": "Customer",
+      "field": "leads",
+      "target": "Lead"
+    },
+    {
+      "model": "Customer",
+      "field": "opportunities",
+      "target": "Opportunity"
+    },
+    {
+      "model": "Customer",
+      "field": "activities",
+      "target": "CRMActivity"
+    },
+    {
+      "model": "Lead",
+      "field": "customer",
+      "target": "Customer"
+    },
+    {
+      "model": "Opportunity",
+      "field": "customer",
+      "target": "Customer"
+    },
+    {
+      "model": "Opportunity",
+      "field": "deals",
+      "target": "Deal"
+    },
+    {
+      "model": "Deal",
+      "field": "opportunity",
+      "target": "Opportunity"
+    },
+    {
+      "model": "CRMActivity",
+      "field": "customer",
+      "target": "Customer"
+    }
+  ],
+  "datasource": "datasource db {\n  provider  = \"postgresql\"\n  url       = env(\"DATABASE_URL\")\n  directUrl = env(\"DIRECT_URL\")\n}",
+  "generator": "generator client {\n  provider = \"prisma-client-js\"\n}",
+  "raw": "generator client {\n  provider = \"prisma-client-js\"\n}\n\ndatasource db {\n  provider  = \"postgresql\"\n  url       = env(\"DATABASE_URL\")\n  directUrl = env(\"DIRECT_URL\")\n}\n\nmodel PlanJob {\n  id        String   @id\n  createdAt DateTime @default(now())\n  updatedAt DateTime @updatedAt\n  input     Json?\n  plan      Json?\n  status    String   @default(\"draft\")\n\n  @@map(\"planjob\")\n}\n\nmodel EmailOtp {\n  email     String   @id\n  code      String\n  expiresAt DateTime\n  createdAt DateTime @default(now())\n}\n\nmodel Session {\n  id        String   @id @default(cuid())\n  email     String\n  tokenHash String   @unique(map: \"Session_tokenHash_key\")\n  userId    String?\n  createdAt DateTime @default(now())\n  expiresAt DateTime\n\n  @@index([email], map: \"Session_email_idx\")\n  @@map(\"session\")\n}\n\nmodel User {\n  id        String   @id @default(cuid())\n  email     String   @unique\n  name      String?\n  password  String?\n  createdAt DateTime @default(now())\n  updatedAt DateTime @updatedAt\n\n  bindings            LicenseBinding[]\n  organizationMembers OrganizationMember[]\n}\n\nmodel Organization {\n  id        String   @id @default(cuid())\n  name      String\n  slug      String   @unique\n  createdAt DateTime @default(now())\n  updatedAt DateTime @updatedAt\n\n  members       OrganizationMember[]\n  projects      Project[]\n  quotes        Quote[]\n  subscriptions Subscription[]\n  usageRecords  UsageRecord[]\n  invoices      SaasInvoice[]\n  payments      Payment[]\n  crmCustomers  Customer[]\n\n  @@map(\"organization\")\n}\n\nmodel OrganizationMember {\n  id             String   @id @default(cuid())\n  organizationId String\n  userId         String\n  role           String   @default(\"member\")\n  createdAt      DateTime @default(now())\n\n  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)\n  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)\n\n  @@unique([organizationId, userId])\n  @@index([userId])\n  @@map(\"organization_member\")\n}\n\nmodel LicenseBinding {\n  userId      String\n  licenseId   String\n  fingerprint String?\n  createdAt   DateTime @default(now())\n\n  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)\n  license LicenseKey @relation(fields: [licenseId], references: [id], onDelete: Cascade)\n\n  @@id([userId, licenseId])\n  @@index([userId])\n  @@index([licenseId])\n}\n\nmodel Order {\n  id        String   @id @default(cuid())\n  planId    String\n  email     String?\n  amount    Int\n  status    String   @default(\"PENDING\")\n  createdAt DateTime @default(now())\n  updatedAt DateTime @updatedAt\n\n  @@index([planId])\n  @@index([email])\n  @@map(\"order\")\n}\n\nmodel LicenseKey {\n  id           String    @id @default(cuid())\n  keyHash      String    @unique\n  planId       String?\n  maxDownloads Int       @default(0)\n  usedCount    Int       @default(0)\n  expiresAt    DateTime?\n  requireLogin Boolean   @default(false)\n  note         String?\n  createdAt    DateTime  @default(now())\n  updatedAt    DateTime  @updatedAt\n  planLevel    String    @default(\"pro\")\n  bindings     LicenseBinding[]\n}\n\nmodel PdfDownloadLog {\n  id            String   @id @default(cuid())\n  planId        String\n  ip            String?\n  ok            Boolean\n  reason        String?\n  createdAt     DateTime @default(now())\n  error         String?\n  userAgent     String?\n  route         String   @default(\"/api/pdf\")\n  method        String   @default(\"GET\")\n  mode          String?\n  level         String?\n  format        String?\n  theme         String?\n  pdfVersion    String?\n  planVersion   String?\n  budgetVersion String?\n  reqsig        String?\n  docSeq        String?\n  pages         Int?\n  bytes         Int?\n  ua            String?\n  extra         Json?\n\n  @@index([planId, createdAt])\n  @@index([createdAt])\n}\n\nmodel LicenseConsume {\n  id          String   @id @default(cuid())\n  licenseId   String\n  planId      String\n  fingerprint String\n  createdAt   DateTime @default(now())\n\n  @@unique([licenseId, fingerprint])\n  @@index([planId, createdAt])\n}\n\nmodel PdfDownloadTokenDeny {\n  id        String   @id @default(cuid())\n  tokenHash String   @unique\n  planId    String?\n  reason    String?\n  createdAt DateTime @default(now())\n\n  @@index([planId, createdAt])\n}\n\nmodel PdfDownloadTokenState {\n  id        String   @id @default(cuid())\n  tokenHash String   @unique\n  planId    String\n  mode      String?\n  expAt     DateTime\n  maxUses   Int      @default(1)\n  usedCount Int      @default(0)\n  revoked   Boolean  @default(false)\n  createdAt DateTime @default(now())\n  updatedAt DateTime @updatedAt\n\n  @@index([planId, createdAt])\n  @@index([revoked, expAt])\n}\n\n/// Marketing Lead (FIXED)\nmodel MarketingLead {\n  id        String   @id @default(cuid())\n  email     String\n  phone     String?\n  company   String?\n  name      String?\n  title     String?\n  planId    String?\n  intent    String\n  source    String   @default(\"download\")\n  status    String   @default(\"new\")\n  score     Int      @default(0)\n  note      String?\n  payload   Json?\n  createdAt DateTime @default(now())\n\n  @@index([email, createdAt])\n  @@index([planId, createdAt])\n  @@index([status])\n}\n\nmodel EmailVerifyCode {\n  id        String    @id @default(cuid())\n  email     String\n  code      String\n  mode      String\n  planId    String\n  /// 商业模式：free / pro / enterprise，与签发 unlockToken.planLevel 对齐\n  planLevel String    @default(\"pro\")\n  expiresAt DateTime\n  usedAt    DateTime?\n  createdAt DateTime  @default(now())\n\n  @@index([email, mode, planId, planLevel])\n  @@index([expiresAt])\n}\n\nmodel DownloadLead {\n  id           String    @id @default(cuid())\n  email        String\n  planId       String\n  mode         String\n  verifiedAt   DateTime?\n  downloadedAt DateTime?\n  createdAt    DateTime  @default(now())\n\n  @@index([email])\n  @@index([planId])\n  @@index([mode])\n}\n\nmodel UnlockIntent {\n  id        String   @id @default(cuid())\n  planId    String\n  createdAt DateTime @default(now())\n  ip        String?\n  ua        String?\n\n  @@index([planId])\n  @@index([createdAt])\n}\n\n/// 套餐升级订单（支付：pending → paid | failed | canceled）\n/// status：pending | paid | failed | canceled（小写，与 API 一致）\nmodel UpgradeOrder {\n  id                String   @id @default(cuid())\n  planId            String\n  projectId         String?\n  targetLevel       String\n  status            String   @default(\"pending\")\n  amount            Int\n  userId            String?\n  clientFingerprint String?\n  paymentProvider   String?\n  createdAt         DateTime @default(now())\n  updatedAt         DateTime @updatedAt\n\n  @@index([planId, createdAt])\n  @@index([status])\n  @@map(\"upgrade_order\")\n}\n\nmodel Project {\n  id             String               @id @default(cuid())\n  name           String\n  clientName     String?\n  industry       String?\n  siteType       SiteType\n  areaM2         Float?\n  targetUsers    Int?\n  city           String?\n  budgetLevel    BudgetLevel\n  deliveryMode   DeliveryMode\n  notes          String?\n  organizationId String?\n  createdAt      DateTime             @default(now())\n  updatedAt      DateTime             @updatedAt\n  description    String?\n  budgets        Budget[]\n  documents      DocumentExport[]\n  placeholders   ProductPlaceholder[]\n  solution       Solution?\n  organization   Organization?        @relation(fields: [organizationId], references: [id])\n  quotes         Quote[]\n  tenders        Tender[]\n}\n\nmodel Solution {\n  id                 String   @id @default(cuid())\n  projectId          String   @unique\n  summary            String\n  background         String\n  requirements       Json\n  objectives         Json\n  zoning             Json\n  implementationPlan Json\n  operationsPlan     Json\n  riskControl        Json\n  acceptanceCriteria Json\n  createdAt          DateTime @default(now())\n  updatedAt          DateTime @updatedAt\n  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)\n}\n\nmodel ProductPlaceholder {\n  id                   String      @id @default(cuid())\n  projectId            String\n  category             String\n  subCategory          String?\n  specTags             Json\n  quantity             Int\n  priceBand            PriceBand\n  recommendationReason String\n  replaceable          Boolean     @default(true)\n  skuId                String?\n  skuName              String?\n  brand                String?\n  model                String?\n  imageUrl             String?\n  createdAt            DateTime    @default(now())\n  updatedAt            DateTime    @updatedAt\n  project              Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)\n  skuMapping           SkuMapping?\n}\n\nmodel Budget {\n  id               String   @id @default(cuid())\n  projectId        String\n  currency         String   @default(\"CNY\")\n  totalEstimateMin Float\n  totalEstimateMax Float\n  items            Json\n  assumptions      Json\n  createdAt        DateTime @default(now())\n  updatedAt        DateTime @updatedAt\n  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)\n  tenders          Tender[]\n}\n\nmodel DocumentExport {\n  id            String       @id @default(cuid())\n  projectId     String\n  docType       DocumentType\n  fileName      String\n  fileUrl       String?\n  renderVersion String\n  metadata      Json?\n  createdAt     DateTime     @default(now())\n  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)\n}\n\nmodel SkuMapping {\n  id            String             @id @default(cuid())\n  placeholderId String             @unique\n  skuId         String\n  skuName       String\n  brand         String?\n  model         String?\n  imageUrl      String?\n  unitPrice     Float?\n  createdAt     DateTime           @default(now())\n  updatedAt     DateTime           @updatedAt\n  placeholder   ProductPlaceholder @relation(fields: [placeholderId], references: [id], onDelete: Cascade)\n}\n\nenum SiteType {\n  office\n  factory\n  park\n  school\n  hospital\n  mixed\n}\n\nenum BudgetLevel {\n  low\n  mid\n  high\n  custom\n}\n\nenum DeliveryMode {\n  standard\n  enterprise\n  tender\n}\n\nenum PriceBand {\n  low\n  mid\n  high\n}\n\nenum DocumentType {\n  plan\n  budget\n  merged\n  zip\n  tender\n}\n\n/// V59 — Quote record (Product layer, orchestrated via V58)\nmodel Quote {\n  id              String       @id @default(cuid())\n  projectId       String\n  organizationId  String?\n  workspaceId     String\n  status          QuoteStatus  @default(DRAFT)\n  companyInfo     Json?\n  content         Json?\n  orchestrationId String?\n  createdAt       DateTime     @default(now())\n  updatedAt       DateTime     @updatedAt\n\n  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)\n  organization Organization? @relation(fields: [organizationId], references: [id])\n  tenders      Tender[]\n\n  @@index([projectId])\n  @@index([organizationId])\n  @@index([workspaceId])\n  @@map(\"quote\")\n}\n\n/// V59 — Tender document record (PDF export target)\nmodel Tender {\n  id            String       @id @default(cuid())\n  projectId     String\n  quoteId       String?\n  budgetId      String?\n  status        TenderStatus @default(PENDING)\n  fileName      String?\n  fileUrl       String?\n  renderVersion String       @default(\"v59-1\")\n  metadata      Json?\n  createdAt     DateTime     @default(now())\n  updatedAt     DateTime     @updatedAt\n\n  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)\n  quote   Quote?  @relation(fields: [quoteId], references: [id])\n  budget  Budget? @relation(fields: [budgetId], references: [id])\n\n  @@index([projectId])\n  @@index([quoteId])\n  @@map(\"tender\")\n}\n\nenum QuoteStatus {\n  DRAFT\n  GENERATING\n  READY\n  FAILED\n}\n\nenum TenderStatus {\n  PENDING\n  GENERATING\n  READY\n  FAILED\n}\n\n/// V59 SaaS — Subscription\nmodel Subscription {\n  id                   String        @id @default(cuid())\n  organizationId       String\n  plan                 SaasPlan      @default(BASIC)\n  status               SaasSubStatus @default(ACTIVE)\n  stripeCustomerId     String?\n  stripeSubscriptionId String?\n  currentPeriodEnd     DateTime?\n  createdAt            DateTime      @default(now())\n  updatedAt            DateTime      @updatedAt\n\n  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)\n  invoices     SaasInvoice[]\n\n  @@index([organizationId])\n  @@index([status])\n  @@index([stripeSubscriptionId])\n  @@map(\"subscription\")\n}\n\n/// V59.4 — Stripe Payment record\nmodel Payment {\n  id              String   @id @default(cuid())\n  organizationId  String\n  stripeSessionId String   @unique\n  amount          Int\n  currency        String   @default(\"usd\")\n  status          String   @default(\"pending\")\n  createdAt       DateTime @default(now())\n  updatedAt       DateTime @updatedAt\n\n  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)\n\n  @@index([organizationId])\n  @@map(\"payment\")\n}\n\n/// V59.4 — Idempotent Stripe webhook processing\nmodel StripeWebhookEvent {\n  stripeEventId String   @id\n  eventType     String\n  processedAt   DateTime @default(now())\n\n  @@map(\"stripe_webhook_event\")\n}\n\n/// V59 SaaS — Usage tracking\nmodel UsageRecord {\n  id             String        @id @default(cuid())\n  organizationId String\n  type           UsageType\n  count          Int           @default(1)\n  createdAt      DateTime      @default(now())\n\n  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)\n\n  @@index([organizationId, type, createdAt])\n  @@map(\"usage_record\")\n}\n\n/// V59 SaaS — Invoice\nmodel SaasInvoice {\n  id              String   @id @default(cuid())\n  organizationId  String\n  subscriptionId  String?\n  amount          Int\n  currency        String   @default(\"usd\")\n  status          String   @default(\"DRAFT\")\n  stripeInvoiceId String?\n  createdAt       DateTime @default(now())\n  updatedAt       DateTime @updatedAt\n\n  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)\n  subscription Subscription? @relation(fields: [subscriptionId], references: [id])\n\n  @@index([organizationId])\n  @@map(\"saas_invoice\")\n}\n\nenum SaasPlan {\n  BASIC\n  PRO\n  ENTERPRISE\n}\n\nenum SaasSubStatus {\n  ACTIVE\n  CANCELED\n}\n\nenum UsageType {\n  QUOTE\n  BUDGET\n  TENDER\n  PDF\n}\n\n/// V60 P2 — CRM Customer\nmodel Customer {\n  id             String   @id @default(cuid())\n  organizationId String\n  name           String\n  industry       String   @default(\"\")\n  status         String   @default(\"ACTIVE\")\n  createdAt      DateTime @default(now())\n  updatedAt      DateTime @updatedAt\n\n  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)\n  leads         Lead[]\n  opportunities Opportunity[]\n  activities    CRMActivity[]\n\n  @@index([organizationId])\n  @@map(\"crm_customer\")\n}\n\n/// V60 P2 — CRM Lead (sales pipeline)\nmodel Lead {\n  id         String   @id @default(cuid())\n  customerId String\n  source     String   @default(\"unknown\")\n  score      Int      @default(0)\n  status     String   @default(\"NEW\")\n  createdAt  DateTime @default(now())\n  updatedAt  DateTime @updatedAt\n\n  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)\n\n  @@index([customerId])\n  @@index([status])\n  @@map(\"crm_lead\")\n}\n\n/// V60 P2 — CRM Opportunity\nmodel Opportunity {\n  id         String   @id @default(cuid())\n  customerId String\n  leadId     String?\n  stage      String   @default(\"INIT\")\n  value      Int      @default(0)\n  createdAt  DateTime @default(now())\n  updatedAt  DateTime @updatedAt\n\n  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)\n  deals    Deal[]\n\n  @@index([customerId])\n  @@index([stage])\n  @@map(\"crm_opportunity\")\n}\n\n/// V60 P2 — CRM Deal\nmodel Deal {\n  id            String   @id @default(cuid())\n  opportunityId String\n  amount        Int      @default(0)\n  status        String   @default(\"OPEN\")\n  createdAt     DateTime @default(now())\n  updatedAt     DateTime @updatedAt\n\n  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)\n\n  @@index([opportunityId])\n  @@index([status])\n  @@map(\"crm_deal\")\n}\n\n/// V60 P2 — CRM Activity\nmodel CRMActivity {\n  id         String   @id @default(cuid())\n  customerId String\n  type       String\n  meta       Json?\n  timestamp  DateTime @default(now())\n\n  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)\n\n  @@index([customerId, timestamp])\n  @@map(\"crm_activity\")\n}\n"
+}

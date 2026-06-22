@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
       data: { usedAt: new Date() },
     });
 
-    await prisma.lead.create({
+    await prisma.marketingLead.create({
       data: {
         email,
         planId,

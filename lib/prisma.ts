@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { describeDatabaseUrl, resolveDatabaseUrl } from "@/lib/db/resolveDatabaseUrl";
+import { installPrismaRuntimeGuard } from "@/lib/prisma-stability/runtime/prisma.runtime.guard";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -50,6 +51,10 @@ export const prisma = cached ?? createClient();
 
 if (process.env.NODE_ENV !== "production") {
   global.prisma = prisma;
+}
+
+if (process.env.PRISMA_RUNTIME_GUARD !== "0") {
+  installPrismaRuntimeGuard(prisma);
 }
 
 /** 启动后可选探测（dev）；失败只打日志，不抛 */
