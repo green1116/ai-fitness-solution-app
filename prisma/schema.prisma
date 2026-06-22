@@ -113,17 +113,17 @@ model Order {
 }
 
 model LicenseKey {
-  id           String    @id @default(cuid())
-  keyHash      String    @unique
+  id           String           @id @default(cuid())
+  keyHash      String           @unique
   planId       String?
-  maxDownloads Int       @default(0)
-  usedCount    Int       @default(0)
+  maxDownloads Int              @default(0)
+  usedCount    Int              @default(0)
   expiresAt    DateTime?
-  requireLogin Boolean   @default(false)
+  requireLogin Boolean          @default(false)
   note         String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  planLevel    String    @default("pro")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  planLevel    String           @default("pro")
   bindings     LicenseBinding[]
 }
 
@@ -417,16 +417,16 @@ enum DocumentType {
 
 /// V59 — Quote record (Product layer, orchestrated via V58)
 model Quote {
-  id              String       @id @default(cuid())
+  id              String      @id @default(cuid())
   projectId       String
   organizationId  String?
   workspaceId     String
-  status          QuoteStatus  @default(DRAFT)
+  status          QuoteStatus @default(DRAFT)
   companyInfo     Json?
   content         Json?
   orchestrationId String?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   organization Organization? @relation(fields: [organizationId], references: [id])
@@ -524,11 +524,11 @@ model StripeWebhookEvent {
 
 /// V59 SaaS — Usage tracking
 model UsageRecord {
-  id             String        @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   type           UsageType
-  count          Int           @default(1)
-  createdAt      DateTime      @default(now())
+  count          Int       @default(1)
+  createdAt      DateTime  @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -592,20 +592,36 @@ model Customer {
   @@map("crm_customer")
 }
 
-/// V60 P2 — CRM Lead (sales pipeline)
+/// V60 P2 — CRM Lead (stable)
 model Lead {
-  id         String   @id @default(cuid())
+  id String @id @default(cuid())
+
+  // 保持兼容字段
+  email   String?
+  phone   String?
+  company String?
+  name    String?
+  title   String?
+  planId  String?
+  intent  String?
+  note    String?
+  payload Json?
+
+  // CRM 核心字段：固定归属到一个 Customer
   customerId String
-  source     String   @default("unknown")
-  score      Int      @default(0)
-  status     String   @default("NEW")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  source     String @default("unknown")
+  score      Int    @default(0)
+  status     String @default("NEW")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@index([status])
+  @@index([email])
+  @@index([planId])
   @@map("crm_lead")
 }
 
