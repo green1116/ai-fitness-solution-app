@@ -334,6 +334,7 @@
         "verify:v57-p3-workspace-experience": "tsx scripts/verify-v57-p3-workspace-experience.ts",
         "verify:v58-document-delivery": "tsx scripts/verify-v58-document-delivery.ts",
         "verify:v59-enterprise-delivery-intelligence": "tsx scripts/verify-v59-enterprise-delivery-intelligence.ts",
+        "verify:v60-production": "tsx scripts/verify-v60-production.ts",
         "verify:v64-p1-landing-demo": "tsx scripts/verify-v64-p1-landing-demo.ts",
         "verify:v64-p2-conversion": "tsx scripts/verify-v64-p2-conversion.ts",
         "verify:v64-p3-revenue": "tsx scripts/verify-v64-p3-revenue.ts",
