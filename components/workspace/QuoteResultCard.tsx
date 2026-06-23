@@ -20,6 +20,13 @@ export function QuoteResultCard({ quoteId, projectId }: QuoteResultCardProps) {
 
       <div className="mt-6 flex flex-wrap gap-3">
         <Link
+          href={`/documents/quotes/${quoteId}`}
+          onClick={() => trackEvent("quote_viewed", { quoteId, projectId: resolvedProjectId })}
+          className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500"
+        >
+          Delivery Center
+        </Link>
+        <Link
           href={`/quotes/${quoteId}`}
           onClick={() => trackEvent("quote_viewed", { quoteId, projectId: resolvedProjectId })}
           className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200"
@@ -50,10 +57,10 @@ export function QuoteResultCard({ quoteId, projectId }: QuoteResultCardProps) {
           Create New Project
         </Link>
         <Link
-          href="/dashboard"
-          className="rounded-xl border border-emerald-800 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-900/30"
+          href="/documents"
+          className="rounded-xl border border-sky-800 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-900/30"
         >
-          Back To Workspace
+          Document Center
         </Link>
       </div>
     </section>

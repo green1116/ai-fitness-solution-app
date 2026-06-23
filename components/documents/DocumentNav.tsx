@@ -4,20 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/projects", label: "Projects" },
-  { href: "/quotes", label: "Quotes" },
-  { href: "/documents", label: "Documents" },
-  { href: "/reports", label: "Reports" },
-  { href: "/settings", label: "Settings" },
+  { href: "/documents", label: "Overview" },
+  { href: "/documents/plans", label: "Plans" },
+  { href: "/documents/budgets", label: "Budgets" },
+  { href: "/documents/quotes", label: "Quotes" },
+  { href: "/documents/reports", label: "Reports" },
+  { href: "/documents/deliveries", label: "Deliveries" },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
-  if (href === "/dashboard") return pathname === "/dashboard";
+  if (href === "/documents") return pathname === "/documents";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function WorkspaceNav() {
+export function DocumentNav() {
   const pathname = usePathname();
 
   return (
@@ -31,7 +31,7 @@ export function WorkspaceNav() {
               href={item.href}
               className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition ${
                 active
-                  ? "bg-white text-black"
+                  ? "bg-sky-500 text-black"
                   : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               }`}
             >

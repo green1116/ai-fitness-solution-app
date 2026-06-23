@@ -332,6 +332,7 @@
         "verify:v62-p3-autonomous": "tsx scripts/verify-v62-p3-autonomous.ts",
         "verify:v57-p2-user-journey": "tsx scripts/verify-v57-p2-user-journey.ts",
         "verify:v57-p3-workspace-experience": "tsx scripts/verify-v57-p3-workspace-experience.ts",
+        "verify:v58-document-delivery": "tsx scripts/verify-v58-document-delivery.ts",
         "verify:v64-p1-landing-demo": "tsx scripts/verify-v64-p1-landing-demo.ts",
         "verify:v64-p2-conversion": "tsx scripts/verify-v64-p2-conversion.ts",
         "verify:v64-p3-revenue": "tsx scripts/verify-v64-p3-revenue.ts",
