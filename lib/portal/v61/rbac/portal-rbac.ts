@@ -15,7 +15,8 @@ export type PortalSurface =
   | "intelligence"
   | "executive"
   | "production_ops"
-  | "launch";
+  | "launch"
+  | "pilot";
 
 export type PermissionMatrixRow = {
   surface: PortalSurface;
@@ -37,6 +38,7 @@ export const PORTAL_PERMISSION_MATRIX: PermissionMatrixRow[] = [
   { surface: "executive", label: "Executive Dashboard", owner: true, admin: true, manager: true, member: false },
   { surface: "production_ops", label: "Production Ops", owner: true, admin: true, manager: false, member: false },
   { surface: "launch", label: "Launch Center", owner: true, admin: true, manager: false, member: false },
+  { surface: "pilot", label: "Pilot Center", owner: true, admin: true, manager: true, member: false },
 ];
 
 export class PortalAccessError extends Error {

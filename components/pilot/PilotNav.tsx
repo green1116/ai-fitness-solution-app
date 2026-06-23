@@ -3,14 +3,17 @@
 import Link from "next/link";
 
 const NAV = [
-  { href: "/launch", label: "Overview" },
-  { href: "/launch/checklist", label: "Checklist" },
-  { href: "/launch/operations", label: "Operations" },
-  { href: "/launch/docs", label: "Docs" },
-  { href: "/pilot", label: "Pilot" },
+  { href: "/pilot", label: "Overview" },
+  { href: "/pilot/program", label: "Program" },
+  { href: "/pilot/health", label: "Health" },
+  { href: "/pilot/feedback", label: "Feedback" },
+  { href: "/pilot/telemetry", label: "Telemetry" },
+  { href: "/pilot/issues", label: "Issues" },
+  { href: "/pilot/funnel", label: "Funnel" },
+  { href: "/pilot/support", label: "Support" },
 ] as const;
 
-export function LaunchNav() {
+export function PilotNav() {
   return (
     <nav className="border-b border-zinc-800/80 bg-black/40 px-6">
       <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto py-2">
