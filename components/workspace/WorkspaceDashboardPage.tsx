@@ -2,12 +2,61 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { EmptyState } from "@/components/workspace/EmptyState";
 import { QuoteResultCard } from "@/components/workspace/QuoteResultCard";
 import { WorkspaceError } from "@/components/workspace/WorkspaceError";
 import { WorkspaceLoading } from "@/components/workspace/WorkspaceLoading";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
+import type { DeliveryRecord } from "@/lib/portal/v58/delivery/delivery.types";
+
+function RecentDeliveriesSection() {
+  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/documents/summary");
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          setDeliveries(data.summary?.recentDeliveries ?? []);
+        }
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, []);
+
+  if (!loaded) return null;
+  if (deliveries.length === 0) return null;
+
+  return (
+    <section>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Recent Deliveries</h2>
+        <Link href="/documents" className="text-sm text-sky-400 hover:text-sky-300">
+          Document Center →
+        </Link>
+      </div>
+      <ul className="space-y-3">
+        {deliveries.slice(0, 4).map((d) => (
+          <li key={d.id}>
+            <Link
+              href={d.quoteId ? `/documents/quotes/${d.quoteId}` : `/documents/projects/${d.projectId}`}
+              className="block rounded-xl border border-zinc-800 bg-black/40 p-4 hover:border-sky-800"
+            >
+              <div className="text-sm font-medium">{d.artifactType}</div>
+              <div className="mt-1 text-xs text-zinc-500">
+                {d.projectName ?? d.projectId.slice(0, 8)} · {d.isLatest ? "Latest" : "Archived"}
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 function DashboardBody() {
   const searchParams = useSearchParams();
@@ -65,6 +114,12 @@ function DashboardBody() {
             生成方案
           </Link>
           <Link
+            href="/documents"
+            className="rounded-xl border border-sky-800 px-5 py-3 text-sm font-semibold text-sky-100 hover:bg-sky-900/30"
+          >
+            文档交付中心
+          </Link>
+          <Link
             href="/reports"
             className="rounded-xl border border-zinc-700 px-5 py-3 text-sm font-semibold hover:border-zinc-500"
           >
@@ -72,6 +127,8 @@ function DashboardBody() {
           </Link>
         </div>
       </section>
+
+      <RecentDeliveriesSection />
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div>

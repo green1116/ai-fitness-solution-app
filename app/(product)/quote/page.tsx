@@ -80,6 +80,12 @@ function QuoteForm() {
         }),
       });
 
+      void fetch("/api/documents/deliveries/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quoteId: data.quoteId }),
+      });
+
       router.push(resolvePostQuotePath(data.quoteId));
     } catch {
       setError("请求失败");

@@ -41,6 +41,13 @@ export default async function ProjectDetailPage({
           <div className="text-xs text-zinc-400">Budget · {project.budgets.length} 条</div>
         </Link>
         <Link
+          href={`/documents/projects/${project.id}`}
+          className="rounded-xl border border-sky-800 bg-sky-950/20 p-4 hover:border-sky-600"
+        >
+          <div className="font-semibold">交付中心</div>
+          <div className="text-xs text-zinc-400">Documents · 全部交付物</div>
+        </Link>
+        <Link
           href="/tender"
           className="rounded-xl border border-zinc-800 bg-black p-4 hover:border-zinc-600"
         >
