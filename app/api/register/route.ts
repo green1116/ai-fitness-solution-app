@@ -7,7 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function allowRegister() {
-  return process.env.NODE_ENV !== "production" || process.env.ENABLE_MOCK_AUTH === "1";
+  if (process.env.NODE_ENV !== "production") return true;
+  return process.env.ENABLE_COMMERCIAL_REGISTER === "1";
 }
 
 /**
@@ -16,7 +17,7 @@ function allowRegister() {
 export async function POST(req: Request) {
   if (!allowRegister()) {
     return NextResponse.json(
-      { ok: false, code: "REGISTER_DISABLED", message: "注册未启用（生产环境需 ENABLE_MOCK_AUTH=1）" },
+      { ok: false, code: "REGISTER_DISABLED", message: "生产注册未启用（需 ENABLE_COMMERCIAL_REGISTER=1）" },
       { status: 403 },
     );
   }

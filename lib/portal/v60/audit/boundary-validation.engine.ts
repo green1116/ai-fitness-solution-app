@@ -68,7 +68,9 @@ export function runBoundaryValidation(): BoundaryValidationReport {
     const hasAuth =
       src.includes("getPortalUserContext") ||
       src.includes("authenticateRequest") ||
-      src.includes("runApiProtection");
+      src.includes("runApiProtection") ||
+      src.includes("runSaasApiGate") ||
+      src.includes("withPortalRoute");
     const hasOrgFilter = check.mustFilterOrg.every((token) => src.includes(token));
 
     findings.push({
