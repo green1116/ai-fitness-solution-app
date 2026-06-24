@@ -1,49 +1,113 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { resolvePostQuotePath } from "@/lib/portal/v57/journey.redirect";
 
-export default function QuotePage() {
+type MeResponse = {
+  authenticated: boolean;
+  organizationId?: string | null;
+  user?: { name: string | null };
+  projectId?: string | null;
+};
+
+function QuoteForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlProjectId = searchParams.get("projectId") ?? "";
+
   const [projectId, setProjectId] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string>("");
+  const [checking, setChecking] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data: MeResponse) => {
+        if (!data.authenticated) {
+          router.replace("/register");
+          return;
+        }
+        if (!data.organizationId) {
+          router.replace("/onboarding");
+          return;
+        }
+        setOrganizationId(data.organizationId);
+        if (data.user?.name) setCompanyName(data.user.name);
+        const pid = urlProjectId || data.projectId || "";
+        if (pid) setProjectId(pid);
+        else router.replace("/onboarding");
+      })
+      .finally(() => setChecking(false));
+  }, [router, urlProjectId]);
 
   async function handleGenerate() {
-    if (!projectId || !companyName) {
-      alert("请填写项目 ID 与企业名称");
+    if (!projectId || !companyName || !organizationId) {
+      alert("缺少项目或组织信息，请返回 Onboarding 重试");
       return;
     }
 
     setLoading(true);
-    setResult("");
+    setError("");
 
     try {
       const res = await fetch("/api/quote/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, companyName, workspaceId: "ws-default" }),
+        body: JSON.stringify({
+          projectId,
+          companyName,
+          organizationId,
+        }),
       });
       const data = await res.json();
-      setResult(JSON.stringify(data, null, 2));
+
+      if (!res.ok || !data.ok) {
+        setError(data.message || "方案生成失败");
+        return;
+      }
+
+      void fetch("/api/workspace/analytics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "quote_generated",
+          projectId,
+          quoteId: data.quoteId,
+        }),
+      });
+
+      void fetch("/api/documents/deliveries/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quoteId: data.quoteId }),
+      });
+
+      router.push(resolvePostQuotePath(data.quoteId));
     } catch {
-      setResult("请求失败");
+      setError("请求失败");
     } finally {
       setLoading(false);
     }
   }
 
+  if (checking) {
+    return <p className="text-zinc-400">加载会话与项目…</p>;
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">方案生成 Quote</h1>
-      <p className="text-sm text-zinc-400">输入企业信息 → 调用 V58 Orchestrator → 返回 AI 方案</p>
+      <p className="text-sm text-zinc-400">Onboarding 项目 → V58 Orchestrator → 进入工作台</p>
 
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-        <input
-          className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-3"
-          placeholder="项目 ID (projectId)"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-        />
+        <div className="rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-400">
+          <div>Organization: {organizationId.slice(0, 12)}…</div>
+          <div>Project: {projectId.slice(0, 12)}…</div>
+        </div>
         <input
           className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-3"
           placeholder="企业名称"
@@ -56,15 +120,18 @@ export default function QuotePage() {
           disabled={loading}
           className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
         >
-          {loading ? "生成中…" : "生成方案"}
+          {loading ? "生成中…" : "生成方案并进入工作台"}
         </button>
+        {error ? <p className="text-sm text-red-400">{error}</p> : null}
       </section>
-
-      {result ? (
-        <pre className="overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs text-zinc-300">
-          {result}
-        </pre>
-      ) : null}
     </div>
+  );
+}
+
+export default function QuotePage() {
+  return (
+    <Suspense fallback={<p className="text-zinc-400">加载中…</p>}>
+      <QuoteForm />
+    </Suspense>
   );
 }

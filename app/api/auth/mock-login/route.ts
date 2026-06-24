@@ -6,15 +6,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function allowMockLogin() {
-  return (
-    process.env.NODE_ENV !== "production" ||
-    process.env.ENABLE_MOCK_AUTH === "1"
-  );
+  return process.env.NODE_ENV !== "production";
 }
 
 /**
  * POST /api/auth/mock-login
- * 最小邮箱登录（开发默认开启；生产需 ENABLE_MOCK_AUTH=1）。
+ * 最小邮箱登录（仅开发环境；生产环境已禁用）。
  * Cookie 写入后请调用 GET /api/auth/me 拉取用户信息。
  */
 export async function POST(req: Request) {

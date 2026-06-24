@@ -1,0 +1,13 @@
+import { NextResponse } from "next/server";
+import { buildLaunchChecklist } from "@/lib/portal/v61/launch/launch-checklist.engine";
+import { withPortalRoute } from "@/lib/portal/v61/api/portal-route.helpers";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  return withPortalRoute("launch", async () => {
+    const checklist = await buildLaunchChecklist();
+    return NextResponse.json({ ok: true, checklist });
+  });
+}

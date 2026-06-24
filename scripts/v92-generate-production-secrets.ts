@@ -16,6 +16,7 @@ const lines = [
   `DOWNLOAD_TOKEN_SECRET=${crypto.randomBytes(48).toString("base64url")}`,
   `JWT_SECRET=${crypto.randomBytes(48).toString("base64url")}`,
   `SESSION_SECRET=${crypto.randomBytes(48).toString("base64url")}`,
+  "ENABLE_COMMERCIAL_REGISTER=1",
   "",
   "# DATABASE_URL / DIRECT_URL：从 Supabase 控制台复制到 Vercel Production",
   "# 格式须与本地 .env 一致（含 pooler host、pgbouncer=true）",
