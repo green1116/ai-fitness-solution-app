@@ -25,6 +25,7 @@ export async function createInvoice(input: {
 
   return prisma.saasInvoice.create({
     data: {
+      organizationId: input.organizationId,
       subscriptionId,
       amount: input.amount,
       currency: input.currency ?? "USD",

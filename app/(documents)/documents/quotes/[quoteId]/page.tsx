@@ -109,15 +109,17 @@ export default function QuoteDeliveryPage() {
                 type="button"
                 disabled={downloading}
                 onClick={() => {
+                  const latest = data.latest;
+                  if (!latest) return;
                   trackEvent("pdf_downloaded", {
                     quoteId: data.quote.id,
                     projectId: data.quote.projectId,
-                    deliveryId: data.latest!.id,
+                    deliveryId: latest.id,
                   });
                   setDownloading(true);
                   void downloadQuotePdf(
                     data.quote.projectId ?? "",
-                    data.latest.fileName ?? `quote-${data.quote.id.slice(0, 8)}.pdf`,
+                    latest.fileName ?? `quote-${data.quote.id.slice(0, 8)}.pdf`,
                     data.quote.id,
                   )
                     .catch((e) => console.error("[QuoteDelivery] pdf download failed", e))

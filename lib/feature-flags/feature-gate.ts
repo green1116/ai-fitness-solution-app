@@ -10,6 +10,7 @@ import {
   type FeatureFlags,
   type FeatureKey,
 } from "@/lib/feature-flags/feature.service";
+import { normalizeSaasPlan } from "@/lib/saas/plan.compat";
 import type { SaasPlan, UsageType } from "@/lib/saas/types";
 import { getUsageCountInPeriod } from "@/lib/usage/usage-aggregator.service";
 
@@ -34,7 +35,7 @@ export async function checkFeatureAccess(
     };
   }
 
-  const plan = subscription.plan;
+  const plan = normalizeSaasPlan(subscription.plan);
   const flags = resolveFeatureFlags(plan);
 
   if (!flags[feature]) {

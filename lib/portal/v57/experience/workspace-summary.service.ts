@@ -3,6 +3,10 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import {
+  resolveOrganizationDisplayName,
+  resolveOrganizationSlug,
+} from "@/lib/organization/org.compat";
 import { getOrganizationById } from "@/lib/organization/organization.service";
 import { listProjects } from "@/lib/services/project.service";
 import { getOnboardingProfile } from "../onboarding.store";
@@ -74,7 +78,11 @@ export async function getWorkspaceSummary(
 
   return {
     organization: org
-      ? { id: org.id, name: org.name, slug: org.slug }
+      ? {
+          id: org.id,
+          name: resolveOrganizationDisplayName(org.name, org.id),
+          slug: resolveOrganizationSlug({ id: org.id, slug: org.slug, name: org.name }),
+        }
       : null,
     currentProject,
     projectsCount,

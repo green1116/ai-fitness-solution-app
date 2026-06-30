@@ -4,9 +4,34 @@
 
 import { getStripeClient } from "@/lib/billing/stripe.client";
 import { prisma } from "@/lib/prisma";
+import { normalizeSaasPlan, normalizeSaasSubStatus } from "@/lib/saas/plan.compat";
 import type { SaasPlan, SaasSubStatus, SubscriptionRecord } from "@/lib/saas/types";
 
 export type SubscriptionPlan = SaasPlan;
+
+function toSubscriptionRecord(row: {
+  id: string;
+  organizationId: string;
+  plan: string;
+  status: string;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  currentPeriodEnd: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): SubscriptionRecord {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    plan: normalizeSaasPlan(row.plan),
+    status: normalizeSaasSubStatus(row.status),
+    stripeCustomerId: row.stripeCustomerId,
+    stripeSubscriptionId: row.stripeSubscriptionId,
+    currentPeriodEnd: row.currentPeriodEnd,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
 
 export async function createSubscription(input: {
   organizationId: string;
@@ -23,17 +48,7 @@ export async function createSubscription(input: {
       stripeSubscriptionId: input.stripeSubscriptionId,
     },
   });
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    plan: row.plan as SaasPlan,
-    status: row.status as SaasSubStatus,
-    stripeCustomerId: row.stripeCustomerId,
-    stripeSubscriptionId: row.stripeSubscriptionId,
-    currentPeriodEnd: row.currentPeriodEnd,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
+  return toSubscriptionRecord(row);
 }
 
 export async function getActiveSubscription(organizationId: string) {

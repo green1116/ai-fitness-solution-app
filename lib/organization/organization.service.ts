@@ -4,15 +4,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { createSubscription } from "@/lib/billing/subscription.service";
+import { slugifyOrganizationName } from "@/lib/organization/org.compat";
 import { addMemberToOrganization } from "@/lib/organization/membership.service";
 
 function slugify(name: string): string {
-  const base = name
-    .toLowerCase()
-    .replace(/[^\w\u4e00-\u9fa5]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return base || "org";
+  return slugifyOrganizationName(name);
 }
 
 async function uniqueSlug(name: string): Promise<string> {
