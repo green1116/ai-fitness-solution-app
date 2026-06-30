@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")   // pooler
 }
 
 model PlanJob {
@@ -51,36 +50,39 @@ model User {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
+  id String @id @default(cuid())
+
+  name     String?
+  industry String?
+  size     String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  subscriptions Subscription[]
   members       OrganizationMember[]
   projects      Project[]
   quotes        Quote[]
-  subscriptions Subscription[]
-  usageRecords  UsageRecord[]
-  invoices      SaasInvoice[]
   payments      Payment[]
-  crmCustomers  Customer[]
+  usageRecords  UsageRecord[]
+  customers     Customer[]
 
   @@map("organization")
 }
 
 model OrganizationMember {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String
-  role           String   @default("member")
-  createdAt      DateTime @default(now())
+  id String @id @default(cuid())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  userId String
+  role   String @default("MEMBER")
+
+  createdAt DateTime @default(now())
+  user      User @relation(fields: [userId], references: [id])
 
   @@unique([organizationId, userId])
-  @@index([userId])
   @@map("organization_member")
 }
 
@@ -477,23 +479,23 @@ enum TenderStatus {
 
 /// V59 SaaS — Subscription
 model Subscription {
-  id                   String        @id @default(cuid())
-  organizationId       String
-  plan                 SaasPlan      @default(BASIC)
-  status               SaasSubStatus @default(ACTIVE)
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
-  currentPeriodEnd     DateTime?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  id String @id @default(cuid())
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  invoices     SaasInvoice[]
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@index([organizationId])
-  @@index([status])
-  @@index([stripeSubscriptionId])
-  @@map("subscription")
+  plan   String @default("BASIC")
+  status String @default("ACTIVE")
+
+  stripeCustomerId     String? @map("stripe_customer_id")
+  stripeSubscriptionId String? @map("stripe_subscription_id")
+
+  currentPeriodEnd DateTime? @map("current_period_end")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoices SaasInvoice[]
 }
 
 /// V59.4 — Stripe Payment record
@@ -538,21 +540,17 @@ model UsageRecord {
 
 /// V59 SaaS — Invoice
 model SaasInvoice {
-  id              String   @id @default(cuid())
-  organizationId  String
-  subscriptionId  String?
-  amount          Int
-  currency        String   @default("usd")
-  status          String   @default("DRAFT")
-  stripeInvoiceId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id String @id @default(cuid())
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
-  @@index([organizationId])
-  @@map("saas_invoice")
+  amount   Int?
+  currency String? @default("USD")
+
+  status String @default("PENDING")
+
+  createdAt DateTime @default(now())
 }
 
 enum SaasPlan {

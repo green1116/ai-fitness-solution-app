@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { downloadQuotePdf } from "@/components/documents/downloadQuotePdf";
 import { useWorkspace } from "./WorkspaceProvider";
 
 type QuoteResultCardProps = {
@@ -10,7 +12,43 @@ type QuoteResultCardProps = {
 
 export function QuoteResultCard({ quoteId, projectId }: QuoteResultCardProps) {
   const { currentProject, trackEvent } = useWorkspace();
-  const resolvedProjectId = projectId ?? currentProject?.id;
+  const [resolvedProjectId, setResolvedProjectId] = useState(
+    projectId ?? currentProject?.id,
+  );
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/workspace/quotes/${encodeURIComponent(quoteId)}`)
+      .then((r) => r.json())
+      .then((data: { ok?: boolean; quote?: { projectId?: string } }) => {
+        if (!cancelled && data.ok && data.quote?.projectId) {
+          setResolvedProjectId(data.quote.projectId);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [quoteId]);
+
+  async function handleDownloadPdf() {
+    if (downloading) return;
+    setDownloadError("");
+    setDownloading(true);
+    trackEvent("pdf_downloaded", { quoteId, projectId: resolvedProjectId });
+    try {
+      await downloadQuotePdf(
+        resolvedProjectId ?? "",
+        `quote-${quoteId.slice(0, 8)}.pdf`,
+        quoteId,
+      );
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : "PDF 下载失败");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <section className="rounded-2xl border border-emerald-900/40 bg-emerald-950/20 p-6">
@@ -33,15 +71,14 @@ export function QuoteResultCard({ quoteId, projectId }: QuoteResultCardProps) {
         >
           View Quote
         </Link>
-        {resolvedProjectId ? (
-          <Link
-            href={`/tender?projectId=${encodeURIComponent(resolvedProjectId)}`}
-            onClick={() => trackEvent("pdf_downloaded", { quoteId, projectId: resolvedProjectId })}
-            className="rounded-xl border border-zinc-600 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-400"
-          >
-            Download PDF
-          </Link>
-        ) : null}
+        <button
+          type="button"
+          onClick={() => void handleDownloadPdf()}
+          disabled={downloading}
+          className="rounded-xl border border-zinc-600 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {downloading ? "Downloading…" : "Download PDF"}
+        </button>
         {resolvedProjectId ? (
           <Link
             href={`/projects/${resolvedProjectId}`}
@@ -63,6 +100,7 @@ export function QuoteResultCard({ quoteId, projectId }: QuoteResultCardProps) {
           Document Center
         </Link>
       </div>
+      {downloadError ? <p className="mt-3 text-sm text-red-400">{downloadError}</p> : null}
     </section>
   );
 }

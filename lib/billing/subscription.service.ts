@@ -3,7 +3,8 @@
  */
 
 import { getStripeClient } from "@/lib/billing/stripe.client";
-import { saasDb, type SaasPlan, type SubscriptionRecord } from "@/lib/saas/types";
+import { prisma } from "@/lib/prisma";
+import type { SaasPlan, SaasSubStatus, SubscriptionRecord } from "@/lib/saas/types";
 
 export type SubscriptionPlan = SaasPlan;
 
@@ -13,7 +14,7 @@ export async function createSubscription(input: {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
 }): Promise<SubscriptionRecord> {
-  return saasDb().subscription.create({
+  const row = await prisma.subscription.create({
     data: {
       organizationId: input.organizationId,
       plan: input.plan ?? "BASIC",
@@ -22,10 +23,21 @@ export async function createSubscription(input: {
       stripeSubscriptionId: input.stripeSubscriptionId,
     },
   });
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    plan: row.plan as SaasPlan,
+    status: row.status as SaasSubStatus,
+    stripeCustomerId: row.stripeCustomerId,
+    stripeSubscriptionId: row.stripeSubscriptionId,
+    currentPeriodEnd: row.currentPeriodEnd,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
 }
 
 export async function getActiveSubscription(organizationId: string) {
-  return saasDb().subscription.findFirst({
+  return prisma.subscription.findFirst({
     where: { organizationId, status: "ACTIVE" },
     orderBy: { createdAt: "desc" },
   });
@@ -54,7 +66,7 @@ export async function upgradePlan(input: {
   });
 
   if (active) {
-    await saasDb().subscription.update({
+    await prisma.subscription.update({
       where: { id: active.id },
       data: { status: "CANCELED" },
     });
@@ -71,7 +83,7 @@ export async function upgradePlan(input: {
 export async function cancelSubscription(organizationId: string) {
   const active = await getActiveSubscription(organizationId);
   if (!active) return null;
-  return saasDb().subscription.update({
+  return prisma.subscription.update({
     where: { id: active.id },
     data: { status: "CANCELED" },
   });

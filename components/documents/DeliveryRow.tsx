@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { downloadQuotePdf } from "@/components/documents/downloadQuotePdf";
 import type { DeliveryRecord } from "@/lib/portal/v58/delivery/delivery.types";
 import { DeliveryStatusBadge } from "./DeliveryStatusBadge";
 import { VersionBadge } from "./VersionBadge";
@@ -22,6 +24,7 @@ type DeliveryRowProps = {
 
 export function DeliveryRow({ delivery, showProject = true }: DeliveryRowProps) {
   const { trackEvent } = useDocuments();
+  const [downloading, setDownloading] = useState(false);
 
   const handleDownload = () => {
     trackEvent("pdf_downloaded", {
@@ -31,6 +34,23 @@ export function DeliveryRow({ delivery, showProject = true }: DeliveryRowProps) 
       meta: { artifactType: delivery.artifactType },
     });
   };
+
+  async function handleQuotePdfDownload() {
+    if (downloading) return;
+    handleDownload();
+    setDownloading(true);
+    try {
+      await downloadQuotePdf(
+        delivery.projectId ?? "",
+        delivery.fileName ?? `quote-${delivery.quoteId?.slice(0, 8) ?? "export"}.pdf`,
+        delivery.quoteId,
+      );
+    } catch (e) {
+      console.error("[DeliveryRow] quote pdf download failed", e);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <li className="rounded-xl border border-zinc-800 bg-black/40 p-4">
@@ -70,7 +90,16 @@ export function DeliveryRow({ delivery, showProject = true }: DeliveryRowProps) 
           >
             项目包
           </Link>
-          {delivery.downloadUrl ? (
+          {delivery.artifactType === "quote_pdf" ? (
+            <button
+              type="button"
+              onClick={() => void handleQuotePdfDownload()}
+              disabled={downloading}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
+            >
+              {downloading ? "下载中…" : "下载"}
+            </button>
+          ) : delivery.downloadUrl ? (
             <a
               href={delivery.downloadUrl}
               onClick={handleDownload}

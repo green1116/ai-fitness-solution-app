@@ -1,9 +1,11 @@
 /**
  * Prisma Stability V3 — runtime guard (production entry)
+ *
+ * Schema file validation is build-time only (prisma:validate, prisma:preflight schema_guard).
+ * Server runtime must not read schema.prisma — Next.js bundles lack that path (ENOENT).
  */
 
 import type { PrismaClient } from "@prisma/client";
-import { runSchemaGuard } from "../core/schema.guard";
 import { guardPrismaClient, pingPrismaClient } from "./prisma.client.guard";
 
 export type RuntimeGuardResult = {
@@ -17,10 +19,6 @@ export function guardPrismaRuntime(client?: PrismaClient): RuntimeGuardResult {
   const checks: RuntimeGuardResult["checks"] = [];
   const errors: string[] = [];
   const warnings: string[] = [];
-
-  const guard = runSchemaGuard();
-  checks.push({ name: "schema_valid", ok: guard.ok, detail: `${guard.modelCount} models` });
-  if (!guard.ok) errors.push(...guard.errors);
 
   if (client) {
     const clientGuard = guardPrismaClient(client);
@@ -52,11 +50,7 @@ export async function guardPrismaRuntimeWithPing(
   return { ...base, ok: errors.length === 0, errors, checks };
 }
 
-export function installPrismaRuntimeGuard(client: PrismaClient): void {
-  if (process.env.PRISMA_RUNTIME_GUARD === "0") return;
-
-  const result = guardPrismaRuntime(client);
-  if (!result.ok && process.env.NODE_ENV === "production") {
-    console.error("[prisma-stability] Runtime guard failed at startup", result.errors);
-  }
+export function installPrismaRuntimeGuard(_client: PrismaClient): void {
+  // Runtime install hook disabled — schema/fs checks run at build via preflight & prisma:validate.
+  return;
 }

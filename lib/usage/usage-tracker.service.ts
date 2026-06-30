@@ -2,14 +2,15 @@
  * V59 SaaS — Usage tracking
  */
 
-import { saasDb, type UsageType } from "@/lib/saas/types";
+import { prisma } from "@/lib/prisma";
+import type { UsageType } from "@/lib/saas/types";
 
 export async function trackUsage(input: {
   organizationId: string;
   type: UsageType;
   count?: number;
 }) {
-  return saasDb().usageRecord.create({
+  return prisma.usageRecord.create({
     data: {
       organizationId: input.organizationId,
       type: input.type,

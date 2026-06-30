@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { downloadQuotePdf } from "@/components/documents/downloadQuotePdf";
 import { DocumentEmptyState } from "@/components/documents/DocumentEmptyState";
 import { DocumentError } from "@/components/documents/DocumentError";
 import { DocumentLoading } from "@/components/documents/DocumentLoading";
@@ -31,6 +32,7 @@ export default function QuoteDeliveryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<QuoteDocsPayload | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!params.quoteId) return;
@@ -69,6 +71,29 @@ export default function QuoteDeliveryPage() {
           项目：{data.quote.projectName} ·{" "}
           <DeliveryStatusBadge status={data.quote.status === "DRAFT" ? "pending" : "ready"} />
         </p>
+        <div className="mt-4">
+          <button
+            type="button"
+            disabled={downloading}
+            onClick={() => {
+              trackEvent("pdf_downloaded", {
+                quoteId: data.quote.id,
+                projectId: data.quote.projectId,
+              });
+              setDownloading(true);
+              void downloadQuotePdf(
+                data.quote.projectId ?? "",
+                `quote-${data.quote.id.slice(0, 8)}.pdf`,
+                data.quote.id,
+              )
+                .catch((e) => console.error("[QuoteDelivery] pdf download failed", e))
+                .finally(() => setDownloading(false));
+            }}
+            className="rounded-xl border border-zinc-600 px-4 py-2 text-sm font-semibold text-zinc-200 hover:border-zinc-400 disabled:opacity-50"
+          >
+            {downloading ? "Downloading…" : "Download PDF"}
+          </button>
+        </div>
       </div>
 
       {data.latest ? (
@@ -79,20 +104,29 @@ export default function QuoteDeliveryPage() {
             <DeliveryStatusBadge status={data.latest.status} />
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
-            {data.latest.downloadUrl ? (
-              <a
-                href={data.latest.downloadUrl}
-                onClick={() =>
+            {data.latest ? (
+              <button
+                type="button"
+                disabled={downloading}
+                onClick={() => {
                   trackEvent("pdf_downloaded", {
                     quoteId: data.quote.id,
                     projectId: data.quote.projectId,
                     deliveryId: data.latest!.id,
-                  })
-                }
-                className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black"
+                  });
+                  setDownloading(true);
+                  void downloadQuotePdf(
+                    data.quote.projectId ?? "",
+                    data.latest.fileName ?? `quote-${data.quote.id.slice(0, 8)}.pdf`,
+                    data.quote.id,
+                  )
+                    .catch((e) => console.error("[QuoteDelivery] pdf download failed", e))
+                    .finally(() => setDownloading(false));
+                }}
+                className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
               >
-                下载最新 PDF
-              </a>
+                {downloading ? "生成中…" : "下载最新 PDF"}
+              </button>
             ) : null}
             <Link
               href={`/documents/projects/${data.quote.projectId}`}

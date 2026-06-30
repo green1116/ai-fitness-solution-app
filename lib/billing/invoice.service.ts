@@ -2,7 +2,7 @@
  * V59 SaaS — Invoice service
  */
 
-import { saasDb } from "@/lib/saas/types";
+import { prisma } from "@/lib/prisma";
 
 export async function createInvoice(input: {
   organizationId: string;
@@ -11,28 +11,38 @@ export async function createInvoice(input: {
   currency?: string;
   stripeInvoiceId?: string;
 }) {
-  return saasDb().saasInvoice.create({
+  let subscriptionId = input.subscriptionId;
+  if (!subscriptionId) {
+    const sub = await prisma.subscription.findFirst({
+      where: { organizationId: input.organizationId, status: "ACTIVE" },
+      orderBy: { createdAt: "desc" },
+    });
+    subscriptionId = sub?.id;
+  }
+  if (!subscriptionId) {
+    throw new Error("subscriptionId required for invoice");
+  }
+
+  return prisma.saasInvoice.create({
     data: {
-      organizationId: input.organizationId,
-      subscriptionId: input.subscriptionId,
+      subscriptionId,
       amount: input.amount,
-      currency: input.currency ?? "usd",
+      currency: input.currency ?? "USD",
       status: "DRAFT",
-      stripeInvoiceId: input.stripeInvoiceId,
     },
   });
 }
 
 export async function markInvoicePaid(invoiceId: string) {
-  return saasDb().saasInvoice.update({
+  return prisma.saasInvoice.update({
     where: { id: invoiceId },
     data: { status: "PAID" },
   });
 }
 
 export async function listInvoicesForOrganization(organizationId: string) {
-  return saasDb().saasInvoice.findMany({
-    where: { organizationId },
+  return prisma.saasInvoice.findMany({
+    where: { subscription: { organizationId } },
     orderBy: { createdAt: "desc" },
     take: 50,
   });

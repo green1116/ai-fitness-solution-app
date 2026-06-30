@@ -77,6 +77,7 @@ import {
   FREEZE_TOC_LEADER_DOT_SIZE,
 } from "@/lib/pdf/commercialFreezeDesignSystem";
 import { replaceLegacyBidderNames } from "@/lib/plan/resolveCompanyName";
+import { sanitizePdfText, wrapTextCN } from "@/lib/pdf/engine/text";
 
 const DEFAULT_COMPANY_NAME = "示例企业";
 
@@ -159,26 +160,12 @@ function toStringArray(value: unknown): string[] {
 }
 
 function wrap(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const src = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-  const out: string[] = [];
-  for (const line of src) {
-    const value = line.trim();
-    if (!value) {
-      out.push("");
-      continue;
-    }
-    let cur = "";
-    for (const ch of value) {
-      const next = cur + ch;
-      if (font.widthOfTextAtSize(next, size) <= maxWidth) cur = next;
-      else {
-        if (cur) out.push(cur);
-        cur = ch;
-      }
-    }
-    if (cur) out.push(cur);
-  }
-  return out;
+  return wrapTextCN(text, {
+    font,
+    fontSize: size,
+    maxWidth,
+    maxLines: 10_000,
+  });
 }
 
 function cleanField(value: string | undefined | null, fallback: string): string {
@@ -187,6 +174,40 @@ function cleanField(value: string | undefined | null, fallback: string): string 
   if (v.toLowerCase() === "enterprise") return fallback;
   if (v.includes("未提供")) return fallback;
   return normalizeClientName(v);
+}
+
+function withSanitizedSolution(input: {
+  project: ProjectRecord;
+  solution: SolutionRecord;
+}): SolutionRecord {
+  const company = cleanField(input.project.input.clientName, DEFAULT_COMPANY_NAME);
+  const mapLine = (line: string) =>
+    sanitizePdfText(replaceLegacyBidderNames(line, company));
+  return {
+    ...input.solution,
+    summary: mapLine(input.solution.summary),
+    background: mapLine(input.solution.background),
+    requirements: input.solution.requirements.map(mapLine),
+    objectives: input.solution.objectives.map(mapLine),
+    operationsPlan: input.solution.operationsPlan.map(mapLine),
+    riskControl: input.solution.riskControl.map(mapLine),
+    acceptanceCriteria: input.solution.acceptanceCriteria.map(mapLine),
+  };
+}
+
+function planTocSectionsForPageCount(
+  sections: Section[],
+  firstPageMap: Record<string, number>,
+  totalPages: number,
+): { sections: Section[]; firstPageMap: Record<string, number> } {
+  const visible = sections.filter(
+    (s) => typeof firstPageMap[s.key] === "number" && firstPageMap[s.key] <= totalPages,
+  );
+  const map: Record<string, number> = {};
+  for (const s of visible) {
+    map[s.key] = firstPageMap[s.key];
+  }
+  return { sections: visible, firstPageMap: map };
 }
 
 function normalizeIndustry(value: string | undefined | null): string {
@@ -805,8 +826,8 @@ function addIntroIfShort(lines: string[], intro: string, minTotalLines: number):
 function paginateSection(section: Section, font: PDFFont): SectionPage[] {
   const maxWidth = PAGE_WIDTH - MARGIN_X * 2;
   const maxLinesPerPage = Math.max(
-    8,
-    Math.floor((BODY_TOP - BODY_BOTTOM) / (LINE_HEIGHT * 1.14)),
+    6,
+    Math.floor((BODY_TOP - BODY_BOTTOM) / (LINE_HEIGHT * 1.22)),
   );
   const wrapped = section.lines.flatMap((line) =>
     wrap(line, font, BODY_SIZE, maxWidth),
@@ -866,7 +887,7 @@ function drawLabelLine(
   return ruleY - 14;
 }
 
-/** 声明页：公文段落（自动换行 + 段间距） */
+/** 声明页：公文段落（自动换行 + 段间距；逐行绘制，避免整段被跳过） */
 function drawFormalParagraph(
   page: PDFPage,
   font: PDFFont,
@@ -885,12 +906,9 @@ function drawFormalParagraph(
 ): number {
   const indent = layout.firstLineIndent ?? 0;
   const lines = safeTextLines(text, font, layout.fontSize, layout.maxWidth - indent);
-  const needed = lines.length * layout.lineHeight;
-  if (y - needed < layout.minY) {
-    return layout.minY;
-  }
   let cy = y;
   for (let i = 0; i < lines.length; i++) {
+    if (cy - layout.lineHeight < layout.minY) break;
     page.drawText(lines[i], {
       x: i === 0 ? x + indent : x,
       y: cy,
@@ -1224,46 +1242,33 @@ function drawPublishingTocHeader(
   return yTop - 62;
 }
 
-/**
- * 商业级目录（固定页码右边界 + leader dots）。
- * 二级条目预留：可为 { title, page }[]，缩进 + 小号灰字；本轮仅占位注释。
- */
-function drawToc(
-  doc: PDFDocument,
+/** 与 `drawPublishingTocHeader` 返回的首行 Y 一致（用于目录行重绘） */
+function planTocRowsStartY(): number {
+  return BODY_TOP - 40 - 24 - 38 - 62;
+}
+
+function paintTocSectionRows(
+  page: PDFPage,
   font: PDFFont,
   sections: Section[],
   firstPageMap: Record<string, number>,
+  startY: number,
 ): void {
-  const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
   const ink = rgb(0.08, 0.1, 0.14);
   const leaderColor = EDITORIAL_TOC_LEADER_COLOR;
-  const ruleColor = rgb(0.86, 0.88, 0.92);
   const pageInk = rgb(0.18, 0.2, 0.24);
-
   const W = PAGE_WIDTH;
   const margin = MARGIN_X;
-
   const rowFont = 11;
   const pageNoRightX = W - margin;
-
   const tocNumColW =
     font.widthOfTextAtSize(String(Math.max(sections.length, 11)).padStart(2, "0"), rowFont) + 14;
-
   const titleNumX = margin;
   const titleBodyX = margin + tocNumColW;
-
   const rowStep = PLAN_TOC_ROW_STEP;
   const leaderDotSize = FREEZE_TOC_LEADER_DOT_SIZE;
-  let y = drawPublishingTocHeader(
-    page,
-    font,
-    W,
-    margin,
-    "DOCUMENT STRUCTURE",
-    "Technical Proposal Volume",
-    ruleColor,
-  );
 
+  let y = startY;
   sections.forEach((section, idx) => {
     const chap = String(idx + 1).padStart(2, "0");
     const bodySrc = tocStripLeadingEnumerate(section.title);
@@ -1273,7 +1278,6 @@ function drawToc(
 
     const pageW = font.widthOfTextAtSize(pageStr.trim(), rowFont);
     const pageTextX = pageNoRightX - pageW;
-
     const leaderTo = pageTextX - 14;
     const maxBodyPx = Math.max(40, leaderTo - titleBodyX - 12);
     const bodyShown = tocEllipsisToWidth(bodySrc, font, rowFont, maxBodyPx);
@@ -1285,7 +1289,6 @@ function drawToc(
       font,
       color: EDITORIAL_TOC_CHAP_COLOR,
     });
-
     page.drawText(bodyShown, {
       x: titleBodyX,
       y,
@@ -1297,7 +1300,6 @@ function drawToc(
     const bodyW = font.widthOfTextAtSize(bodyShown, rowFont);
     const leaderFrom = titleBodyX + bodyW + 12;
     drawTocLeader(page, font, leaderFrom, leaderTo, y, leaderDotSize, leaderColor);
-
     page.drawText(pageStr.trim(), {
       x: pageTextX,
       y,
@@ -1309,6 +1311,56 @@ function drawToc(
     y -= rowStep;
     if (y < BODY_BOTTOM) return;
   });
+}
+
+/** 按最终页列表刷新目录行页码（保留页眉，仅重绘条目区） */
+function refreshPlanTocPageNumbers(
+  doc: PDFDocument,
+  font: PDFFont,
+  sections: Section[],
+  firstPageMap: Record<string, number>,
+  tier: UserTier,
+): void {
+  const tocIdx = planFrontMatterPageCount(tier) - 1;
+  const page = doc.getPages()[tocIdx];
+  if (!page) return;
+
+  const rowStartY = planTocRowsStartY();
+  page.drawRectangle({
+    x: 0,
+    y: BODY_BOTTOM,
+    width: PAGE_WIDTH,
+    height: Math.max(0, rowStartY + PLAN_TOC_ROW_STEP - BODY_BOTTOM),
+    color: rgb(1, 1, 1),
+  });
+  paintTocSectionRows(page, font, sections, firstPageMap, rowStartY);
+}
+
+/**
+ * 商业级目录（固定页码右边界 + leader dots）。
+ * 二级条目预留：可为 { title, page }[]，缩进 + 小号灰字；本轮仅占位注释。
+ */
+function drawToc(
+  doc: PDFDocument,
+  font: PDFFont,
+  sections: Section[],
+  firstPageMap: Record<string, number>,
+): void {
+  const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  const ruleColor = rgb(0.86, 0.88, 0.92);
+  const W = PAGE_WIDTH;
+  const margin = MARGIN_X;
+
+  const y = drawPublishingTocHeader(
+    page,
+    font,
+    W,
+    margin,
+    "DOCUMENT STRUCTURE",
+    "Technical Proposal Volume",
+    ruleColor,
+  );
+  paintTocSectionRows(page, font, sections, firstPageMap, y);
 }
 
 /** Tender Pack 总目录行（与 drawToc 版式、dots、页码右对齐一致） */
@@ -1495,7 +1547,7 @@ function drawSectionPage(
     } else if (calloutParts) {
       color = EDITORIAL_CALLOUT_INK;
       size = 10;
-      page.drawText(calloutParts.label, {
+      page.drawText(sanitizePdfText(calloutParts.label), {
         x: MARGIN_X,
         y,
         size,
@@ -1533,7 +1585,7 @@ function drawSectionPage(
       }
     }
 
-    page.drawText(drawText, { x, y, size, font, color });
+    page.drawText(sanitizePdfText(drawText), { x, y, size, font, color });
 
     if (kind !== "empty") sawBody = true;
 
@@ -1556,18 +1608,7 @@ async function renderPlanOnly(input: {
   const doc = await PDFDocument.create();
   const font = await loadChineseFont(doc);
 
-  const company = cleanField(input.project.input.clientName, DEFAULT_COMPANY_NAME);
-  const mapLine = (line: string) => replaceLegacyBidderNames(line, company);
-  const solution: SolutionRecord = {
-    ...input.solution,
-    summary: mapLine(input.solution.summary),
-    background: mapLine(input.solution.background),
-    requirements: input.solution.requirements.map(mapLine),
-    objectives: input.solution.objectives.map(mapLine),
-    operationsPlan: input.solution.operationsPlan.map(mapLine),
-    riskControl: input.solution.riskControl.map(mapLine),
-    acceptanceCriteria: input.solution.acceptanceCriteria.map(mapLine),
-  };
+  const solution = withSanitizedSolution({ project: input.project, solution: input.solution });
 
   const sections = buildSections({ ...input, solution, tier });
   const sectionPages = sections.flatMap((section) => paginateSection(section, font));
@@ -1604,7 +1645,20 @@ async function renderPlanOnly(input: {
     drawDeclaration(doc, font);
   }
   drawToc(doc, font, sections, firstPageMap);
-  for (const sp of sectionPages) drawSectionPage(doc, font, sp);
+
+  const renderedFirstPageMap: Record<string, number> = {};
+  for (const sp of sectionPages) {
+    if (sp.pageNoInSection === 1) {
+      renderedFirstPageMap[sp.sectionKey] = doc.getPageCount() + 1;
+    }
+    drawSectionPage(doc, font, sp);
+  }
+
+  finalizeFreePlanDocument(doc, font, tier);
+
+  const totalPages = doc.getPageCount();
+  const tocData = planTocSectionsForPageCount(sections, renderedFirstPageMap, totalPages);
+  refreshPlanTocPageNumbers(doc, font, tocData.sections, tocData.firstPageMap, tier);
 
   if (!input.omitChrome) {
     restampTenderDeliveryChrome(doc, font, {
@@ -1617,8 +1671,6 @@ async function renderPlanOnly(input: {
 
     applyTenderDocumentMetadata(doc, docCtx, docCtx.reqsig!, "plan");
   }
-
-  finalizeFreePlanDocument(doc, font, tier);
 
   return Buffer.from(await doc.save());
 }
@@ -1637,7 +1689,8 @@ export async function computePlanPackMeta(input: {
   const tier = input.tier ?? "enterprise";
   const doc = await PDFDocument.create();
   const font = await loadChineseFont(doc);
-  const sections = buildSections({ ...input, tier });
+  const solution = withSanitizedSolution(input);
+  const sections = buildSections({ ...input, solution, tier });
   const sectionPages = sections.flatMap((section) => paginateSection(section, font));
   const firstPageMap: Record<string, number> = {};
   let current = planBodyStartPage1Based(tier);
@@ -1647,8 +1700,16 @@ export async function computePlanPackMeta(input: {
     current += pages.length;
   }
   const planBodyStart1Based = planBodyStartPage1Based(tier);
-  const totalPlanPages = planFrontMatterPageCount(tier) + sectionPages.length;
-  return { firstPageMap, totalPlanPages, planBodyStart1Based };
+  let totalPlanPages = planFrontMatterPageCount(tier) + sectionPages.length;
+  if (tier === "free") {
+    totalPlanPages = Math.min(totalPlanPages, FREE_PLAN_MAX_PAGES);
+  }
+  const capped = planTocSectionsForPageCount(sections, firstPageMap, totalPlanPages);
+  return {
+    firstPageMap: capped.firstPageMap,
+    totalPlanPages,
+    planBodyStart1Based,
+  };
 }
 
 export async function renderPlanPdf(

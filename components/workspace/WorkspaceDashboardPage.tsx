@@ -71,12 +71,16 @@ function DashboardBody() {
     refresh,
   } = useWorkspace();
 
+  const quoteProjectId = quoteId
+    ? recentQuotes.find((q) => q.id === quoteId)?.projectId ?? currentProject?.id
+    : undefined;
+
   if (loading) return <WorkspaceLoading message="加载 Workspace 概览…" />;
   if (error) return <WorkspaceError message={error} onRetry={() => void refresh()} />;
 
   return (
     <div className="space-y-8">
-      {quoteId ? <QuoteResultCard quoteId={quoteId} projectId={currentProject?.id} /> : null}
+      {quoteId ? <QuoteResultCard quoteId={quoteId} projectId={quoteProjectId} /> : null}
 
       <section className="grid gap-4 sm:grid-cols-3">
         {[

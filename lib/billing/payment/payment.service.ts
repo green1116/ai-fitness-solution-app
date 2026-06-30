@@ -2,7 +2,8 @@
  * V59.4 — Payment persistence
  */
 
-import { saasDb, type SaasPlan } from "@/lib/saas/types";
+import { prisma } from "@/lib/prisma";
+import type { SaasPlan } from "@/lib/saas/types";
 
 export type PaymentRow = {
   id: string;
@@ -21,7 +22,7 @@ export async function createPendingPayment(input: {
   amount: number;
   currency?: string;
 }): Promise<PaymentRow> {
-  return saasDb().payment.create({
+  return prisma.payment.create({
     data: {
       organizationId: input.organizationId,
       stripeSessionId: input.stripeSessionId,
@@ -33,16 +34,16 @@ export async function createPendingPayment(input: {
 }
 
 export async function markPaymentPaid(stripeSessionId: string): Promise<PaymentRow | null> {
-  const existing = await saasDb().payment.findBySessionId(stripeSessionId);
+  const existing = await prisma.payment.findUnique({ where: { stripeSessionId } });
   if (!existing) return null;
-  return saasDb().payment.update({
+  return prisma.payment.update({
     where: { stripeSessionId },
     data: { status: "paid" },
   });
 }
 
 export async function getPaymentBySessionId(stripeSessionId: string) {
-  return saasDb().payment.findBySessionId(stripeSessionId);
+  return prisma.payment.findUnique({ where: { stripeSessionId } });
 }
 
 export async function recordCheckoutPayment(input: {
@@ -52,7 +53,9 @@ export async function recordCheckoutPayment(input: {
   currency: string;
   plan: SaasPlan;
 }) {
-  const existing = await saasDb().payment.findBySessionId(input.stripeSessionId);
+  const existing = await prisma.payment.findUnique({
+    where: { stripeSessionId: input.stripeSessionId },
+  });
   if (existing) return existing;
 
   return createPendingPayment({

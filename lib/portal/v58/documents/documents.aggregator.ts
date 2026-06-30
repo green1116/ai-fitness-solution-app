@@ -108,7 +108,12 @@ export async function aggregateDeliveries(organizationId: string): Promise<Deliv
     ...getDeliveryOverlays().filter((o) => o.organizationId === organizationId),
   ];
 
-  return applyVersionGroups(synthesized);
+  const byId = new Map<string, DeliveryRecord>();
+  for (const record of synthesized) {
+    byId.set(record.id, record);
+  }
+
+  return applyVersionGroups([...byId.values()]);
 }
 
 export async function getDocumentsSummary(organizationId: string): Promise<DocumentsSummary> {

@@ -5,7 +5,7 @@
 import type Stripe from "stripe";
 
 import { processPaymentEvent } from "@/lib/billing/payment/payment.processor";
-import { saasDb } from "@/lib/saas/types";
+import { prisma } from "@/lib/prisma";
 
 import { getStripeInstance, getStripeWebhookSecret, isStripeConfigured } from "./stripe.client";
 
@@ -24,11 +24,14 @@ export function constructStripeEvent(payload: string | Buffer, signature: string
 }
 
 export async function isWebhookEventProcessed(stripeEventId: string): Promise<boolean> {
-  return saasDb().stripeWebhookEvent.exists(stripeEventId);
+  const row = await prisma.stripeWebhookEvent.findUnique({
+    where: { stripeEventId },
+  });
+  return row !== null;
 }
 
 export async function markWebhookEventProcessed(stripeEventId: string, eventType: string) {
-  return saasDb().stripeWebhookEvent.create({
+  return prisma.stripeWebhookEvent.create({
     data: { stripeEventId, eventType },
   });
 }

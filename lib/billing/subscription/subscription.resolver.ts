@@ -7,7 +7,8 @@ import {
   resolveFeatureFlags,
   type FeatureFlags,
 } from "@/lib/feature-flags/feature.service";
-import { saasDb, type SaasPlan, type SaasSubStatus, type SubscriptionRecord } from "@/lib/saas/types";
+import { prisma } from "@/lib/prisma";
+import type { SaasPlan, SaasSubStatus, SubscriptionRecord } from "@/lib/saas/types";
 
 export function mapStripePlanToFeatureFlags(plan: SaasPlan): FeatureFlags {
   return resolveFeatureFlags(plan);
@@ -18,26 +19,30 @@ export function getPlanFeatureMatrix(): typeof PLAN_FEATURE_MATRIX {
 }
 
 export async function getActiveSubscriptionForOrganization(organizationId: string) {
-  return saasDb().subscription.findFirst({
+  return prisma.subscription.findFirst({
     where: { organizationId, status: "ACTIVE" },
     orderBy: { createdAt: "desc" },
   });
 }
 
 export async function findSubscriptionByStripeCustomerId(stripeCustomerId: string) {
-  return saasDb().subscription.findByStripeCustomerId(stripeCustomerId);
+  return prisma.subscription.findFirst({
+    where: { stripeCustomerId },
+  });
 }
 
 export async function findSubscriptionByStripeSubscriptionId(stripeSubscriptionId: string) {
-  return saasDb().subscription.findByStripeSubscriptionId(stripeSubscriptionId);
+  return prisma.subscription.findFirst({
+    where: { stripeSubscriptionId },
+  });
 }
 
 export async function resolveOrganizationFeatures(
   organizationId: string,
 ): Promise<{ plan: SaasPlan; status: SaasSubStatus; flags: FeatureFlags }> {
   const sub = await getActiveSubscriptionForOrganization(organizationId);
-  const plan = sub?.plan ?? "BASIC";
-  const status = sub?.status ?? "ACTIVE";
+  const plan = (sub?.plan ?? "BASIC") as SaasPlan;
+  const status = (sub?.status ?? "ACTIVE") as SaasSubStatus;
   return { plan, status, flags: mapStripePlanToFeatureFlags(plan) };
 }
 

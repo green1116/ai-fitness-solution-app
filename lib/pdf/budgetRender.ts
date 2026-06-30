@@ -6,7 +6,7 @@ import { PDFDocument, PDFFont, PDFPage, rgb, StandardFonts } from "pdf-lib";
 
 import { getBudgetSummary } from "@/lib/services/budgetService";
 import type { BudgetSummary } from "@/lib/pdf/contracts/budgetSummary";
-import { wrapTextCN } from "@/lib/pdf/engine/text";
+import { sanitizePdfText, wrapTextCN } from "@/lib/pdf/engine/text";
 import {
   THEMES,
   drawHeader as drawThemeHeader,
@@ -429,7 +429,7 @@ type DrawCtx = {
 };
 
 function drawTextF(page: PDFPage, font: PDFFont, text: string, x: number, y: number, size: number, color = rgb(0, 0, 0)) {
-  page.drawText(text || "", { x, y, size, font, color });
+  page.drawText(sanitizePdfText(text) || "", { x, y, size, font, color });
 }
 
 function drawLine(page: PDFPage, x1: number, y1: number, x2: number, y2: number, w = 1, color = rgb(0.85, 0.85, 0.85)) {

@@ -72,7 +72,7 @@ const REGISTRY: TechnicalDebtItem[] = [
     category: "Security",
     severity: "medium",
     impact: "Mock auth must be disabled in production",
-    recommendation: "Gate mock-login behind NODE_ENV !== production",
+    recommendation: "Gate  behind NODE_ENV !== production",
     priority: 2,
   },
   {

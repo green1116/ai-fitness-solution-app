@@ -338,6 +338,8 @@
         "verify:v61-launch": "tsx scripts/verify-v61-launch.ts",
         "verify:v61-1-launch-blockers": "tsx scripts/verify-v61-1-launch-blockers.ts",
         "verify:v62-pilot": "tsx scripts/verify-v62-pilot.ts",
+        "verify:v63-p1-growth": "tsx lib/growth/v63-usage-baseline.service.ts",
+        "verify:v63-p2-retention": "tsx lib/growth/v63-retention-light.service.ts",
         "v61-1:apply-migration": "tsx scripts/v61-1-apply-launch-migration.ts",
         "verify:v64-p1-landing-demo": "tsx scripts/verify-v64-p1-landing-demo.ts",
         "verify:v64-p2-conversion": "tsx scripts/verify-v64-p2-conversion.ts",

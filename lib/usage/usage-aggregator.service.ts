@@ -2,7 +2,8 @@
  * V59 SaaS — Usage aggregation
  */
 
-import { saasDb, type UsageType } from "@/lib/saas/types";
+import { prisma } from "@/lib/prisma";
+import type { UsageType } from "@/lib/saas/types";
 
 const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -13,7 +14,7 @@ export async function getUsageCountInPeriod(
 ): Promise<number> {
   const from = since ?? new Date(Date.now() - PERIOD_MS);
 
-  const result = await saasDb().usageRecord.aggregate({
+  const result = await prisma.usageRecord.aggregate({
     where: {
       organizationId,
       type,

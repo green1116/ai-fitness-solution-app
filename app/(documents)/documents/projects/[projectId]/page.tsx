@@ -8,6 +8,7 @@ import { DocumentError } from "@/components/documents/DocumentError";
 import { DocumentLoading } from "@/components/documents/DocumentLoading";
 import { DeliveryRow } from "@/components/documents/DeliveryRow";
 import { DeliveryStatusBadge } from "@/components/documents/DeliveryStatusBadge";
+import { downloadQuotePdf } from "@/components/documents/downloadQuotePdf";
 import { useDocuments } from "@/components/documents/DocumentProvider";
 import type { DeliveryRecord } from "@/lib/portal/v58/delivery/delivery.types";
 
@@ -90,18 +91,37 @@ export default function ProjectTenderPackPage() {
                   <DeliveryStatusBadge status={slot.status} />
                   <p className="text-xs text-zinc-500">{slot.fileName}</p>
                   {slot.downloadUrl ? (
-                    <a
-                      href={slot.downloadUrl}
-                      onClick={() =>
-                        trackEvent("pdf_downloaded", {
-                          projectId: data.project.id,
-                          deliveryId: slot.id,
-                        })
-                      }
-                      className="inline-block rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black"
-                    >
-                      下载
-                    </a>
+                    key === "quotePdf" ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          trackEvent("pdf_downloaded", {
+                            projectId: data.project.id,
+                            deliveryId: slot.id,
+                          });
+                          void downloadQuotePdf(
+                            data.project.id,
+                            slot.fileName ?? "quote.pdf",
+                          );
+                        }}
+                        className="inline-block rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black"
+                      >
+                        下载
+                      </button>
+                    ) : (
+                      <a
+                        href={slot.downloadUrl}
+                        onClick={() =>
+                          trackEvent("pdf_downloaded", {
+                            projectId: data.project.id,
+                            deliveryId: slot.id,
+                          })
+                        }
+                        className="inline-block rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black"
+                      >
+                        下载
+                      </a>
+                    )
                   ) : (
                     <span className="text-xs text-zinc-600">尚未生成</span>
                   )}

@@ -2,7 +2,8 @@
  * V59.4 — Subscription status sync from Stripe webhooks
  */
 
-import { saasDb, type SaasPlan, type SaasSubStatus } from "@/lib/saas/types";
+import { prisma } from "@/lib/prisma";
+import type { SaasPlan, SaasSubStatus } from "@/lib/saas/types";
 
 import {
   findSubscriptionByStripeSubscriptionId,
@@ -15,13 +16,13 @@ export async function syncStripeCustomer(input: {
 }) {
   const active = await getActiveSubscriptionForOrganization(input.organizationId);
   if (active) {
-    return saasDb().subscription.update({
+    return prisma.subscription.update({
       where: { id: active.id },
       data: { stripeCustomerId: input.stripeCustomerId },
     });
   }
 
-  return saasDb().subscription.create({
+  return prisma.subscription.create({
     data: {
       organizationId: input.organizationId,
       plan: "BASIC",
@@ -42,14 +43,14 @@ export async function updateSubscriptionStatus(input: {
   const active = await getActiveSubscriptionForOrganization(input.organizationId);
 
   if (active && active.stripeSubscriptionId !== input.stripeSubscriptionId && input.status === "ACTIVE") {
-    await saasDb().subscription.update({
+    await prisma.subscription.update({
       where: { id: active.id },
       data: { status: "CANCELED" },
     });
   }
 
   if (active && active.stripeSubscriptionId === input.stripeSubscriptionId) {
-    return saasDb().subscription.update({
+    return prisma.subscription.update({
       where: { id: active.id },
       data: {
         plan: input.plan,
@@ -61,7 +62,7 @@ export async function updateSubscriptionStatus(input: {
     });
   }
 
-  return saasDb().subscription.create({
+  return prisma.subscription.create({
     data: {
       organizationId: input.organizationId,
       plan: input.plan,
@@ -76,7 +77,7 @@ export async function updateSubscriptionStatus(input: {
 export async function cancelSubscriptionByStripeId(stripeSubscriptionId: string) {
   const sub = await findSubscriptionByStripeSubscriptionId(stripeSubscriptionId);
   if (!sub) return null;
-  return saasDb().subscription.update({
+  return prisma.subscription.update({
     where: { id: sub.id },
     data: { status: "CANCELED" },
   });
