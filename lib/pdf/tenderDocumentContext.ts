@@ -142,7 +142,7 @@ export function applyTenderDocumentMetadata(
     doc.setTitle(title);
     doc.setAuthor(ctx.brand);
     doc.setSubject(subject);
-    doc.setKeywords(keywords);
+    doc.setKeywords(keywords.map((k) => String(k)));
     doc.setProducer(TENDER_DOC_PRODUCER);
     doc.setCreator(TENDER_DOC_CREATOR);
   } catch (e) {

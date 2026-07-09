@@ -18,6 +18,7 @@ import {
   type SolutionLike,
 } from "@/lib/pdf/renderPlanPdf";
 import { loadChineseFont } from "@/lib/pdf/shared/chineseFont";
+import { assertPdfMagic, toNodePdfBuffer, toPdfLibBytes } from "@/lib/pdf/pdfBytes";
 import {
   applyTenderDocumentMetadata,
   buildTenderDocumentContext,
@@ -122,11 +123,13 @@ export async function renderTenderPack(input: RenderTenderPackInput): Promise<Bu
     });
     console.log("[PACK] renderBudgetPdf:done", { budgetBytes: budgetBuf?.length });
 
-    if (!planBuf?.length) console.error("[PACK] planBuf empty or undefined");
-    if (!budgetBuf?.length) console.error("[PACK] budgetBuf empty or undefined");
+    const planBytes = toPdfLibBytes(planBuf);
+    const budgetBytes = toPdfLibBytes(budgetBuf);
+    assertPdfMagic(planBytes, "plan");
+    assertPdfMagic(budgetBytes, "budget");
 
-    const planDoc = await PDFDocument.load(planBuf);
-    const budgetDoc = await PDFDocument.load(budgetBuf);
+    const planDoc = await PDFDocument.load(planBytes, { ignoreEncryption: true });
+    const budgetDoc = await PDFDocument.load(budgetBytes, { ignoreEncryption: true });
 
     const merged = await PDFDocument.create();
     merged.registerFontkit(fontkit);
@@ -157,8 +160,9 @@ export async function renderTenderPack(input: RenderTenderPackInput): Promise<Bu
       pages: merged.getPageCount(),
     });
 
-    const out = Buffer.from(await merged.save());
-    console.log("[PACK] save:done", { mergedBytes: out?.length });
+    const out = toNodePdfBuffer(await merged.save());
+    assertPdfMagic(out, "tender-pack");
+    console.log("[PACK] save:done", { mergedBytes: out.length });
     return out;
   } catch (err) {
     console.error("[PACK][FATAL]", err);

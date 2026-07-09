@@ -672,3 +672,116 @@ model CRMActivity {
   @@index([customerId, timestamp])
   @@map("crm_activity")
 }
+
+/// V80 CODE P3 — Runtime persistence (Prisma primary, memory fallback)
+model V80ScaffoldOrganization {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  adminEmail String   @default("")
+  plan       String   @default("BASIC")
+  createdAt  DateTime @default(now())
+
+  projects V80ScaffoldProject[]
+
+  @@map("v80_scaffold_organization")
+}
+
+model V80ScaffoldProject {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+
+  organization V80ScaffoldOrganization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tenders      V80ScaffoldTender[]
+  quotes       V80ScaffoldQuote[]
+  jobs         V80ScaffoldPlanJob[]
+  exports      V80ScaffoldDocumentExport[]
+
+  @@index([organizationId])
+  @@map("v80_scaffold_project")
+}
+
+model V80ScaffoldTender {
+  id         String   @id @default(cuid())
+  projectId  String
+  status     String   @default("draft")
+  tenderType String   @default("enterprise-gym")
+  createdAt  DateTime @default(now())
+
+  project V80ScaffoldProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("v80_scaffold_tender")
+}
+
+model V80ScaffoldQuote {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  createdAt      DateTime @default(now())
+
+  project V80ScaffoldProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  budgets V80ScaffoldBudget[]
+
+  @@index([projectId])
+  @@index([organizationId])
+  @@map("v80_scaffold_quote")
+}
+
+model V80ScaffoldBudget {
+  id             String   @id @default(cuid())
+  quoteId        String
+  tier           String
+  companySize    Int      @default(0)
+  totalAmount    Int      @default(0)
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+
+  quote V80ScaffoldQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@map("v80_scaffold_budget")
+}
+
+model V80ScaffoldDocumentExport {
+  id        String   @id @default(cuid())
+  projectId String
+  type      String
+  data      Bytes?
+  createdAt DateTime @default(now())
+
+  project V80ScaffoldProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("v80_scaffold_document_export")
+}
+
+model V80ScaffoldPlanJob {
+  id             String   @id @default(cuid())
+  projectId      String
+  workflowKey    String
+  status         String   @default("pending")
+  steps          Json     @default("[]")
+  idempotencyKey String   @unique
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  project V80ScaffoldProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("v80_scaffold_plan_job")
+}
+
+model V80ScaffoldUsageRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  usageType      String
+  count          Int      @default(1)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, usageType])
+  @@index([organizationId])
+  @@map("v80_scaffold_usage_record")
+}

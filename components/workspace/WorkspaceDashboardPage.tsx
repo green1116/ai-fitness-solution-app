@@ -99,13 +99,13 @@ function DashboardBody() {
       </section>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold">Quick Actions</h2>
+        <h2 className="mb-4 text-lg font-semibold">主流程</h2>
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/projects"
-            className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black hover:bg-zinc-200"
+            href="/pilot/intake"
+            className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white hover:bg-sky-500"
           >
-            管理项目
+            上传标书 / 导入招标文件
           </Link>
           <Link
             href={
@@ -115,19 +115,39 @@ function DashboardBody() {
             }
             className="rounded-xl border border-zinc-700 px-5 py-3 text-sm font-semibold hover:border-zinc-500"
           >
-            生成方案
+            生成方案 Quote
+          </Link>
+          <Link
+            href={
+              currentProject
+                ? `/budget?projectId=${encodeURIComponent(currentProject.id)}`
+                : "/budget"
+            }
+            className="rounded-xl border border-zinc-700 px-5 py-3 text-sm font-semibold hover:border-zinc-500"
+          >
+            计算预算 Budget
+          </Link>
+          <Link
+            href={
+              currentProject
+                ? `/tender?projectId=${encodeURIComponent(currentProject.id)}`
+                : "/tender"
+            }
+            className="rounded-xl border border-zinc-700 px-5 py-3 text-sm font-semibold hover:border-zinc-500"
+          >
+            生成标书 Tender
           </Link>
           <Link
             href="/documents"
             className="rounded-xl border border-sky-800 px-5 py-3 text-sm font-semibold text-sky-100 hover:bg-sky-900/30"
           >
-            文档交付中心
+            Document Center
           </Link>
           <Link
-            href="/reports"
-            className="rounded-xl border border-zinc-700 px-5 py-3 text-sm font-semibold hover:border-zinc-500"
+            href="/projects"
+            className="rounded-xl border border-zinc-800 px-5 py-3 text-sm text-zinc-400 hover:border-zinc-600"
           >
-            查看报告
+            管理项目
           </Link>
         </div>
       </section>

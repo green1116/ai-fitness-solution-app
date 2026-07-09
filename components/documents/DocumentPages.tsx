@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import type { DeliveryArtifactType } from "@/lib/portal/v58/delivery/delivery.types";
+import { PilotFlowStatus } from "@/components/pilot/PilotFlowStatus";
+import { PilotWorkflowNav } from "@/components/pilot/PilotWorkflowNav";
 import { DeliveryRow } from "./DeliveryRow";
 import { DocumentEmptyState } from "./DocumentEmptyState";
 import { DocumentListSkeleton } from "./DocumentListSkeleton";
@@ -132,11 +134,18 @@ export function DocumentOverviewPage() {
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="text-2xl font-bold">Document Center</h1>
+        <p className="text-xs font-medium uppercase tracking-widest text-sky-400">归档区</p>
+        <h1 className="mt-1 text-2xl font-bold">Document Center</h1>
         <p className="mt-1 text-sm text-zinc-400">
           统一管理 Plans、Budgets、Quotes、Reports 与交付包下载。
         </p>
       </section>
+
+      <PilotWorkflowNav activeZone="archive" compact />
+
+      <PilotFlowStatus
+        status={(summary?.deliveriesCount ?? 0) > 0 ? "delivered" : "not_uploaded"}
+      />
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {stats.map((s) => (
@@ -161,9 +170,9 @@ export function DocumentOverviewPage() {
         {(summary?.recentDeliveries.length ?? 0) === 0 ? (
           <DocumentEmptyState
             title="还没有交付物"
-            description="生成 Quote 或 Tender 后，交付记录将出现在此处。"
-            actionLabel="去生成 Quote"
-            actionHref="/quote"
+            description="从上传标书或生成 Quote / Budget / Tender 开始，交付记录将出现在此处。"
+            actionLabel="上传标书"
+            actionHref="/pilot/intake"
           />
         ) : (
           <ul className="space-y-3">

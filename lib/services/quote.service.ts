@@ -6,6 +6,7 @@ import { QuoteStatus, type Prisma } from "@prisma/client";
 
 import { runQuoteEngine, type CompanyInfoInput } from "@/lib/product-engine";
 import { prisma } from "@/lib/prisma";
+import { ensureProjectOrganizationId } from "@/lib/services/project.service";
 
 export type GenerateQuoteInput = {
   projectId: string;
@@ -21,6 +22,10 @@ export async function generateQuote(input: GenerateQuoteInput) {
 
   if (!project) {
     throw new Error("Project not found");
+  }
+
+  if (input.organizationId) {
+    await ensureProjectOrganizationId(input.projectId, input.organizationId);
   }
 
   const draft = await prisma.quote.create({

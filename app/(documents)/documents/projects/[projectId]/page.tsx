@@ -8,7 +8,10 @@ import { DocumentError } from "@/components/documents/DocumentError";
 import { DocumentLoading } from "@/components/documents/DocumentLoading";
 import { DeliveryRow } from "@/components/documents/DeliveryRow";
 import { DeliveryStatusBadge } from "@/components/documents/DeliveryStatusBadge";
+import { downloadBudgetPdf } from "@/components/documents/downloadBudgetPdf";
 import { downloadQuotePdf } from "@/components/documents/downloadQuotePdf";
+import { downloadTenderPack } from "@/components/documents/downloadTenderPack";
+import { downloadTenderPdf } from "@/components/documents/downloadTenderPdf";
 import { useDocuments } from "@/components/documents/DocumentProvider";
 import type { DeliveryRecord } from "@/lib/portal/v58/delivery/delivery.types";
 
@@ -36,6 +39,56 @@ const PACK_SLOTS: { key: keyof ProjectDocsPayload["tenderPack"]; label: string }
   { key: "zipPackage", label: "ZIP Package" },
   { key: "tenderPack", label: "Tender Pack" },
 ];
+
+function SlotDownloadButton({
+  slotKey,
+  projectId,
+  slot,
+  onTrack,
+}: {
+  slotKey: string;
+  projectId: string;
+  slot: DeliveryRecord;
+  onTrack: () => void;
+}) {
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleDownload() {
+    setDownloading(true);
+    setError("");
+    onTrack();
+    try {
+      if (slotKey === "quotePdf") {
+        await downloadQuotePdf(projectId, slot.fileName ?? "quote.pdf");
+      } else if (slotKey === "budgetPdf") {
+        await downloadBudgetPdf(projectId, slot.fileName ?? "budget.pdf");
+      } else if (slotKey === "zipPackage") {
+        await downloadTenderPack(projectId, slot.fileName ?? "enterprise-package.zip");
+      } else {
+        await downloadTenderPdf(projectId, slot.fileName ?? "tender.pdf");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "下载失败");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        disabled={downloading}
+        onClick={() => void handleDownload()}
+        className="inline-block rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50"
+      >
+        {downloading ? "下载中…" : slotKey === "zipPackage" ? "下载 ZIP" : "下载 PDF"}
+      </button>
+      {error ? <p className="text-xs text-red-400">{error}</p> : null}
+    </div>
+  );
+}
 
 export default function ProjectTenderPackPage() {
   const params = useParams<{ projectId: string }>();
@@ -90,38 +143,18 @@ export default function ProjectTenderPackPage() {
                 <div className="mt-3 space-y-2">
                   <DeliveryStatusBadge status={slot.status} />
                   <p className="text-xs text-zinc-500">{slot.fileName}</p>
-                  {slot.downloadUrl ? (
-                    key === "quotePdf" ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          trackEvent("pdf_downloaded", {
-                            projectId: data.project.id,
-                            deliveryId: slot.id,
-                          });
-                          void downloadQuotePdf(
-                            data.project.id,
-                            slot.fileName ?? "quote.pdf",
-                          );
-                        }}
-                        className="inline-block rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black"
-                      >
-                        下载
-                      </button>
-                    ) : (
-                      <a
-                        href={slot.downloadUrl}
-                        onClick={() =>
-                          trackEvent("pdf_downloaded", {
-                            projectId: data.project.id,
-                            deliveryId: slot.id,
-                          })
-                        }
-                        className="inline-block rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black"
-                      >
-                        下载
-                      </a>
-                    )
+                  {slot.projectId || data.project.id ? (
+                    <SlotDownloadButton
+                      slotKey={key}
+                      projectId={data.project.id}
+                      slot={slot}
+                      onTrack={() =>
+                        trackEvent("pdf_downloaded", {
+                          projectId: data.project.id,
+                          deliveryId: slot.id,
+                        })
+                      }
+                    />
                   ) : (
                     <span className="text-xs text-zinc-600">尚未生成</span>
                   )}

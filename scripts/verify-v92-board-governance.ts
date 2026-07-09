@@ -1,0 +1,175 @@
+/**
+ * V92 — Executive portfolio governance & board review verification
+ */
+import {
+  appendIntakeAudit,
+  clearIntakeStoreForTests,
+  createIntakeSession,
+  extractRequirementsFromParsedTender,
+  freezeIntakeSession,
+  runTenderParserPipeline,
+  signOffIntakeSession,
+  updateIntakeSession,
+} from "../lib/pilot/v80";
+import {
+  clearDeliveryOpsStoreForTests,
+  recordDeliveryTrackingEvent,
+  seedReleaseReadyTracking,
+} from "../lib/pilot/v81";
+import { clearForecastCacheForTests } from "../lib/pilot/v85";
+import { clearRenewalOpsStoreForTests } from "../lib/pilot/v86";
+import { clearRevenueOpsStoreForTests } from "../lib/pilot/v87";
+import { clearGrowthOpsStoreForTests } from "../lib/pilot/v88";
+import { clearExpansionOpsStoreForTests } from "../lib/pilot/v89";
+import { clearPortfolioCacheForTests } from "../lib/pilot/v90";
+import { clearPortfolioOpsStoreForTests } from "../lib/pilot/v91";
+import {
+  assignExecutiveOwner,
+  buildBoardGovernanceDashboard,
+  buildBoardGovernanceDetail,
+  buildExecutiveGovernancePipeline,
+  classifyExecutiveQueue,
+  clearGovernanceStoreForTests,
+  listGovernanceActions,
+  markGovernanceApproved,
+  recordGovernanceDecision,
+  V92_BOARD_GOVERNANCE_VERSION,
+} from "../lib/pilot/v92";
+
+const SAMPLE = `项目名称：星河科技园`.trim();
+const ORG = "org-v92";
+const ACTOR = "board-governance";
+
+function assert(cond: boolean, msg: string) {
+  if (!cond) throw new Error(`ASSERT: ${msg}`);
+}
+
+function seedAudit(sessionId: string) {
+  const base = { sessionId, organizationId: ORG, actorId: ACTOR };
+  appendIntakeAudit({ ...base, step: "upload" });
+  appendIntakeAudit({ ...base, step: "extract" });
+  appendIntakeAudit({ ...base, step: "validate", meta: { valid: true } });
+  appendIntakeAudit({ ...base, step: "approve" });
+  appendIntakeAudit({ ...base, step: "generate", workflowStatusAfter: "completed" });
+  appendIntakeAudit({ ...base, step: "qa", meta: { handoffReady: true } });
+  appendIntakeAudit({ ...base, step: "handoff" });
+}
+
+async function main() {
+  console.log("V92 — Executive Portfolio Governance & Board Review\n");
+  clearIntakeStoreForTests();
+  clearDeliveryOpsStoreForTests();
+  clearForecastCacheForTests();
+  clearRenewalOpsStoreForTests();
+  clearRevenueOpsStoreForTests();
+  clearGrowthOpsStoreForTests();
+  clearExpansionOpsStoreForTests();
+  clearPortfolioCacheForTests();
+  clearPortfolioOpsStoreForTests();
+  clearGovernanceStoreForTests();
+
+  const parsed = await runTenderParserPipeline({ rawText: SAMPLE, fileName: "t.pdf" });
+  const extracted = extractRequirementsFromParsedTender({
+    parseResult: parsed,
+    sourceName: "t.pdf",
+  });
+
+  const session = createIntakeSession({
+    organizationId: ORG,
+    userId: ACTOR,
+    fileName: "t.pdf",
+    mimeType: "application/pdf",
+    fileSize: SAMPLE.length,
+    parseResult: parsed,
+  });
+
+  const signedOffAt = new Date(Date.now() - 80 * 24 * 60 * 60 * 1000).toISOString();
+
+  updateIntakeSession(session.id, {
+    extractedRequirements: extracted,
+    requirements: extracted,
+    status: "ready",
+    workflowStatus: "completed",
+    productionProjectId: "proj-v92",
+    productionQuoteId: "quote-v92",
+    productionTenderId: "tender-v92",
+    qaPassedAt: signedOffAt,
+    deliveryLocked: true,
+  });
+
+  seedAudit(session.id);
+  freezeIntakeSession({ sessionId: session.id, organizationId: ORG, actorId: ACTOR });
+  await signOffIntakeSession({ sessionId: session.id, organizationId: ORG, actorId: ACTOR });
+  updateIntakeSession(session.id, { signedOffAt }, { bypassFreeze: true });
+
+  seedReleaseReadyTracking({ sessionId: session.id, organizationId: ORG, actorId: ACTOR });
+  recordDeliveryTrackingEvent({
+    sessionId: session.id,
+    organizationId: ORG,
+    actorId: ACTOR,
+    type: "delivery_failed",
+  });
+
+  console.log("✓ portfolio ops ready");
+
+  const { buildPortfolioOpsDashboard } = await import("../lib/pilot/v91");
+  const portfolioOps = buildPortfolioOpsDashboard(ORG);
+  const opsItem = portfolioOps.allItems.find((i) => i.sessionId === session.id);
+  assert(Boolean(opsItem), "portfolio ops item");
+
+  const queue = classifyExecutiveQueue({ opsItem: opsItem!, governanceOutcome: "open" });
+  assert(queue !== null, "govern queue");
+  console.log(`✓ portfolio → govern (${queue})`);
+
+  const pipeline = buildExecutiveGovernancePipeline(ORG);
+  assert(pipeline.allItems.length >= 1, "executive pipeline");
+  console.log("✓ governance queues");
+
+  const dashboard = buildBoardGovernanceDashboard(ORG);
+  assert(dashboard.version === V92_BOARD_GOVERNANCE_VERSION, "version");
+  assert(dashboard.readOnly === true, "read only");
+  console.log("✓ board dashboard");
+
+  assignExecutiveOwner({
+    sessionId: session.id,
+    organizationId: ORG,
+    actorId: ACTOR,
+    ownerId: ACTOR,
+    ownerName: "Executive Sponsor",
+  });
+  console.log("✓ assign executive owner");
+
+  recordGovernanceDecision({
+    sessionId: session.id,
+    organizationId: ORG,
+    actorId: ACTOR,
+    note: "董事会初步决议",
+    decision: "proceed_with_rescue",
+  });
+  assert(listGovernanceActions(session.id).length >= 2, "decisions");
+  console.log("✓ record decision / act");
+
+  markGovernanceApproved({
+    sessionId: session.id,
+    organizationId: ORG,
+    actorId: ACTOR,
+    note: "董事会批准救援计划",
+  });
+
+  const afterApprove = buildBoardGovernanceDashboard(ORG);
+  assert(afterApprove.summary.approved >= 1, "approved outcome");
+  console.log("✓ mark approved");
+
+  const detail = buildBoardGovernanceDetail(session.id, ORG);
+  assert(detail.decisionHistory.length >= 3, "decision timeline");
+  assert(detail.boardView.readOnly === true, "board view");
+  console.log("✓ drilldown + board view");
+
+  console.log("\nPASS — V92 board governance (in-memory)");
+  console.log("  E2E: portfolio → govern → decide → act → dashboard");
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

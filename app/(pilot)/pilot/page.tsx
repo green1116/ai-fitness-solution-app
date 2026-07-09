@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import { PilotFlowStatus } from "@/components/pilot/PilotFlowStatus";
+import { PilotWorkflowNav } from "@/components/pilot/PilotWorkflowNav";
 
 type ScaleDecision = {
   decision: "Pilot Stable" | "Pilot Needs Fixes" | "Ready to Scale";
@@ -49,6 +52,34 @@ export default function PilotOverviewPage() {
 
   return (
     <div className="space-y-8">
+      <section className="rounded-2xl border border-sky-800/50 bg-gradient-to-br from-sky-950/40 to-black p-8">
+        <p className="text-xs font-medium uppercase tracking-widest text-sky-400">
+          Pilot 主流程
+        </p>
+        <h2 className="mt-2 text-2xl font-bold text-white">导入 → 计算 → 下载 → 交付</h2>
+        <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+          从上传招标文件开始，完成方案与预算计算，生成标书并进入 Document Center 归档下载。
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link
+            href="/pilot/intake"
+            className="rounded-xl bg-sky-600 px-6 py-3 text-sm font-semibold text-white hover:bg-sky-500"
+          >
+            上传标书 / 导入招标文件
+          </Link>
+          <Link
+            href="/documents"
+            className="rounded-xl border border-zinc-700 px-6 py-3 text-sm font-semibold text-zinc-200 hover:border-zinc-500"
+          >
+            进入 Document Center
+          </Link>
+        </div>
+      </section>
+
+      <PilotWorkflowNav compact />
+
+      <PilotFlowStatus status="not_uploaded" />
+
       <section className={`rounded-2xl border p-8 text-center ${color} bg-black/40`}>
         <p className="text-xs uppercase tracking-widest text-zinc-400">Scale Decision</p>
         <p className={`mt-2 text-4xl font-black ${color.split(" ")[0]}`}>{decision}</p>
@@ -74,7 +105,7 @@ export default function PilotOverviewPage() {
       ) : null}
 
       <div className="flex flex-wrap gap-3">
-        <Link href="/pilot/program" className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white">
+        <Link href="/pilot/program" className="rounded-xl border border-zinc-700 px-5 py-3 text-sm font-semibold">
           Pilot Program
         </Link>
         <Link href="/pilot/funnel" className="rounded-xl border border-zinc-700 px-5 py-3 text-sm font-semibold">

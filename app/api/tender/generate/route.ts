@@ -6,7 +6,8 @@ import { growthAwareGateErrorResponse } from "@/lib/growth/growth.api-helper";
 import { recordTenderAsDeal } from "@/lib/crm/crm.product-bridge";
 import { onTenderGenerated } from "@/lib/sales/sales.product-bridge";
 import { runSaasApiGate, saasGateErrorResponse, trackFeatureUsage } from "@/lib/saas/api-gate";
-import { generateTender } from "@/lib/services/tender.service";
+import { generateTender, resolveTenderInput } from "@/lib/services/tender.service";
+import { ensureProjectOrganizationId } from "@/lib/services/project.service";
 
 export async function POST(req: NextRequest) {
   let organizationId: string | undefined;
@@ -21,17 +22,25 @@ export async function POST(req: NextRequest) {
     traceId = gate.traceId;
 
     const projectId = String(body?.projectId ?? "").trim();
-    const quoteId = String(body?.quoteId ?? "").trim();
-    const budgetId = body?.budgetId ? String(body.budgetId) : undefined;
+    const quoteIdInput = String(body?.quoteId ?? "").trim();
+    const budgetIdInput = body?.budgetId ? String(body.budgetId).trim() : undefined;
 
-    if (!projectId || !quoteId) {
+    if (!projectId) {
       return NextResponse.json(
-        { ok: false, message: "缺少 projectId 或 quoteId", traceId: gate.traceId },
+        { ok: false, message: "缺少 projectId", traceId: gate.traceId },
         { status: 400 },
       );
     }
 
-    const result = await generateTender({ projectId, quoteId, budgetId });
+    const resolved = await resolveTenderInput({
+      organizationId: gate.organizationId,
+      projectId,
+      quoteId: quoteIdInput || undefined,
+      budgetId: budgetIdInput,
+    });
+
+    const result = await generateTender(resolved);
+    await ensureProjectOrganizationId(resolved.projectId, gate.organizationId);
 
     await trackFeatureUsage(gate.organizationId, "canGenerateTender");
     trackTenderGenerated({ userId: gate.userId, organizationId: gate.organizationId, projectId });

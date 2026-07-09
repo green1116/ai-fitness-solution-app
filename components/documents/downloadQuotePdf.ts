@@ -1,6 +1,12 @@
 /**
  * Client helper — Quote PDF via existing plan PDF API.
  */
+import {
+  assertDownloadBytes,
+  parseDownloadError,
+  triggerBrowserDownload,
+} from "@/components/documents/downloadBinary";
+
 export async function downloadQuotePdf(
   projectId?: string,
   fileName = "quote.pdf",
@@ -34,15 +40,7 @@ export async function downloadQuotePdf(
   });
 
   if (!res.ok) {
-    let message = `Download failed (${res.status})`;
-    try {
-      const json = (await res.json()) as { message?: string; error?: string };
-      message = json.message || json.error || message;
-    } catch {
-      const text = await res.text();
-      if (text) message = text.slice(0, 300);
-    }
-    throw new Error(message);
+    throw new Error(await parseDownloadError(res));
   }
 
   const contentType = (res.headers.get("content-type") || "").toLowerCase();
@@ -50,11 +48,7 @@ export async function downloadQuotePdf(
     throw new Error("Quote PDF endpoint returned a non-PDF response");
   }
 
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectUrl;
-  anchor.download = fileName;
-  anchor.click();
-  URL.revokeObjectURL(objectUrl);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  assertDownloadBytes(bytes, "pdf");
+  triggerBrowserDownload(bytes, fileName, "application/pdf");
 }

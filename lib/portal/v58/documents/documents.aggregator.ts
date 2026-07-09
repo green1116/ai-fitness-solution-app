@@ -35,36 +35,66 @@ export type DocumentListItem = {
 };
 
 async function loadOrgProjectIds(organizationId: string): Promise<string[]> {
-  const projects = await prisma.project.findMany({
-    where: { organizationId },
-    select: { id: true, name: true },
-  });
-  return projects.map((p) => p.id);
+  const scope = await loadOrgDeliveryScope(organizationId);
+  return scope.projectIds;
 }
 
-export async function aggregateDeliveries(organizationId: string): Promise<DeliveryRecord[]> {
-  const projects = await prisma.project.findMany({
-    where: { organizationId },
-    select: { id: true, name: true },
-  });
-  const projectMap = new Map(projects.map((p) => [p.id, p.name]));
-  const projectIds = projects.map((p) => p.id);
-  if (projectIds.length === 0) return applyVersionGroups(getDeliveryOverlays());
-
-  const [exports, tenders, quotes] = await Promise.all([
-    prisma.documentExport.findMany({
-      where: { projectId: { in: projectIds } },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.tender.findMany({
-      where: { projectId: { in: projectIds } },
-      orderBy: { createdAt: "desc" },
+async function loadOrgDeliveryScope(organizationId: string) {
+  const [projects, quotes] = await Promise.all([
+    prisma.project.findMany({
+      where: { organizationId },
+      select: { id: true, name: true },
     }),
     prisma.quote.findMany({
       where: { organizationId },
+      select: {
+        id: true,
+        projectId: true,
+        status: true,
+        createdAt: true,
+        project: { select: { id: true, name: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
   ]);
+
+  const projectMap = new Map(projects.map((p) => [p.id, p.name]));
+  for (const quote of quotes) {
+    if (!projectMap.has(quote.projectId)) {
+      projectMap.set(quote.projectId, quote.project.name);
+    }
+  }
+
+  return {
+    projectMap,
+    projectIds: [...projectMap.keys()],
+    quotes,
+  };
+}
+
+export async function aggregateDeliveries(organizationId: string): Promise<DeliveryRecord[]> {
+  const { projectMap, projectIds, quotes } = await loadOrgDeliveryScope(organizationId);
+
+  const [exports, tenders] = await Promise.all([
+    projectIds.length > 0
+      ? prisma.documentExport.findMany({
+          where: { projectId: { in: projectIds } },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
+    projectIds.length > 0
+      ? prisma.tender.findMany({
+          where: { projectId: { in: projectIds } },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  if (projectIds.length === 0 && quotes.length === 0) {
+    return applyVersionGroups(
+      getDeliveryOverlays().filter((o) => o.organizationId === organizationId),
+    );
+  }
 
   const synthesized: DeliveryRecord[] = [
     ...exports.map((e) =>

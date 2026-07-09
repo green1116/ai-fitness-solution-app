@@ -48,6 +48,18 @@ export async function createProject(input: CreateProjectInput) {
   });
 }
 
+/** Quote/Budget may carry org while legacy Project rows do not — backfill for delivery scope. */
+export async function ensureProjectOrganizationId(
+  projectId: string,
+  organizationId: string,
+): Promise<void> {
+  if (!projectId.trim() || !organizationId.trim()) return;
+  await prisma.project.updateMany({
+    where: { id: projectId, organizationId: null },
+    data: { organizationId },
+  });
+}
+
 export async function listProjects(params: {
   organizationId: string;
   take?: number;

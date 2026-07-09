@@ -1,0 +1,72 @@
+// V80 CODE P3 — Prisma entity skeleton (merged into prisma/schema.prisma)
+// Optional apply: prisma/patches/v80_scaffold_runtime_idempotent.sql
+
+model V80ScaffoldOrganization {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  adminEmail String   @default("")
+  plan       String   @default("BASIC")
+  createdAt  DateTime @default(now())
+}
+
+model V80ScaffoldProject {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+}
+
+model V80ScaffoldTender {
+  id         String   @id @default(cuid())
+  projectId  String
+  status     String   @default("draft")
+  tenderType String   @default("enterprise-gym")
+  createdAt  DateTime @default(now())
+}
+
+model V80ScaffoldQuote {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  createdAt      DateTime @default(now())
+}
+
+model V80ScaffoldBudget {
+  id             String   @id @default(cuid())
+  quoteId        String
+  tier           String
+  companySize    Int      @default(0)
+  totalAmount    Int      @default(0)
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+}
+
+model V80ScaffoldDocumentExport {
+  id        String   @id @default(cuid())
+  projectId String
+  type      String
+  data      Bytes?
+  createdAt DateTime @default(now())
+}
+
+model V80ScaffoldPlanJob {
+  id             String   @id @default(cuid())
+  projectId      String
+  workflowKey    String
+  status         String   @default("pending")
+  steps          Json     @default("[]")
+  idempotencyKey String   @unique
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+}
+
+model V80ScaffoldUsageRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  usageType      String
+  count          Int      @default(1)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, usageType])
+}

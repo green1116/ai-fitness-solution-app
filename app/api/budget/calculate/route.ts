@@ -6,7 +6,8 @@ import { growthAwareGateErrorResponse } from "@/lib/growth/growth.api-helper";
 import { recordBudgetAsOpportunity } from "@/lib/crm/crm.product-bridge";
 import { onBudgetCalculated } from "@/lib/sales/sales.product-bridge";
 import { runSaasApiGate, saasGateErrorResponse, trackFeatureUsage } from "@/lib/saas/api-gate";
-import { calculateBudget } from "@/lib/services/budget.service";
+import { calculateBudget, resolveBudgetQuoteId } from "@/lib/services/budget.service";
+import { ensureProjectOrganizationId } from "@/lib/services/project.service";
 
 export async function POST(req: NextRequest) {
   let organizationId: string | undefined;
@@ -20,18 +21,26 @@ export async function POST(req: NextRequest) {
     userId = gate.userId;
     traceId = gate.traceId;
 
-    const quoteId = String(body?.quoteId ?? "").trim();
+    const quoteIdInput = String(body?.quoteId ?? "").trim();
+    const projectId = String(body?.projectId ?? "").trim();
     const companySize = Number(body?.companySize ?? 0);
     const budgetTier = body?.budgetTier as "low" | "mid" | "high" | undefined;
 
-    if (!quoteId || !companySize) {
+    if ((!quoteIdInput && !projectId) || !companySize) {
       return NextResponse.json(
-        { ok: false, message: "缺少 quoteId 或 companySize", traceId: gate.traceId },
+        { ok: false, message: "缺少 quoteId/projectId 或 companySize", traceId: gate.traceId },
         { status: 400 },
       );
     }
 
+    const quoteId = await resolveBudgetQuoteId({
+      organizationId: gate.organizationId,
+      quoteId: quoteIdInput || undefined,
+      projectId: projectId || undefined,
+    });
+
     const result = await calculateBudget({ quoteId, companySize, budgetTier });
+    await ensureProjectOrganizationId(result.budget.projectId, gate.organizationId);
 
     await trackFeatureUsage(gate.organizationId, "canGenerateBudget");
     trackBudgetCalculated({ userId: gate.userId, organizationId: gate.organizationId, quoteId });

@@ -26,6 +26,7 @@ function exists(rel: string): boolean {
 
 export function validatePilotJourney(): PilotJourneyReport {
   const steps: PilotJourneyStep[] = [
+    { step: "Intake", route: "app/(pilot)/pilot/intake/page.tsx", api: "app/api/pilot/v80/intake/upload/route.ts", status: "pass" },
     { step: "Pilot Center", route: "app/(pilot)/pilot/page.tsx", api: "app/api/pilot/health/route.ts", status: "pass" },
     { step: "Program", route: "app/(pilot)/pilot/program/page.tsx", api: "app/api/pilot/program/route.ts", status: "pass" },
     { step: "Feedback", route: "app/(pilot)/pilot/feedback/page.tsx", api: "app/api/pilot/feedback/route.ts", status: "pass" },

@@ -21,6 +21,7 @@ import {
   TENDER_BUDGET_VOLUME_TITLE,
   type TenderDocumentContext,
 } from "@/lib/pdf/tenderDocumentContext";
+import { toPdfLibBytes } from "@/lib/pdf/pdfBytes";
 import {
   COVER_CONFIDENTIAL_BASE_Y,
   drawTenderAuthorityArchiveNote,
@@ -523,7 +524,7 @@ export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderB
   const fontPath = path.join(process.cwd(), "public", "fonts", "NotoSansSC-Regular.ttf");
   const fontBytes = await fs.readFile(fontPath);
 
-  const font = await doc.embedFont(fontBytes, { subset: true });
+  const font = await doc.embedFont(toPdfLibBytes(fontBytes), { subset: true });
   const fontBold = font;
   const fontMono = await doc.embedFont(StandardFonts.Courier);
 

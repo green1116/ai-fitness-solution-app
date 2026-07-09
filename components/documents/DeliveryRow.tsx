@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { downloadBudgetPdf } from "@/components/documents/downloadBudgetPdf";
 import { downloadQuotePdf } from "@/components/documents/downloadQuotePdf";
+import { downloadTenderPack } from "@/components/documents/downloadTenderPack";
+import { downloadTenderPdf } from "@/components/documents/downloadTenderPdf";
 import type { DeliveryRecord } from "@/lib/portal/v58/delivery/delivery.types";
 import { DeliveryStatusBadge } from "./DeliveryStatusBadge";
 import { VersionBadge } from "./VersionBadge";
@@ -25,6 +28,7 @@ type DeliveryRowProps = {
 export function DeliveryRow({ delivery, showProject = true }: DeliveryRowProps) {
   const { trackEvent } = useDocuments();
   const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
 
   const handleDownload = () => {
     trackEvent("pdf_downloaded", {
@@ -35,18 +39,17 @@ export function DeliveryRow({ delivery, showProject = true }: DeliveryRowProps) 
     });
   };
 
-  async function handleQuotePdfDownload() {
+  async function runDownload(task: () => Promise<void>) {
     if (downloading) return;
     handleDownload();
     setDownloading(true);
+    setDownloadError("");
     try {
-      await downloadQuotePdf(
-        delivery.projectId ?? "",
-        delivery.fileName ?? `quote-${delivery.quoteId?.slice(0, 8) ?? "export"}.pdf`,
-        delivery.quoteId,
-      );
+      await task();
     } catch (e) {
-      console.error("[DeliveryRow] quote pdf download failed", e);
+      const message = e instanceof Error ? e.message : "下载失败";
+      setDownloadError(message);
+      console.error("[DeliveryRow] download failed", e);
     } finally {
       setDownloading(false);
     }
@@ -74,6 +77,9 @@ export function DeliveryRow({ delivery, showProject = true }: DeliveryRowProps) 
           <p className="mt-1 text-xs text-zinc-600">
             {new Date(delivery.createdAt).toLocaleString()} · 下载 {delivery.downloadCount} 次
           </p>
+          {downloadError ? (
+            <p className="mt-2 text-xs text-red-400">{downloadError}</p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {delivery.quoteId ? (
@@ -93,20 +99,81 @@ export function DeliveryRow({ delivery, showProject = true }: DeliveryRowProps) 
           {delivery.artifactType === "quote_pdf" ? (
             <button
               type="button"
-              onClick={() => void handleQuotePdfDownload()}
+              onClick={() =>
+                void runDownload(() =>
+                  downloadQuotePdf(
+                    delivery.projectId ?? "",
+                    delivery.fileName ?? `quote-${delivery.quoteId?.slice(0, 8) ?? "export"}.pdf`,
+                    delivery.quoteId,
+                  ),
+                )
+              }
               disabled={downloading}
               className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
             >
               {downloading ? "下载中…" : "下载"}
             </button>
-          ) : delivery.downloadUrl ? (
-            <a
-              href={delivery.downloadUrl}
-              onClick={handleDownload}
-              className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-zinc-200"
+          ) : delivery.artifactType === "budget_pdf" ? (
+            <button
+              type="button"
+              onClick={() =>
+                void runDownload(() =>
+                  downloadBudgetPdf(
+                    delivery.projectId ?? "",
+                    delivery.fileName ?? `budget-${delivery.id.slice(0, 8)}.pdf`,
+                  ),
+                )
+              }
+              disabled={downloading || !delivery.projectId}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
             >
-              下载
-            </a>
+              {downloading ? "下载中…" : "下载"}
+            </button>
+          ) : delivery.artifactType === "tender_pack" || delivery.artifactType === "merged_pdf" ? (
+            <button
+              type="button"
+              onClick={() =>
+                void runDownload(() =>
+                  downloadTenderPdf(
+                    delivery.projectId ?? "",
+                    delivery.fileName ?? "tender.pdf",
+                  ),
+                )
+              }
+              disabled={downloading || !delivery.projectId}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
+            >
+              {downloading ? "下载中…" : "下载 PDF"}
+            </button>
+          ) : delivery.artifactType === "zip_package" ? (
+            <button
+              type="button"
+              onClick={() =>
+                void runDownload(() =>
+                  downloadTenderPack(
+                    delivery.projectId ?? "",
+                    delivery.fileName ?? "enterprise-package.zip",
+                  ),
+                )
+              }
+              disabled={downloading || !delivery.projectId}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
+            >
+              {downloading ? "下载中…" : "下载 ZIP"}
+            </button>
+          ) : delivery.projectId ? (
+            <button
+              type="button"
+              onClick={() =>
+                void runDownload(() =>
+                  downloadTenderPdf(delivery.projectId ?? "", delivery.fileName ?? "tender.pdf"),
+                )
+              }
+              disabled={downloading}
+              className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
+            >
+              {downloading ? "下载中…" : "下载"}
+            </button>
           ) : null}
         </div>
       </div>

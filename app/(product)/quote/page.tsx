@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { resolvePostQuotePath } from "@/lib/portal/v57/journey.redirect";
+import { PilotFlowStatus } from "@/components/pilot/PilotFlowStatus";
 
 type MeResponse = {
   authenticated: boolean;
@@ -24,9 +25,19 @@ function QuoteForm() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((data: MeResponse) => {
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then(async (r) => {
+        const text = await r.text();
+        if (!text.trim()) {
+          throw new Error("empty auth/me response");
+        }
+        const data = JSON.parse(text) as MeResponse;
+        if (!r.ok) {
+          throw new Error("auth/me unavailable");
+        }
+        return data;
+      })
+      .then((data) => {
         if (!data.authenticated) {
           router.replace("/register");
           return;
@@ -40,6 +51,9 @@ function QuoteForm() {
         const pid = urlProjectId || data.projectId || "";
         if (pid) setProjectId(pid);
         else router.replace("/onboarding");
+      })
+      .catch(() => {
+        setError("会话加载失败，请刷新页面后重试");
       })
       .finally(() => setChecking(false));
   }, [router, urlProjectId]);
@@ -98,10 +112,21 @@ function QuoteForm() {
     return <p className="text-zinc-400">加载会话与项目…</p>;
   }
 
+  if (error && !organizationId) {
+    return <p className="text-sm text-red-400">{error}</p>;
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">方案生成 Quote</h1>
-      <p className="text-sm text-zinc-400">Onboarding 项目 → V58 Orchestrator → 进入工作台</p>
+      <div>
+        <p className="text-xs font-medium uppercase tracking-widest text-zinc-500">计算区 · Quote</p>
+        <h1 className="mt-1 text-2xl font-bold">方案生成 Quote</h1>
+        <p className="mt-2 text-sm text-zinc-400">
+          Onboarding 项目 → 生成方案 → 进入预算计算
+        </p>
+      </div>
+
+      <PilotFlowStatus status="parsed" />
 
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
         <div className="rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-400">

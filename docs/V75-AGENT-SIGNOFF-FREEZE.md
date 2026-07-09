@@ -1,0 +1,65 @@
+# V75 P8 — Agent Sign-off & Freeze
+
+Final sign-off and freeze layer for V75 Agent Orchestration Foundation. **Read-only** — no runtime, API, database, or UI changes. V48–V74 untouched.
+
+## Scope (P8 only)
+
+| Concept | Purpose |
+|---------|---------|
+| SignoffState | pass / fail / ready / blocked |
+| FreezeState | frozen / unfrozen / blocked |
+| GateSummary | P1–P8 verify gates (`AG-P1` … `AG-P8`) |
+| RollbackSnapshot | Per-phase rollback paths (`AGT-RS-*`, 12 entries) |
+| ReadinessReport | P1–P7 phase readiness collection |
+| FreezeChecklist | 10-item freeze checklist (`AFC-*`) |
+| LockVersion | `V75_AGENT_LAYER_VERSION_LOCK` |
+
+## Module layout
+
+```
+lib/agent/v75/signoff/
+  signoff.types.ts
+  freeze.lock.ts
+  freeze.checklist.ts
+  release.gate.summary.ts
+  rollback.snapshot.index.ts
+  readiness.collector.ts
+  signoff.manifest.ts
+  signoff.builder.ts
+  signoff.entry.ts
+```
+
+## Entry
+
+```ts
+import { buildAgentSignoff, closeV75Agent } from "@/lib/agent/v75/signoff/signoff.entry";
+
+const report = closeV75Agent({ deploymentId: "prod" });
+```
+
+## Exports
+
+- `V75_AGENT_SIGNOFF_VERSION` = `v75-agent-signoff-1`
+- `V75_AGENT_FREEZE_VERSION` = `v75-agent-freeze-1`
+- `buildAgentSignoff()`
+- `runAgentSignoff()`
+
+## Upstream (read-only)
+
+- **P7**: `buildAgentComplianceCatalog()`
+- **V74**: `v74-decision-signoff-1` / `v74-decision-freeze-1`
+
+## Verify
+
+```bash
+npx tsx scripts/verify-v75-p8-agent-signoff.ts
+```
+
+## Sign-off point (P8)
+
+- `signedOff === true` && `finalReadinessScore === 100`
+- `closeV75Agent()` closes V75 program
+
+## Boundaries
+
+- Declarative sign-off only — not enforced at runtime

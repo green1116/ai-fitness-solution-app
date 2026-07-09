@@ -14,6 +14,41 @@ export type CalculateBudgetInput = {
   budgetTier?: "low" | "mid" | "high";
 };
 
+export type ResolveBudgetQuoteIdInput = {
+  organizationId: string;
+  quoteId?: string;
+  projectId?: string;
+};
+
+/** Links pass ?projectId=; calculate expects Quote.id — resolve within org. */
+export async function resolveBudgetQuoteId(input: ResolveBudgetQuoteIdInput): Promise<string> {
+  if (input.quoteId) {
+    const byId = await prisma.quote.findFirst({
+      where: { id: input.quoteId, organizationId: input.organizationId },
+      select: { id: true },
+    });
+    if (byId) return byId.id;
+
+    const byProjectAsId = await prisma.quote.findFirst({
+      where: { projectId: input.quoteId, organizationId: input.organizationId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    if (byProjectAsId) return byProjectAsId.id;
+  }
+
+  if (input.projectId) {
+    const byProject = await prisma.quote.findFirst({
+      where: { projectId: input.projectId, organizationId: input.organizationId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    if (byProject) return byProject.id;
+  }
+
+  throw new Error("Quote not found");
+}
+
 type StoredQuoteContent = {
   proposal?: unknown;
   runtime?: { steps?: QuoteOrchestrationStepResult[] };

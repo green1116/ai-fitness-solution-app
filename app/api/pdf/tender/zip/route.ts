@@ -29,6 +29,7 @@ import {
   clientErrorExtras,
   sanitizeProductionClientMessage,
 } from "@/lib/http/sanitizeProductionClient";
+import { zipBinaryResponse as zipBinaryArtifactResponse } from "@/lib/http/binaryArtifact";
 
 /** App Router：POST /api/pdf/tender/zip；GET 仅用于探测路由是否挂载 */
 export const runtime = "nodejs";
@@ -74,28 +75,32 @@ function toNodeBuffer(bytes: Buffer | Uint8Array | undefined): Buffer {
 }
 
 function zipBinaryResponse(zipBuffer: Buffer) {
-  const body = new Uint8Array(zipBuffer);
-  return new Response(body, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${ZIP_FILENAME}"`,
-      "Content-Length": String(body.byteLength),
-      "Cache-Control": "no-store",
-    },
-  });
+  return zipBinaryArtifactResponse(zipBuffer, ZIP_FILENAME);
 }
 
-export async function GET() {
-  return NextResponse.json(
-    {
-      ok: true,
-      route: "/api/pdf/tender/zip",
-      methods: ["GET", "POST"],
-      hint: "POST body: { projectId, planId? } — 成功响应为 application/zip 二进制",
-    },
-    { status: 200 },
-  );
+export async function GET(req: Request) {
+  const projectId = new URL(req.url).searchParams.get("projectId")?.trim();
+  if (!projectId) {
+    return NextResponse.json(
+      {
+        ok: true,
+        route: "/api/pdf/tender/zip",
+        methods: ["GET", "POST"],
+        hint: "GET/POST with projectId — 成功响应为 application/zip 二进制",
+      },
+      { status: 200 },
+    );
+  }
+  const planId = new URL(req.url).searchParams.get("planId")?.trim();
+  const fakeReq = new Request(req.url, {
+    method: "POST",
+    headers: req.headers,
+    body: JSON.stringify({
+      projectId,
+      ...(planId ? { planId } : {}),
+    }),
+  });
+  return POST(fakeReq);
 }
 
 async function loadProjectForZip(
@@ -427,6 +432,24 @@ export async function POST(req: Request) {
       elapsedMs: Date.now() - startedAt,
       dataSource,
     });
+
+    try {
+      await prisma.documentExport.create({
+        data: {
+          projectId: project.id,
+          docType: "zip",
+          fileName: ZIP_FILENAME,
+          fileUrl: "/api/pdf/tender/zip",
+          renderVersion: "v59-zip-1",
+          metadata: {
+            zipBytes: zipBuffer.length,
+            tenderId: docCtx.tenderId,
+          },
+        },
+      });
+    } catch (exportErr) {
+      console.warn("[ZIP] DocumentExport persist failed (non-fatal)", exportErr);
+    }
 
     return zipBinaryResponse(zipBuffer);
   } catch (error) {

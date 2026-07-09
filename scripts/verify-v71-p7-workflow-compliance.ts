@@ -1,0 +1,134 @@
+/**
+ * V71 P7 — Workflow Compliance Verification
+ */
+import fs from "node:fs";
+import path from "node:path";
+
+import {
+  assertWorkflowCompliancePass,
+  buildWorkflowCompliance,
+  COMPLIANCE_AUDIT_TRAIL_CATALOG,
+  COMPLIANCE_EXCEPTION_CATALOG,
+  COMPLIANCE_FREEZE_GATE_CATALOG,
+  COMPLIANCE_ITEM_CATALOG,
+  COMPLIANCE_SIGNOFF_CATALOG,
+  computeDeclarativeCompliancePass,
+  formatWorkflowComplianceSummary,
+  getComplianceItemById,
+  getComplianceItemsByOrchestrationRef,
+  getFreezeGateByItemRef,
+  getSignoffByItemRef,
+  isWorkflowComplianceRefsAligned,
+  runWorkflowCompliance,
+  V71_WORKFLOW_COMPLIANCE_FREEZE_VERSION,
+  V71_WORKFLOW_COMPLIANCE_VERSION,
+} from "../lib/orchestration/v71/compliance.entry";
+
+const ROOT = path.resolve(__dirname, "..");
+const DEPLOYMENT_ID = "v71-p7-workflow-compliance";
+
+function check(cond: boolean, msg: string) {
+  if (!cond) throw new Error(`ASSERT: ${msg}`);
+}
+
+function checkModuleStructure() {
+  const required = [
+    "lib/orchestration/v71/workflow.compliance.ts",
+    "lib/orchestration/v71/compliance.checklist.ts",
+    "lib/orchestration/v71/compliance.builder.ts",
+    "lib/orchestration/v71/compliance.entry.ts",
+    "docs/V71-P7-WORKFLOW-COMPLIANCE.md",
+  ];
+  for (const rel of required) {
+    check(fs.existsSync(path.join(ROOT, rel)), `missing module: ${rel}`);
+  }
+  console.log("✓ V71 workflow compliance module structure");
+}
+
+function testInventories() {
+  check(COMPLIANCE_ITEM_CATALOG.length >= 6, "compliance item catalog");
+  check(COMPLIANCE_EXCEPTION_CATALOG.length >= 6, "compliance exception catalog");
+  check(COMPLIANCE_AUDIT_TRAIL_CATALOG.length >= 6, "compliance audit trail catalog");
+  check(COMPLIANCE_FREEZE_GATE_CATALOG.length >= 6, "freeze gate catalog");
+  check(COMPLIANCE_SIGNOFF_CATALOG.length >= 6, "compliance signoff catalog");
+  check(isWorkflowComplianceRefsAligned(), "workflow compliance refs aligned");
+  console.log("✓ checklist, exceptions, audits, gates, signoffs & alignment");
+}
+
+function testComplianceFields() {
+  for (const item of COMPLIANCE_ITEM_CATALOG) {
+    check(typeof item.required === "boolean", `${item.id} required`);
+    check(typeof item.passed === "boolean", `${item.id} passed`);
+    check(typeof item.failed === "boolean", `${item.id} failed`);
+    check(item.passed !== item.failed, `${item.id} passed/failed exclusive`);
+    check(item.evidence.length > 0, `${item.id} evidence`);
+    check(item.review.length > 0, `${item.id} review`);
+    check(item.exception.length > 0, `${item.id} exception`);
+    check(item.auditTrail.length > 0, `${item.id} auditTrail`);
+    check(item.freezeGate.length > 0, `${item.id} freezeGate`);
+    check(item.signoff.length > 0, `${item.id} signoff`);
+  }
+  console.log("✓ compliance field coverage");
+}
+
+function testComplianceQueries() {
+  const item = getComplianceItemById("ORC-CMP-001");
+  check(item?.passed === true, "ORC-CMP-001 passed");
+  check(item?.freezeGate === "ORC-CMP-GATE-001", "ORC-CMP-001 freeze gate");
+
+  const orchestrationItems = getComplianceItemsByOrchestrationRef("ORC-003");
+  check(orchestrationItems.length >= 1, "ORC-003 compliance items");
+
+  const gate = getFreezeGateByItemRef("ORC-CMP-005");
+  check(gate?.gateKind === "workflow-governance", "ORC-CMP-005 freeze gate kind");
+
+  const signoff = getSignoffByItemRef("ORC-CMP-001");
+  check(signoff?.signoffStatus === "signed", "ORC-CMP-001 signoff signed");
+
+  check(
+    computeDeclarativeCompliancePass({ required: true, passed: true, failed: false }),
+    "compliance pass required",
+  );
+  check(
+    !computeDeclarativeCompliancePass({ required: true, passed: false, failed: true }),
+    "compliance fail required",
+  );
+
+  console.log("✓ compliance queries");
+}
+
+function testReport() {
+  const incomplete = runWorkflowCompliance({
+    deploymentId: DEPLOYMENT_ID,
+    signals: { workflowLifecycleReady: false },
+  });
+  check(!incomplete.complianceReady, "incomplete lifecycle not ready");
+
+  const ready = buildWorkflowCompliance({ deploymentId: DEPLOYMENT_ID });
+  check(ready.version === V71_WORKFLOW_COMPLIANCE_VERSION, "compliance version");
+  check(ready.freezeVersion === V71_WORKFLOW_COMPLIANCE_FREEZE_VERSION, "freeze version");
+  check(ready.workflowLifecycleReady, "P6 lifecycle ready");
+  check(ready.checklist.checklistComplete, "checklist complete");
+  check(ready.exceptions.catalogComplete, "exceptions complete");
+  check(ready.auditTrails.catalogComplete, "audit trails complete");
+  check(ready.freezeGates.catalogComplete, "freeze gates complete");
+  check(ready.signoffs.catalogComplete, "signoffs complete");
+  check(ready.complianceReady, "compliance ready");
+  check(ready.readinessScore === 100, "readiness score 100");
+  assertWorkflowCompliancePass(ready);
+
+  console.log("✓ workflow compliance report");
+  console.log(formatWorkflowComplianceSummary(ready));
+  console.log("\n✅ V71 P7 Workflow Compliance — verify PASS");
+}
+
+function main() {
+  console.log("V71 P7 Workflow Compliance Verification\n");
+  checkModuleStructure();
+  testInventories();
+  testComplianceFields();
+  testComplianceQueries();
+  testReport();
+}
+
+main();
