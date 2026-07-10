@@ -89,3 +89,4 @@ scripts/promote-golden.ps1
 .prisma-stability/snapshots/latest.json
 .prisma-stability/snapshots/pre-migration-*.json
 .prisma-stability/snapshots/post-migration-*.json
+*.tsbuildinfo
