@@ -65,7 +65,11 @@ export async function parseDownloadError(res: Response): Promise<string> {
 }
 
 export function triggerBrowserDownload(bytes: Uint8Array, fileName: string, mime: string): void {
-  const blob = new Blob([bytes], { type: mime });
+  const arrayBuffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
+  const blob = new Blob([arrayBuffer], { type: mime });
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
