@@ -192,6 +192,18 @@ export function removeFederation(id: string): boolean {
   return true;
 }
 
+/** Persist a new trustLevel on a registered federation (used by trust engine). */
+export function setFederationTrustLevel(
+  id: string,
+  trustLevel: number,
+): FederatedIdentity {
+  const entry = federations.get(id.trim());
+  if (!entry) throw new Error(`federation not found: ${id}`);
+  entry.trustLevel = clampTrustLevel(trustLevel);
+  federations.set(entry.id, entry);
+  return cloneFederation(entry);
+}
+
 export function buildFederationRegistryManifest(): FederationRegistryManifest {
   const list = listFederations();
   return {
