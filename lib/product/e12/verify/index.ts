@@ -1,5 +1,5 @@
 /**
- * E12-P1 — Product verify helpers (lib-side)
+ * E12 — Product verify helpers (lib-side)
  */
 
 export {
@@ -12,9 +12,23 @@ export {
 } from "./release.gate";
 
 export {
+  assertE12P2ReleaseGatePass,
+  checkE12P2ReleaseGate,
+  E12_P2_SIGNOFF_VERSION,
+} from "./tenant.release.gate";
+
+export {
   E12_P1_PRODUCT_FREEZE_VERSION,
   E12_PRODUCT_BASE,
   E12_PRODUCT_FREEZE_VERSION,
   E12_PRODUCT_ID,
   E12_PRODUCT_VERSION,
 } from "../core/product.constants";
+
+export {
+  E12_P2_TENANT_PRODUCT_FREEZE_VERSION,
+  E12_TENANT_PRODUCT_BASE,
+  E12_TENANT_PRODUCT_FREEZE_VERSION,
+  E12_TENANT_PRODUCT_ID,
+  E12_TENANT_PRODUCT_VERSION,
+} from "../tenant/tenant.constants";
