@@ -18,6 +18,12 @@ export {
 } from "./execution.release.gate";
 
 export {
+  assertE11P3ReleaseGatePass,
+  checkE11P3ReleaseGate,
+  E11_P3_SIGNOFF_VERSION,
+} from "./tenant.release.gate";
+
+export {
   E11_CLOUD_RUNTIME_BASE,
   E11_CLOUD_RUNTIME_FREEZE_VERSION,
   E11_CLOUD_RUNTIME_ID,
