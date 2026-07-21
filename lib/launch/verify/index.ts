@@ -60,3 +60,31 @@ export {
   LAUNCH_SECURITY_READINESS_ID,
   LAUNCH_SECURITY_READINESS_VERSION,
 } from "../security/security.constants";
+
+export {
+  assertLaunchP5ReleaseGatePass,
+  checkLaunchP5ReleaseGate,
+  LAUNCH_P5_SIGNOFF_VERSION,
+} from "../support/verify/support.release.gate";
+
+export {
+  LAUNCH_P5_SUPPORT_FREEZE_VERSION,
+  LAUNCH_SLA_SUPPORT_BASE,
+  LAUNCH_SLA_SUPPORT_FREEZE_VERSION,
+  LAUNCH_SLA_SUPPORT_ID,
+  LAUNCH_SLA_SUPPORT_VERSION,
+} from "../support/support.constants";
+
+export {
+  assertLaunchP6ReleaseGatePass,
+  checkLaunchP6ReleaseGate,
+  LAUNCH_P6_SIGNOFF_VERSION,
+} from "../documentation/verify/documentation.release.gate";
+
+export {
+  LAUNCH_P6_DOCUMENTATION_FREEZE_VERSION,
+  LAUNCH_DOCUMENTATION_BASE,
+  LAUNCH_DOCUMENTATION_FREEZE_VERSION,
+  LAUNCH_DOCUMENTATION_ID,
+  LAUNCH_DOCUMENTATION_VERSION,
+} from "../documentation/documentation.constants";
