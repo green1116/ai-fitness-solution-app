@@ -18,6 +18,12 @@ export {
 } from "./tenant.release.gate";
 
 export {
+  assertE12P3ReleaseGatePass,
+  checkE12P3ReleaseGate,
+  E12_P3_SIGNOFF_VERSION,
+} from "./admin.release.gate";
+
+export {
   E12_P1_PRODUCT_FREEZE_VERSION,
   E12_PRODUCT_BASE,
   E12_PRODUCT_FREEZE_VERSION,
@@ -32,3 +38,11 @@ export {
   E12_TENANT_PRODUCT_ID,
   E12_TENANT_PRODUCT_VERSION,
 } from "../tenant/tenant.constants";
+
+export {
+  E12_P3_ADMIN_CONSOLE_FREEZE_VERSION,
+  E12_ADMIN_CONSOLE_BASE,
+  E12_ADMIN_CONSOLE_FREEZE_VERSION,
+  E12_ADMIN_CONSOLE_ID,
+  E12_ADMIN_CONSOLE_VERSION,
+} from "../admin/admin.constants";
