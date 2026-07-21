@@ -36,6 +36,12 @@ export {
 } from "./api.release.gate";
 
 export {
+  assertE12P6ReleaseGatePass,
+  checkE12P6ReleaseGate,
+  E12_P6_SIGNOFF_VERSION,
+} from "./deployment.release.gate";
+
+export {
   E12_P1_PRODUCT_FREEZE_VERSION,
   E12_PRODUCT_BASE,
   E12_PRODUCT_FREEZE_VERSION,
@@ -74,3 +80,11 @@ export {
   E12_API_PRODUCT_ID,
   E12_API_PRODUCT_VERSION,
 } from "../api/api.constants";
+
+export {
+  E12_P6_DEPLOYMENT_PACKAGE_FREEZE_VERSION,
+  E12_DEPLOYMENT_PACKAGE_BASE,
+  E12_DEPLOYMENT_PACKAGE_FREEZE_VERSION,
+  E12_DEPLOYMENT_PACKAGE_ID,
+  E12_DEPLOYMENT_PACKAGE_VERSION,
+} from "../deployment/deployment.constants";
