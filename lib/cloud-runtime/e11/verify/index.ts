@@ -24,6 +24,12 @@ export {
 } from "./tenant.release.gate";
 
 export {
+  assertE11P4ReleaseGatePass,
+  checkE11P4ReleaseGate,
+  E11_P4_SIGNOFF_VERSION,
+} from "./governance.release.gate";
+
+export {
   E11_CLOUD_RUNTIME_BASE,
   E11_CLOUD_RUNTIME_FREEZE_VERSION,
   E11_CLOUD_RUNTIME_ID,
