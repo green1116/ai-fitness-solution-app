@@ -42,6 +42,12 @@ export {
 } from "./autonomous.release.gate";
 
 export {
+  assertE11P7ReleaseGatePass,
+  checkE11P7ReleaseGate,
+  E11_P7_SIGNOFF_VERSION,
+} from "./control-plane.release.gate";
+
+export {
   E11_CLOUD_RUNTIME_BASE,
   E11_CLOUD_RUNTIME_FREEZE_VERSION,
   E11_CLOUD_RUNTIME_ID,
