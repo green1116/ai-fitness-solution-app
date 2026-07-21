@@ -48,6 +48,18 @@ export {
 } from "./commercial.release.gate";
 
 export {
+  assertE12P8ReleaseGatePass,
+  checkE12P8ReleaseGate,
+} from "../signoff/governance.release.gate";
+
+export {
+  E12_P8_PRODUCTIZATION_FREEZE_VERSION,
+  E12_P8_GOVERNANCE_BASE,
+  E12_P8_SIGNOFF_VERSION,
+  E12_PRODUCTIZATION_COMPLETE_ID,
+} from "../signoff/governance.freeze.lock";
+
+export {
   E12_P1_PRODUCT_FREEZE_VERSION,
   E12_PRODUCT_BASE,
   E12_PRODUCT_FREEZE_VERSION,
