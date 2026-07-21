@@ -30,6 +30,12 @@ export {
 } from "./billing.release.gate";
 
 export {
+  assertE12P5ReleaseGatePass,
+  checkE12P5ReleaseGate,
+  E12_P5_SIGNOFF_VERSION,
+} from "./api.release.gate";
+
+export {
   E12_P1_PRODUCT_FREEZE_VERSION,
   E12_PRODUCT_BASE,
   E12_PRODUCT_FREEZE_VERSION,
@@ -60,3 +66,11 @@ export {
   E12_BILLING_COMMERCIAL_ID,
   E12_BILLING_COMMERCIAL_VERSION,
 } from "../billing/billing.constants";
+
+export {
+  E12_P5_API_PRODUCT_FREEZE_VERSION,
+  E12_API_PRODUCT_BASE,
+  E12_API_PRODUCT_FREEZE_VERSION,
+  E12_API_PRODUCT_ID,
+  E12_API_PRODUCT_VERSION,
+} from "../api/api.constants";
