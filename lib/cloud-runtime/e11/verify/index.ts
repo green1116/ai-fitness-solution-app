@@ -36,6 +36,12 @@ export {
 } from "./observability.release.gate";
 
 export {
+  assertE11P6ReleaseGatePass,
+  checkE11P6ReleaseGate,
+  E11_P6_SIGNOFF_VERSION,
+} from "./autonomous.release.gate";
+
+export {
   E11_CLOUD_RUNTIME_BASE,
   E11_CLOUD_RUNTIME_FREEZE_VERSION,
   E11_CLOUD_RUNTIME_ID,
