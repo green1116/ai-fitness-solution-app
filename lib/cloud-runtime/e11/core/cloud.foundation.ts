@@ -1,0 +1,20 @@
+/**
+ * E11-P1 — Cloud Runtime Foundation core entry
+ */
+
+export {
+  CLOUD_CONTEXT_STATUSES,
+  CLOUD_HEALTH_LEVELS,
+  CLOUD_LIFECYCLE_STAGES,
+  CLOUD_LIFECYCLE_TRANSITIONS,
+  CLOUD_MANAGER_STATUSES,
+  CLOUD_RUNTIME_KINDS,
+  CLOUD_RUNTIME_STATUSES,
+  E11_CLOUD_RUNTIME_BASE,
+  E11_CLOUD_RUNTIME_FREEZE_VERSION,
+  E11_CLOUD_RUNTIME_ID,
+  E11_CLOUD_RUNTIME_VERSION,
+  E11_P1_CLOUD_FREEZE_VERSION,
+} from "./cloud.constants";
+
+export { buildCloudFoundation, getCloudRuntimeInfo } from "../runtime/cloud.lifecycle";
