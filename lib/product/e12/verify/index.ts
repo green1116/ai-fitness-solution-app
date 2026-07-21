@@ -42,6 +42,12 @@ export {
 } from "./deployment.release.gate";
 
 export {
+  assertE12P7ReleaseGatePass,
+  checkE12P7ReleaseGate,
+  E12_P7_SIGNOFF_VERSION,
+} from "./commercial.release.gate";
+
+export {
   E12_P1_PRODUCT_FREEZE_VERSION,
   E12_PRODUCT_BASE,
   E12_PRODUCT_FREEZE_VERSION,
@@ -88,3 +94,11 @@ export {
   E12_DEPLOYMENT_PACKAGE_ID,
   E12_DEPLOYMENT_PACKAGE_VERSION,
 } from "../deployment/deployment.constants";
+
+export {
+  E12_P7_COMMERCIAL_CONTROL_FREEZE_VERSION,
+  E12_COMMERCIAL_CONTROL_BASE,
+  E12_COMMERCIAL_CONTROL_FREEZE_VERSION,
+  E12_COMMERCIAL_CONTROL_ID,
+  E12_COMMERCIAL_CONTROL_VERSION,
+} from "../commercial/commercial.constants";
