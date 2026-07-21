@@ -88,3 +88,34 @@ export {
   LAUNCH_DOCUMENTATION_ID,
   LAUNCH_DOCUMENTATION_VERSION,
 } from "../documentation/documentation.constants";
+
+export {
+  assertLaunchP7ReleaseGatePass,
+  checkLaunchP7ReleaseGate,
+  LAUNCH_P7_SIGNOFF_VERSION,
+} from "../control/verify/control.release.gate";
+
+export {
+  LAUNCH_P7_CONTROL_FREEZE_VERSION,
+  LAUNCH_CONTROL_PLANE_BASE,
+  LAUNCH_CONTROL_PLANE_FREEZE_VERSION,
+  LAUNCH_CONTROL_PLANE_ID,
+  LAUNCH_CONTROL_PLANE_VERSION,
+} from "../control/control.constants";
+
+export {
+  assertLaunchP8ReleaseGatePass,
+  checkLaunchP8ReleaseGate,
+} from "../signoff/governance.release.gate";
+
+export {
+  LAUNCH_COMMERCIAL_RELEASE_COMPLETE_ID,
+  LAUNCH_P8_COMMERCIAL_RELEASE_FREEZE_VERSION,
+  LAUNCH_P8_GOVERNANCE_BASE,
+  LAUNCH_P8_SIGNOFF_VERSION,
+} from "../signoff/governance.freeze.lock";
+
+export {
+  assertLaunchP8FinalVerificationPass,
+  runLaunchP8FinalVerification,
+} from "../signoff/final.verification";
