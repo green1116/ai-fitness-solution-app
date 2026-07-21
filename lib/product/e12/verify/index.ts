@@ -24,6 +24,12 @@ export {
 } from "./admin.release.gate";
 
 export {
+  assertE12P4ReleaseGatePass,
+  checkE12P4ReleaseGate,
+  E12_P4_SIGNOFF_VERSION,
+} from "./billing.release.gate";
+
+export {
   E12_P1_PRODUCT_FREEZE_VERSION,
   E12_PRODUCT_BASE,
   E12_PRODUCT_FREEZE_VERSION,
@@ -46,3 +52,11 @@ export {
   E12_ADMIN_CONSOLE_ID,
   E12_ADMIN_CONSOLE_VERSION,
 } from "../admin/admin.constants";
+
+export {
+  E12_P4_BILLING_COMMERCIAL_FREEZE_VERSION,
+  E12_BILLING_COMMERCIAL_BASE,
+  E12_BILLING_COMMERCIAL_FREEZE_VERSION,
+  E12_BILLING_COMMERCIAL_ID,
+  E12_BILLING_COMMERCIAL_VERSION,
+} from "../billing/billing.constants";
