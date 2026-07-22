@@ -292,3 +292,17 @@ export {
   EVOLUTION_GLOBAL_DEPLOYMENT_NETWORK_ID,
   EVOLUTION_GLOBAL_DEPLOYMENT_NETWORK_VERSION,
 } from "../../evolution/global/global.constants";
+
+export {
+  assertEvolutionP6ReleaseGatePass,
+  checkEvolutionP6ReleaseGate,
+  EVOLUTION_P6_SIGNOFF_VERSION,
+} from "../../evolution/marketplace/verify/marketplace.release.gate";
+
+export {
+  EVOLUTION_P6_MARKETPLACE_FREEZE_VERSION,
+  EVOLUTION_MARKETPLACE_ECOSYSTEM_BASE,
+  EVOLUTION_MARKETPLACE_ECOSYSTEM_FREEZE_VERSION,
+  EVOLUTION_MARKETPLACE_ECOSYSTEM_ID,
+  EVOLUTION_MARKETPLACE_ECOSYSTEM_VERSION,
+} from "../../evolution/marketplace/marketplace.constants";
