@@ -162,3 +162,17 @@ export {
   OPERATIONS_RELEASE_MANAGEMENT_ID,
   OPERATIONS_RELEASE_MANAGEMENT_VERSION,
 } from "../../operations/release/release.constants";
+
+export {
+  assertOperationsP5ReleaseGatePass,
+  checkOperationsP5ReleaseGate,
+  OPERATIONS_P5_SIGNOFF_VERSION,
+} from "../../operations/growth/verify/growth.release.gate";
+
+export {
+  OPERATIONS_P5_GROWTH_ANALYTICS_FREEZE_VERSION,
+  OPERATIONS_GROWTH_ANALYTICS_BASE,
+  OPERATIONS_GROWTH_ANALYTICS_FREEZE_VERSION,
+  OPERATIONS_GROWTH_ANALYTICS_ID,
+  OPERATIONS_GROWTH_ANALYTICS_VERSION,
+} from "../../operations/growth/growth.constants";
