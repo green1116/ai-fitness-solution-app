@@ -64,6 +64,10 @@ export const LAUNCH_P8_GOVERNANCE_BASE =
 export const LAUNCH_COMMERCIAL_RELEASE_COMPLETE_ID =
   "enterprise-launch-commercial-release-complete-v1" as const;
 
+/** Post-launch series root alias (stable BASE name for downstream layers). */
+export const ENTERPRISE_LAUNCH_COMPLETE_ID =
+  "enterprise-launch-complete-v1" as const;
+
 export type LaunchP8ComponentId =
   | "p1-production"
   | "p2-onboarding"
