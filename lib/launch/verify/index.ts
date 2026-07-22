@@ -134,3 +134,17 @@ export {
   OPERATIONS_CUSTOMER_SUCCESS_ID,
   OPERATIONS_CUSTOMER_SUCCESS_VERSION,
 } from "../../operations/customer-success/success.constants";
+
+export {
+  assertOperationsP3ReleaseGatePass,
+  checkOperationsP3ReleaseGate,
+  OPERATIONS_P3_SIGNOFF_VERSION,
+} from "../../operations/incident/verify/incident.release.gate";
+
+export {
+  OPERATIONS_P3_INCIDENT_RESPONSE_FREEZE_VERSION,
+  OPERATIONS_INCIDENT_RESPONSE_BASE,
+  OPERATIONS_INCIDENT_RESPONSE_FREEZE_VERSION,
+  OPERATIONS_INCIDENT_RESPONSE_ID,
+  OPERATIONS_INCIDENT_RESPONSE_VERSION,
+} from "../../operations/incident/incident.constants";
