@@ -250,3 +250,17 @@ export {
   EVOLUTION_PREDICTIVE_INTELLIGENCE_ID,
   EVOLUTION_PREDICTIVE_INTELLIGENCE_VERSION,
 } from "../../evolution/predictive/predictive.constants";
+
+export {
+  assertEvolutionP3ReleaseGatePass,
+  checkEvolutionP3ReleaseGate,
+  EVOLUTION_P3_SIGNOFF_VERSION,
+} from "../../evolution/customer/verify/customer.release.gate";
+
+export {
+  EVOLUTION_P3_CUSTOMER_FREEZE_VERSION,
+  EVOLUTION_AUTONOMOUS_CUSTOMER_SUCCESS_BASE,
+  EVOLUTION_AUTONOMOUS_CUSTOMER_SUCCESS_FREEZE_VERSION,
+  EVOLUTION_AUTONOMOUS_CUSTOMER_SUCCESS_ID,
+  EVOLUTION_AUTONOMOUS_CUSTOMER_SUCCESS_VERSION,
+} from "../../evolution/customer/customer.constants";
