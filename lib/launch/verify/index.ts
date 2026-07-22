@@ -264,3 +264,31 @@ export {
   EVOLUTION_AUTONOMOUS_CUSTOMER_SUCCESS_ID,
   EVOLUTION_AUTONOMOUS_CUSTOMER_SUCCESS_VERSION,
 } from "../../evolution/customer/customer.constants";
+
+export {
+  assertEvolutionP4ReleaseGatePass,
+  checkEvolutionP4ReleaseGate,
+  EVOLUTION_P4_SIGNOFF_VERSION,
+} from "../../evolution/dashboard/verify/dashboard.release.gate";
+
+export {
+  EVOLUTION_P4_DASHBOARD_FREEZE_VERSION,
+  EVOLUTION_ENTERPRISE_INTELLIGENCE_DASHBOARD_BASE,
+  EVOLUTION_ENTERPRISE_INTELLIGENCE_DASHBOARD_FREEZE_VERSION,
+  EVOLUTION_ENTERPRISE_INTELLIGENCE_DASHBOARD_ID,
+  EVOLUTION_ENTERPRISE_INTELLIGENCE_DASHBOARD_VERSION,
+} from "../../evolution/dashboard/dashboard.constants";
+
+export {
+  assertEvolutionP5ReleaseGatePass,
+  checkEvolutionP5ReleaseGate,
+  EVOLUTION_P5_SIGNOFF_VERSION,
+} from "../../evolution/global/verify/global.release.gate";
+
+export {
+  EVOLUTION_P5_GLOBAL_FREEZE_VERSION,
+  EVOLUTION_GLOBAL_DEPLOYMENT_NETWORK_BASE,
+  EVOLUTION_GLOBAL_DEPLOYMENT_NETWORK_FREEZE_VERSION,
+  EVOLUTION_GLOBAL_DEPLOYMENT_NETWORK_ID,
+  EVOLUTION_GLOBAL_DEPLOYMENT_NETWORK_VERSION,
+} from "../../evolution/global/global.constants";
