@@ -236,3 +236,17 @@ export {
   EVOLUTION_AI_OPS_OPTIMIZATION_ID,
   EVOLUTION_AI_OPS_OPTIMIZATION_VERSION,
 } from "../../evolution/evolution.constants";
+
+export {
+  assertEvolutionP2ReleaseGatePass,
+  checkEvolutionP2ReleaseGate,
+  EVOLUTION_P2_SIGNOFF_VERSION,
+} from "../../evolution/predictive/verify/predictive.release.gate";
+
+export {
+  EVOLUTION_P2_PREDICTIVE_FREEZE_VERSION,
+  EVOLUTION_PREDICTIVE_INTELLIGENCE_BASE,
+  EVOLUTION_PREDICTIVE_INTELLIGENCE_FREEZE_VERSION,
+  EVOLUTION_PREDICTIVE_INTELLIGENCE_ID,
+  EVOLUTION_PREDICTIVE_INTELLIGENCE_VERSION,
+} from "../../evolution/predictive/predictive.constants";
