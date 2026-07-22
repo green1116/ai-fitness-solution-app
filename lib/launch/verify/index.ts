@@ -361,3 +361,31 @@ export {
   COMMERCIALIZATION_PRODUCT_PACKAGING_ID,
   COMMERCIALIZATION_PRODUCT_PACKAGING_VERSION,
 } from "../../commercialization/p2/tier/tier.constants";
+
+export {
+  assertCommercializationP3ReleaseGatePass,
+  checkCommercializationP3ReleaseGate,
+  COMMERCIALIZATION_P3_SIGNOFF_VERSION,
+} from "../../commercialization/p3/verify/commercialization.release.gate";
+
+export {
+  COMMERCIALIZATION_P3_PRICING_FREEZE_VERSION,
+  COMMERCIALIZATION_PRICING_CONTRACT_BASE,
+  COMMERCIALIZATION_PRICING_CONTRACT_FREEZE_VERSION,
+  COMMERCIALIZATION_PRICING_CONTRACT_ID,
+  COMMERCIALIZATION_PRICING_CONTRACT_VERSION,
+} from "../../commercialization/p3/pricing/pricing.constants";
+
+export {
+  assertCommercializationP4ReleaseGatePass,
+  checkCommercializationP4ReleaseGate,
+  COMMERCIALIZATION_P4_SIGNOFF_VERSION,
+} from "../../commercialization/p4/verify/commercialization.release.gate";
+
+export {
+  COMMERCIALIZATION_P4_ONBOARDING_FREEZE_VERSION,
+  COMMERCIALIZATION_CUSTOMER_ONBOARDING_BASE,
+  COMMERCIALIZATION_CUSTOMER_ONBOARDING_FREEZE_VERSION,
+  COMMERCIALIZATION_CUSTOMER_ONBOARDING_ID,
+  COMMERCIALIZATION_CUSTOMER_ONBOARDING_VERSION,
+} from "../../commercialization/p4/onboarding/onboarding.constants";
