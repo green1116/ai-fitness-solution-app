@@ -120,3 +120,17 @@ export {
   assertLaunchP8FinalVerificationPass,
   runLaunchP8FinalVerification,
 } from "../signoff/final.verification";
+
+export {
+  assertOperationsP2ReleaseGatePass,
+  checkOperationsP2ReleaseGate,
+  OPERATIONS_P2_SIGNOFF_VERSION,
+} from "../../operations/customer-success/verify/success.release.gate";
+
+export {
+  OPERATIONS_P2_CUSTOMER_SUCCESS_FREEZE_VERSION,
+  OPERATIONS_CUSTOMER_SUCCESS_BASE,
+  OPERATIONS_CUSTOMER_SUCCESS_FREEZE_VERSION,
+  OPERATIONS_CUSTOMER_SUCCESS_ID,
+  OPERATIONS_CUSTOMER_SUCCESS_VERSION,
+} from "../../operations/customer-success/success.constants";
