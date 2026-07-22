@@ -320,3 +320,16 @@ export {
   EVOLUTION_CONTROL_PLANE_ID,
   EVOLUTION_CONTROL_PLANE_VERSION,
 } from "../../evolution/control/control.constants";
+
+export {
+  assertEvolutionP8ReleaseGatePass,
+  checkEvolutionP8ReleaseGate,
+} from "../../evolution/signoff/governance.release.gate";
+
+export {
+  EVOLUTION_P8_GOVERNANCE_FREEZE_VERSION,
+  EVOLUTION_P8_GOVERNANCE_BASE,
+  EVOLUTION_P8_SIGNOFF_VERSION,
+  EVOLUTION_GOVERNANCE_COMPLETE_ID,
+  ENTERPRISE_EVOLUTION_COMPLETE_ID,
+} from "../../evolution/signoff/governance.freeze.lock";
