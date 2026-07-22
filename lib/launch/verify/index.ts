@@ -176,3 +176,17 @@ export {
   OPERATIONS_GROWTH_ANALYTICS_ID,
   OPERATIONS_GROWTH_ANALYTICS_VERSION,
 } from "../../operations/growth/growth.constants";
+
+export {
+  assertOperationsP6ReleaseGatePass,
+  checkOperationsP6ReleaseGate,
+  OPERATIONS_P6_SIGNOFF_VERSION,
+} from "../../operations/support/verify/enterprise.support.gate";
+
+export {
+  OPERATIONS_P6_ENTERPRISE_SUPPORT_FREEZE_VERSION,
+  OPERATIONS_ENTERPRISE_SUPPORT_BASE,
+  OPERATIONS_ENTERPRISE_SUPPORT_FREEZE_VERSION,
+  OPERATIONS_ENTERPRISE_SUPPORT_ID,
+  OPERATIONS_ENTERPRISE_SUPPORT_VERSION,
+} from "../../operations/support/support.constants";
