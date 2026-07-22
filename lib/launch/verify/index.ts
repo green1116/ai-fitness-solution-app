@@ -148,3 +148,17 @@ export {
   OPERATIONS_INCIDENT_RESPONSE_ID,
   OPERATIONS_INCIDENT_RESPONSE_VERSION,
 } from "../../operations/incident/incident.constants";
+
+export {
+  assertOperationsP4ReleaseGatePass,
+  checkOperationsP4ReleaseGate,
+  OPERATIONS_P4_SIGNOFF_VERSION,
+} from "../../operations/release/verify/release.management.gate";
+
+export {
+  OPERATIONS_P4_RELEASE_MANAGEMENT_FREEZE_VERSION,
+  OPERATIONS_RELEASE_MANAGEMENT_BASE,
+  OPERATIONS_RELEASE_MANAGEMENT_FREEZE_VERSION,
+  OPERATIONS_RELEASE_MANAGEMENT_ID,
+  OPERATIONS_RELEASE_MANAGEMENT_VERSION,
+} from "../../operations/release/release.constants";
