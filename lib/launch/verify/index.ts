@@ -222,3 +222,17 @@ export {
   OPERATIONS_P8_GOVERNANCE_FREEZE_VERSION,
   OPERATIONS_P8_SIGNOFF_VERSION,
 } from "../../operations/signoff/governance.freeze.lock";
+
+export {
+  assertEvolutionP1ReleaseGatePass,
+  checkEvolutionP1ReleaseGate,
+  EVOLUTION_P1_SIGNOFF_VERSION,
+} from "../../evolution/verify/evolution.release.gate";
+
+export {
+  EVOLUTION_P1_AI_OPS_FREEZE_VERSION,
+  EVOLUTION_AI_OPS_OPTIMIZATION_BASE,
+  EVOLUTION_AI_OPS_OPTIMIZATION_FREEZE_VERSION,
+  EVOLUTION_AI_OPS_OPTIMIZATION_ID,
+  EVOLUTION_AI_OPS_OPTIMIZATION_VERSION,
+} from "../../evolution/evolution.constants";
