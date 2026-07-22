@@ -333,3 +333,31 @@ export {
   EVOLUTION_GOVERNANCE_COMPLETE_ID,
   ENTERPRISE_EVOLUTION_COMPLETE_ID,
 } from "../../evolution/signoff/governance.freeze.lock";
+
+export {
+  assertCommercializationP1ReleaseGatePass,
+  checkCommercializationP1ReleaseGate,
+  COMMERCIALIZATION_P1_SIGNOFF_VERSION,
+} from "../../commercialization/p1/verify/commercialization.release.gate";
+
+export {
+  COMMERCIALIZATION_P1_SALES_FREEZE_VERSION,
+  COMMERCIALIZATION_SALES_FOUNDATION_BASE,
+  COMMERCIALIZATION_SALES_FOUNDATION_FREEZE_VERSION,
+  COMMERCIALIZATION_SALES_FOUNDATION_ID,
+  COMMERCIALIZATION_SALES_FOUNDATION_VERSION,
+} from "../../commercialization/p1/sales/sales.constants";
+
+export {
+  assertCommercializationP2ReleaseGatePass,
+  checkCommercializationP2ReleaseGate,
+  COMMERCIALIZATION_P2_SIGNOFF_VERSION,
+} from "../../commercialization/p2/verify/commercialization.release.gate";
+
+export {
+  COMMERCIALIZATION_P2_PACKAGING_FREEZE_VERSION,
+  COMMERCIALIZATION_PRODUCT_PACKAGING_BASE,
+  COMMERCIALIZATION_PRODUCT_PACKAGING_FREEZE_VERSION,
+  COMMERCIALIZATION_PRODUCT_PACKAGING_ID,
+  COMMERCIALIZATION_PRODUCT_PACKAGING_VERSION,
+} from "../../commercialization/p2/tier/tier.constants";
