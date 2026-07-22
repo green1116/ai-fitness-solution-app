@@ -306,3 +306,17 @@ export {
   EVOLUTION_MARKETPLACE_ECOSYSTEM_ID,
   EVOLUTION_MARKETPLACE_ECOSYSTEM_VERSION,
 } from "../../evolution/marketplace/marketplace.constants";
+
+export {
+  assertEvolutionP7ReleaseGatePass,
+  checkEvolutionP7ReleaseGate,
+  EVOLUTION_P7_SIGNOFF_VERSION,
+} from "../../evolution/control/verify/evolution.control.gate";
+
+export {
+  EVOLUTION_P7_CONTROL_FREEZE_VERSION,
+  EVOLUTION_CONTROL_PLANE_BASE,
+  EVOLUTION_CONTROL_PLANE_FREEZE_VERSION,
+  EVOLUTION_CONTROL_PLANE_ID,
+  EVOLUTION_CONTROL_PLANE_VERSION,
+} from "../../evolution/control/control.constants";
