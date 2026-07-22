@@ -190,3 +190,17 @@ export {
   OPERATIONS_ENTERPRISE_SUPPORT_ID,
   OPERATIONS_ENTERPRISE_SUPPORT_VERSION,
 } from "../../operations/support/support.constants";
+
+export {
+  assertOperationsP7ReleaseGatePass,
+  checkOperationsP7ReleaseGate,
+  OPERATIONS_P7_SIGNOFF_VERSION,
+} from "../../operations/control/verify/operations.control.gate";
+
+export {
+  OPERATIONS_P7_CONTROL_FREEZE_VERSION,
+  OPERATIONS_CONTROL_PLANE_BASE,
+  OPERATIONS_CONTROL_PLANE_FREEZE_VERSION,
+  OPERATIONS_CONTROL_PLANE_ID,
+  OPERATIONS_CONTROL_PLANE_VERSION,
+} from "../../operations/control/control.constants";
