@@ -204,3 +204,21 @@ export {
   OPERATIONS_CONTROL_PLANE_ID,
   OPERATIONS_CONTROL_PLANE_VERSION,
 } from "../../operations/control/control.constants";
+
+export {
+  assertOperationsP8ReleaseGatePass,
+  checkOperationsP8ReleaseGate,
+} from "../../operations/signoff/governance.release.gate";
+
+export {
+  assertOperationsP8FinalVerificationPass,
+  runOperationsP8FinalVerification,
+} from "../../operations/signoff/final.verification";
+
+export {
+  ENTERPRISE_OPERATIONS_COMPLETE_ID,
+  OPERATIONS_GOVERNANCE_COMPLETE_ID,
+  OPERATIONS_P8_GOVERNANCE_BASE,
+  OPERATIONS_P8_GOVERNANCE_FREEZE_VERSION,
+  OPERATIONS_P8_SIGNOFF_VERSION,
+} from "../../operations/signoff/governance.freeze.lock";
