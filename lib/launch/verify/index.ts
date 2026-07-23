@@ -403,3 +403,31 @@ export {
   COMMERCIALIZATION_DELIVERY_OPERATIONS_ID,
   COMMERCIALIZATION_DELIVERY_OPERATIONS_VERSION,
 } from "../../commercialization/p5/delivery/delivery.constants";
+
+export {
+  assertCommercializationP6ReleaseGatePass,
+  checkCommercializationP6ReleaseGate,
+  COMMERCIALIZATION_P6_SIGNOFF_VERSION,
+} from "../../commercialization/p6/verify/commercialization.release.gate";
+
+export {
+  COMMERCIALIZATION_P6_REVENUE_FREEZE_VERSION,
+  COMMERCIALIZATION_REVENUE_INTELLIGENCE_BASE,
+  COMMERCIALIZATION_REVENUE_INTELLIGENCE_FREEZE_VERSION,
+  COMMERCIALIZATION_REVENUE_INTELLIGENCE_ID,
+  COMMERCIALIZATION_REVENUE_INTELLIGENCE_VERSION,
+} from "../../commercialization/p6/kpi/kpi.constants";
+
+export {
+  assertCommercializationP7ReleaseGatePass,
+  checkCommercializationP7ReleaseGate,
+  COMMERCIALIZATION_P7_SIGNOFF_VERSION,
+} from "../../commercialization/p7/verify/commercialization.release.gate";
+
+export {
+  COMMERCIALIZATION_P7_GOVERNANCE_FREEZE_VERSION,
+  COMMERCIALIZATION_COMMERCIAL_GOVERNANCE_BASE,
+  COMMERCIALIZATION_COMMERCIAL_GOVERNANCE_FREEZE_VERSION,
+  COMMERCIALIZATION_COMMERCIAL_GOVERNANCE_ID,
+  COMMERCIALIZATION_COMMERCIAL_GOVERNANCE_VERSION,
+} from "../../commercialization/p7/governance/governance.constants";
