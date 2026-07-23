@@ -472,3 +472,17 @@ export {
   LAUNCH_L2_PILOT_CUSTOMER_FLOW_VERSION,
   LAUNCH_L2_PILOT_FREEZE_VERSION,
 } from "../readiness/l2/pilot/pilot.constants";
+
+export {
+  assertLaunchL3ReleaseGatePass,
+  checkLaunchL3ReleaseGate,
+  LAUNCH_L3_SIGNOFF_VERSION,
+} from "../readiness/l3/verify/launch.release.gate";
+
+export {
+  LAUNCH_L3_HARDENING_FREEZE_VERSION,
+  LAUNCH_L3_PRODUCTION_HARDENING_BASE,
+  LAUNCH_L3_PRODUCTION_HARDENING_FREEZE_VERSION,
+  LAUNCH_L3_PRODUCTION_HARDENING_ID,
+  LAUNCH_L3_PRODUCTION_HARDENING_VERSION,
+} from "../readiness/l3/runtime/runtime.constants";
