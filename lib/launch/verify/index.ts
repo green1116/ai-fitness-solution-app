@@ -389,3 +389,17 @@ export {
   COMMERCIALIZATION_CUSTOMER_ONBOARDING_ID,
   COMMERCIALIZATION_CUSTOMER_ONBOARDING_VERSION,
 } from "../../commercialization/p4/onboarding/onboarding.constants";
+
+export {
+  assertCommercializationP5ReleaseGatePass,
+  checkCommercializationP5ReleaseGate,
+  COMMERCIALIZATION_P5_SIGNOFF_VERSION,
+} from "../../commercialization/p5/verify/commercialization.release.gate";
+
+export {
+  COMMERCIALIZATION_P5_DELIVERY_FREEZE_VERSION,
+  COMMERCIALIZATION_DELIVERY_OPERATIONS_BASE,
+  COMMERCIALIZATION_DELIVERY_OPERATIONS_FREEZE_VERSION,
+  COMMERCIALIZATION_DELIVERY_OPERATIONS_ID,
+  COMMERCIALIZATION_DELIVERY_OPERATIONS_VERSION,
+} from "../../commercialization/p5/delivery/delivery.constants";
