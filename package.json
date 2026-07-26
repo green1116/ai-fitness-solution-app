@@ -59,6 +59,8 @@
         "verify:platform-freeze": "tsx scripts/verify-platform-freeze.ts",
         "verify:product-packaging": "tsx scripts/verify-product-packaging.ts",
         "verify:product-notification-template": "tsx scripts/verify-product-notification-template.ts",
+        "verify:product-channel": "tsx scripts/verify-product-channel.ts",
+        "verify:product-delivery": "tsx scripts/verify-product-delivery.ts",
         "verify:customer-journey": "tsx scripts/verify-customer-journey.ts",
         "verify:sales-enablement": "tsx scripts/verify-sales-enablement.ts",
         "verify:trial-workspace": "tsx scripts/verify-trial-workspace.ts",
