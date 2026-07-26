@@ -1,239 +1,231 @@
-# AI Fitness Solution
+# AI-FITNESS-SOLUTION
 
-# Project Baseline
+# Project Baseline History
 
-Baseline Name
 
-Pilot Baseline V100
+## Purpose
+
+This document records the major baseline evolution of the project.
+
+It describes the historical milestones of the project rather than the
+current implementation status.
+
+Current project status should be referenced from:
+
+- docs/README.md
+- docs/project/PROJECT-MASTER.md
+- AI-FITNESS-SOLUTION-BACKUP
+
 
 ---
 
-## Current Status
+# Phase 1
+
+Prototype
+
+
+Goal
+
+Validate AI-assisted proposal generation.
+
+
+Result
+
+Prototype completed.
+
+
+Status
+
+Historical
+
+
+
+---
+
+# Phase 2
+
+Pilot
+
+
+Representative Versions
+
+V19
+
+V20
+
+V100 Pilot Baseline
+
+
+Achievements
+
+Proposal Generation
+
+Budget Generation
+
+Tender Package
+
+Production Validation
+
+
+Status
+
+Completed
+
+Historical
+
+
+
+---
+
+# Phase 3
+
+Enterprise Platform
+
+
+Completed
+
+Enterprise E01–E12
+
+
+Completed
+
+Operations O1–O5
+
+
+Completed
+
+Product P1–P12
+
+
+Platform Baseline
+
+enterprise-product-complete-v1
+
 
 Status
 
 Frozen
 
-Production Ready
 
-Yes
-
-Baseline
-
-Official
 
 ---
 
-## Git Information
+# Phase 4
 
-Repository
+Commercial Product
 
-AI-FITNESS-SOLUTION
 
-Branch
+Completed Business Domains
 
-launch/production-prep
 
-Git Tag
+M01 Auth
 
-v100-pilot-baseline
+enterprise-product-auth-baseline-v1
+
+
+M02 Billing
+
+enterprise-product-billing-baseline-v1
+
+
+M03 Customer
+
+enterprise-product-customer-baseline-v1
+
+
+M04 Analytics
+
+enterprise-product-analytics-baseline-v1
+
+
+M05 Admin
+
+enterprise-product-admin-baseline-v1
+
+
+M06 Notification
+
+enterprise-product-notification-baseline-v1
+
+
+M07 API & SDK
+
+enterprise-product-api-baseline-v1
+
+
+M08 Marketplace
+
+enterprise-product-marketplace-baseline-v1
+
+
+Status
+
+Current Stable Baseline
+
+
 
 ---
 
-## Release Information
+# Current Development
 
-Release Stage
+
+Current Domain
+
+M09 AI Enhancement
+
+
+Current Stage
+
+P1 AI Foundation
+
+
+Current BASE
+
+enterprise-product-marketplace-baseline-v1
+
+
+
+---
+
+# Evolution Principle
+
+
+Prototype
+
+↓
 
 Pilot
 
-Release Version
-
-V100
-
-Release Date
-
-2026-07
-
-Release Type
-
-Baseline Freeze
-
----
-
-## Verification
-
-Compilation
-
-PASS
-
-TypeScript
-
-PASS
-
-Tender Download
-
-PASS
-
-PDF Generation
-
-PASS
-
-Pilot Sign-off
-
-PASS
-
-Production Readiness
-
-PASS
-
----
-
-## Core Capabilities
-
-Implemented
-
-✓ Tender Upload
-
-✓ AI Requirement Extraction
-
-✓ Requirement Review
-
-✓ Quote Generation
-
-✓ Budget Generation
-
-✓ Tender Generation
-
-✓ Document Center
-
-✓ Delivery
-
-✓ Analytics
-
-✓ Governance
-
-✓ Compliance
-
-✓ Production Readiness
-
-✓ Pilot Sign-off
-
----
-
-## Freeze Scope
-
-Included
-
-V80
-
-Tender Intake
-
-V81
-
-Delivery Operations
-
-V82
-
-Analytics
-
-V83
-
-Intelligence
-
-V84
-
-Customer Success
-
-V85
-
-Account Health
-
-V86
-
-Renewal Operations
-
-V87
-
-Revenue Operations
-
-V88
-
-Growth Planning
-
-V89
-
-Expansion
-
-V90
-
-Portfolio
-
-V91
-
-Portfolio Operations
-
-V92
-
-Board Governance
-
-V93
-
-Executive Reporting
-
-V94
-
-Executive Briefing
-
-V95
-
-Executive Actions
-
-V96
-
-Executive Archive
-
-V97
-
-Compliance
-
-V98
-
-Policy Enforcement
-
-V99
-
-Production Readiness
-
-V100
-
-Pilot Final Sign-off
-
----
-
-## Next Phase
+↓
 
 Enterprise Platform
 
-Starting Version
+↓
 
-E01
+Commercial Product
 
-Project Focus
+↓
 
-AI Tender Intelligence
+Enterprise AI Platform
 
-Goal
+↓
 
-Understand uploaded tender documents completely.
+Enterprise Intelligence
 
-Generate proposal contents from actual tender requirements.
+↓
+
+Enterprise Ecosystem
+
+
 
 ---
 
-## Notes
+# Historical Notes
 
-This baseline is the official recovery point for all future Enterprise development.
 
-Do not modify this baseline directly.
+Pilot versions (V19–V100) remain important historical milestones.
 
-All future development should branch from this version.
+Enterprise Platform and Commercial Product establish the long-term
+architecture that future development builds upon.
+
+Historical documents are retained for reference and are not modified.
