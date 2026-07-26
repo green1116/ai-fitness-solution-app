@@ -58,6 +58,7 @@
         "verify:strategic-planning": "tsx scripts/verify-strategic-planning.ts",
         "verify:platform-freeze": "tsx scripts/verify-platform-freeze.ts",
         "verify:product-packaging": "tsx scripts/verify-product-packaging.ts",
+        "verify:product-notification-template": "tsx scripts/verify-product-notification-template.ts",
         "verify:customer-journey": "tsx scripts/verify-customer-journey.ts",
         "verify:sales-enablement": "tsx scripts/verify-sales-enablement.ts",
         "verify:trial-workspace": "tsx scripts/verify-trial-workspace.ts",
