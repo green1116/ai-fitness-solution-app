@@ -1,0 +1,122 @@
+/**
+ * Product M09 — AI Governance policy registry
+ */
+
+import {
+  AI_GOVERNANCE_POLICY_KINDS,
+  AI_GOVERNANCE_POLICY_STATUSES,
+} from "./governance.constants";
+import type {
+  AiGovernancePolicy,
+  AiGovernancePolicyKind,
+  AiGovernancePolicyStatus,
+  RegisterAiGovernancePolicyInput,
+  UpdateAiGovernancePolicyStatusInput,
+} from "./governance.types";
+
+const policies = new Map<string, AiGovernancePolicy>();
+const keys = new Map<string, string>();
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function createId(prefix: string): string {
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `${prefix}_${Date.now().toString(36)}_${rand}`;
+}
+
+function clonePolicy(policy: AiGovernancePolicy): AiGovernancePolicy {
+  return { ...policy, metadata: { ...policy.metadata } };
+}
+
+export function registerAiGovernancePolicy(
+  input: RegisterAiGovernancePolicyInput,
+): AiGovernancePolicy {
+  const policyKey = input.policyKey.trim().toUpperCase();
+  const title = input.title.trim();
+  const orchestrationKeyRef = input.orchestrationKeyRef.trim().toUpperCase();
+  if (!policyKey) throw new Error("policy.policyKey is required");
+  if (!title) throw new Error("policy.title is required");
+  if (!orchestrationKeyRef) {
+    throw new Error("policy.orchestrationKeyRef is required");
+  }
+  if (!(AI_GOVERNANCE_POLICY_KINDS as readonly string[]).includes(input.kind)) {
+    throw new Error(`invalid policy kind: ${input.kind}`);
+  }
+  if (keys.has(policyKey)) {
+    throw new Error(`policyKey already exists: ${policyKey}`);
+  }
+
+  const id = input.id?.trim() || createId("aigovpol");
+  if (policies.has(id)) throw new Error(`policy already exists: ${id}`);
+
+  const now = nowIso();
+  const policy: AiGovernancePolicy = {
+    id,
+    policyKey,
+    kind: input.kind,
+    status: AI_GOVERNANCE_POLICY_STATUSES[0],
+    title,
+    orchestrationKeyRef,
+    detail: `kind=${input.kind} status=ACTIVE`,
+    metadata: { ...(input.metadata ?? {}) },
+    createdAt: now,
+    updatedAt: now,
+  };
+  policies.set(id, policy);
+  keys.set(policyKey, id);
+  return clonePolicy(policy);
+}
+
+export function updateAiGovernancePolicyStatus(
+  input: UpdateAiGovernancePolicyStatusInput,
+): AiGovernancePolicy {
+  const policyId = input.policyId.trim();
+  if (!policyId) throw new Error("policy.policyId is required");
+  if (
+    !(AI_GOVERNANCE_POLICY_STATUSES as readonly string[]).includes(input.status)
+  ) {
+    throw new Error(`invalid policy status: ${input.status}`);
+  }
+
+  const existing = policies.get(policyId);
+  if (!existing) throw new Error(`policy not found: ${policyId}`);
+
+  const updated: AiGovernancePolicy = {
+    ...existing,
+    status: input.status,
+    detail: `kind=${existing.kind} status=${input.status}`,
+    metadata: { ...existing.metadata },
+    updatedAt: nowIso(),
+  };
+  policies.set(policyId, updated);
+  return clonePolicy(updated);
+}
+
+export function getAiGovernancePolicy(
+  id: string,
+): AiGovernancePolicy | undefined {
+  const policy = policies.get(id.trim());
+  return policy ? clonePolicy(policy) : undefined;
+}
+
+export function listAiGovernancePolicies(filter?: {
+  kind?: AiGovernancePolicyKind;
+  status?: AiGovernancePolicyStatus;
+}): AiGovernancePolicy[] {
+  let result = [...policies.values()];
+  if (filter?.kind) result = result.filter((p) => p.kind === filter.kind);
+  if (filter?.status) {
+    result = result.filter((p) => p.status === filter.status);
+  }
+  return result
+    .slice()
+    .sort((a, b) => a.policyKey.localeCompare(b.policyKey))
+    .map(clonePolicy);
+}
+
+export function clearAiGovernancePolicies(): void {
+  policies.clear();
+  keys.clear();
+}

@@ -1,0 +1,24 @@
+/**
+ * Product API Audit — Query types
+ */
+
+export type QueryMetadata = Record<string, unknown>;
+
+export type ApiAuditQuery = {
+  id: string;
+  queryKey: string;
+  category?: string;
+  subjectKey?: string;
+  matchedEventIds: string[];
+  detail: string;
+  metadata: QueryMetadata;
+  createdAt: string;
+};
+
+export type RunApiAuditQueryInput = {
+  id?: string;
+  queryKey: string;
+  category?: string;
+  subjectKey?: string;
+  metadata?: QueryMetadata;
+};
