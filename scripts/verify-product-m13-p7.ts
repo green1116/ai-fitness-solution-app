@@ -1,0 +1,135 @@
+/**
+ * Product M13 — P7 OS Lifecycle verification
+ */
+import fs from "node:fs";
+import path from "node:path";
+
+import { PLATFORM_V1_ID } from "../lib/platform/v1/platform.v1.constants";
+import { buildPlatformV1Manifest } from "../lib/platform/v1/platform.manifest";
+import { PRODUCT_OS_GOVERNANCE_ID } from "../lib/product/m13/governance/governance.constants";
+import {
+  OS_LIFECYCLE_BINDING_STATUSES,
+  OS_LIFECYCLE_PLAN_KINDS,
+  OS_LIFECYCLE_PLAN_STATUSES,
+  OS_LIFECYCLE_READINESS_VERDICTS,
+  OS_LIFECYCLE_STATES,
+  OS_LIFECYCLE_TRANSITION_STATUSES,
+  OS_LIFECYCLE_TRIGGERS,
+  PRODUCT_OS_LIFECYCLE_BASE,
+  PRODUCT_OS_LIFECYCLE_FREEZE_TAG,
+  PRODUCT_OS_LIFECYCLE_FREEZE_VERSION,
+  PRODUCT_OS_LIFECYCLE_ID,
+  PRODUCT_OS_LIFECYCLE_VERSION,
+} from "../lib/product/m13/lifecycle-runtime/lifecycle.constants";
+import {
+  getOsLifecycleMetadata,
+  isOsLifecycleMetadataIntact,
+} from "../lib/product/m13/lifecycle-runtime/lifecycle.metadata";
+import {
+  assertProductOsLifecycleReleaseGatePass,
+  checkProductOsLifecycleReleaseGate,
+} from "../lib/product/m13/verify/os.lifecycle.gate";
+
+const ROOT = path.resolve(__dirname, "..");
+
+function check(cond: boolean, msg: string) {
+  if (!cond) throw new Error(`ASSERT: ${msg}`);
+}
+
+function checkModules() {
+  const required = [
+    "lib/product/m13/lifecycle-runtime/lifecycle.constants.ts",
+    "lib/product/m13/lifecycle-runtime/lifecycle.types.ts",
+    "lib/product/m13/lifecycle-runtime/lifecycle.metadata.ts",
+    "lib/product/m13/lifecycle-runtime/plan.registry.ts",
+    "lib/product/m13/lifecycle-runtime/transition.registry.ts",
+    "lib/product/m13/lifecycle-runtime/binding.registry.ts",
+    "lib/product/m13/lifecycle-runtime/lifecycle.manifest.ts",
+    "lib/product/m13/verify/os.lifecycle.gate.ts",
+    "lib/product/m13/index.ts",
+    "lib/product/m13/governance/governance.constants.ts",
+  ];
+  for (const rel of required) {
+    check(fs.existsSync(path.join(ROOT, rel)), `missing: ${rel}`);
+  }
+
+  const forbidden = [
+    "lib/product/m13/vector",
+    "lib/product/m13/rag",
+    "lib/product/m13/embedding",
+    "lib/product/m13/provider",
+    "lib/product/m13/db",
+    "lib/product/m13/runtime",
+    "lib/product/m13/execution",
+    "lib/product/m13/tool",
+    "lib/product/m13/catalog",
+    "lib/product/m13/dependency",
+    "lib/product/m13/policy",
+    "lib/product/m13/compatibility",
+    "lib/product/m13/governance-runtime",
+    "lib/product/m13/lifecycle",
+  ];
+  for (const rel of forbidden) {
+    check(!fs.existsSync(path.join(ROOT, rel)), `unexpected P8+ path: ${rel}`);
+  }
+
+  console.log("✓ module structure");
+}
+
+function checkConstants() {
+  check(
+    PRODUCT_OS_LIFECYCLE_ID === "enterprise-product-os-lifecycle-v1",
+    "os lifecycle id",
+  );
+  check(
+    PRODUCT_OS_LIFECYCLE_VERSION === "product-os-lifecycle-1",
+    "os lifecycle version",
+  );
+  check(
+    PRODUCT_OS_LIFECYCLE_FREEZE_VERSION === "product-os-lifecycle-freeze-1",
+    "os lifecycle freeze",
+  );
+  check(
+    PRODUCT_OS_LIFECYCLE_BASE === PRODUCT_OS_GOVERNANCE_ID,
+    "os lifecycle base = os governance",
+  );
+  check(
+    PRODUCT_OS_LIFECYCLE_FREEZE_TAG === "product-os-lifecycle-freeze-1",
+    "os lifecycle freeze tag",
+  );
+  check(
+    PRODUCT_OS_GOVERNANCE_ID === "enterprise-product-os-governance-v1",
+    "os governance preserved",
+  );
+  check(OS_LIFECYCLE_PLAN_KINDS.length === 4, "plan kinds");
+  check(OS_LIFECYCLE_PLAN_STATUSES.length === 4, "plan statuses");
+  check(OS_LIFECYCLE_STATES.length === 4, "lifecycle states");
+  check(OS_LIFECYCLE_TRANSITION_STATUSES.length === 4, "transition statuses");
+  check(OS_LIFECYCLE_TRIGGERS.length === 4, "triggers");
+  check(OS_LIFECYCLE_BINDING_STATUSES.length === 3, "binding statuses");
+  check(OS_LIFECYCLE_READINESS_VERDICTS.length === 3, "readiness verdicts");
+  check(isOsLifecycleMetadataIntact(getOsLifecycleMetadata()), "metadata");
+  check(PLATFORM_V1_ID === "enterprise-platform-v1", "platform v1 intact");
+  check(buildPlatformV1Manifest().aligned === true, "platform aligned");
+  console.log("✓ constants + freeze tags");
+}
+
+function checkGate() {
+  const gate = checkProductOsLifecycleReleaseGate();
+  check(gate.result === "PASS", `gate pass: ${gate.summary}`);
+  assertProductOsLifecycleReleaseGatePass(gate);
+  console.log("✓ release gate PASS");
+  console.log(`  ${gate.summary}`);
+}
+
+function main() {
+  console.log(
+    "=== Product Enterprise Operating System Lifecycle (M13-P7) ===",
+  );
+  checkModules();
+  checkConstants();
+  checkGate();
+  console.log("ALL PASS");
+}
+
+main();
