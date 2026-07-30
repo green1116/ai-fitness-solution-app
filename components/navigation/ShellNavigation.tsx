@@ -9,14 +9,33 @@ import {
   isNavActive,
 } from "@/lib/frontend/navigation";
 import { resolveShellMode } from "@/lib/frontend/layout-patterns";
+import { shouldShowOpsShellNav } from "@/lib/frontend/presentation-security";
 
+/**
+ * Customer shell destinations only by default (PD-4.6 §4.4).
+ * Ops chrome requires ops shell mode after GRD-OPS — visibility ≠ authorization.
+ */
 export function ShellNavigation() {
   const pathname = usePathname() ?? "/";
   const shellMode = resolveShellMode(pathname);
-  const showOpsNav = shellMode === "ops";
+  const showOpsNav = shouldShowOpsShellNav({
+    shellMode,
+    visibility: {
+      keys: shellMode === "ops" ? ["VIS-OPS"] : ["VIS-OPS-DENIED"],
+      showSignIn: false,
+      showCustomerAffordances: true,
+      showOpsChrome: shellMode === "ops",
+      contextMissing: false,
+      actionDisabled: false,
+    },
+  });
 
   return (
-    <nav data-nav-skeleton="shell" aria-label="Global navigation">
+    <nav
+      data-nav-skeleton="shell"
+      data-vis-ops={showOpsNav ? "VIS-OPS" : "VIS-OPS-DENIED"}
+      aria-label="Global navigation"
+    >
       <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
         {CUSTOMER_SHELL_NAV.map((entry) => {
           const active = isNavActive(pathname, entry.href);
@@ -47,6 +66,7 @@ export function ShellNavigation() {
                     href={entry.href}
                     data-nav-id={entry.id}
                     data-int-id="INT-NAV-SHELL"
+                    data-vis="VIS-OPS"
                     aria-current={active ? "page" : undefined}
                     className={
                       active

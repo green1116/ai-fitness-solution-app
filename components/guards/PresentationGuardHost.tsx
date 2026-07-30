@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { ContextSoftGuide } from "@/components/guards/ContextSoftGuide";
+import { PresentationSkeleton } from "@/components/presentation/PresentationSkeleton";
 import {
   requiresSessionObservation,
   resolvePresentationGuard,
@@ -77,11 +78,8 @@ function PresentationGuardHostInner({
 
   if (!ready) {
     return (
-      <div
-        data-guard="pending"
-        className="mx-auto w-full max-w-7xl px-6 py-10 text-sm text-slate-500"
-      >
-        Checking access…
+      <div data-guard="pending" data-perf-timing="T-BOOT">
+        <PresentationSkeleton mode="SK-SHELL" label="Checking access…" />
       </div>
     );
   }

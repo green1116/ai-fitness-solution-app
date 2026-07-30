@@ -1,0 +1,521 @@
+/**
+ * FE-4.2 — PD-2.4 Action→API binding registry (presentation reference only).
+ * Does not invoke HTTP, Domain, or invent routes.
+ */
+import type { PresentationRoutePath } from "@/lib/frontend/presentation-routes";
+import type { ServerStateKey } from "@/lib/frontend/state-taxonomy";
+import { CACHE_INVALIDATION_POLICY } from "@/lib/frontend/state-taxonomy";
+
+export const BINDING_KINDS = [
+  "API",
+  "API+NAV",
+  "NAV",
+  "PREF",
+  "NEAREST",
+] as const;
+
+export type BindingKind = (typeof BINDING_KINDS)[number];
+
+export type InvalidationClass =
+  (typeof CACHE_INVALIDATION_POLICY)[number]["commandClass"];
+
+export type AdapterBinding = Readonly<{
+  actionId: string;
+  command: string;
+  kind: BindingKind;
+  /** PD-2.4 existing route reference — not executed here. */
+  existingApi: string | null;
+  navigateTo: PresentationRoutePath | null;
+  serverKey: ServerStateKey | null;
+  invalidationClass: InvalidationClass;
+}>;
+
+/**
+ * Closed PD-2.4 catalogue (47). Primary existing API string only.
+ */
+export const ADAPTER_BINDINGS = [
+  {
+    actionId: "ACT-01-01",
+    command: "SignIn",
+    kind: "API",
+    existingApi: "/api/auth/me",
+    navigateTo: null,
+    serverKey: "SRV-SESSION-USER",
+    invalidationClass: "sign-in-out",
+  },
+  {
+    actionId: "ACT-01-02",
+    command: "SelectLanguage",
+    kind: "PREF",
+    existingApi: null,
+    navigateTo: null,
+    serverKey: null,
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-01-03",
+    command: "ChooseGoal.EnterpriseBuilder",
+    kind: "NAV",
+    existingApi: null,
+    navigateTo: "/builder",
+    serverKey: null,
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-01-04",
+    command: "ChooseGoal.TenderIntelligence",
+    kind: "NAV",
+    existingApi: null,
+    navigateTo: "/tender",
+    serverKey: null,
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-01-05",
+    command: "ChooseGoal.SalesCenter",
+    kind: "NAV",
+    existingApi: null,
+    navigateTo: "/workspace",
+    serverKey: null,
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-01-06",
+    command: "OpenMyProjects",
+    kind: "API+NAV",
+    existingApi: "/api/project/list",
+    navigateTo: "/projects",
+    serverKey: "SRV-PROJECT",
+    invalidationClass: "continue-project",
+  },
+  {
+    actionId: "ACT-02-01",
+    command: "StartPlanning",
+    kind: "NEAREST",
+    existingApi: "/api/v80/tenant/run",
+    navigateTo: null,
+    serverKey: "SRV-INPUTS",
+    invalidationClass: "intake-submit",
+  },
+  {
+    actionId: "ACT-02-02",
+    command: "SubmitPlanningInputs",
+    kind: "NEAREST",
+    existingApi: "/api/v80/budget/calculate",
+    navigateTo: null,
+    serverKey: "SRV-INPUTS",
+    invalidationClass: "intake-submit",
+  },
+  {
+    actionId: "ACT-02-03",
+    command: "ContinueToWorkspace",
+    kind: "NAV",
+    existingApi: null,
+    navigateTo: "/workspace",
+    serverKey: null,
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-03-01",
+    command: "UploadTenderDocument",
+    kind: "API",
+    existingApi: "/api/v80/tender/intake",
+    navigateTo: null,
+    serverKey: "SRV-TENDER",
+    invalidationClass: "intake-submit",
+  },
+  {
+    actionId: "ACT-03-02",
+    command: "ViewProcessingStatus",
+    kind: "API",
+    existingApi: "/api/v80/tender/intake",
+    navigateTo: null,
+    serverKey: "SRV-TENDER",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-03-03",
+    command: "ProceedToRequirementReview",
+    kind: "API+NAV",
+    existingApi: "/api/tender/analyze",
+    navigateTo: "/workspace",
+    serverKey: "SRV-REQUIREMENTS",
+    invalidationClass: "intake-submit",
+  },
+  {
+    actionId: "ACT-04-01",
+    command: "WorkspaceInteract",
+    kind: "NEAREST",
+    existingApi: "/api/workspace/summary",
+    navigateTo: null,
+    serverKey: "SRV-TASK-PROGRESS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-04-02",
+    command: "ViewProjectContext",
+    kind: "API",
+    existingApi: "/api/workspace/summary",
+    navigateTo: null,
+    serverKey: "SRV-PROJECT",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-04-03",
+    command: "ConfirmRequirements",
+    kind: "NEAREST",
+    existingApi: "/api/tender/analyze",
+    navigateTo: null,
+    serverKey: "SRV-REQUIREMENTS",
+    invalidationClass: "intake-submit",
+  },
+  {
+    actionId: "ACT-04-04",
+    command: "GenerateTenderPackage",
+    kind: "API",
+    existingApi: "/api/v80/autopilot/job/run",
+    navigateTo: null,
+    serverKey: "SRV-SOLUTION",
+    invalidationClass: "intake-submit",
+  },
+  {
+    actionId: "ACT-04-05",
+    command: "CaptureOpportunity",
+    kind: "NEAREST",
+    existingApi: "/api/sales/signals",
+    navigateTo: null,
+    serverKey: "SRV-OPPORTUNITY",
+    invalidationClass: "intake-submit",
+  },
+  {
+    actionId: "ACT-04-06",
+    command: "OpenSolutionResult",
+    kind: "API+NAV",
+    existingApi: "/api/v80/pdf?type=plan",
+    navigateTo: "/solution",
+    serverKey: "SRV-SOLUTION",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-04-07",
+    command: "OpenBudgetResult",
+    kind: "API+NAV",
+    existingApi: "/api/v80/budget/calculate",
+    navigateTo: "/budget",
+    serverKey: "SRV-BUDGET",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-04-08",
+    command: "OpenDocuments",
+    kind: "API+NAV",
+    existingApi: "/api/documents/projects/[projectId]",
+    navigateTo: "/documents",
+    serverKey: "SRV-DOCUMENTS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-05-01",
+    command: "ReviewSolution",
+    kind: "API",
+    existingApi: "/api/v80/pdf?type=plan",
+    navigateTo: null,
+    serverKey: "SRV-SOLUTION",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-05-02",
+    command: "ReviewProposalResult",
+    kind: "API",
+    existingApi: "/api/v80/proposal-pdf/render",
+    navigateTo: null,
+    serverKey: "SRV-SOLUTION",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-05-03",
+    command: "DownloadSolution",
+    kind: "API",
+    existingApi: "/api/v80/pdf?artifactId=",
+    navigateTo: null,
+    serverKey: "SRV-SOLUTION",
+    invalidationClass: "download-share",
+  },
+  {
+    actionId: "ACT-05-04",
+    command: "ShareSolution",
+    kind: "NEAREST",
+    existingApi: "/api/download-token",
+    navigateTo: null,
+    serverKey: "SRV-DOCUMENTS",
+    invalidationClass: "download-share",
+  },
+  {
+    actionId: "ACT-05-05",
+    command: "ContinueToBudget",
+    kind: "API+NAV",
+    existingApi: "/api/v80/budget/calculate",
+    navigateTo: "/budget",
+    serverKey: "SRV-BUDGET",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-05-06",
+    command: "OpenDocuments",
+    kind: "API+NAV",
+    existingApi: "/api/documents/summary",
+    navigateTo: "/documents",
+    serverKey: "SRV-DOCUMENTS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-05-07",
+    command: "ReturnToWorkspace",
+    kind: "NAV",
+    existingApi: null,
+    navigateTo: "/workspace",
+    serverKey: null,
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-06-01",
+    command: "ReviewBudget",
+    kind: "API",
+    existingApi: "/api/v80/budget/calculate",
+    navigateTo: null,
+    serverKey: "SRV-BUDGET",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-06-02",
+    command: "DownloadBudget",
+    kind: "API",
+    existingApi: "/api/v80/pdf?type=budget",
+    navigateTo: null,
+    serverKey: "SRV-BUDGET",
+    invalidationClass: "download-share",
+  },
+  {
+    actionId: "ACT-06-03",
+    command: "AdjustRequirements",
+    kind: "NAV",
+    existingApi: null,
+    navigateTo: "/workspace",
+    serverKey: null,
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-06-04",
+    command: "OpenDocuments",
+    kind: "API+NAV",
+    existingApi: "/api/documents/projects/[projectId]",
+    navigateTo: "/documents",
+    serverKey: "SRV-DOCUMENTS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-06-05",
+    command: "ReturnToSolution",
+    kind: "NAV",
+    existingApi: null,
+    navigateTo: "/solution",
+    serverKey: null,
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-07-01",
+    command: "ListProjects",
+    kind: "API",
+    existingApi: "/api/project/list",
+    navigateTo: null,
+    serverKey: "SRV-PROJECT",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-07-02",
+    command: "ContinueProject",
+    kind: "API+NAV",
+    existingApi: "/api/project/[projectId]",
+    navigateTo: "/workspace",
+    serverKey: "SRV-PROJECT",
+    invalidationClass: "continue-project",
+  },
+  {
+    actionId: "ACT-07-03",
+    command: "OpenProjectDocuments",
+    kind: "API+NAV",
+    existingApi: "/api/documents/projects/[projectId]",
+    navigateTo: "/documents",
+    serverKey: "SRV-DOCUMENTS",
+    invalidationClass: "continue-project",
+  },
+  {
+    actionId: "ACT-08-01",
+    command: "BrowseDocumentCategories",
+    kind: "API",
+    existingApi: "/api/documents/summary",
+    navigateTo: null,
+    serverKey: "SRV-DOCUMENTS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-08-02",
+    command: "PreviewDocument",
+    kind: "API",
+    existingApi: "/api/v80/pdf?artifactId=",
+    navigateTo: null,
+    serverKey: "SRV-DOCUMENTS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-08-03",
+    command: "DownloadDocument",
+    kind: "API",
+    existingApi: "/api/v80/pdf?artifactId=",
+    navigateTo: null,
+    serverKey: "SRV-DOCUMENTS",
+    invalidationClass: "download-share",
+  },
+  {
+    actionId: "ACT-08-04",
+    command: "ShareDocument",
+    kind: "NEAREST",
+    existingApi: "/api/download-token",
+    navigateTo: null,
+    serverKey: "SRV-DOCUMENTS",
+    invalidationClass: "download-share",
+  },
+  {
+    actionId: "ACT-08-05",
+    command: "ReturnToProjects",
+    kind: "NAV",
+    existingApi: null,
+    navigateTo: "/projects",
+    serverKey: null,
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-08-06",
+    command: "ReturnToWorkspace",
+    kind: "NAV",
+    existingApi: null,
+    navigateTo: "/workspace",
+    serverKey: null,
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-09-01",
+    command: "ViewAdminDashboard",
+    kind: "API",
+    existingApi: "/api/enterprise-saas/dashboard/run",
+    navigateTo: null,
+    serverKey: "SRV-OPS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-09-02",
+    command: "ViewOrganizations",
+    kind: "API",
+    existingApi: "/api/enterprise-saas/tenant/run",
+    navigateTo: null,
+    serverKey: "SRV-OPS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-09-03",
+    command: "ViewUsers",
+    kind: "API",
+    existingApi: "/api/enterprise-saas/user/run",
+    navigateTo: null,
+    serverKey: "SRV-OPS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-09-04",
+    command: "ViewUsage",
+    kind: "API",
+    existingApi: "/api/enterprise-saas/usage/run",
+    navigateTo: null,
+    serverKey: "SRV-OPS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-09-05",
+    command: "ViewSecurity",
+    kind: "NEAREST",
+    existingApi: "/api/enterprise-saas/permission/run",
+    navigateTo: null,
+    serverKey: "SRV-OPS",
+    invalidationClass: "nav-only",
+  },
+  {
+    actionId: "ACT-09-06",
+    command: "ViewGovernance",
+    kind: "API",
+    existingApi: "/api/v80/ops/governance/audit",
+    navigateTo: null,
+    serverKey: "SRV-OPS",
+    invalidationClass: "nav-only",
+  },
+] as const satisfies readonly AdapterBinding[];
+
+export type AdapterActionId = (typeof ADAPTER_BINDINGS)[number]["actionId"];
+
+/** PD-4.5 §4.3 — Screen read targets (presentation). */
+export const SCREEN_READ_TARGETS = [
+  {
+    screenId: "SCR-01",
+    readKeys: ["SRV-SESSION-USER"] as const,
+    resultClasses: ["ST-SESSION"] as const,
+  },
+  {
+    screenId: "SCR-02",
+    readKeys: ["SRV-INPUTS"] as const,
+    resultClasses: ["ST-SERVER", "ST-CONTEXT"] as const,
+  },
+  {
+    screenId: "SCR-03",
+    readKeys: ["SRV-TENDER"] as const,
+    resultClasses: ["ST-SERVER", "ST-CONTEXT"] as const,
+  },
+  {
+    screenId: "SCR-04",
+    readKeys: ["SRV-PROJECT", "SRV-TASK-PROGRESS"] as const,
+    resultClasses: ["ST-SERVER"] as const,
+  },
+  {
+    screenId: "SCR-05",
+    readKeys: ["SRV-SOLUTION"] as const,
+    resultClasses: ["ST-SERVER"] as const,
+  },
+  {
+    screenId: "SCR-06",
+    readKeys: ["SRV-BUDGET"] as const,
+    resultClasses: ["ST-SERVER"] as const,
+  },
+  {
+    screenId: "SCR-07",
+    readKeys: ["SRV-PROJECT"] as const,
+    resultClasses: ["ST-SERVER"] as const,
+  },
+  {
+    screenId: "SCR-08",
+    readKeys: ["SRV-DOCUMENTS"] as const,
+    resultClasses: ["ST-SERVER"] as const,
+  },
+  {
+    screenId: "SCR-09",
+    readKeys: ["SRV-OPS"] as const,
+    resultClasses: ["ST-SERVER"] as const,
+  },
+] as const;
+
+export function getAdapterBinding(
+  actionId: string,
+): AdapterBinding | undefined {
+  return ADAPTER_BINDINGS.find((row) => row.actionId === actionId);
+}
+
+export function bindingRequiresHttp(kind: BindingKind): boolean {
+  return kind === "API" || kind === "API+NAV" || kind === "NEAREST";
+}
