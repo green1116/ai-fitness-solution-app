@@ -9,6 +9,15 @@ type WebpackLikeConfig = {
 const nextConfig: NextConfig = {
   turbopack: {},
   allowedDevOrigins: ["127.0.0.1"],
+  async redirects() {
+    return [
+      {
+        source: "/home",
+        destination: "/",
+        permanent: false,
+      },
+    ];
+  },
   webpack: (config: WebpackLikeConfig) => {
     const existingIgnored = config.watchOptions?.ignored;
 
