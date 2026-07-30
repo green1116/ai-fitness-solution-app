@@ -1,36 +1,25 @@
+import { getTenderIntakeComposition } from "@/components/features/TenderIntakeFeature";
 import { LayoutHost } from "@/components/layout-host/LayoutHost";
-import { ForwardPrimary } from "@/components/screens/entry/ForwardPrimary";
-import { GuidePanel } from "@/components/screens/entry/GuidePanel";
-import { ProcessStatus } from "@/components/screens/entry/ProcessStatus";
-import { TenderUpload } from "@/components/screens/entry/TenderUpload";
 
 /**
- * SCRCMP-TENDER — SCR-03 Tender Intelligence Entry (LAY-INTAKE).
+ * SCRCMP-TENDER — SCR-03.
+ * Composes FEATCMP-TENDER-INTAKE into LAYCMP-INTAKE.
  */
 export function TenderEntryScreen() {
+  const intake = getTenderIntakeComposition();
+
   return (
-    <section data-screen="SCR-03" data-page="PG-TENDER" data-layout="LAY-INTAKE">
+    <section
+      data-scrcmp="SCRCMP-TENDER"
+      data-screen="SCR-03"
+      data-page="PG-TENDER"
+      data-layout="LAY-INTAKE"
+    >
       <LayoutHost
         screenId="SCR-03"
-        guide={
-          <GuidePanel
-            title="Start tender workflow"
-            description="Upload a tender source, observe processing status, then proceed to requirement review."
-          />
-        }
-        capture={
-          <div className="flex flex-col gap-8">
-            <TenderUpload />
-            <ProcessStatus />
-          </div>
-        }
-        forward={
-          <ForwardPrimary
-            label="Proceed to AI Workspace"
-            href="/workspace"
-            actionId="ACT-03-03"
-          />
-        }
+        guide={intake.guide}
+        capture={intake.capture}
+        forward={intake.forward}
       />
     </section>
   );

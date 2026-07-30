@@ -32,7 +32,7 @@ export const PRESENTATION_PROJECT_ROWS: readonly ProjectRowData[] = [
  */
 export function ProjectList() {
   return (
-    <div data-cmp="CMP-PROJECT-LIST" data-action-id="ACT-07-01">
+    <div data-cmp="CMP-PROJECT-LIST" data-int-id="INT-LIST-BROWSE" data-action-id="ACT-07-01">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
         My projects
       </p>

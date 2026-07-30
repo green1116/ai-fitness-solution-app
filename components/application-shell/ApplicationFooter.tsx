@@ -6,6 +6,7 @@ export function ApplicationFooter() {
   return (
     <footer
       data-shell-region="footer"
+      data-cmp="CMP-SHELL-FOOTER"
       className="border-t border-slate-200 bg-slate-50 text-slate-600"
     >
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-2 px-6 py-4 text-xs">

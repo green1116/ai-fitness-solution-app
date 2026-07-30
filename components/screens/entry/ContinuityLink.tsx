@@ -12,6 +12,7 @@ export function ContinuityLink() {
       </p>
       <Link
         href="/projects"
+        data-int-id="INT-ENTRY-CONTINUITY"
         data-action-id="ACT-01-06"
         className="mt-3 inline-flex text-sm font-semibold text-slate-950 underline underline-offset-4"
       >

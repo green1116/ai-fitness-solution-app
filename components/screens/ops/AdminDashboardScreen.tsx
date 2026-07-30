@@ -1,5 +1,5 @@
+import { AdminOpsFeature } from "@/components/features/AdminOpsFeature";
 import { LayoutHost } from "@/components/layout-host/LayoutHost";
-import { OpsAreas } from "@/components/screens/ops/OpsAreas";
 import type { OpsAreaId } from "@/lib/frontend/navigation";
 
 type AdminDashboardScreenProps = Readonly<{
@@ -7,20 +7,24 @@ type AdminDashboardScreenProps = Readonly<{
 }>;
 
 /**
- * SCRCMP-ADMIN — SCR-09 Admin Dashboard (LAY-OPS).
- * Reuses FE-1 LayoutHost + GRD-OPS on `/admin`; presentation only.
+ * SCRCMP-ADMIN — SCR-09.
+ * Composes FEATCMP-ADMIN-OPS into LAYCMP-OPS.
  */
 export function AdminDashboardScreen({
   area = "",
 }: AdminDashboardScreenProps) {
   return (
     <section
+      data-scrcmp="SCRCMP-ADMIN"
       data-screen="SCR-09"
       data-page="PG-ADMIN"
       data-layout="LAY-OPS"
       data-ops-area={area || "all"}
     >
-      <LayoutHost screenId="SCR-09" areas={<OpsAreas activeArea={area} />} />
+      <LayoutHost
+        screenId="SCR-09"
+        areas={<AdminOpsFeature activeArea={area} />}
+      />
     </section>
   );
 }

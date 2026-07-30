@@ -6,6 +6,7 @@ export function ProcessStatus() {
   return (
     <div
       data-cmp="CMP-STATUS-PROCESS"
+      data-int-id="INT-INTAKE-STATUS"
       data-action-id="ACT-03-02"
       aria-live="polite"
     >

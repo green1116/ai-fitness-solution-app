@@ -29,7 +29,7 @@ export function OutcomeLinks({ projectId = "" }: OutcomeLinksProps) {
   const cue = projectId.trim();
 
   return (
-    <div data-cmp="CMP-OUTCOME-LINKS">
+    <div data-cmp="CMP-OUTCOME-LINKS" data-int-id="INT-WS-OUTCOME">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
         Outcomes
       </p>

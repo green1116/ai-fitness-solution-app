@@ -4,7 +4,7 @@
  */
 export function ConversationPanel() {
   return (
-    <div data-cmp="CMP-CONV-PANEL" data-action-id="ACT-04-01">
+    <div data-cmp="CMP-CONV-PANEL" data-int-id="INT-WS-CONVERSE" data-action-id="ACT-04-01">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
         Conversation
       </p>

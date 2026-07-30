@@ -22,7 +22,7 @@ const RESULT_BLOCKS = [
  */
 export function ResultBlocks() {
   return (
-    <div data-cmp="CMP-RESULT-BLOCKS">
+    <div data-cmp="CMP-RESULT-BLOCKS" data-int-id="INT-RESULT-REVIEW">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
         Result blocks
       </p>

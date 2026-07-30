@@ -4,7 +4,7 @@
  */
 export function TaskPanel() {
   return (
-    <div data-cmp="CMP-TASK-PANEL">
+    <div data-cmp="CMP-TASK-PANEL" data-int-id="INT-WS-TASK">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
         Current task
       </p>

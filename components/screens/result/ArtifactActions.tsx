@@ -2,6 +2,10 @@ type ArtifactAction = Readonly<{
   id: string;
   label: string;
   actionId: string;
+  intId:
+    | "INT-ARTIFACT-PREVIEW"
+    | "INT-ARTIFACT-DOWNLOAD"
+    | "INT-ARTIFACT-SHARE";
 }>;
 
 type ArtifactActionsProps = Readonly<{
@@ -23,6 +27,7 @@ export function ArtifactActions({ actions }: ArtifactActionsProps) {
           <li key={action.id}>
             <button
               type="button"
+              data-int-id={action.intId}
               data-action-id={action.actionId}
               className="text-sm font-semibold text-slate-950 underline underline-offset-4"
             >

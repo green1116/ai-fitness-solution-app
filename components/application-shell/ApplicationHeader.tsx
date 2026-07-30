@@ -4,7 +4,10 @@ import { ShellNavigation } from "@/components/navigation/ShellNavigation";
 
 export function ApplicationHeader() {
   return (
-    <header className="border-b border-slate-200 bg-white text-slate-950">
+    <header
+      data-cmp="CMP-SHELL-HEADER"
+      className="border-b border-slate-200 bg-white text-slate-950"
+    >
       <a
         href="#main-content"
         className="sr-only z-50 rounded-md bg-slate-950 px-4 py-2 text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"

@@ -14,6 +14,7 @@ export function ForwardPrimary({ label, href, actionId }: ForwardPrimaryProps) {
     <div data-cmp="CMP-FORWARD-PRIMARY">
       <Link
         href={href}
+        data-int-id="INT-FORWARD-PRIMARY"
         data-action-id={actionId}
         className="inline-flex text-sm font-semibold text-slate-950 underline underline-offset-4"
       >

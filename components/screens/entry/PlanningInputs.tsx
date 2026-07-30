@@ -4,7 +4,7 @@
  */
 export function PlanningInputs() {
   return (
-    <div data-cmp="CMP-INPUT-PLANNING" data-action-id="ACT-02-02">
+    <div data-cmp="CMP-INPUT-PLANNING" data-int-id="INT-INTAKE-INPUT" data-action-id="ACT-02-02">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
         Planning inputs
       </p>

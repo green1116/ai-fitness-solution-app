@@ -1,35 +1,25 @@
+import { getBuilderIntakeComposition } from "@/components/features/BuilderIntakeFeature";
 import { LayoutHost } from "@/components/layout-host/LayoutHost";
-import { ForwardPrimary } from "@/components/screens/entry/ForwardPrimary";
-import { GuidePanel } from "@/components/screens/entry/GuidePanel";
-import { PlanningInputs } from "@/components/screens/entry/PlanningInputs";
 
 /**
- * SCRCMP-BUILDER — SCR-02 Enterprise Builder Entry (LAY-INTAKE).
+ * SCRCMP-BUILDER — SCR-02.
+ * Composes FEATCMP-BUILDER-INTAKE into LAYCMP-INTAKE.
  */
 export function BuilderEntryScreen() {
+  const intake = getBuilderIntakeComposition();
+
   return (
     <section
+      data-scrcmp="SCRCMP-BUILDER"
       data-screen="SCR-02"
       data-page="PG-BUILDER"
       data-layout="LAY-INTAKE"
     >
       <LayoutHost
         screenId="SCR-02"
-        guide={
-          <GuidePanel
-            title="Start enterprise fitness planning"
-            description="Provide planning inputs, then continue to the AI Workspace."
-            actionId="ACT-02-01"
-          />
-        }
-        capture={<PlanningInputs />}
-        forward={
-          <ForwardPrimary
-            label="Continue to AI Workspace"
-            href="/workspace"
-            actionId="ACT-02-03"
-          />
-        }
+        guide={intake.guide}
+        capture={intake.capture}
+        forward={intake.forward}
       />
     </section>
   );

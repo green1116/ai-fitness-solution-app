@@ -4,7 +4,11 @@
  */
 export function BudgetOverview() {
   return (
-    <div data-cmp="CMP-BUDGET-OVERVIEW" data-action-id="ACT-06-01">
+    <div
+      data-cmp="CMP-BUDGET-OVERVIEW"
+      data-int-id="INT-RESULT-REVIEW"
+      data-action-id="ACT-06-01"
+    >
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
         Overview
       </p>

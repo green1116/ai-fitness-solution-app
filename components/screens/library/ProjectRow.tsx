@@ -42,6 +42,7 @@ export function ProjectRow({ project }: ProjectRowProps) {
         <div className="flex flex-wrap gap-4 text-sm">
           <Link
             href={buildContinuityHref(continueEntry.path, project.id)}
+            data-int-id="INT-LIST-CONTINUE"
             data-action-id={continueEntry.actionId}
             data-nav-id={continueEntry.id}
             className="font-semibold text-slate-950 underline underline-offset-4"
@@ -50,6 +51,7 @@ export function ProjectRow({ project }: ProjectRowProps) {
           </Link>
           <Link
             href={buildContinuityHref(documentsEntry.path, project.id)}
+            data-int-id="INT-LIST-DOCS"
             data-action-id={documentsEntry.actionId}
             data-nav-id={documentsEntry.id}
             className="font-semibold text-slate-950 underline underline-offset-4"

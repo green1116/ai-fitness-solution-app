@@ -39,6 +39,7 @@ export function GoalCards() {
             <Link
               href={goal.href}
               data-cmp="CMP-GOAL-CARD"
+              data-int-id="INT-ENTRY-GOAL"
               data-nav-id={goal.id}
               data-action-id={goal.actionId}
               className="block h-full border-b border-slate-200 pb-4 transition-colors hover:border-slate-950 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-slate-950"

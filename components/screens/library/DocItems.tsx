@@ -54,6 +54,7 @@ export function DocItems({ category = "" }: DocItemsProps) {
           <li
             key={item.id}
             data-cmp="CMP-DOC-ITEM"
+            data-int-id="INT-LIB-SELECT"
             data-document-id={item.id}
             data-doc-category={item.category}
             className="border-b border-slate-200 pb-3 text-sm"

@@ -30,6 +30,7 @@ export function ForwardGroup({ links, projectId = "" }: ForwardGroupProps) {
           <li key={link.id}>
             <Link
               href={buildProjectScopedHref(link.href, projectId)}
+              data-int-id="INT-FORWARD-GROUP"
               data-action-id={link.actionId}
               data-nav-id={link.id}
               className="font-semibold text-slate-950 underline underline-offset-4"

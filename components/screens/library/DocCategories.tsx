@@ -26,7 +26,7 @@ export function DocCategories({
   activeCategory = "",
 }: DocCategoriesProps) {
   return (
-    <div data-cmp="CMP-DOC-CATEGORIES" data-action-id="ACT-08-01">
+    <div data-cmp="CMP-DOC-CATEGORIES" data-int-id="INT-LIB-CATEGORY" data-action-id="ACT-08-01">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
         Categories
       </p>

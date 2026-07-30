@@ -12,6 +12,7 @@ export function AccessControls() {
       <a
         href="/?signin=1"
         data-cmp="CMP-ACCESS-SIGNIN"
+        data-int-id="INT-ACCESS-SIGNIN"
         data-action-id="ACT-01-01"
         className="text-sm font-semibold text-slate-950 underline underline-offset-4"
       >
@@ -19,6 +20,7 @@ export function AccessControls() {
       </a>
       <label
         data-cmp="CMP-ACCESS-LANGUAGE"
+        data-int-id="INT-ACCESS-LANGUAGE"
         data-action-id="ACT-01-02"
         className="flex items-center gap-2 text-sm text-slate-600"
       >

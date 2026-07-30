@@ -17,6 +17,7 @@ export function ContextPanel({ projectId = "" }: ContextPanelProps) {
   return (
     <div
       data-cmp="CMP-CONTEXT-PANEL"
+      data-int-id="INT-WS-CONTEXT"
       data-action-id="ACT-04-02"
       data-project-cue={cue ? "present" : "absent"}
     >

@@ -16,6 +16,7 @@ export function ResultSummary({
   return (
     <div
       data-cmp="CMP-RESULT-SUMMARY"
+      data-int-id="INT-RESULT-REVIEW"
       data-action-ids={actionIds.join(" ")}
     >
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">

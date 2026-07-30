@@ -25,6 +25,7 @@ export function ShellNavigation() {
               <Link
                 href={entry.href}
                 data-nav-id={entry.id}
+                data-int-id="INT-NAV-SHELL"
                 aria-current={active ? "page" : undefined}
                 className={
                   active
@@ -45,6 +46,7 @@ export function ShellNavigation() {
                   <Link
                     href={entry.href}
                     data-nav-id={entry.id}
+                    data-int-id="INT-NAV-SHELL"
                     aria-current={active ? "page" : undefined}
                     className={
                       active

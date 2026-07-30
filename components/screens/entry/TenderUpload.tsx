@@ -4,7 +4,7 @@
  */
 export function TenderUpload() {
   return (
-    <div data-cmp="CMP-UPLOAD-TENDER" data-action-id="ACT-03-01">
+    <div data-cmp="CMP-UPLOAD-TENDER" data-int-id="INT-INTAKE-UPLOAD" data-action-id="ACT-03-01">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
         Tender source
       </p>

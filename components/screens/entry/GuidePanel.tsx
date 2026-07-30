@@ -6,10 +6,19 @@ type GuidePanelProps = Readonly<{
 
 /**
  * CMP-GUIDE-PANEL — intake guide zone.
+ * INT-INTAKE-START is SCR-02 only (ACT-02-01).
  */
 export function GuidePanel({ title, description, actionId }: GuidePanelProps) {
   return (
-    <div data-cmp="CMP-GUIDE-PANEL" data-action-id={actionId}>
+    <div
+      data-cmp="CMP-GUIDE-PANEL"
+      {...(actionId
+        ? {
+            "data-int-id": "INT-INTAKE-START",
+            "data-action-id": actionId,
+          }
+        : {})}
+    >
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
         Guide
       </p>

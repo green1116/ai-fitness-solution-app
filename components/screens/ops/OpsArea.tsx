@@ -24,6 +24,7 @@ export function OpsArea({
   return (
     <section
       data-cmp="CMP-OPS-AREA"
+      data-int-id="INT-OPS-VIEW"
       data-ops-area={id}
       data-action-id={actionId}
       data-active={active ? "true" : "false"}

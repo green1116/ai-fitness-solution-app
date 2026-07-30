@@ -1,20 +1,25 @@
+import { ContinuityFeature } from "@/components/features/ContinuityFeature";
+import { AccessFeature } from "@/components/features/AccessFeature";
+import { GoalEntryFeature } from "@/components/features/GoalEntryFeature";
 import { LayoutHost } from "@/components/layout-host/LayoutHost";
-import { AccessControls } from "@/components/screens/entry/AccessControls";
-import { ContinuityLink } from "@/components/screens/entry/ContinuityLink";
-import { GoalCards } from "@/components/screens/entry/GoalCards";
 
 /**
- * SCRCMP-HOME — SCR-01 Homepage (LAY-ENTRY).
- * Reuses FE-1 LayoutHost; presentation composition only.
+ * SCRCMP-HOME — SCR-01 Homepage.
+ * Composes FEATCMP-ACCESS + GOAL-ENTRY + CONTINUITY into LAYCMP-ENTRY.
  */
 export function HomepageScreen() {
   return (
-    <section data-screen="SCR-01" data-page="PG-HOME" data-layout="LAY-ENTRY">
+    <section
+      data-scrcmp="SCRCMP-HOME"
+      data-screen="SCR-01"
+      data-page="PG-HOME"
+      data-layout="LAY-ENTRY"
+    >
       <LayoutHost
         screenId="SCR-01"
-        access={<AccessControls />}
-        goals={<GoalCards />}
-        continuity={<ContinuityLink />}
+        access={<AccessFeature />}
+        goals={<GoalEntryFeature />}
+        continuity={<ContinuityFeature />}
       />
     </section>
   );
