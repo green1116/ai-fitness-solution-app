@@ -1,12 +1,25 @@
-import { ScreenLayoutPage } from "@/components/layout-host/ScreenLayoutPage";
+import { WorkspaceScreen } from "@/components/screens/workspace/WorkspaceScreen";
 
-export default function WorkspacePage() {
-  return (
-    <ScreenLayoutPage
-      screenId="SCR-04"
-      eyebrow="Workspace"
-      title="AI Workspace"
-      description="The active project workspace is presented in this main content area."
-    />
-  );
+type WorkspacePageProps = Readonly<{
+  searchParams: Promise<{ projectId?: string | string[] }>;
+}>;
+
+function readProjectId(
+  value: string | string[] | undefined,
+): string {
+  if (Array.isArray(value)) {
+    return value[0]?.trim() ?? "";
+  }
+  return value?.trim() ?? "";
+}
+
+/**
+ * PG-WORKSPACE → SCR-04 AI Workspace (PD-4.2 RT-WORKSPACE).
+ * Forwards opaque `projectId` cue only — no Domain project resolution.
+ */
+export default async function WorkspacePage({
+  searchParams,
+}: WorkspacePageProps) {
+  const params = await searchParams;
+  return <WorkspaceScreen projectId={readProjectId(params.projectId)} />;
 }

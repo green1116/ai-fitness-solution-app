@@ -1,12 +1,22 @@
-import { ScreenLayoutPage } from "@/components/layout-host/ScreenLayoutPage";
+import { SolutionResultScreen } from "@/components/screens/result/SolutionResultScreen";
 
-export default function SolutionPage() {
+type SolutionPageProps = Readonly<{
+  searchParams: Promise<{ projectId?: string | string[] }>;
+}>;
+
+function readProjectId(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0]?.trim() ?? "";
+  }
+  return value?.trim() ?? "";
+}
+
+/**
+ * PG-SOLUTION → SCR-05 Solution Result (PD-4.2 RT-SOLUTION).
+ */
+export default async function SolutionPage({ searchParams }: SolutionPageProps) {
+  const params = await searchParams;
   return (
-    <ScreenLayoutPage
-      screenId="SCR-05"
-      eyebrow="Result"
-      title="Solution Result"
-      description="The solution result is presented in this main content area."
-    />
+    <SolutionResultScreen projectId={readProjectId(params.projectId)} />
   );
 }

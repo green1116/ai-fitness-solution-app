@@ -157,9 +157,75 @@ export function buildContinuityHref(
   path: "/workspace" | "/documents",
   projectId?: string,
 ): string {
+  return buildProjectScopedHref(path, projectId);
+}
+
+/**
+ * Attach opaque `projectId` presentation cue when present (PD-4.2 §3.2).
+ */
+export function buildProjectScopedHref(
+  path: PresentationRoutePath,
+  projectId?: string | null,
+): string {
   const trimmed = projectId?.trim();
   if (!trimmed) {
     return path;
   }
   return `${path}?projectId=${encodeURIComponent(trimmed)}`;
+}
+
+export const DOCUMENT_CATEGORY_IDS = [
+  "solution",
+  "budget",
+  "tender",
+  "delivery",
+] as const;
+
+export type DocumentCategoryId = (typeof DOCUMENT_CATEGORY_IDS)[number];
+
+/**
+ * Documents library href with optional opaque project + category cues.
+ */
+export function buildDocumentsHref(input?: {
+  projectId?: string | null;
+  category?: DocumentCategoryId | string | null;
+}): string {
+  const params = new URLSearchParams();
+  const projectId = input?.projectId?.trim();
+  const category = input?.category?.trim().toLowerCase();
+  if (projectId) {
+    params.set("projectId", projectId);
+  }
+  if (
+    category &&
+    (DOCUMENT_CATEGORY_IDS as readonly string[]).includes(category)
+  ) {
+    params.set("category", category);
+  }
+  const query = params.toString();
+  return query ? `/documents?${query}` : "/documents";
+}
+
+export const OPS_AREA_IDS = [
+  "organizations",
+  "users",
+  "usage",
+  "security",
+  "governance",
+] as const;
+
+export type OpsAreaId = (typeof OPS_AREA_IDS)[number];
+
+/**
+ * Admin dashboard href with optional area focus (still SCR-09).
+ */
+export function buildAdminHref(area?: OpsAreaId | string | null): string {
+  const normalized = area?.trim().toLowerCase();
+  if (
+    normalized &&
+    (OPS_AREA_IDS as readonly string[]).includes(normalized)
+  ) {
+    return `/admin?area=${encodeURIComponent(normalized)}`;
+  }
+  return "/admin";
 }

@@ -1,12 +1,8 @@
-import { ScreenLayoutPage } from "@/components/layout-host/ScreenLayoutPage";
+import { BuilderEntryScreen } from "@/components/screens/entry/BuilderEntryScreen";
 
+/**
+ * PG-BUILDER → SCR-02 Enterprise Builder Entry.
+ */
 export default function BuilderPage() {
-  return (
-    <ScreenLayoutPage
-      screenId="SCR-02"
-      eyebrow="Enterprise Builder"
-      title="Start an enterprise fitness project"
-      description="Define the project intake before continuing to the AI Workspace."
-    />
-  );
+  return <BuilderEntryScreen />;
 }
