@@ -1,3 +1,5 @@
+import { StartPlanningControl } from "@/components/screens/entry/StartPlanningControl";
+
 type GuidePanelProps = Readonly<{
   title: string;
   description: string;
@@ -6,7 +8,7 @@ type GuidePanelProps = Readonly<{
 
 /**
  * CMP-GUIDE-PANEL — intake guide zone.
- * INT-INTAKE-START is SCR-02 only (ACT-02-01).
+ * INT-INTAKE-START is SCR-02 only (ACT-02-01 / FEAT-10 StartPlanning).
  */
 export function GuidePanel({ title, description, actionId }: GuidePanelProps) {
   return (
@@ -16,6 +18,8 @@ export function GuidePanel({ title, description, actionId }: GuidePanelProps) {
         ? {
             "data-int-id": "INT-INTAKE-START",
             "data-action-id": actionId,
+            "data-feat": "FEAT-10",
+            "data-command": "StartPlanning",
           }
         : {})}
     >
@@ -28,6 +32,9 @@ export function GuidePanel({ title, description, actionId }: GuidePanelProps) {
       <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
         {description}
       </p>
+      {actionId === "ACT-02-01" ? (
+        <StartPlanningControl actionId={actionId} />
+      ) : null}
     </div>
   );
 }
