@@ -181,6 +181,17 @@ export {
 } from "./export-budget-package-metadata";
 
 export {
+  BUDGET_PACKAGE_STATISTICS_CAPABILITY,
+  BUDGET_PACKAGE_STATISTICS_STATUSES,
+  budgetPackageStatistics,
+  FEAT_29_ID,
+  type BudgetPackageStatistics,
+  type BudgetPackageStatisticsQuery,
+  type BudgetPackageStatisticsResult,
+  type BudgetPackageStatisticsStatus,
+} from "./budget-package-statistics";
+
+export {
   runTenderEngine,
   type TenderEngineInput,
   type TenderEngineResult,
