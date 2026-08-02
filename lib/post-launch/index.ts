@@ -105,3 +105,53 @@ export {
   getCustomerSuccessDashboard,
   type CustomerSuccessDashboard,
 } from "./customer/customer-success-dashboard";
+
+export {
+  buildCustomerAnalytics,
+  clearCustomerAnalytics,
+  CUSTOMER_ANALYTICS_CAPABILITY,
+  FEAT_37_ID,
+  getCustomerAnalytics,
+  type CustomerAnalytics,
+} from "./customer/customer-analytics";
+
+export {
+  addRenewal,
+  clearRenewals,
+  FEAT_38_ID,
+  getRenewal,
+  listRenewals,
+  RENEWAL_QUEUE_CAPABILITY,
+  RENEWAL_STATUSES,
+  updateRenewalStatus,
+  type AddRenewalInput,
+  type ListRenewalsFilter,
+  type RenewalQueueItem,
+  type RenewalStatus,
+  type UpdateRenewalStatusInput,
+} from "./customer/renewal-queue";
+
+export {
+  addExpansion,
+  clearExpansions,
+  EXPANSION_QUEUE_CAPABILITY,
+  EXPANSION_STATUSES,
+  FEAT_39_ID,
+  getExpansion,
+  listExpansions,
+  updateExpansionStatus,
+  type AddExpansionInput,
+  type ExpansionQueueItem,
+  type ExpansionStatus,
+  type ListExpansionsFilter,
+  type UpdateExpansionStatusInput,
+} from "./customer/expansion-queue";
+
+export {
+  buildRetentionDashboard,
+  clearRetentionDashboard,
+  FEAT_40_ID,
+  getRetentionDashboard,
+  RETENTION_DASHBOARD_CAPABILITY,
+  type RetentionDashboard,
+} from "./customer/retention-dashboard";
