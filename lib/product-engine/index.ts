@@ -170,6 +170,17 @@ export {
 } from "./paginate-budget-package";
 
 export {
+  BUDGET_PACKAGE_EXPORT_STATUSES,
+  EXPORT_BUDGET_PACKAGE_METADATA_CAPABILITY,
+  exportBudgetPackageMetadata,
+  FEAT_28_ID,
+  type BudgetPackageExportItem,
+  type BudgetPackageExportQuery,
+  type BudgetPackageExportStatus,
+  type ExportBudgetPackageMetadataResult,
+} from "./export-budget-package-metadata";
+
+export {
   runTenderEngine,
   type TenderEngineInput,
   type TenderEngineResult,
