@@ -145,6 +145,20 @@ export {
 } from "./search-budget-package";
 
 export {
+  BUDGET_PACKAGE_SORT_DIRECTIONS,
+  BUDGET_PACKAGE_SORT_FIELDS,
+  BUDGET_PACKAGE_SORT_STATUSES,
+  FEAT_26_ID,
+  SORT_BUDGET_PACKAGE_CAPABILITY,
+  sortBudgetPackages,
+  type BudgetPackageSortDirection,
+  type BudgetPackageSortField,
+  type BudgetPackageSortQuery,
+  type BudgetPackageSortStatus,
+  type SortBudgetPackagesResult,
+} from "./sort-budget-package";
+
+export {
   runTenderEngine,
   type TenderEngineInput,
   type TenderEngineResult,
