@@ -17,7 +17,7 @@ export function getWorkspaceComposition(projectId = ""): WorkspaceSlots {
   return {
     conversation: (
       <div data-featcmp="FEATCMP-WORKSPACE" data-featcmp-slot="conversation">
-        <ConversationPanel />
+        <ConversationPanel projectId={projectId} />
       </div>
     ),
     task: (

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ArtifactActions } from "@/components/screens/result/ArtifactActions";
 import { ForwardGroup } from "@/components/screens/result/ForwardGroup";
 import { ResultBlocks } from "@/components/screens/result/ResultBlocks";
-import { ResultSummary } from "@/components/screens/result/ResultSummary";
+import { ReviewSolutionPanel } from "@/components/screens/result/ReviewSolutionPanel";
 
 type ResultSlots = Readonly<{
   summary: ReactNode;
@@ -53,10 +53,10 @@ export function getSolutionResultComposition(projectId = ""): ResultSlots {
   return {
     summary: (
       <div data-featcmp="FEATCMP-SOLUTION-RESULT" data-featcmp-slot="summary">
-        <ResultSummary
+        <ReviewSolutionPanel
+          projectId={projectId}
           title="Solution result"
           description="Review the planning solution, proposal, or package overview for this project."
-          actionIds={["ACT-05-01", "ACT-05-02"]}
         />
       </div>
     ),

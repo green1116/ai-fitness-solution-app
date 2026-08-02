@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { ContinueToWorkspaceControl } from "@/components/screens/entry/ContinueToWorkspaceControl";
+
 type ForwardPrimaryProps = Readonly<{
   label: string;
   href: "/workspace";
@@ -8,8 +10,13 @@ type ForwardPrimaryProps = Readonly<{
 
 /**
  * CMP-FORWARD-PRIMARY — advance along PD-4.2 allowed edge only.
+ * ACT-02-03 (FEAT-12) is gated on planning inputs accepted.
  */
 export function ForwardPrimary({ label, href, actionId }: ForwardPrimaryProps) {
+  if (actionId === "ACT-02-03") {
+    return <ContinueToWorkspaceControl label={label} />;
+  }
+
   return (
     <div data-cmp="CMP-FORWARD-PRIMARY">
       <Link
