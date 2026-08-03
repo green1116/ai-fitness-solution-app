@@ -155,3 +155,39 @@ export {
   RETENTION_DASHBOARD_CAPABILITY,
   type RetentionDashboard,
 } from "./customer/retention-dashboard";
+
+export {
+  buildCustomerInsights,
+  clearCustomerInsights,
+  CUSTOMER_INSIGHTS_CAPABILITY,
+  FEAT_41_ID,
+  getCustomerInsights,
+  type CustomerInsights,
+} from "./customer/customer-insights";
+
+export {
+  buildRetentionInsights,
+  clearRetentionInsights,
+  FEAT_42_ID,
+  getRetentionInsights,
+  RETENTION_INSIGHTS_CAPABILITY,
+  type RetentionInsights,
+} from "./customer/retention-insights";
+
+export {
+  buildExpansionInsights,
+  clearExpansionInsights,
+  EXPANSION_INSIGHTS_CAPABILITY,
+  FEAT_43_ID,
+  getExpansionInsights,
+  type ExpansionInsights,
+} from "./customer/expansion-insights";
+
+export {
+  buildOptimizationDashboard,
+  clearOptimizationDashboard,
+  FEAT_44_ID,
+  getOptimizationDashboard,
+  OPTIMIZATION_DASHBOARD_CAPABILITY,
+  type OptimizationDashboard,
+} from "./customer/optimization-dashboard";
