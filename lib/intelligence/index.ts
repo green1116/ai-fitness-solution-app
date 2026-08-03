@@ -73,3 +73,33 @@ export {
   type InsightSeverity,
   type InsightType,
 } from "./insight";
+
+export {
+  buildPriorityItems,
+  clearPriorityItems,
+  FEAT_55_ID,
+  getPriorityItems,
+  PRIORITY_ENGINE_CAPABILITY,
+  PRIORITY_LEVELS,
+  PRIORITY_SOURCE_TYPES,
+  type BuildPriorityItemsInput,
+  type PriorityItem,
+  type PriorityLevel,
+  type PrioritySourceType,
+} from "./priority";
+
+export {
+  buildSignals,
+  clearSignals,
+  FEAT_56_ID,
+  getSignals,
+  SIGNAL_ENGINE_CAPABILITY,
+  SIGNAL_INTENSITIES,
+  SIGNAL_SOURCE_TYPES,
+  SIGNAL_TYPES,
+  type BuildSignalsInput,
+  type Signal,
+  type SignalIntensity,
+  type SignalSourceType,
+  type SignalType,
+} from "./signal";
