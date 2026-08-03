@@ -46,3 +46,16 @@ export {
   type IntelligenceDashboard,
   type IntelligenceTrend,
 } from "./dashboard";
+
+export {
+  buildRecommendations,
+  clearRecommendations,
+  FEAT_53_ID,
+  getRecommendations,
+  RECOMMENDATION_ENGINE_CAPABILITY,
+  RECOMMENDATION_PRIORITIES,
+  RECOMMENDATION_TYPES,
+  type Recommendation,
+  type RecommendationPriority,
+  type RecommendationType,
+} from "./recommendation";
