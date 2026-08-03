@@ -1,6 +1,9 @@
 /**
  * FEAT-52 — Intelligence Dashboard
  * Dashboard snapshot built on Context / Snapshot / Metrics.
+ *
+ * WP-70 — Dashboard Engine
+ * Deterministic dashboard items from ReportItems (read-only).
  */
 import { getIntelligenceContext } from "./context";
 import { getIntelligenceSnapshot } from "./snapshot";
@@ -8,6 +11,7 @@ import {
   buildIntelligenceMetrics,
   getIntelligenceMetrics,
 } from "./metrics";
+import { getReport, type ReportItem } from "./report";
 
 export const FEAT_52_ID = "FEAT-52" as const;
 export const INTELLIGENCE_DASHBOARD_CAPABILITY =
@@ -111,4 +115,67 @@ export function getIntelligenceDashboard(): IntelligenceDashboard {
 export function clearIntelligenceDashboard(): void {
   cachedDashboard = null;
   previousOverallScore = null;
+}
+
+// --- WP-70 Dashboard Engine (ReportItem → DashboardItem) ---
+
+export const FEAT_71_ID = "FEAT-71" as const;
+export const DASHBOARD_ENGINE_CAPABILITY = "DashboardEngine" as const;
+
+export type DashboardItem = Readonly<{
+  id: string;
+  reportId: string;
+  title: string;
+  position: number;
+}>;
+
+export type BuildDashboardInput = Readonly<{
+  reports?: readonly ReportItem[];
+}>;
+
+let cachedDashboardItems: DashboardItem[] | null = null;
+
+function cloneDashboardItem(row: DashboardItem): DashboardItem {
+  return { ...row };
+}
+
+function formatTitle(report: ReportItem): string {
+  return `Report ${report.id}`;
+}
+
+/**
+ * Build deterministic dashboard items from ReportItems.
+ * Sorted by stable reportId.
+ */
+export function buildDashboard(
+  input: BuildDashboardInput = {},
+): DashboardItem[] {
+  const reports = input.reports ? [...input.reports] : getReport();
+
+  const ranked = reports.slice().sort((a, b) => a.id.localeCompare(b.id));
+
+  const out: DashboardItem[] = ranked.map((report, index) => ({
+    id: `dashboard-${report.id}`,
+    reportId: report.id,
+    title: formatTitle(report),
+    position: index + 1,
+  }));
+
+  cachedDashboardItems = out.map(cloneDashboardItem);
+  return cachedDashboardItems.map(cloneDashboardItem);
+}
+
+/**
+ * Get the last built dashboard items, or build if none cached.
+ */
+export function getDashboard(): DashboardItem[] {
+  if (!cachedDashboardItems) {
+    return buildDashboard();
+  }
+  return cachedDashboardItems.map(cloneDashboardItem);
+}
+
+/** Test helper — clears cached dashboard items. */
+export function clearDashboard(): void {
+  cachedDashboardItems = null;
 }
