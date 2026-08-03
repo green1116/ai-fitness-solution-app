@@ -191,3 +191,64 @@ export {
   OPTIMIZATION_DASHBOARD_CAPABILITY,
   type OptimizationDashboard,
 } from "./customer/optimization-dashboard";
+
+export {
+  clearCustomerAutomations,
+  createCustomerAutomation,
+  CUSTOMER_AUTOMATION_ACTIONS,
+  CUSTOMER_AUTOMATION_CAPABILITY,
+  CUSTOMER_AUTOMATION_TRIGGERS,
+  disableCustomerAutomation,
+  enableCustomerAutomation,
+  FEAT_45_ID,
+  getCustomerAutomation,
+  listCustomerAutomation,
+  type CreateCustomerAutomationInput,
+  type CustomerAutomation,
+  type CustomerAutomationAction,
+  type CustomerAutomationTrigger,
+  type ListCustomerAutomationFilter,
+} from "./customer/customer-automation";
+
+export {
+  clearWorkflows,
+  createWorkflow,
+  FEAT_46_ID,
+  getWorkflow,
+  listWorkflow,
+  pauseWorkflow,
+  resumeWorkflow,
+  startWorkflow,
+  WORKFLOW_ENGINE_CAPABILITY,
+  WORKFLOW_STATUSES,
+  type CreateWorkflowInput,
+  type ListWorkflowFilter,
+  type Workflow,
+  type WorkflowStatus,
+} from "./customer/workflow-engine";
+
+export {
+  clearTasks,
+  completeTask,
+  enqueueTask,
+  failTask,
+  FEAT_47_ID,
+  getTask,
+  listTasks,
+  startTask,
+  TASK_QUEUE_CAPABILITY,
+  TASK_STATUSES,
+  type EnqueueTaskInput,
+  type ListTasksFilter,
+  type TaskQueueItem,
+  type TaskStatus,
+} from "./customer/task-queue";
+
+export {
+  buildAutomationDashboard,
+  clearAutomationDashboard,
+  AUTOMATION_DASHBOARD_CAPABILITY,
+  FEAT_48_ID,
+  getAutomationDashboard,
+  type AutomationDashboard,
+} from "./customer/automation-dashboard";
