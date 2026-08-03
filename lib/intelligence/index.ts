@@ -59,3 +59,17 @@ export {
   type RecommendationPriority,
   type RecommendationType,
 } from "./recommendation";
+
+export {
+  buildInsights,
+  clearInsights,
+  FEAT_54_ID,
+  getInsights,
+  INSIGHT_ENGINE_CAPABILITY,
+  INSIGHT_SEVERITIES,
+  INSIGHT_TYPES,
+  type BuildInsightsInput,
+  type Insight,
+  type InsightSeverity,
+  type InsightType,
+} from "./insight";
