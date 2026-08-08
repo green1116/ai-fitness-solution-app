@@ -11,6 +11,64 @@ export * from "./snapshot";
 export * from "./governance";
 export * from "./final";
 
+export {
+  RELEASE_ID,
+  RELEASE_WP1_ID,
+  RELEASE_READINESS_CAPABILITY,
+  RELEASE_READINESS_VERSION,
+  RELEASE_READINESS_BASELINE,
+  RELEASE_EP_FREEZE_IDS,
+  buildReleaseReadiness,
+  getReleaseReadiness,
+  releaseReadinessFingerprint,
+  clearReleaseReadiness,
+  type ReleaseEpFreezeId,
+  type ReleaseEpFreezeRef,
+  type ReleaseReadinessChecks,
+  type ReleaseRollbackGate,
+  type ReleaseReadiness,
+} from "./release-readiness";
+
+export {
+  RELEASE_WP2_ID,
+  RELEASE_CANDIDATE_CAPABILITY,
+  RELEASE_CANDIDATE_VERSION,
+  RELEASE_CANDIDATE_BASELINE,
+  buildReleaseCandidate,
+  getReleaseCandidate,
+  releaseCandidateFingerprint,
+  clearReleaseCandidate,
+  type ReleaseCandidate,
+} from "./release-candidate";
+
+export {
+  RELEASE_WP3_ID,
+  PRODUCTION_VALIDATION_CAPABILITY,
+  PRODUCTION_VALIDATION_VERSION,
+  PRODUCTION_VALIDATION_BASELINE,
+  buildProductionValidation,
+  getProductionValidation,
+  productionValidationFingerprint,
+  clearProductionValidation,
+  type ProductionValidationChecks,
+  type ProductionValidation,
+} from "./production-validation";
+
+export {
+  RELEASE_WP4_ID,
+  GA_RELEASE_CAPABILITY,
+  GA_RELEASE_VERSION,
+  GA_RELEASE_FREEZE_VERSION,
+  GA_RELEASE_CODENAME,
+  GA_RELEASE_FREEZE_DATE,
+  GA_RELEASE_BASELINE,
+  buildGaRelease,
+  getGaRelease,
+  gaReleaseFingerprint,
+  clearGaRelease,
+  type GaRelease,
+} from "./ga-release";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";

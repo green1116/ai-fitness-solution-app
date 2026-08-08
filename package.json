@@ -326,7 +326,8 @@
         "verify:v64-p3-revenue": "tsx scripts/verify-v64-p3-revenue.ts",
         "verify:v64-tender-business-loop": "tsx scripts/verify-v64-tender-business-loop.ts",
         "verify:v65-growth-marketing": "tsx scripts/verify-v65-growth-marketing.ts",
-        "verify:v65-business-universe": "tsx scripts/verify-v65-business-universe.ts"
+        "verify:v65-business-universe": "tsx scripts/verify-v65-business-universe.ts",
+        "verify:pilot-ga": "tsx scripts/verify-pilot-p20-ga.ts"
     },
     "dependencies": {
         "@pdf-lib/fontkit": "^1.1.1",

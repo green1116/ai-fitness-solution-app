@@ -1,0 +1,426 @@
+{
+  "version": "v80-pilot-ga-1.0.0",
+  "codename": "Intake Intelligence GA",
+  "releaseDate": "2026-08-04",
+  "generatedAt": "2026-08-04T09:06:27.349Z",
+  "contentHash": "2c234868903238d6b1641b25cb5dbcf312c75f4948332dfec9c116aa5d16b33b",
+  "fingerprint": "a4a8421935cbbff2cf64c70f876fc13618e8fb3a8bd4824516c975a183553cc5",
+  "scope": {
+    "reuseThrough": "P19",
+    "engine": "V80",
+    "noNewBusinessCapability": true,
+    "projectQuoteTenderModelsUnchanged": true
+  },
+  "pilots": [
+    {
+      "id": "P1",
+      "name": "Tender Intake",
+      "verifyScript": "scripts/verify-pilot-p1-intake.ts",
+      "status": "ga"
+    },
+    {
+      "id": "P2",
+      "name": "Review & Edit",
+      "verifyScript": "scripts/verify-pilot-p2-review.ts",
+      "status": "ga"
+    },
+    {
+      "id": "P3",
+      "name": "Approve & Handoff",
+      "verifyScript": "scripts/verify-pilot-p3-handoff.ts",
+      "status": "ga"
+    },
+    {
+      "id": "P4",
+      "name": "Ops & Exception Recovery",
+      "verifyScript": "scripts/verify-pilot-p4-ops.ts",
+      "status": "ga"
+    },
+    {
+      "id": "P5",
+      "name": "Source Traceability & Confidence",
+      "verifyScript": "scripts/verify-pilot-p5-trace.ts",
+      "status": "ga"
+    },
+    {
+      "id": "P6",
+      "name": "Clarification Loop",
+      "verifyScript": "scripts/verify-pilot-p6-clarify.ts",
+      "status": "ga"
+    },
+    {
+      "id": "P7",
+      "name": "Multi-document Consolidation",
+      "verifyScript": "scripts/verify-pilot-p7-multidoc.ts",
+      "status": "ga"
+    },
+    {
+      "id": "P8",
+      "name": "Knowledge & Compliance Validation",
+      "verifyScript": "scripts/verify-pilot-p8-compliance.ts",
+      "status": "ga"
+    },
+    {
+      "id": "P9",
+      "name": "Intake Summary & Handoff Package",
+      "verifyScript": "scripts/verify-pilot-p9-package.ts",
+      "versionConstant": "v80-pilot-p9-handoff-1",
+      "status": "ga"
+    },
+    {
+      "id": "P10",
+      "name": "Project Bootstrap & Execution Seed",
+      "verifyScript": "scripts/verify-pilot-p10-bootstrap.ts",
+      "versionConstant": "v80-pilot-p10-bootstrap-1",
+      "status": "ga"
+    },
+    {
+      "id": "P11",
+      "name": "Intake Intelligence Analytics",
+      "verifyScript": "scripts/verify-pilot-p11-analytics.ts",
+      "versionConstant": "v80-pilot-p11-analytics-1",
+      "status": "ga"
+    },
+    {
+      "id": "P12",
+      "name": "Organization Knowledge Learning",
+      "verifyScript": "scripts/verify-pilot-p12-knowledge.ts",
+      "versionConstant": "v80-pilot-p12-org-knowledge-1",
+      "status": "ga"
+    },
+    {
+      "id": "P13",
+      "name": "Organization Knowledge Governance",
+      "verifyScript": "scripts/verify-pilot-p13-governance.ts",
+      "versionConstant": "v80-pilot-p13-governance-1",
+      "status": "ga"
+    },
+    {
+      "id": "P14",
+      "name": "Knowledge Recommendation Engine",
+      "verifyScript": "scripts/verify-pilot-p14-recommend.ts",
+      "versionConstant": "v80-pilot-p14-recommend-1",
+      "status": "ga"
+    },
+    {
+      "id": "P15",
+      "name": "Continuous Improvement Engine",
+      "verifyScript": "scripts/verify-pilot-p15-improve.ts",
+      "versionConstant": "v80-pilot-p15-improve-1",
+      "status": "ga"
+    },
+    {
+      "id": "P16",
+      "name": "Organization Benchmark Platform",
+      "verifyScript": "scripts/verify-pilot-p16-benchmark.ts",
+      "versionConstant": "v80-pilot-p16-benchmark-1",
+      "status": "ga"
+    },
+    {
+      "id": "P17",
+      "name": "Cross-Project Intelligence",
+      "verifyScript": "scripts/verify-pilot-p17-similarity.ts",
+      "versionConstant": "v80-pilot-p17-cross-project-1",
+      "status": "ga"
+    },
+    {
+      "id": "P18",
+      "name": "Enterprise Decision Support",
+      "verifyScript": "scripts/verify-pilot-p18-decision.ts",
+      "versionConstant": "v80-pilot-p18-decision-1",
+      "status": "ga"
+    },
+    {
+      "id": "P19",
+      "name": "Integration & Production Hardening",
+      "verifyScript": "scripts/verify-pilot-p19-harden.ts",
+      "versionConstant": "v80-pilot-p19-harden-1",
+      "status": "ga"
+    }
+  ],
+  "versionConstants": {
+    "PILOT_GA_VERSION": "v80-pilot-ga-1.0.0",
+    "INTAKE_HANDOFF_PACKAGE_VERSION": "v80-pilot-p9-handoff-1",
+    "PROJECT_BOOTSTRAP_VERSION": "v80-pilot-p10-bootstrap-1",
+    "INTAKE_ANALYTICS_VERSION": "v80-pilot-p11-analytics-1",
+    "ORG_KNOWLEDGE_VERSION": "v80-pilot-p12-org-knowledge-1",
+    "ORG_KNOWLEDGE_GOVERNANCE_VERSION": "v80-pilot-p13-governance-1",
+    "KNOWLEDGE_RECOMMENDATION_VERSION": "v80-pilot-p14-recommend-1",
+    "CONTINUOUS_IMPROVEMENT_VERSION": "v80-pilot-p15-improve-1",
+    "ORG_BENCHMARK_VERSION": "v80-pilot-p16-benchmark-1",
+    "CROSS_PROJECT_VERSION": "v80-pilot-p17-cross-project-1",
+    "ENTERPRISE_DECISION_VERSION": "v80-pilot-p18-decision-1",
+    "PRODUCTION_HARDENING_VERSION": "v80-pilot-p19-harden-1",
+    "V80_PILOT_SIGNOFF_VERSION": "v80-pilot-signoff-1"
+  },
+  "apiIndex": [
+    {
+      "method": "POST",
+      "path": "/api/pilot/v80/intake/upload",
+      "purpose": "Upload tender document"
+    },
+    {
+      "method": "POST",
+      "path": "/api/pilot/v80/intake/extract",
+      "purpose": "Extract requirements"
+    },
+    {
+      "method": "GET|PATCH",
+      "path": "/api/pilot/v80/intake/[sessionId]",
+      "purpose": "Session read/patch"
+    },
+    {
+      "method": "POST",
+      "path": "/api/pilot/v80/intake/validate",
+      "purpose": "Validate requirements"
+    },
+    {
+      "method": "POST",
+      "path": "/api/pilot/v80/intake/approve",
+      "purpose": "Approve → production handoff"
+    },
+    {
+      "method": "POST",
+      "path": "/api/pilot/v80/intake/qa",
+      "purpose": "QA gate"
+    },
+    {
+      "method": "GET",
+      "path": "/api/pilot/v80/intake/ops",
+      "purpose": "Ops exception board"
+    },
+    {
+      "method": "POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/ops/resume",
+      "purpose": "Resume stuck ops"
+    },
+    {
+      "method": "POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/generation/retry",
+      "purpose": "Retry generation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/recover",
+      "purpose": "Recover session"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/clarify",
+      "purpose": "Clarification loop"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/documents",
+      "purpose": "Multi-doc registry"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/compliance",
+      "purpose": "Compliance validation"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/handoff-package",
+      "purpose": "Handoff package"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/bootstrap",
+      "purpose": "Bootstrap seed"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/recommendations",
+      "purpose": "Knowledge recommendations"
+    },
+    {
+      "method": "GET",
+      "path": "/api/pilot/v80/intake/[sessionId]/similarity",
+      "purpose": "Similar projects"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/freeze",
+      "purpose": "Freeze / delivery lock"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/[sessionId]/signoff",
+      "purpose": "Sign-off / release"
+    },
+    {
+      "method": "GET",
+      "path": "/api/pilot/v80/intake/[sessionId]/history",
+      "purpose": "Audit history"
+    },
+    {
+      "method": "GET",
+      "path": "/api/pilot/v80/intake/analytics",
+      "purpose": "Intake analytics"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/knowledge",
+      "purpose": "Org knowledge library"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/knowledge/governance",
+      "purpose": "Knowledge governance"
+    },
+    {
+      "method": "GET|POST",
+      "path": "/api/pilot/v80/intake/improvement",
+      "purpose": "Continuous improvement"
+    },
+    {
+      "method": "GET",
+      "path": "/api/pilot/v80/intake/benchmark",
+      "purpose": "Org benchmark"
+    },
+    {
+      "method": "GET",
+      "path": "/api/pilot/v80/intake/similarity",
+      "purpose": "Cross-project explorer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/pilot/v80/intake/decision",
+      "purpose": "Enterprise decision report"
+    },
+    {
+      "method": "GET",
+      "path": "/api/pilot/v80/intake/readiness",
+      "purpose": "Production hardening report"
+    },
+    {
+      "method": "GET",
+      "path": "/api/pilot/v80/intake/ga",
+      "purpose": "GA release manifest export"
+    }
+  ],
+  "uiSurfaces": [
+    {
+      "path": "/pilot/intake",
+      "label": "招标 Intake"
+    },
+    {
+      "path": "/pilot/ops",
+      "label": "运维异常"
+    },
+    {
+      "path": "/pilot/analytics",
+      "label": "智能分析"
+    },
+    {
+      "path": "/pilot/knowledge",
+      "label": "组织知识"
+    },
+    {
+      "path": "/pilot/improvement",
+      "label": "持续改进"
+    },
+    {
+      "path": "/pilot/benchmark",
+      "label": "组织对标"
+    },
+    {
+      "path": "/pilot/similarity",
+      "label": "跨项目"
+    },
+    {
+      "path": "/pilot/decision",
+      "label": "决策支持"
+    },
+    {
+      "path": "/pilot/readiness",
+      "label": "生产就绪"
+    }
+  ],
+  "architecture": [
+    {
+      "id": "intake-core",
+      "title": "Intake Core (P1–P3)",
+      "modules": [
+        "lib/pilot/v80/intake/upload.service.ts",
+        "lib/pilot/v80/intake/extract.service.ts",
+        "lib/pilot/v80/intake/review.service.ts",
+        "lib/pilot/v80/intake/approve.service.ts",
+        "lib/pilot/v80/intake/intake.store.ts"
+      ]
+    },
+    {
+      "id": "quality-ops",
+      "title": "Quality, Clarification, Ops (P4–P8)",
+      "modules": [
+        "lib/pilot/v80/intake/ops.service.ts",
+        "lib/pilot/v80/intake/confidence.service.ts",
+        "lib/pilot/v80/intake/clarification.service.ts",
+        "lib/pilot/v80/intake/multidoc.service.ts",
+        "lib/pilot/v80/intake/compliance.service.ts"
+      ]
+    },
+    {
+      "id": "handoff-bootstrap",
+      "title": "Handoff & Bootstrap (P9–P10)",
+      "modules": [
+        "lib/pilot/v80/intake/handoff-package.service.ts",
+        "lib/pilot/v80/intake/bootstrap.service.ts",
+        "lib/pilot/v80/intake/signoff.service.ts",
+        "lib/pilot/v80/intake/freeze-lock.service.ts"
+      ]
+    },
+    {
+      "id": "intelligence",
+      "title": "Intelligence & Knowledge (P11–P15)",
+      "modules": [
+        "lib/pilot/v80/intake/analytics.service.ts",
+        "lib/pilot/v80/intake/org-knowledge.service.ts",
+        "lib/pilot/v80/intake/org-knowledge-governance.service.ts",
+        "lib/pilot/v80/intake/knowledge-recommendation.service.ts",
+        "lib/pilot/v80/intake/continuous-improvement.service.ts"
+      ]
+    },
+    {
+      "id": "portfolio-decision",
+      "title": "Portfolio & Decision (P16–P18)",
+      "modules": [
+        "lib/pilot/v80/intake/org-benchmark.service.ts",
+        "lib/pilot/v80/intake/cross-project.service.ts",
+        "lib/pilot/v80/intake/enterprise-decision.service.ts"
+      ]
+    },
+    {
+      "id": "hardening-ga",
+      "title": "Hardening & GA Freeze (P19–P20)",
+      "modules": [
+        "lib/pilot/v80/intake/production-hardening.service.ts",
+        "lib/pilot/v80/intake/ga-release.service.ts",
+        "scripts/verify-pilot-regression.ts",
+        "docs/pilot/ga/"
+      ]
+    }
+  ],
+  "artifacts": {
+    "architectureDoc": "docs/pilot/ga/ARCHITECTURE.md",
+    "apiIndexDoc": "docs/pilot/ga/API-INDEX.md",
+    "releaseNotesDoc": "docs/pilot/ga/RELEASE-NOTES.md",
+    "changelogDoc": "docs/pilot/ga/CHANGELOG.md",
+    "verificationSummaryDoc": "docs/pilot/ga/VERIFICATION-SUMMARY.md",
+    "manifestJson": "docs/pilot/ga/ga-manifest.json"
+  },
+  "verification": {
+    "pilotsCertified": 19,
+    "verifyScriptsExpected": 19,
+    "verifyScriptsPresent": 19,
+    "apiRoutesExpected": 29,
+    "uiSurfacesExpected": 9,
+    "hardeningVersion": "v80-pilot-p19-harden-1",
+    "regressionSuite": "scripts/verify-pilot-regression.ts",
+    "certification": "certified",
+    "notes": [
+      "P1–P19 校验脚本与回归套件齐备；可用于 GA 冻结认证"
+    ]
+  }
+}

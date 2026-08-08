@@ -1,5 +1,10 @@
 import Link from "next/link";
+import { WorkflowEntryPanelActions } from "@/components/enterprise/WorkflowEntryPanelActions";
 import { buildProductionCommandCenterFoundation } from "@/lib/commercialization/command-center/index";
+import {
+  buildWorkflowProductionUi,
+  getWorkflowProductionUiForHost,
+} from "@/lib/enterprise/workflow-production-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +16,8 @@ export default function CommandCenterPage() {
   const center = buildProductionCommandCenterFoundation({ deploymentId: "command-center-page" });
   const { config, summary, manifest } = center;
   const readiness = summary.readinessSummary;
+  buildWorkflowProductionUi();
+  const workflowActions = getWorkflowProductionUiForHost("/dashboard/command-center");
 
   return (
     <main className="min-h-screen bg-black px-6 py-10 text-white">
@@ -22,6 +29,11 @@ export default function CommandCenterPage() {
             企业总控台 — governance / audit / release / ops 一站式只读入口与状态概览。
           </p>
         </header>
+
+        <WorkflowEntryPanelActions
+          host="/dashboard/command-center"
+          actions={workflowActions}
+        />
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
