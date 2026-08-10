@@ -22,6 +22,7 @@
     "lib/release/customer/pg2-freeze-manifest.ts",
     "lib/release/revenue/revenue-lifecycle-registry.ts",
     "lib/release/revenue/commercial-health.ts",
+    "lib/release/revenue/growth-evidence.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
     "scripts/verify-release-wp1.ts",
@@ -39,7 +40,8 @@
     "scripts/verify-pg-2-3-customer-activity-evidence.ts",
     "scripts/verify-pg-2-freeze.ts",
     "scripts/verify-pg-3-1-revenue-lifecycle.ts",
-    "scripts/verify-pg-3-2-commercial-health.ts"
+    "scripts/verify-pg-3-2-commercial-health.ts",
+    "scripts/verify-pg-3-3-growth-evidence.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

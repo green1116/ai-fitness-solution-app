@@ -291,6 +291,26 @@ export {
   type CommercialHealthFoundation,
 } from "./revenue/commercial-health";
 
+export {
+  PG_3_3_ID,
+  GROWTH_EVIDENCE_CAPABILITY,
+  GROWTH_EVIDENCE_VERSION,
+  PG3_COMMERCIAL_HEALTH_BASELINE,
+  GROWTH_SIGNAL_TYPES,
+  OPPORTUNITY_SIGNALS,
+  buildGrowthEvidence,
+  getGrowthEvidence,
+  growthEvidenceFingerprint,
+  clearGrowthEvidence,
+  ensureCommercialThenBuildGrowthEvidence,
+  type GrowthSignalType,
+  type OpportunitySignal,
+  type GrowthEvidenceSource,
+  type GrowthEvidenceReference,
+  type GrowthEvidenceRecord,
+  type GrowthEvidenceFoundation,
+} from "./revenue/growth-evidence";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";
