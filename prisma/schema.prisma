@@ -583,7 +583,7 @@ model Customer {
   updatedAt      DateTime @updatedAt
 
   organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  leads         Lead[]
+  leads         CrmLead[]
   opportunities Opportunity[]
   activities    CRMActivity[]
 
@@ -592,7 +592,7 @@ model Customer {
 }
 
 /// V60 P2 — CRM Lead
-model Lead {
+model CrmLead {
   id         String   @id @default(cuid())
   customerId String
   source     String   @default("unknown")

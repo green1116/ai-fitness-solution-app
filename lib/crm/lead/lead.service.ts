@@ -18,7 +18,7 @@ export async function createLead(input: {
     input.score ??
     scoreLead({ source: input.source, hasQuote: input.source === "quote_generation" });
 
-  const lead = await crmDb().lead.create({
+  const lead = await crmDb().crmLead.create({
     data: {
       customerId: input.customerId,
       source: input.source ?? "unknown",
@@ -37,13 +37,13 @@ export async function createLead(input: {
 }
 
 export async function scoreLeadById(leadId: string, input: Parameters<typeof scoreLead>[0]) {
-  const lead = await crmDb().lead.findFirst({ where: { id: leadId } });
+  const lead = await crmDb().crmLead.findFirst({ where: { id: leadId } });
   if (!lead) throw new Error("Lead not found");
 
   const newScore = scoreLead(input);
   const status = nextLeadStage(lead.status as "NEW" | "QUALIFIED" | "LOST", newScore);
 
-  const updated = await crmDb().lead.update({
+  const updated = await crmDb().crmLead.update({
     where: { id: leadId },
     data: { score: newScore, status },
   });
@@ -62,7 +62,7 @@ export async function promoteLeadToOpportunity(input: {
   value?: number;
   userId?: string;
 }) {
-  const lead = await crmDb().lead.findFirst({ where: { id: input.leadId } });
+  const lead = await crmDb().crmLead.findFirst({ where: { id: input.leadId } });
   if (!lead) throw new Error("Lead not found");
   if (!isQualifiedLead(lead.score) && lead.status !== "QUALIFIED") {
     throw new Error("Lead must be qualified before promotion to opportunity");
@@ -86,5 +86,5 @@ export async function promoteLeadToOpportunity(input: {
 }
 
 export async function listLeadsForCustomer(customerId: string) {
-  return crmDb().lead.findMany({ where: { customerId } });
+  return crmDb().crmLead.findMany({ where: { customerId } });
 }

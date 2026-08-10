@@ -15,7 +15,7 @@ export async function aggregateCRMMetrics(organizationId: string): Promise<CRMMe
   const allDeals: { amount: number; status: string }[] = [];
 
   for (const customerId of customerIds) {
-    const leads = await crmDb().lead.findMany({ where: { customerId } });
+    const leads = await crmDb().crmLead.findMany({ where: { customerId } });
     totalLeads += leads.length;
     qualifiedLeads += leads.filter((l) => l.status === "QUALIFIED").length;
 

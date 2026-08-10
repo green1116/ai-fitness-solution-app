@@ -84,7 +84,7 @@ type CrmPrismaDelegates = {
     }) => Promise<CustomerRow>;
     count: (args: { where: { organizationId: string } }) => Promise<number>;
   };
-  lead: {
+  crmLead: {
     create: (args: {
       data: { customerId: string; source?: string; score?: number; status?: string };
     }) => Promise<LeadRow>;
