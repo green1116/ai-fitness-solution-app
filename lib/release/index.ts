@@ -247,6 +247,28 @@ export {
   type Pg2FreezeManifest,
 } from "./customer/pg2-freeze-manifest";
 
+export {
+  PG_3_1_ID,
+  REVENUE_LIFECYCLE_REGISTRY_CAPABILITY,
+  REVENUE_LIFECYCLE_REGISTRY_VERSION,
+  PG2_CUSTOMER_ADOPTION_FREEZE_BASELINE,
+  COMMERCIAL_STAGES,
+  SUBSCRIPTION_STATES,
+  REVENUE_STATUSES,
+  EXPANSION_SIGNALS,
+  buildRevenueLifecycleRegistry,
+  getRevenueLifecycleRegistry,
+  revenueLifecycleRegistryFingerprint,
+  clearRevenueLifecycleRegistry,
+  ensurePg2FreezeThenBuildRevenueLifecycle,
+  type CommercialStage,
+  type SubscriptionState,
+  type RevenueStatus,
+  type ExpansionSignal,
+  type RevenueLifecycleRecord,
+  type RevenueLifecycleRegistry,
+} from "./revenue/revenue-lifecycle-registry";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";
