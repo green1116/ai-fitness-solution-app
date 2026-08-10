@@ -311,6 +311,26 @@ export {
   type GrowthEvidenceFoundation,
 } from "./revenue/growth-evidence";
 
+export {
+  PG_3_FREEZE_ID,
+  PG_3_FREEZE_CAPABILITY,
+  PG_3_FREEZE_VERSION,
+  PG_3_FREEZE_CODENAME,
+  PG_3_FREEZE_DATE,
+  PG3_GROWTH_EVIDENCE_BASELINE,
+  PG_3_COMPONENTS,
+  buildPg3FreezeManifest,
+  getPg3FreezeManifest,
+  pg3FreezeManifestFingerprint,
+  clearPg3FreezeManifest,
+  ensureGrowthThenBuildPg3Freeze,
+  type Pg3ComponentStatus,
+  type Pg3ComponentEntry,
+  type Pg3VersionReferences,
+  type Pg3VerificationSummary,
+  type Pg3FreezeManifest,
+} from "./revenue/pg3-freeze-manifest";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";
