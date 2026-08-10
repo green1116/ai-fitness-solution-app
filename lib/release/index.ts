@@ -208,6 +208,25 @@ export {
   type AdoptionHealthFoundation,
 } from "./customer/adoption-health";
 
+export {
+  PG_2_3_ID,
+  CUSTOMER_ACTIVITY_EVIDENCE_CAPABILITY,
+  CUSTOMER_ACTIVITY_EVIDENCE_VERSION,
+  PG2_2_ADOPTION_HEALTH_BASELINE,
+  CUSTOMER_ACTIVITY_TYPES,
+  buildCustomerActivityEvidence,
+  getCustomerActivityEvidence,
+  customerActivityEvidenceFingerprint,
+  clearCustomerActivityEvidence,
+  ensureAdoptionThenBuildActivityEvidence,
+  type CustomerActivityType,
+  type CustomerActivitySource,
+  type CustomerActivityEvidenceReference,
+  type CustomerActivityLifecycleRelation,
+  type CustomerActivityEvidenceRecord,
+  type CustomerActivityEvidenceFoundation,
+} from "./customer/customer-activity-evidence";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";
