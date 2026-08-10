@@ -144,6 +144,70 @@ export {
   type ProductionAuditFoundation,
 } from "./health/production-audit-foundation";
 
+export {
+  PG_1_FREEZE_ID,
+  PG_1_FREEZE_CAPABILITY,
+  PG_1_FREEZE_VERSION,
+  PG_1_FREEZE_CODENAME,
+  PG_1_FREEZE_DATE,
+  PG1_PRODUCTION_AUDIT_BASELINE,
+  PG_1_COMPONENTS,
+  buildPg1FreezeManifest,
+  getPg1FreezeManifest,
+  pg1FreezeManifestFingerprint,
+  clearPg1FreezeManifest,
+  ensureAuditThenBuildPg1Freeze,
+  type Pg1ComponentStatus,
+  type Pg1ComponentEntry,
+  type Pg1VersionReferences,
+  type Pg1VerificationSummary,
+  type Pg1FreezeManifest,
+} from "./health/pg1-freeze-manifest";
+
+export {
+  PG_2_1_ID,
+  CUSTOMER_LIFECYCLE_REGISTRY_CAPABILITY,
+  CUSTOMER_LIFECYCLE_REGISTRY_VERSION,
+  PG1_FREEZE_BASELINE,
+  CUSTOMER_LIFECYCLE_STAGES,
+  ONBOARDING_STATUSES,
+  ACTIVATION_STATUSES,
+  ADOPTION_STATUSES,
+  buildCustomerLifecycleRegistry,
+  getCustomerLifecycleRegistry,
+  customerLifecycleRegistryFingerprint,
+  clearCustomerLifecycleRegistry,
+  ensurePg1FreezeThenBuildCustomerLifecycle,
+  type CustomerLifecycleStage,
+  type OnboardingStatus,
+  type ActivationStatus,
+  type AdoptionStatus,
+  type CustomerLifecycleRecord,
+  type CustomerLifecycleRegistry,
+} from "./customer/customer-lifecycle-registry";
+
+export {
+  PG_2_2_ID,
+  ADOPTION_HEALTH_CAPABILITY,
+  ADOPTION_HEALTH_VERSION,
+  PG2_1_CUSTOMER_LIFECYCLE_BASELINE,
+  ADOPTION_LEVELS,
+  USAGE_SIGNALS,
+  ADOPTION_HEALTH_STATUSES,
+  ADOPTION_RISK_SIGNALS,
+  buildAdoptionHealth,
+  getAdoptionHealth,
+  adoptionHealthFingerprint,
+  clearAdoptionHealth,
+  ensureLifecycleThenBuildAdoptionHealth,
+  type AdoptionLevel,
+  type UsageSignal,
+  type AdoptionHealthStatus,
+  type AdoptionRiskSignal,
+  type AdoptionHealthRecord,
+  type AdoptionHealthFoundation,
+} from "./customer/adoption-health";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";
