@@ -106,6 +106,25 @@ export {
   type RuntimeHealthFoundation,
 } from "./health/runtime-health-foundation";
 
+export {
+  PG_1_3_ID,
+  DEPLOYMENT_EVIDENCE_CAPABILITY,
+  DEPLOYMENT_EVIDENCE_VERSION,
+  PG1_RUNTIME_HEALTH_BASELINE,
+  DEPLOYMENT_EVIDENCE_DEPLOY_REF,
+  buildDeploymentEvidenceFoundation,
+  getDeploymentEvidenceFoundation,
+  deploymentEvidenceFoundationFingerprint,
+  clearDeploymentEvidenceFoundation,
+  ensureRuntimeThenBuildDeploymentEvidence,
+  type DeploymentEvidenceEnvironment,
+  type DeploymentEvidenceVerificationStatus,
+  type DeploymentEvidenceReleaseReference,
+  type DeploymentEvidenceCommitReference,
+  type DeploymentEvidenceDeploymentReference,
+  type DeploymentEvidenceFoundation,
+} from "./health/deployment-evidence-foundation";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";
