@@ -227,6 +227,26 @@ export {
   type CustomerActivityEvidenceFoundation,
 } from "./customer/customer-activity-evidence";
 
+export {
+  PG_2_FREEZE_ID,
+  PG_2_FREEZE_CAPABILITY,
+  PG_2_FREEZE_VERSION,
+  PG_2_FREEZE_CODENAME,
+  PG_2_FREEZE_DATE,
+  PG2_CUSTOMER_ACTIVITY_EVIDENCE_BASELINE,
+  PG_2_COMPONENTS,
+  buildPg2FreezeManifest,
+  getPg2FreezeManifest,
+  pg2FreezeManifestFingerprint,
+  clearPg2FreezeManifest,
+  ensureActivityThenBuildPg2Freeze,
+  type Pg2ComponentStatus,
+  type Pg2ComponentEntry,
+  type Pg2VersionReferences,
+  type Pg2VerificationSummary,
+  type Pg2FreezeManifest,
+} from "./customer/pg2-freeze-manifest";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";

@@ -19,6 +19,7 @@
     "lib/release/customer/customer-lifecycle-registry.ts",
     "lib/release/customer/adoption-health.ts",
     "lib/release/customer/customer-activity-evidence.ts",
+    "lib/release/customer/pg2-freeze-manifest.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
     "scripts/verify-release-wp1.ts",
@@ -33,7 +34,8 @@
     "scripts/verify-pg-1-freeze.ts",
     "scripts/verify-pg-2-1-customer-lifecycle.ts",
     "scripts/verify-pg-2-2-adoption-health.ts",
-    "scripts/verify-pg-2-3-customer-activity-evidence.ts"
+    "scripts/verify-pg-2-3-customer-activity-evidence.ts",
+    "scripts/verify-pg-2-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
