@@ -24,6 +24,13 @@
     "lib/release/revenue/commercial-health.ts",
     "lib/release/revenue/growth-evidence.ts",
     "lib/release/revenue/pg3-freeze-manifest.ts",
+    "lib/release/application/change.ts",
+    "lib/release/application/candidate.ts",
+    "lib/release/application/verification.ts",
+    "lib/release/application/deployment.ts",
+    "lib/release/application/production-release.ts",
+    "lib/release/application/feedback.ts",
+    "lib/release/application/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
     "scripts/verify-release-wp1.ts",
@@ -43,7 +50,13 @@
     "scripts/verify-pg-3-1-revenue-lifecycle.ts",
     "scripts/verify-pg-3-2-commercial-health.ts",
     "scripts/verify-pg-3-3-growth-evidence.ts",
-    "scripts/verify-pg-3-freeze.ts"
+    "scripts/verify-pg-3-freeze.ts",
+    "scripts/verify-arl-1-release-change.ts",
+    "scripts/verify-arl-2-release-candidate.ts",
+    "scripts/verify-arl-3-release-verification.ts",
+    "scripts/verify-arl-4-deployment-evidence.ts",
+    "scripts/verify-arl-5-production-release.ts",
+    "scripts/verify-arl-6-feedback-loop.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

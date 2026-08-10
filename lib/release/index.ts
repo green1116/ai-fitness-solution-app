@@ -331,6 +331,115 @@ export {
   type Pg3FreezeManifest,
 } from "./revenue/pg3-freeze-manifest";
 
+export {
+  ARL_1_ID,
+  APPLICATION_RELEASE_CHANGE_CAPABILITY,
+  APPLICATION_RELEASE_CHANGE_VERSION,
+  PG3_COMMERCIAL_GROWTH_FREEZE_BASELINE,
+  APPLICATION_RELEASE_CHANGE_TYPES,
+  APPLICATION_RELEASE_CHANGE_STATUSES,
+  buildApplicationReleaseChange,
+  getApplicationReleaseChange,
+  applicationReleaseChangeFingerprint,
+  clearApplicationReleaseChange,
+  ensurePg3FreezeThenBuildApplicationReleaseChange,
+  type ApplicationReleaseChangeType,
+  type ApplicationReleaseChangeStatus,
+  type ApplicationReleaseChangeReference,
+  type ApplicationReleaseChange,
+  type ApplicationReleaseChangeFoundation,
+} from "./application/change";
+
+export {
+  ARL_2_ID,
+  APPLICATION_RELEASE_CANDIDATE_CAPABILITY,
+  APPLICATION_RELEASE_CANDIDATE_VERSION,
+  ARL1_RELEASE_CHANGE_BASELINE,
+  APPLICATION_RELEASE_CANDIDATE_GATES,
+  APPLICATION_RELEASE_CANDIDATE_STATUSES,
+  buildApplicationReleaseCandidate,
+  getApplicationReleaseCandidate,
+  applicationReleaseCandidateFingerprint,
+  clearApplicationReleaseCandidate,
+  ensureChangeThenBuildApplicationReleaseCandidate,
+  type ApplicationReleaseCandidateGate,
+  type ApplicationReleaseCandidateStatus,
+  type ApplicationReleaseCandidateGateResult,
+  type ApplicationReleaseCandidate,
+} from "./application/candidate";
+
+export {
+  ARL_3_ID,
+  APPLICATION_RELEASE_VERIFICATION_CAPABILITY,
+  APPLICATION_RELEASE_VERIFICATION_VERSION,
+  ARL2_RELEASE_CANDIDATE_BASELINE,
+  APPLICATION_RELEASE_VERIFICATION_CHECKS,
+  APPLICATION_RELEASE_VERIFICATION_STATUSES,
+  buildApplicationReleaseVerification,
+  getApplicationReleaseVerification,
+  applicationReleaseVerificationFingerprint,
+  clearApplicationReleaseVerification,
+  ensureCandidateThenBuildApplicationReleaseVerification,
+  type ApplicationReleaseVerificationCheck,
+  type ApplicationReleaseVerificationStatus,
+  type ApplicationReleaseVerificationCheckResult,
+  type ApplicationReleaseVerification,
+} from "./application/verification";
+
+export {
+  ARL_4_ID,
+  APPLICATION_DEPLOYMENT_EVIDENCE_CAPABILITY,
+  APPLICATION_DEPLOYMENT_EVIDENCE_VERSION,
+  ARL3_RELEASE_VERIFICATION_BASELINE,
+  APPLICATION_DEPLOYMENT_EVIDENCE_DEPLOY_REF,
+  buildApplicationDeploymentEvidence,
+  getApplicationDeploymentEvidence,
+  applicationDeploymentEvidenceFingerprint,
+  clearApplicationDeploymentEvidence,
+  ensureVerificationThenBuildApplicationDeploymentEvidence,
+  type ApplicationDeploymentEnvironment,
+  type ApplicationDeploymentEvidence,
+} from "./application/deployment";
+
+export {
+  ARL_5_ID,
+  APPLICATION_PRODUCTION_RELEASE_CAPABILITY,
+  APPLICATION_PRODUCTION_RELEASE_VERSION,
+  ARL4_DEPLOYMENT_EVIDENCE_BASELINE,
+  APPLICATION_PRODUCTION_RELEASE_GATES,
+  APPLICATION_PRODUCTION_RELEASE_STATUSES,
+  buildApplicationProductionRelease,
+  getApplicationProductionRelease,
+  applicationProductionReleaseFingerprint,
+  clearApplicationProductionRelease,
+  ensureEvidenceThenBuildApplicationProductionRelease,
+  type ApplicationProductionReleaseGate,
+  type ApplicationProductionReleaseStatus,
+  type ApplicationProductionReleaseGateResult,
+  type ApplicationProductionRelease,
+} from "./application/production-release";
+
+export {
+  ARL_6_ID,
+  APPLICATION_RELEASE_FEEDBACK_CAPABILITY,
+  APPLICATION_RELEASE_FEEDBACK_VERSION,
+  ARL5_PRODUCTION_RELEASE_BASELINE,
+  APPLICATION_RELEASE_FEEDBACK_CHANNELS,
+  APPLICATION_RELEASE_FEEDBACK_ACTIONS,
+  APPLICATION_RELEASE_FEEDBACK_STATUSES,
+  buildApplicationReleaseFeedback,
+  getApplicationReleaseFeedback,
+  applicationReleaseFeedbackFingerprint,
+  clearApplicationReleaseFeedback,
+  ensureProductionThenBuildApplicationReleaseFeedback,
+  type ApplicationReleaseFeedbackChannel,
+  type ApplicationReleaseFeedbackAction,
+  type ApplicationReleaseFeedbackStatus,
+  type ApplicationReleaseFeedbackChannelRef,
+  type ApplicationReleaseFeedbackRecord,
+  type ApplicationReleaseFeedback,
+} from "./application/feedback";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";
