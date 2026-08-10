@@ -69,6 +69,25 @@ export {
   type GaRelease,
 } from "./ga-release";
 
+export {
+  PG_1_1_ID,
+  RELEASE_HEALTH_REGISTRY_CAPABILITY,
+  RELEASE_HEALTH_REGISTRY_VERSION,
+  POST_GA_PRODUCTION_BASELINE,
+  RELEASE_HEALTH_COMMIT_REF,
+  RELEASE_HEALTH_GA_TAG,
+  RELEASE_HEALTH_FREEZE_TAG,
+  buildReleaseHealthRegistry,
+  getReleaseHealthRegistry,
+  releaseHealthRegistryFingerprint,
+  clearReleaseHealthRegistry,
+  ensureGaThenBuildReleaseHealth,
+  type ReleaseHealthVerificationStatus,
+  type ReleaseHealthDeploymentMetadata,
+  type ReleaseHealthRollbackReference,
+  type ReleaseHealthRecord,
+} from "./health/release-health-registry";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";

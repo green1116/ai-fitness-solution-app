@@ -11,13 +11,15 @@
     "lib/release/release-candidate.ts",
     "lib/release/production-validation.ts",
     "lib/release/ga-release.ts",
+    "lib/release/health/release-health-registry.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
     "scripts/verify-release-wp1.ts",
     "scripts/verify-release-wp2.ts",
     "scripts/verify-release-wp3.ts",
     "scripts/verify-release-ga.ts",
-    "scripts/verify-release-final.ts"
+    "scripts/verify-release-final.ts",
+    "scripts/verify-pg-1-1-release-health.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
