@@ -88,6 +88,24 @@ export {
   type ReleaseHealthRecord,
 } from "./health/release-health-registry";
 
+export {
+  PG_1_2_ID,
+  RUNTIME_HEALTH_CAPABILITY,
+  RUNTIME_HEALTH_VERSION,
+  PG1_RELEASE_HEALTH_BASELINE,
+  buildRuntimeHealthFoundation,
+  getRuntimeHealthFoundation,
+  runtimeHealthFoundationFingerprint,
+  clearRuntimeHealthFoundation,
+  ensureReleaseHealthThenBuildRuntime,
+  type ApplicationHealthStatus,
+  type ReleaseHealthStatus,
+  type ReadinessSignal,
+  type DependencyHealthStatus,
+  type RuntimeDependencyStatus,
+  type RuntimeHealthFoundation,
+} from "./health/runtime-health-foundation";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";
