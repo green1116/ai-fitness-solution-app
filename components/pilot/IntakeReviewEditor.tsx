@@ -7,8 +7,8 @@ import type {
   RequirementItemListKey,
   RequirementReviewStatus,
   TenderRequirements,
-} from "@/lib/pilot/v80";
-import { itemNeedsEvidenceConfirmation } from "@/lib/pilot/v80";
+} from "@/lib/pilot/v80/intake/requirements.schema";
+import { itemNeedsEvidenceConfirmation } from "@/lib/pilot/v80/intake/confidence.service";
 import { IntakeBootstrapKickoffPanel } from "@/components/pilot/IntakeBootstrapKickoffPanel";
 import { IntakeClarificationPanel } from "@/components/pilot/IntakeClarificationPanel";
 import { IntakeCompliancePanel } from "@/components/pilot/IntakeCompliancePanel";

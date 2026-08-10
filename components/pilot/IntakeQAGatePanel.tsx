@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { TenderRequirements } from "@/lib/pilot/v80";
+import type { TenderRequirements } from "@/lib/pilot/v80/intake/requirements.schema";
 
 type QaCheck = { id: string; passed: boolean; message: string };
 

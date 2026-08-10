@@ -606,7 +606,7 @@ export function buildEnterpriseDecisionReport(input: {
     ...partial,
     generatedAt,
     contentHash,
-  };
+  } as EnterpriseDecisionReport;
 }
 
 export function exportEnterpriseDecisionJson(report: EnterpriseDecisionReport): {

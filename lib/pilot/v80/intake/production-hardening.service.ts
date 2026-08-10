@@ -678,7 +678,7 @@ export function runProductionHardeningChecks(input: {
     ...reportBase,
     generatedAt,
     contentHash,
-  };
+  } as ProductionHardeningReport;
 }
 
 export function exportProductionHardeningJson(report: ProductionHardeningReport): {

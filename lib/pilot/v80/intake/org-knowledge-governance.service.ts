@@ -735,6 +735,9 @@ export function applyGovernanceToLookup(
       activeCount: trimmed.filter((r) => !r.trust.fallback).length,
       deprecatedVisible,
     },
+  } as OrgKnowledgeLookupResult & {
+    recommendations: GovernedOrgKnowledgeRecommendation[];
+    governance: KnowledgeGovernanceLookupMeta;
   };
 }
 

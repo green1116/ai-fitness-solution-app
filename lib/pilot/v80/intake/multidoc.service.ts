@@ -478,7 +478,7 @@ export function consolidateIntakeSession(input: {
           parseResult: session.parseResult,
           requirements: session.extractedRequirements ?? session.requirements,
           uploadedAt: session.createdAt,
-          status: (session.requirements ? "extracted" : "parsed") as const,
+          status: session.requirements ? ("extracted" as const) : ("parsed" as const),
         },
       ];
 

@@ -6,8 +6,8 @@ import type {
   ComplianceValidationReport,
   IntakeComplianceState,
   KnowledgeReference,
-  TenderRequirements,
-} from "@/lib/pilot/v80";
+} from "@/lib/pilot/v80/intake/compliance.schema";
+import type { TenderRequirements } from "@/lib/pilot/v80/intake/requirements.schema";
 
 type Props = {
   sessionId: string;

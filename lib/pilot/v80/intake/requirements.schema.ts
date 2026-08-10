@@ -79,6 +79,21 @@ export type TenderRequirements = {
   sourceRefs: PageRef[];
 };
 
+/** Client-safe list keys for item-level review editors */
+export type RequirementItemListKey = keyof Pick<
+  TenderRequirements,
+  | "functionalRequirements"
+  | "technicalRequirements"
+  | "equipment"
+  | "space"
+  | "quantity"
+  | "constraints"
+  | "compliance"
+  | "standards"
+  | "evaluation"
+  | "optionalItems"
+>;
+
 export const EMPTY_TENDER_REQUIREMENTS: TenderRequirements = {
   projectName: "",
   organization: "",

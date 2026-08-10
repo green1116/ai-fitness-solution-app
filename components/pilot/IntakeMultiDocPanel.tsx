@@ -5,8 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import type {
   IntakeDocumentType,
   MultiDocConsolidationState,
-  TenderRequirements,
-} from "@/lib/pilot/v80";
+} from "@/lib/pilot/v80/intake/multidoc.schema";
+import type { TenderRequirements } from "@/lib/pilot/v80/intake/requirements.schema";
 
 type DocRow = {
   id: string;

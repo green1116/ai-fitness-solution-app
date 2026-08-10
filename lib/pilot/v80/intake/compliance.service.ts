@@ -24,6 +24,7 @@ import {
   type TenderIntakeSession,
 } from "./intake.store";
 import type { RequirementItem, TenderRequirements } from "./requirements.schema";
+import { EMPTY_TENDER_REQUIREMENTS } from "./requirements.schema";
 import { parseTenderRequirements } from "./requirements.validation";
 
 const AMBIGUOUS_QTY = /大约|若干|待定|左右|TBD|未知/i;
@@ -465,7 +466,7 @@ export function acknowledgeComplianceFinding(input: {
   updateIntakeSession(input.sessionId, {
     compliance: {
       report: session.compliance?.report ?? evaluateComplianceRules({
-        requirements: session.requirements ?? {},
+        requirements: session.requirements ?? EMPTY_TENDER_REQUIREMENTS,
       }),
       acknowledgedFindingIds,
       updatedAt: new Date().toISOString(),

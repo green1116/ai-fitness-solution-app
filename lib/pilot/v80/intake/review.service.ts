@@ -13,6 +13,7 @@ import {
 import { consolidateIntakeSession } from "./multidoc.service";
 import type {
   RequirementItem,
+  RequirementItemListKey,
   RequirementReviewStatus,
   TenderRequirements,
 } from "./requirements.schema";
@@ -23,19 +24,7 @@ import {
   type RequirementValidationResult,
 } from "./requirements.validation";
 
-export type RequirementItemListKey = keyof Pick<
-  TenderRequirements,
-  | "functionalRequirements"
-  | "technicalRequirements"
-  | "equipment"
-  | "space"
-  | "quantity"
-  | "constraints"
-  | "compliance"
-  | "standards"
-  | "evaluation"
-  | "optionalItems"
->;
+export type { RequirementItemListKey };
 
 export type PatchIntakeResult = {
   session: TenderIntakeSession;

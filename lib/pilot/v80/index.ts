@@ -5,6 +5,7 @@
 export type {
   TenderRequirements,
   RequirementItem,
+  RequirementItemListKey,
   RequirementReviewStatus,
   PageRef,
   TenderBudgetHint,
@@ -51,7 +52,6 @@ export {
   reExtractIntakeRequirements,
   setRequirementEvidenceOverride,
   type PatchIntakeResult,
-  type RequirementItemListKey,
 } from "./intake/review.service";
 
 export {

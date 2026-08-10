@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { ClarificationState, TenderRequirements } from "@/lib/pilot/v80";
+import type { ClarificationState } from "@/lib/pilot/v80/intake/clarification.schema";
+import type { TenderRequirements } from "@/lib/pilot/v80/intake/requirements.schema";
 
 type Props = {
   sessionId: string;

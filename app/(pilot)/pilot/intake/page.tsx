@@ -11,7 +11,7 @@ import { IntakeReviewEditor } from "@/components/pilot/IntakeReviewEditor";
 import { IntakeSignoffPanel } from "@/components/pilot/IntakeSignoffPanel";
 import { PilotFlowStatus } from "@/components/pilot/PilotFlowStatus";
 import { PilotWorkflowNav } from "@/components/pilot/PilotWorkflowNav";
-import type { TenderRequirements } from "@/lib/pilot/v80";
+import type { TenderRequirements } from "@/lib/pilot/v80/intake/requirements.schema";
 
 type Step = "upload" | "review" | "generating" | "artifacts";
 
