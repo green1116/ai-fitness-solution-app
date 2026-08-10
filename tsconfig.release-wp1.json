@@ -14,6 +14,7 @@
     "lib/release/health/release-health-registry.ts",
     "lib/release/health/runtime-health-foundation.ts",
     "lib/release/health/deployment-evidence-foundation.ts",
+    "lib/release/health/production-audit-foundation.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
     "scripts/verify-release-wp1.ts",
@@ -23,7 +24,8 @@
     "scripts/verify-release-final.ts",
     "scripts/verify-pg-1-1-release-health.ts",
     "scripts/verify-pg-1-2-runtime-health.ts",
-    "scripts/verify-pg-1-3-deployment-evidence.ts"
+    "scripts/verify-pg-1-3-deployment-evidence.ts",
+    "scripts/verify-pg-1-4-production-audit.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

@@ -125,6 +125,25 @@ export {
   type DeploymentEvidenceFoundation,
 } from "./health/deployment-evidence-foundation";
 
+export {
+  PG_1_4_ID,
+  PRODUCTION_AUDIT_CAPABILITY,
+  PRODUCTION_AUDIT_VERSION,
+  PG1_DEPLOYMENT_EVIDENCE_BASELINE,
+  PRODUCTION_AUDIT_EVENT_TYPES,
+  buildProductionAuditFoundation,
+  getProductionAuditFoundation,
+  productionAuditFoundationFingerprint,
+  clearProductionAuditFoundation,
+  ensureEvidenceThenBuildProductionAudit,
+  type ProductionAuditEventType,
+  type ProductionAuditActorSource,
+  type ProductionAuditReleaseReference,
+  type ProductionAuditVerificationReference,
+  type ProductionAuditEvent,
+  type ProductionAuditFoundation,
+} from "./health/production-audit-foundation";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";
