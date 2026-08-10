@@ -269,6 +269,28 @@ export {
   type RevenueLifecycleRegistry,
 } from "./revenue/revenue-lifecycle-registry";
 
+export {
+  PG_3_2_ID,
+  COMMERCIAL_HEALTH_CAPABILITY,
+  COMMERCIAL_HEALTH_VERSION,
+  PG3_REVENUE_LIFECYCLE_BASELINE,
+  COMMERCIAL_HEALTH_STATUSES,
+  GROWTH_SIGNALS,
+  RETENTION_SIGNALS,
+  EXPANSION_READINESS,
+  buildCommercialHealth,
+  getCommercialHealth,
+  commercialHealthFingerprint,
+  clearCommercialHealth,
+  ensureRevenueThenBuildCommercialHealth,
+  type CommercialHealthStatus,
+  type GrowthSignal,
+  type RetentionSignal,
+  type ExpansionReadiness,
+  type CommercialHealthRecord,
+  type CommercialHealthFoundation,
+} from "./revenue/commercial-health";
+
 import { buildProductionFreezeManifest } from "./freeze/freeze-manifest";
 import { buildReleaseBaselineSummary } from "./baseline/release-baseline-summary";
 import { buildIntegrityVerification } from "./integrity/integrity-verification";
