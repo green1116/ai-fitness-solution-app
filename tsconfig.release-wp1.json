@@ -56,6 +56,12 @@
     "lib/runtime/freeze/runtime-operations-manifest.ts",
     "lib/runtime/freeze/runtime-operations-freeze.ts",
     "lib/runtime/freeze/index.ts",
+    "lib/commercial/operations/commercial-operations.ts",
+    "lib/commercial/operations/commercial-health.ts",
+    "lib/commercial/operations/commercial-action-signal.ts",
+    "lib/commercial/operations/commercial-review.ts",
+    "lib/commercial/operations/esco-freeze.ts",
+    "lib/commercial/operations/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
     "scripts/verify-release-wp1.ts",
@@ -89,7 +95,12 @@
     "scripts/verify-rso-5-tenant-operations.ts",
     "scripts/verify-rso-6-service-reliability.ts",
     "scripts/verify-rso-7-operations-feedback.ts",
-    "scripts/verify-rso-8-runtime-operations-freeze.ts"
+    "scripts/verify-rso-8-runtime-operations-freeze.ts",
+    "scripts/verify-esco-1-commercial-operations.ts",
+    "scripts/verify-esco-2-commercial-health.ts",
+    "scripts/verify-esco-3-commercial-action-signal.ts",
+    "scripts/verify-esco-4-commercial-review.ts",
+    "scripts/verify-esco-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
