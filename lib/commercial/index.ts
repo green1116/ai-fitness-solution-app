@@ -7,3 +7,4 @@ export * from "./execution";
 export * from "./lifecycle";
 export * from "./customer-success";
 export * from "./retention";
+export * from "./expansion";

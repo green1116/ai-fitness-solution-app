@@ -84,6 +84,13 @@
     "lib/commercial/retention/retention-outcome.ts",
     "lib/commercial/retention/retention-freeze.ts",
     "lib/commercial/retention/index.ts",
+    "lib/commercial/expansion/state.ts",
+    "lib/commercial/expansion/opportunity.ts",
+    "lib/commercial/expansion/recommendation.ts",
+    "lib/commercial/expansion/outcome.ts",
+    "lib/commercial/expansion/feedback.ts",
+    "lib/commercial/expansion/freeze.ts",
+    "lib/commercial/expansion/index.ts",
     "lib/commercial/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
@@ -139,7 +146,13 @@
     "scripts/verify-escr-1-retention-state.ts",
     "scripts/verify-escr-2-retention-intervention.ts",
     "scripts/verify-escr-3-retention-outcome.ts",
-    "scripts/verify-escr-4-retention-freeze.ts"
+    "scripts/verify-escr-4-retention-freeze.ts",
+    "scripts/verify-esxp-1-expansion-state.ts",
+    "scripts/verify-esxp-2-expansion-opportunity.ts",
+    "scripts/verify-esxp-3-expansion-recommendation.ts",
+    "scripts/verify-esxp-4-expansion-outcome.ts",
+    "scripts/verify-esxp-5-expansion-feedback.ts",
+    "scripts/verify-esxp-6-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
