@@ -73,6 +73,13 @@
     "lib/commercial/lifecycle/lifecycle-review.ts",
     "lib/commercial/lifecycle/escl-freeze.ts",
     "lib/commercial/lifecycle/index.ts",
+    "lib/commercial/customer-success/customer-success-state.ts",
+    "lib/commercial/customer-success/customer-success-intervention.ts",
+    "lib/commercial/customer-success/customer-success-outcome.ts",
+    "lib/commercial/customer-success/customer-success-review.ts",
+    "lib/commercial/customer-success/escs-freeze.ts",
+    "lib/commercial/customer-success/index.ts",
+    "lib/commercial/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
     "scripts/verify-release-wp1.ts",
@@ -119,7 +126,11 @@
     "scripts/verify-escl-1-customer-lifecycle-state.ts",
     "scripts/verify-escl-2-lifecycle-transition.ts",
     "scripts/verify-escl-3-lifecycle-action.ts",
-    "scripts/verify-escl-v1-freeze.ts"
+    "scripts/verify-escl-v1-freeze.ts",
+    "scripts/verify-escs-1-customer-success-state.ts",
+    "scripts/verify-escs-2-customer-success-intervention.ts",
+    "scripts/verify-escs-3-customer-success-outcome.ts",
+    "scripts/verify-escs-4-success-review-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
