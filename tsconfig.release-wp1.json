@@ -112,6 +112,12 @@
     "lib/commercial/planning/customer-plan-portfolio.ts",
     "lib/commercial/planning/escp-freeze-manifest.ts",
     "lib/commercial/planning/index.ts",
+    "lib/commercial/production-ops/operating-queue.ts",
+    "lib/commercial/production-ops/operating-decision.ts",
+    "lib/commercial/production-ops/operating-outcome.ts",
+    "lib/commercial/production-ops/operating-feedback.ts",
+    "lib/commercial/production-ops/espo-freeze-manifest.ts",
+    "lib/commercial/production-ops/index.ts",
     "lib/commercial/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
@@ -190,7 +196,12 @@
     "scripts/verify-escp-1-customer-plan-state.ts",
     "scripts/verify-escp-2-customer-plan-action.ts",
     "scripts/verify-escp-3-customer-plan-portfolio.ts",
-    "scripts/verify-escp-v1-freeze.ts"
+    "scripts/verify-escp-v1-freeze.ts",
+    "scripts/verify-espo-1-operating-queue.ts",
+    "scripts/verify-espo-2-operating-decision.ts",
+    "scripts/verify-espo-3-operating-outcome.ts",
+    "scripts/verify-espo-4-operating-feedback.ts",
+    "scripts/verify-espo-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
