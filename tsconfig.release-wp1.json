@@ -79,6 +79,11 @@
     "lib/commercial/customer-success/customer-success-review.ts",
     "lib/commercial/customer-success/escs-freeze.ts",
     "lib/commercial/customer-success/index.ts",
+    "lib/commercial/retention/retention-state.ts",
+    "lib/commercial/retention/retention-intervention.ts",
+    "lib/commercial/retention/retention-outcome.ts",
+    "lib/commercial/retention/retention-freeze.ts",
+    "lib/commercial/retention/index.ts",
     "lib/commercial/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
@@ -130,7 +135,11 @@
     "scripts/verify-escs-1-customer-success-state.ts",
     "scripts/verify-escs-2-customer-success-intervention.ts",
     "scripts/verify-escs-3-customer-success-outcome.ts",
-    "scripts/verify-escs-4-success-review-freeze.ts"
+    "scripts/verify-escs-4-success-review-freeze.ts",
+    "scripts/verify-escr-1-retention-state.ts",
+    "scripts/verify-escr-2-retention-intervention.ts",
+    "scripts/verify-escr-3-retention-outcome.ts",
+    "scripts/verify-escr-4-retention-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
