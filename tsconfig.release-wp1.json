@@ -96,6 +96,11 @@
     "lib/commercial/renewal/renewal-action-signal.ts",
     "lib/commercial/renewal/renewal-freeze-manifest.ts",
     "lib/commercial/renewal/index.ts",
+    "lib/commercial/advocacy/advocacy-state.ts",
+    "lib/commercial/advocacy/advocacy-readiness.ts",
+    "lib/commercial/advocacy/advocacy-action-signal.ts",
+    "lib/commercial/advocacy/advocacy-freeze-manifest.ts",
+    "lib/commercial/advocacy/index.ts",
     "lib/commercial/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
@@ -161,7 +166,11 @@
     "scripts/verify-esrn-1-renewal-state.ts",
     "scripts/verify-esrn-2-renewal-readiness.ts",
     "scripts/verify-esrn-3-renewal-action-signal.ts",
-    "scripts/verify-esrn-v1-freeze.ts"
+    "scripts/verify-esrn-v1-freeze.ts",
+    "scripts/verify-esca-1-advocacy-state.ts",
+    "scripts/verify-esca-2-advocacy-readiness.ts",
+    "scripts/verify-esca-3-advocacy-action-signal.ts",
+    "scripts/verify-esca-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
