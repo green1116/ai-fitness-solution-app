@@ -91,6 +91,11 @@
     "lib/commercial/expansion/feedback.ts",
     "lib/commercial/expansion/freeze.ts",
     "lib/commercial/expansion/index.ts",
+    "lib/commercial/renewal/renewal-state.ts",
+    "lib/commercial/renewal/renewal-readiness.ts",
+    "lib/commercial/renewal/renewal-action-signal.ts",
+    "lib/commercial/renewal/renewal-freeze-manifest.ts",
+    "lib/commercial/renewal/index.ts",
     "lib/commercial/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
@@ -152,7 +157,11 @@
     "scripts/verify-esxp-3-expansion-recommendation.ts",
     "scripts/verify-esxp-4-expansion-outcome.ts",
     "scripts/verify-esxp-5-expansion-feedback.ts",
-    "scripts/verify-esxp-6-freeze.ts"
+    "scripts/verify-esxp-6-freeze.ts",
+    "scripts/verify-esrn-1-renewal-state.ts",
+    "scripts/verify-esrn-2-renewal-readiness.ts",
+    "scripts/verify-esrn-3-renewal-action-signal.ts",
+    "scripts/verify-esrn-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
