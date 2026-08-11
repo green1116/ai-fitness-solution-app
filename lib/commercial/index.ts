@@ -10,3 +10,4 @@ export * from "./retention";
 export * from "./expansion";
 export * from "./renewal";
 export * from "./advocacy";
+export * from "./intelligence";

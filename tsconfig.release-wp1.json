@@ -101,6 +101,12 @@
     "lib/commercial/advocacy/advocacy-action-signal.ts",
     "lib/commercial/advocacy/advocacy-freeze-manifest.ts",
     "lib/commercial/advocacy/index.ts",
+    "lib/commercial/intelligence/customer-intelligence-state.ts",
+    "lib/commercial/intelligence/intelligence-signal.ts",
+    "lib/commercial/intelligence/customer-portfolio-intelligence.ts",
+    "lib/commercial/intelligence/intelligence-recommendation.ts",
+    "lib/commercial/intelligence/intelligence-freeze-manifest.ts",
+    "lib/commercial/intelligence/index.ts",
     "lib/commercial/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
@@ -170,7 +176,12 @@
     "scripts/verify-esca-1-advocacy-state.ts",
     "scripts/verify-esca-2-advocacy-readiness.ts",
     "scripts/verify-esca-3-advocacy-action-signal.ts",
-    "scripts/verify-esca-v1-freeze.ts"
+    "scripts/verify-esca-v1-freeze.ts",
+    "scripts/verify-esci-1-customer-intelligence-state.ts",
+    "scripts/verify-esci-2-intelligence-signal.ts",
+    "scripts/verify-esci-3-customer-portfolio-intelligence.ts",
+    "scripts/verify-esci-4-intelligence-recommendation.ts",
+    "scripts/verify-esci-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
