@@ -62,6 +62,11 @@
     "lib/commercial/operations/commercial-review.ts",
     "lib/commercial/operations/esco-freeze.ts",
     "lib/commercial/operations/index.ts",
+    "lib/commercial/execution/commercial-execution.ts",
+    "lib/commercial/execution/execution-outcome.ts",
+    "lib/commercial/execution/execution-feedback.ts",
+    "lib/commercial/execution/esce-freeze.ts",
+    "lib/commercial/execution/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
     "scripts/verify-release-wp1.ts",
@@ -100,7 +105,11 @@
     "scripts/verify-esco-2-commercial-health.ts",
     "scripts/verify-esco-3-commercial-action-signal.ts",
     "scripts/verify-esco-4-commercial-review.ts",
-    "scripts/verify-esco-v1-freeze.ts"
+    "scripts/verify-esco-v1-freeze.ts",
+    "scripts/verify-esce-1-commercial-execution.ts",
+    "scripts/verify-esce-2-execution-outcome.ts",
+    "scripts/verify-esce-3-execution-feedback.ts",
+    "scripts/verify-esce-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
