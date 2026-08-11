@@ -107,6 +107,11 @@
     "lib/commercial/intelligence/intelligence-recommendation.ts",
     "lib/commercial/intelligence/intelligence-freeze-manifest.ts",
     "lib/commercial/intelligence/index.ts",
+    "lib/commercial/planning/customer-plan-state.ts",
+    "lib/commercial/planning/customer-plan-action.ts",
+    "lib/commercial/planning/customer-plan-portfolio.ts",
+    "lib/commercial/planning/escp-freeze-manifest.ts",
+    "lib/commercial/planning/index.ts",
     "lib/commercial/index.ts",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
@@ -181,7 +186,11 @@
     "scripts/verify-esci-2-intelligence-signal.ts",
     "scripts/verify-esci-3-customer-portfolio-intelligence.ts",
     "scripts/verify-esci-4-intelligence-recommendation.ts",
-    "scripts/verify-esci-v1-freeze.ts"
+    "scripts/verify-esci-v1-freeze.ts",
+    "scripts/verify-escp-1-customer-plan-state.ts",
+    "scripts/verify-escp-2-customer-plan-action.ts",
+    "scripts/verify-escp-3-customer-plan-portfolio.ts",
+    "scripts/verify-escp-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
