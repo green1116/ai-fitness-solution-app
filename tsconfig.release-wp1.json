@@ -125,6 +125,9 @@
     "lib/commercial/workspace-action/action-outcome.ts",
     "lib/commercial/workspace-action/ewa-freeze-manifest.ts",
     "lib/commercial/workspace-action/index.ts",
+    "lib/commercial/action-delivery/action-delivery.ts",
+    "lib/commercial/action-delivery/eads-freeze-manifest.ts",
+    "lib/commercial/action-delivery/index.ts",
     "lib/commercial/index.ts",
     "lib/product/intelligence/product-intelligence-view.ts",
     "lib/product/intelligence/index.ts",
@@ -249,7 +252,9 @@
     "scripts/verify-ewax-1-workspace-action.ts",
     "scripts/verify-ewax-2-action-context.ts",
     "scripts/verify-ewax-3-action-outcome.ts",
-    "scripts/verify-ewax-v1-freeze.ts"
+    "scripts/verify-ewax-v1-freeze.ts",
+    "scripts/verify-eads-1-action-delivery.ts",
+    "scripts/verify-eads-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
