@@ -263,7 +263,10 @@
     "scripts/verify-eac-1-action-consumption.ts",
     "scripts/verify-eac-v1-freeze.ts",
     "scripts/verify-ewas-1-workspace-action-surface.ts",
-    "scripts/verify-ewas-v1-freeze.ts"
+    "scripts/verify-ewas-v1-freeze.ts",
+    "app/(workspace)/WorkspaceActionSurfacePanel.tsx",
+    "scripts/verify-ewui-1-workspace-action-ui.ts",
+    "scripts/verify-ewui-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

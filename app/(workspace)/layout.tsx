@@ -3,6 +3,7 @@ import {
   PEX_INTELLIGENCE_ENDPOINT,
   readProductIntelligenceExperience,
 } from "@/lib/product/experience";
+import { WorkspaceActionSurfacePanel } from "./WorkspaceActionSurfacePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ export default async function WorkspaceLayout({
             </div>
           </div>
         </section>
+        <WorkspaceActionSurfacePanel />
       </header>
       <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
     </div>
