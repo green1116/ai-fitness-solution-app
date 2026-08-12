@@ -148,6 +148,8 @@
     "lib/product/experience/index.ts",
     "lib/product/experience/pex-freeze-manifest.ts",
     "lib/workflow/experience/wfx-freeze-manifest.ts",
+    "lib/workflow/experience/workspace-action-surface.ts",
+    "lib/workflow/experience/ewas-freeze-manifest.ts",
     "lib/workflow/experience/index.ts",
     "app/(product)/ProductIntelligenceExperience.tsx",
     "app/(product)/layout.tsx",
@@ -259,7 +261,9 @@
     "scripts/verify-eads-1-action-delivery.ts",
     "scripts/verify-eads-v1-freeze.ts",
     "scripts/verify-eac-1-action-consumption.ts",
-    "scripts/verify-eac-v1-freeze.ts"
+    "scripts/verify-eac-v1-freeze.ts",
+    "scripts/verify-ewas-1-workspace-action-surface.ts",
+    "scripts/verify-ewas-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
