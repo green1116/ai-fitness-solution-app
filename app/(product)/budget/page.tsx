@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ProductIntelligenceExperience } from "@/app/(product)/ProductIntelligenceExperience";
 
 export default function BudgetPage() {
   const [quoteId, setQuoteId] = useState("");
@@ -41,6 +42,7 @@ export default function BudgetPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">预算计算 Budget</h1>
       <p className="text-sm text-zinc-400">根据 Quote → 成本模型 → 价格区间</p>
+      <ProductIntelligenceExperience />
 
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
         <input

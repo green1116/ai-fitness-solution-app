@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import {
+  PEX_INTELLIGENCE_ENDPOINT,
+  readProductIntelligenceExperience,
+} from "@/lib/product/experience";
 import { getProjectById } from "@/lib/services/project.service";
 
 export default async function ProjectDetailPage({
@@ -10,6 +14,7 @@ export default async function ProjectDetailPage({
 }) {
   const { id } = await params;
   const project = await getProjectById(id);
+  const { status, signals, attention } = await readProductIntelligenceExperience();
 
   if (!project) notFound();
 
@@ -24,6 +29,17 @@ export default async function ProjectDetailPage({
           {project.clientName ?? "—"} · {project.city ?? "—"}
         </p>
       </div>
+      <section className="rounded-lg border border-zinc-800 bg-black p-4 text-sm">
+        <p className="text-xs text-zinc-600">只读 · GET {PEX_INTELLIGENCE_ENDPOINT}</p>
+        <p className="mt-2">Status: {status}</p>
+        <p className="mt-1 text-zinc-300">
+          Signals: open {signals.openCount} · queued {signals.queuedCount} · watch{" "}
+          {signals.watchCount} · held {signals.heldCount} · escalate {signals.escalateCount}
+        </p>
+        <p className="mt-1 text-zinc-300">
+          Attention: open {attention.openCount} · escalate {attention.escalateCount}
+        </p>
+      </section>
 
       <section className="grid gap-4 md:grid-cols-3">
         <Link

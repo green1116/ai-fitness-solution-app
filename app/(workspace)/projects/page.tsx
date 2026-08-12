@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ProductIntelligenceExperience } from "@/app/(product)/ProductIntelligenceExperience";
 
 type ProjectItem = {
   id: string;
@@ -49,6 +50,7 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">项目 Workspace</h1>
+      <ProductIntelligenceExperience />
 
       <section className="flex gap-3 rounded-2xl border border-zinc-800 bg-black p-4">
         <input
