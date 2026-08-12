@@ -14,3 +14,4 @@ export * from "./intelligence";
 export * from "./planning";
 export * from "./production-ops";
 export * from "./operations-surface";
+export * from "./workspace-action";

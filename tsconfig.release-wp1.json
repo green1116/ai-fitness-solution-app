@@ -120,6 +120,11 @@
     "lib/commercial/production-ops/index.ts",
     "lib/commercial/operations-surface/operations-surface.ts",
     "lib/commercial/operations-surface/index.ts",
+    "lib/commercial/workspace-action/workspace-action.ts",
+    "lib/commercial/workspace-action/action-context.ts",
+    "lib/commercial/workspace-action/action-outcome.ts",
+    "lib/commercial/workspace-action/ewa-freeze-manifest.ts",
+    "lib/commercial/workspace-action/index.ts",
     "lib/commercial/index.ts",
     "lib/product/intelligence/product-intelligence-view.ts",
     "lib/product/intelligence/index.ts",
@@ -240,7 +245,11 @@
     "scripts/verify-epi-v1-freeze.ts",
     "scripts/verify-pex-wp3.ts",
     "scripts/verify-pex-v1-freeze.ts",
-    "scripts/verify-wfx-v1-freeze.ts"
+    "scripts/verify-wfx-v1-freeze.ts",
+    "scripts/verify-ewax-1-workspace-action.ts",
+    "scripts/verify-ewax-2-action-context.ts",
+    "scripts/verify-ewax-3-action-outcome.ts",
+    "scripts/verify-ewax-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
