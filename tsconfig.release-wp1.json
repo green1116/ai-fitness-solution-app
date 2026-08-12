@@ -128,6 +128,9 @@
     "lib/commercial/action-delivery/action-delivery.ts",
     "lib/commercial/action-delivery/eads-freeze-manifest.ts",
     "lib/commercial/action-delivery/index.ts",
+    "lib/commercial/action-consumption/action-consumption.ts",
+    "lib/commercial/action-consumption/eac-freeze-manifest.ts",
+    "lib/commercial/action-consumption/index.ts",
     "lib/commercial/index.ts",
     "lib/product/intelligence/product-intelligence-view.ts",
     "lib/product/intelligence/index.ts",
@@ -254,7 +257,9 @@
     "scripts/verify-ewax-3-action-outcome.ts",
     "scripts/verify-ewax-v1-freeze.ts",
     "scripts/verify-eads-1-action-delivery.ts",
-    "scripts/verify-eads-v1-freeze.ts"
+    "scripts/verify-eads-v1-freeze.ts",
+    "scripts/verify-eac-1-action-consumption.ts",
+    "scripts/verify-eac-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
