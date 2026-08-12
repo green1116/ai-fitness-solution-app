@@ -131,6 +131,9 @@
     "lib/commercial/action-consumption/action-consumption.ts",
     "lib/commercial/action-consumption/eac-freeze-manifest.ts",
     "lib/commercial/action-consumption/index.ts",
+    "lib/commercial/action-intent/action-intent.ts",
+    "lib/commercial/action-intent/ewi-freeze-manifest.ts",
+    "lib/commercial/action-intent/index.ts",
     "lib/commercial/index.ts",
     "lib/product/intelligence/product-intelligence-view.ts",
     "lib/product/intelligence/index.ts",
@@ -266,7 +269,9 @@
     "scripts/verify-ewas-v1-freeze.ts",
     "app/(workspace)/WorkspaceActionSurfacePanel.tsx",
     "scripts/verify-ewui-1-workspace-action-ui.ts",
-    "scripts/verify-ewui-v1-freeze.ts"
+    "scripts/verify-ewui-v1-freeze.ts",
+    "scripts/verify-ewi-1-action-intent.ts",
+    "scripts/verify-ewi-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

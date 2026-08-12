@@ -17,3 +17,4 @@ export * from "./operations-surface";
 export * from "./workspace-action";
 export * from "./action-delivery";
 export * from "./action-consumption";
+export * from "./action-intent";
