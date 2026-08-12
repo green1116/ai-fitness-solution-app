@@ -118,7 +118,11 @@
     "lib/commercial/production-ops/operating-feedback.ts",
     "lib/commercial/production-ops/espo-freeze-manifest.ts",
     "lib/commercial/production-ops/index.ts",
+    "lib/commercial/operations-surface/operations-surface.ts",
+    "lib/commercial/operations-surface/index.ts",
     "lib/commercial/index.ts",
+    "app/api/operations/surface/route.ts",
+    "app/(dashboard)/operations/page.tsx",
     "lib/enterprise/**/*.ts",
     "lib/pilot/v80/intake/ga-release.schema.ts",
     "scripts/verify-release-wp1.ts",
@@ -201,7 +205,10 @@
     "scripts/verify-espo-2-operating-decision.ts",
     "scripts/verify-espo-3-operating-outcome.ts",
     "scripts/verify-espo-4-operating-feedback.ts",
-    "scripts/verify-espo-v1-freeze.ts"
+    "scripts/verify-espo-v1-freeze.ts",
+    "scripts/verify-esos-1-operations-surface.ts",
+    "scripts/verify-esos-2-read-surface.ts",
+    "scripts/verify-esos-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
