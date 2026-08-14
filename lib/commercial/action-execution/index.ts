@@ -74,3 +74,13 @@ export {
   clearEwxrFreeze,
   type EwxrFreeze,
 } from "./ewxr-freeze-manifest";
+
+export {
+  EPV_2_ID,
+  REVIEW_OUTCOME_SURFACE_CAPABILITY,
+  REVIEW_OUTCOME_SURFACE_VERSION,
+  REVIEW_OUTCOME_KINDS,
+  mapWorkspaceReviewOutcome,
+  type ReviewOutcomeKind,
+  type WorkspaceReviewOutcomeSurface,
+} from "./review-outcome-surface";

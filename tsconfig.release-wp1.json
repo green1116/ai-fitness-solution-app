@@ -139,6 +139,7 @@
     "lib/commercial/action-execution/controlled-action.ts",
     "lib/commercial/action-execution/ewer-freeze-manifest.ts",
     "lib/commercial/action-execution/workspace-review-action.ts",
+    "lib/commercial/action-execution/review-outcome-surface.ts",
     "lib/commercial/action-execution/ewxr-freeze-manifest.ts",
     "lib/commercial/action-execution/index.ts",
     "lib/commercial/index.ts",
@@ -286,7 +287,10 @@
     "scripts/verify-ewer-1-controlled-action.ts",
     "scripts/verify-ewer-v1-freeze.ts",
     "scripts/verify-ewxr-1-workspace-review-action.ts",
-    "scripts/verify-ewxr-v1-freeze.ts"
+    "scripts/verify-ewxr-v1-freeze.ts",
+    "scripts/verify-epv-1-workspace-review.ts",
+    "scripts/verify-epv-2-review-outcome.ts",
+    "scripts/verify-epv-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }
