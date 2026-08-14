@@ -53,3 +53,24 @@ export {
   clearEwerFreeze,
   type EwerFreeze,
 } from "./ewer-freeze-manifest";
+
+export {
+  EWXR_1_ID,
+  WORKSPACE_REVIEW_ACTION_CAPABILITY,
+  WORKSPACE_REVIEW_ACTION_VERSION,
+  listWorkspaceReviewSurfaceItemIds,
+  runWorkspaceReviewAction,
+  type WorkspaceReviewActionResult,
+} from "./workspace-review-action";
+
+export {
+  EWXR_FREEZE_ID,
+  EWXR_FREEZE_VERSION,
+  EWXR_FREEZE_DATE,
+  ENTERPRISE_SAAS_WORKSPACE_REVIEW_ACTION_V1,
+  EWXR_COMPONENTS,
+  buildEwxrFreeze,
+  getEwxrFreeze,
+  clearEwxrFreeze,
+  type EwxrFreeze,
+} from "./ewxr-freeze-manifest";

@@ -138,6 +138,8 @@
     "lib/commercial/action-execution/eweb-freeze-manifest.ts",
     "lib/commercial/action-execution/controlled-action.ts",
     "lib/commercial/action-execution/ewer-freeze-manifest.ts",
+    "lib/commercial/action-execution/workspace-review-action.ts",
+    "lib/commercial/action-execution/ewxr-freeze-manifest.ts",
     "lib/commercial/action-execution/index.ts",
     "lib/commercial/index.ts",
     "lib/product/intelligence/product-intelligence-view.ts",
@@ -273,6 +275,8 @@
     "scripts/verify-ewas-1-workspace-action-surface.ts",
     "scripts/verify-ewas-v1-freeze.ts",
     "app/(workspace)/WorkspaceActionSurfacePanel.tsx",
+    "app/(workspace)/WorkspaceReviewActionControl.tsx",
+    "app/(workspace)/submit-workspace-review-action.ts",
     "scripts/verify-ewui-1-workspace-action-ui.ts",
     "scripts/verify-ewui-v1-freeze.ts",
     "scripts/verify-ewi-1-action-intent.ts",
@@ -280,7 +284,9 @@
     "scripts/verify-eweb-1-action-execution.ts",
     "scripts/verify-eweb-v1-freeze.ts",
     "scripts/verify-ewer-1-controlled-action.ts",
-    "scripts/verify-ewer-v1-freeze.ts"
+    "scripts/verify-ewer-v1-freeze.ts",
+    "scripts/verify-ewxr-1-workspace-review-action.ts",
+    "scripts/verify-ewxr-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

@@ -1,4 +1,6 @@
+import { listWorkspaceReviewSurfaceItemIds } from "@/lib/commercial/action-execution/workspace-review-action";
 import { readWorkspaceActionSurface } from "@/lib/workflow/experience/workspace-action-surface";
+import { WorkspaceReviewActionControl } from "./WorkspaceReviewActionControl";
 
 const STATE_LABEL: Readonly<Record<"ATTENTION" | "AVAILABLE" | "DEFERRED", string>> = {
   ATTENTION: "ATTENTION",
@@ -8,6 +10,7 @@ const STATE_LABEL: Readonly<Record<"ATTENTION" | "AVAILABLE" | "DEFERRED", strin
 
 export async function WorkspaceActionSurfacePanel() {
   const surface = readWorkspaceActionSurface();
+  const reviewItemIds = new Set(listWorkspaceReviewSurfaceItemIds());
 
   return (
     <section className="mx-auto mt-4 max-w-5xl rounded-lg border border-zinc-800 bg-zinc-950 p-4">
@@ -42,6 +45,9 @@ export async function WorkspaceActionSurfacePanel() {
                 </span>
               </div>
               <p className="mt-1 text-xs text-zinc-500">{item.reason}</p>
+              {reviewItemIds.has(item.id) ? (
+                <WorkspaceReviewActionControl surfaceItemId={item.id} />
+              ) : null}
             </li>
           ))}
         </ul>
