@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PEX_INTELLIGENCE_ENDPOINT } from "@/lib/product/experience";
+
+const PEX_INTELLIGENCE_ENDPOINT = "/api/product/intelligence";
 
 export function ProductIntelligenceExperience() {
   const [status, setStatus] = useState("");

@@ -2,15 +2,32 @@
 
 import { useActionState } from "react";
 
-import { submitWorkspaceReviewAction } from "./submit-workspace-review-action";
+type ReviewActionResult = "SUCCESS" | "BLOCKED" | "FAILED";
+type ReviewOutcomeKind = "SHOWN" | "EMPTY" | "BLOCKED" | "FAILED";
+
+type ReviewActionState = {
+  result: ReviewActionResult;
+  outcome: {
+    outcome: ReviewOutcomeKind;
+    reviewStatus: string | null;
+    reviewReason: string | null;
+  };
+};
+
+type SubmitWorkspaceReviewAction = (
+  prev: ReviewActionState | null,
+  formData: FormData,
+) => Promise<ReviewActionState>;
 
 export function WorkspaceReviewActionControl({
   surfaceItemId,
+  submitReviewAction,
 }: {
   surfaceItemId: string;
+  submitReviewAction: SubmitWorkspaceReviewAction;
 }) {
   const [state, formAction] = useActionState(
-    submitWorkspaceReviewAction,
+    submitReviewAction,
     null,
   );
 

@@ -34,7 +34,9 @@ export async function POST(req: Request) {
     );
   }
 
+  const organizationName =
+    typeof body?.name === "string" ? body.name.trim() : undefined;
   const res = NextResponse.json({ ok: true });
-  await createSessionCookie(res, email, 30);
+  await createSessionCookie(res, email, 30, { organizationName });
   return res;
 }

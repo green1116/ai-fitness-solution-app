@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { normalizeEmail, sha256 } from "@/lib/auth";
+import { ensureOrganizationForUser } from "@/lib/organization/organization.service";
 import { prisma } from "@/lib/prisma";
 
 // 生成 session token（明文）+ hash 入库
@@ -19,7 +20,8 @@ export function computeSessionTokenHash(token: string) {
 export async function createSessionCookie(
   res: NextResponse,
   email: string,
-  days = 30
+  days = 30,
+  options?: { organizationName?: string },
 ) {
   const normalizedEmail = normalizeEmail(email);
   const user = await prisma.user.upsert({
@@ -27,6 +29,10 @@ export async function createSessionCookie(
     create: { email: normalizedEmail },
     update: {},
     select: { id: true },
+  });
+  await ensureOrganizationForUser({
+    userId: user.id,
+    name: options?.organizationName,
   });
 
   const token = genSessionToken();

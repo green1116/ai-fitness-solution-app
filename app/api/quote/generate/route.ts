@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { handleApiError } from "@/lib/error/global-error.handler";
+import { isKnownApiError } from "@/lib/error/api-error.mapper";
 import { FeatureGateError } from "@/lib/feature-flags/feature-gate";
 import { growthAwareGateErrorResponse } from "@/lib/growth/growth.api-helper";
 import { hasFirstQuote } from "@/lib/growth/activation/first-action.tracker";
@@ -92,6 +94,14 @@ export async function POST(req: NextRequest) {
         userId,
         feature: "canGenerateQuote",
         traceId,
+      });
+    }
+    if (isKnownApiError(err)) {
+      return handleApiError(err, {
+        traceId: traceId ?? "unknown",
+        endpoint: "/api/quote/generate",
+        organizationId,
+        userId,
       });
     }
     if (err instanceof Error && err.name === "SaasAuthError") {

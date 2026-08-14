@@ -75,3 +75,17 @@ export async function listOrganizationsForUser(userId: string) {
     membershipId: m.id,
   }));
 }
+
+/** Reuse the user's first existing org; create one only when none exist. */
+export async function ensureOrganizationForUser(input: {
+  userId: string;
+  name?: string;
+}) {
+  const existing = await listOrganizationsForUser(input.userId);
+  if (existing[0]) return existing[0].organization;
+  const name = input.name?.trim();
+  return createOrganization({
+    name: name && name.length > 0 ? name : "Organization",
+    ownerUserId: input.userId,
+  });
+}
