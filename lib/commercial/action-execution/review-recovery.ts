@@ -5,10 +5,14 @@
 
 import { createHash } from "node:crypto";
 
+import { prisma } from "@/lib/prisma";
+import { getTenantContext } from "@/lib/tenancy/tenant.context";
+
 import { getActionIntents } from "../action-intent/action-intent";
 import { getCustomerSuccessReview } from "../customer-success/customer-success-review";
 
-const recovered = new Map<string, string>();
+const recoveredByOrg = new Map<string, Set<string>>();
+const loadedOrgs = new Set<string>();
 
 function completionFingerprint(surfaceItemId: string, customerId: string): string {
   return createHash("sha256")
@@ -22,23 +26,74 @@ function completionFingerprint(surfaceItemId: string, customerId: string): strin
     .digest("hex");
 }
 
+function currentOrganizationId(): string | null {
+  const id = getTenantContext()?.organizationId.trim();
+  return id ? id : null;
+}
+
+function orgRecovered(organizationId: string): Set<string> {
+  let set = recoveredByOrg.get(organizationId);
+  if (!set) {
+    set = new Set();
+    recoveredByOrg.set(organizationId, set);
+  }
+  return set;
+}
+
+export async function ensureWorkspaceReviewRecoveryLoaded(): Promise<void> {
+  const organizationId = currentOrganizationId();
+  if (!organizationId || loadedOrgs.has(organizationId)) return;
+  const rows = await prisma.workspaceReviewRecovery.findMany({
+    where: { organizationId },
+    select: { surfaceItemId: true },
+  });
+  const set = orgRecovered(organizationId);
+  set.clear();
+  for (const row of rows) {
+    set.add(row.surfaceItemId);
+  }
+  loadedOrgs.add(organizationId);
+}
+
 export function isWorkspaceReviewRecovered(surfaceItemId: string): boolean {
-  return recovered.has(surfaceItemId.trim());
+  const organizationId = currentOrganizationId();
+  if (!organizationId) return false;
+  return orgRecovered(organizationId).has(surfaceItemId.trim());
 }
 
-export function clearWorkspaceReviewRecovery(): void {
-  recovered.clear();
+export async function clearWorkspaceReviewRecovery(): Promise<void> {
+  const organizationId = currentOrganizationId();
+  if (!organizationId) return;
+  await prisma.workspaceReviewRecovery.deleteMany({
+    where: { organizationId },
+  });
+  recoveredByOrg.set(organizationId, new Set());
+  loadedOrgs.add(organizationId);
 }
 
-export function completeWorkspaceReviewRecovery(surfaceItemId: string): {
+export async function completeWorkspaceReviewRecovery(surfaceItemId: string): Promise<{
   ok: boolean;
   recovered: boolean;
   surfaceItemId: string;
   customerId: string | null;
   fingerprint: string | null;
   reason: string;
-} {
+}> {
+  const organizationId = currentOrganizationId();
   const id = surfaceItemId.trim();
+  if (!organizationId) {
+    return {
+      ok: false,
+      recovered: false,
+      surfaceItemId: id,
+      customerId: null,
+      fingerprint: null,
+      reason: "auth-required",
+    };
+  }
+
+  await ensureWorkspaceReviewRecoveryLoaded();
+
   if (!id) {
     return {
       ok: false,
@@ -50,24 +105,22 @@ export function completeWorkspaceReviewRecovery(surfaceItemId: string): {
     };
   }
 
-  const existing = recovered.get(id);
-  if (existing) {
-    const customerId =
-      getActionIntents().records.find((row) => row.surfaceItemId === id)
-        ?.customerId ?? null;
+  const customerId =
+    getActionIntents().records.find((row) => row.surfaceItemId === id)
+      ?.customerId ?? null;
+  const recovered = orgRecovered(organizationId);
+
+  if (recovered.has(id)) {
     return {
       ok: true,
       recovered: true,
       surfaceItemId: id,
       customerId,
-      fingerprint: existing,
+      fingerprint: customerId ? completionFingerprint(id, customerId) : null,
       reason: "already-recovered",
     };
   }
 
-  const customerId =
-    getActionIntents().records.find((row) => row.surfaceItemId === id)
-      ?.customerId ?? null;
   const review = customerId
     ? getCustomerSuccessReview().records.find(
         (row) => row.customerId === customerId,
@@ -85,14 +138,21 @@ export function completeWorkspaceReviewRecovery(surfaceItemId: string): {
     };
   }
 
-  const fingerprint = completionFingerprint(id, customerId!);
-  recovered.set(id, fingerprint);
+  await prisma.workspaceReviewRecovery.upsert({
+    where: {
+      organizationId_surfaceItemId: { organizationId, surfaceItemId: id },
+    },
+    create: { organizationId, surfaceItemId: id },
+    update: {},
+  });
+  recovered.add(id);
+
   return {
     ok: true,
     recovered: true,
     surfaceItemId: id,
     customerId,
-    fingerprint,
+    fingerprint: completionFingerprint(id, customerId!),
     reason: "recovered",
   };
 }

@@ -89,4 +89,5 @@ export {
   completeWorkspaceReviewRecovery,
   isWorkspaceReviewRecovered,
   clearWorkspaceReviewRecovery,
+  ensureWorkspaceReviewRecoveryLoaded,
 } from "./review-recovery";

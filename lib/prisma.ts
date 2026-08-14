@@ -36,7 +36,14 @@ function createClient() {
 /** dev 热更新后 global 上可能仍是旧 PrismaClient，缺少新 model 的 delegate */
 function isStaleDevClient(client: PrismaClient): boolean {
   if (process.env.NODE_ENV === "production") return false;
-  return typeof (client as { upgradeOrder?: unknown }).upgradeOrder !== "object";
+  const c = client as {
+    upgradeOrder?: unknown;
+    workspaceReviewRecovery?: unknown;
+  };
+  return (
+    typeof c.upgradeOrder !== "object" ||
+    typeof c.workspaceReviewRecovery !== "object"
+  );
 }
 
 let cached = global.prisma;

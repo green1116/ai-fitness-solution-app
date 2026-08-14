@@ -655,3 +655,15 @@ model CRMActivity {
   @@index([customerId, timestamp])
   @@map("crm_activity")
 }
+
+/// Workspace REVIEW ACTION_REQUIRED recovery overlay (not ESCS-4).
+model WorkspaceReviewRecovery {
+  id             String   @id @default(cuid())
+  organizationId String
+  surfaceItemId  String
+  recoveredAt    DateTime @default(now())
+
+  @@unique([organizationId, surfaceItemId])
+  @@index([organizationId])
+  @@map("workspace_review_recovery")
+}
