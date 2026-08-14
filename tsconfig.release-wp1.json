@@ -136,6 +136,8 @@
     "lib/commercial/action-intent/index.ts",
     "lib/commercial/action-execution/action-execution.ts",
     "lib/commercial/action-execution/eweb-freeze-manifest.ts",
+    "lib/commercial/action-execution/controlled-action.ts",
+    "lib/commercial/action-execution/ewer-freeze-manifest.ts",
     "lib/commercial/action-execution/index.ts",
     "lib/commercial/index.ts",
     "lib/product/intelligence/product-intelligence-view.ts",
@@ -276,7 +278,9 @@
     "scripts/verify-ewi-1-action-intent.ts",
     "scripts/verify-ewi-v1-freeze.ts",
     "scripts/verify-eweb-1-action-execution.ts",
-    "scripts/verify-eweb-v1-freeze.ts"
+    "scripts/verify-eweb-v1-freeze.ts",
+    "scripts/verify-ewer-1-controlled-action.ts",
+    "scripts/verify-ewer-v1-freeze.ts"
   ],
   "exclude": ["node_modules", ".next"]
 }

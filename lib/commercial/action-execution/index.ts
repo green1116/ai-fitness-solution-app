@@ -29,3 +29,27 @@ export {
   clearEwebFreeze,
   type EwebFreeze,
 } from "./eweb-freeze-manifest";
+
+export {
+  EWER_1_ID,
+  CONTROLLED_ACTION_CAPABILITY,
+  CONTROLLED_ACTION_VERSION,
+  SUPPORTED_CONTROLLED_ACTION_INTENT,
+  CONTROLLED_ACTION_API,
+  CONTROLLED_ACTION_RESULTS,
+  executeControlledAction,
+  type ControlledActionResultKind,
+  type ControlledActionResult,
+} from "./controlled-action";
+
+export {
+  EWER_FREEZE_ID,
+  EWER_FREEZE_VERSION,
+  EWER_FREEZE_DATE,
+  ENTERPRISE_SAAS_CONTROLLED_ACTION_V1,
+  EWER_COMPONENTS,
+  buildEwerFreeze,
+  getEwerFreeze,
+  clearEwerFreeze,
+  type EwerFreeze,
+} from "./ewer-freeze-manifest";
