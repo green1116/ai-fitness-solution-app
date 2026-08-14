@@ -13,6 +13,7 @@ import {
 import { getActionIntents } from "../action-intent/action-intent";
 import type { ControlledActionResultKind } from "./controlled-action";
 import type { WorkspaceReviewActionResult } from "./workspace-review-action";
+import { isWorkspaceReviewRecovered } from "./review-recovery";
 
 export const EPV_2_ID = "EPV-2" as const;
 export const REVIEW_OUTCOME_SURFACE_CAPABILITY =
@@ -156,11 +157,15 @@ export function mapWorkspaceReviewOutcome(
     });
   }
 
+  const recovered =
+    record.reviewStatus === "ACTION_REQUIRED" &&
+    isWorkspaceReviewRecovered(action.surfaceItemId);
+
   return finish({
     ...root,
     outcome: "SHOWN",
-    reviewStatus: record.reviewStatus,
+    reviewStatus: recovered ? "STABLE" : record.reviewStatus,
     reviewFingerprint: record.fingerprint,
-    reviewReason: record.reason,
+    reviewReason: recovered ? "recovered" : record.reason,
   });
 }

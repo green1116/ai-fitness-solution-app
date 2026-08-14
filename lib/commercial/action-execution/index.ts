@@ -84,3 +84,9 @@ export {
   type ReviewOutcomeKind,
   type WorkspaceReviewOutcomeSurface,
 } from "./review-outcome-surface";
+
+export {
+  completeWorkspaceReviewRecovery,
+  isWorkspaceReviewRecovered,
+  clearWorkspaceReviewRecovery,
+} from "./review-recovery";

@@ -22,15 +22,22 @@ type SubmitWorkspaceReviewAction = (
 export function WorkspaceReviewActionControl({
   surfaceItemId,
   submitReviewAction,
+  submitRecoveryAction,
 }: {
   surfaceItemId: string;
   submitReviewAction: SubmitWorkspaceReviewAction;
+  submitRecoveryAction: SubmitWorkspaceReviewAction;
 }) {
-  const [state, formAction] = useActionState(
+  const [reviewState, reviewFormAction] = useActionState(
     submitReviewAction,
     null,
   );
+  const [recoveryState, recoveryFormAction] = useActionState(
+    submitRecoveryAction,
+    null,
+  );
 
+  const state = recoveryState ?? reviewState;
   const actionLabel =
     state?.result === "SUCCESS"
       ? "SUCCESS"
@@ -39,10 +46,14 @@ export function WorkspaceReviewActionControl({
         : state?.result === "FAILED"
           ? "FAILED"
           : null;
+  const showRecover =
+    state?.result === "SUCCESS" &&
+    state.outcome.outcome === "SHOWN" &&
+    state.outcome.reviewStatus === "ACTION_REQUIRED";
 
   return (
-    <form action={formAction} className="mt-2 flex flex-col gap-1">
-      <div className="flex items-center gap-2">
+    <div className="mt-2 flex flex-col gap-1">
+      <form action={reviewFormAction} className="flex items-center gap-2">
         <input type="hidden" name="surfaceItemId" value={surfaceItemId} />
         <button
           type="submit"
@@ -55,7 +66,7 @@ export function WorkspaceReviewActionControl({
             {actionLabel}
           </span>
         ) : null}
-      </div>
+      </form>
       {state?.result === "SUCCESS" && state.outcome.outcome === "SHOWN" ? (
         <p className="text-xs text-zinc-500">
           {state.outcome.reviewStatus} · {state.outcome.reviewReason}
@@ -63,6 +74,17 @@ export function WorkspaceReviewActionControl({
       ) : state?.result === "SUCCESS" && state.outcome.outcome === "EMPTY" ? (
         <p className="text-xs text-zinc-600">No review outcome</p>
       ) : null}
-    </form>
+      {showRecover ? (
+        <form action={recoveryFormAction}>
+          <input type="hidden" name="surfaceItemId" value={surfaceItemId} />
+          <button
+            type="submit"
+            className="rounded border border-emerald-700 px-2 py-1 text-xs uppercase tracking-wide text-emerald-300 hover:border-emerald-500"
+          >
+            RECOVER
+          </button>
+        </form>
+      ) : null}
+    </div>
   );
 }

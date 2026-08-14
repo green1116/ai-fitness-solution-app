@@ -1,7 +1,7 @@
 import { listWorkspaceReviewSurfaceItemIds } from "@/lib/commercial/action-execution/workspace-review-action";
 import { readWorkspaceActionSurface } from "@/lib/workflow/experience/workspace-action-surface";
 import { WorkspaceReviewActionControl } from "./WorkspaceReviewActionControl";
-import { submitWorkspaceReviewAction } from "./submit-workspace-review-action";
+import { submitWorkspaceReviewAction, submitWorkspaceReviewRecoveryAction } from "./submit-workspace-review-action";
 
 const STATE_LABEL: Readonly<Record<"ATTENTION" | "AVAILABLE" | "DEFERRED", string>> = {
   ATTENTION: "ATTENTION",
@@ -50,6 +50,7 @@ export async function WorkspaceActionSurfacePanel() {
                 <WorkspaceReviewActionControl
                   surfaceItemId={item.id}
                   submitReviewAction={submitWorkspaceReviewAction}
+                  submitRecoveryAction={submitWorkspaceReviewRecoveryAction}
                 />
               ) : null}
             </li>
