@@ -37,7 +37,71 @@ type BudgetLike = {
   totalEstimateMin: number;
   totalEstimateMax: number;
   items: unknown;
+  assumptions?: unknown;
 };
+
+type PersistedBudgetItem = { category: string; min: number; max: number };
+
+function readPersistedBudgetItems(items: unknown): PersistedBudgetItem[] | null {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const out: PersistedBudgetItem[] = [];
+  for (const raw of items) {
+    if (!raw || typeof raw !== "object") return null;
+    const row = raw as { category?: unknown; min?: unknown; max?: unknown };
+    if (typeof row.category !== "string" || !row.category.trim()) return null;
+    if (typeof row.min !== "number" || typeof row.max !== "number") return null;
+    if (!Number.isFinite(row.min) || !Number.isFinite(row.max)) return null;
+    out.push({ category: row.category.trim(), min: row.min, max: row.max });
+  }
+  return out;
+}
+
+function summaryFromPersistedBudget(
+  budget: BudgetLike,
+  ctx: {
+    planId: string;
+    companyName: string;
+    companySize: number;
+    budgetTier: "low" | "mid" | "high";
+  },
+) {
+  const items = readPersistedBudgetItems(budget.items);
+  if (!items) return null;
+  const totalMin = Number(budget.totalEstimateMin);
+  const totalMax = Number(budget.totalEstimateMax);
+  if (!Number.isFinite(totalMin) || !Number.isFinite(totalMax)) return null;
+
+  const assumptions = Array.isArray(budget.assumptions)
+    ? budget.assumptions.filter((x): x is string => typeof x === "string")
+    : [];
+
+  return {
+    planId: ctx.planId,
+    companyName: ctx.companyName,
+    companySize: ctx.companySize,
+    tier: ctx.budgetTier,
+    overallTotal: { min: totalMin, max: totalMax },
+    estimatedBySubtotals: {
+      min: items.reduce((acc, it) => acc + it.min, 0),
+      max: items.reduce((acc, it) => acc + it.max, 0),
+    },
+    lines: items.map((it) => ({
+      category: it.category,
+      categoryName: it.category,
+      qtyText: "1-1",
+      unitPriceText: `${Math.round(it.min)}-${Math.round(it.max)}`,
+      subtotal: { min: it.min, max: it.max },
+    })),
+    items: items.map((it) => ({
+      category: it.category,
+      name: it.category,
+      qty: 1,
+      unitPrice: { min: it.min, max: it.max },
+      subtotal: { min: it.min, max: it.max },
+    })),
+    assumptions,
+  };
+}
 
 export type RenderBudgetPdfOptions = {
   tier?: UserTier;
@@ -66,7 +130,7 @@ function mapTierToBudgetLevel(
  * free 仍走 saas 精简档（header + overall + table）。
  */
 export async function renderBudgetPdf(
-  _budget: BudgetLike,
+  budget: BudgetLike,
   options?: RenderBudgetPdfOptions,
 ): Promise<Buffer> {
   const tier = options?.tier ?? "enterprise";
@@ -76,6 +140,12 @@ export async function renderBudgetPdf(
   const budgetTier = mapTierToBudgetLevel(tier, options?.budgetLevel);
   const packMerge = options?.packMerge === true;
   const isEnterpriseLike = tier === "enterprise" || tier === "pro";
+  const persistedSummary = summaryFromPersistedBudget(budget, {
+    planId,
+    companyName,
+    companySize,
+    budgetTier,
+  });
 
   let tenderDocument =
     options?.tenderDocument ??
@@ -116,6 +186,7 @@ export async function renderBudgetPdf(
       packEmbed: packMerge,
       reqsig: tenderDocument?.reqsig,
       tenderDocument,
+      ...(persistedSummary ? { summary: persistedSummary } : {}),
     },
   );
 

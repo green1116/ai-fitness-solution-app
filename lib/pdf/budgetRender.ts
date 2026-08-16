@@ -95,6 +95,8 @@ export type RenderBudgetPdfOpts = {
   packEmbed?: boolean;
   /** V4 统一交付身份（页脚 / 元数据 / REQSIG） */
   tenderDocument?: TenderDocumentContext;
+  /** 已落库 Budget：跳过 getBudgetSummary / gym-budget 重算 */
+  summary?: BudgetSummary;
 };
 
 export const BUDGET_PDF_VERSION = "BUDGET_PDF_V_GOV_BRAND_DUAL_20260228";
@@ -387,10 +389,38 @@ function toStrictSummaryFromBudgetSummary(
     });
   }
 
-  const total = items.reduce(
+  if (items.length === 0) {
+    const src = Array.isArray(s.items) ? s.items : [];
+    for (const it of src) {
+      const min = Number(it.subtotal?.min);
+      const max = Number(it.subtotal?.max);
+      if (!Number.isFinite(min) || !Number.isFinite(max)) continue;
+      const category = String(it.category || it.name || "");
+      items.push({
+        category,
+        categoryName: category,
+        name: String(it.name || category || "分项"),
+        qtyMin: Number(it.qty) || 1,
+        qtyMax: Number(it.qty) || 1,
+        priceMin: Number(it.unitPrice?.min) || min,
+        priceMax: Number(it.unitPrice?.max) || max,
+        subtotalMin: min,
+        subtotalMax: max,
+        note: it.note,
+      });
+    }
+  }
+
+  const summed = items.reduce(
     (acc, it) => ({ min: acc.min + it.subtotalMin, max: acc.max + it.subtotalMax }),
     { min: 0, max: 0 }
   );
+  const overallMin = Number(s.overallTotal?.min);
+  const overallMax = Number(s.overallTotal?.max);
+  const total =
+    Number.isFinite(overallMin) && Number.isFinite(overallMax)
+      ? { min: overallMin, max: overallMax }
+      : summed;
 
   return {
     docNo,
@@ -510,12 +540,14 @@ export async function renderBudgetPdfBuffer(input: BudgetPdfInput, opts: RenderB
   const companyName = input.companyName || "企业";
   const companySize = Number(input.companySize || 0);
 
-  const summary = await getBudgetSummary({
-    planId,
-    companyName,
-    companySize,
-    budgetTier: input.budgetTier,
-  });
+  const summary =
+    opts.summary ??
+    (await getBudgetSummary({
+      planId,
+      companyName,
+      companySize,
+      budgetTier: input.budgetTier,
+    }));
 
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
