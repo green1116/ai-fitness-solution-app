@@ -75,7 +75,11 @@ export default function BudgetPage() {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId, planId: projectId }),
+      body: JSON.stringify({
+        projectId,
+        planId: projectId,
+        companySize: Number(companySize),
+      }),
     });
     if (!res.ok) {
       alert("PDF 下载失败");

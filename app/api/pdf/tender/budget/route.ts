@@ -28,6 +28,7 @@ export async function POST(req: Request) {
       projectId?: string;
       planId?: string;
       tier?: string;
+      companySize?: unknown;
     };
     const { projectId, planId, tier: bodyTier } = body;
 
@@ -235,11 +236,17 @@ export async function POST(req: Request) {
       totalRange: [budget.totalEstimateMin, budget.totalEstimateMax],
     });
 
+    const bodyCompanySize = Number(body.companySize);
+    const companySize =
+      Number.isFinite(bodyCompanySize) && bodyCompanySize > 0
+        ? Math.round(bodyCompanySize)
+        : project.targetUsers ?? 200;
+
     const pdfBytes = await renderBudgetPdf(budget, {
       tier: renderTier,
       planId: requestPlanId,
       companyName: project.clientName ?? project.name ?? "投标企业",
-      companySize: project.targetUsers ?? 200,
+      companySize,
       budgetLevel: project.budgetLevel,
     });
 
