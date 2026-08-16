@@ -6,6 +6,18 @@ import { ProductIntelligenceExperience } from "@/app/(product)/ProductIntelligen
 type OrgMe = { organizationId?: string | null };
 type ProjectList = { ok?: boolean; projects?: Array<{ id: string }> };
 type ProjectCreate = { ok?: boolean; project?: { id: string }; message?: string };
+type QuoteProposalView = {
+  summary?: string;
+  generatedAt?: string;
+  sections?: Array<{ title?: string; body?: string }>;
+};
+type GenerateQuoteResponse = {
+  ok?: boolean;
+  status?: string;
+  quoteId?: string;
+  proposal?: QuoteProposalView;
+  message?: string;
+};
 
 function orgHeaders(organizationId: string): HeadersInit {
   return {
@@ -52,6 +64,9 @@ export default function QuotePage() {
   const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string>("");
+  const [proposal, setProposal] = useState<QuoteProposalView | null>(null);
+  const [quoteId, setQuoteId] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
 
   async function handleGenerate() {
     if (!companyName) {
@@ -61,9 +76,12 @@ export default function QuotePage() {
 
     setLoading(true);
     setResult("");
+    setProposal(null);
+    setQuoteId("");
 
     try {
       const organizationId = await resolveOrganizationId();
+      setOrganizationId(organizationId);
       const projectId = organizationId
         ? await resolveOrgProject(organizationId, companyName)
         : "";
@@ -81,13 +99,39 @@ export default function QuotePage() {
           ...(organizationId ? { organizationId } : {}),
         }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as GenerateQuoteResponse;
+      const readyProposal =
+        data.ok === true && data.status === "READY" && data.proposal
+          ? data.proposal
+          : null;
+      setProposal(readyProposal);
+      setQuoteId(readyProposal && data.quoteId ? data.quoteId : "");
       setResult(JSON.stringify(data, null, 2));
     } catch {
+      setProposal(null);
+      setQuoteId("");
       setResult("请求失败");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleDownloadPdf() {
+    if (!quoteId) return;
+    const res = await fetch(`/api/quote/pdf?quoteId=${encodeURIComponent(quoteId)}`, {
+      headers: organizationId ? { "x-organization-id": organizationId } : {},
+    });
+    if (!res.ok) {
+      alert("PDF 下载失败");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `quote-${quoteId}.pdf`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -113,7 +157,41 @@ export default function QuotePage() {
         </button>
       </section>
 
-      {result ? (
+      {proposal ? (
+        <article className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+          <h2 className="text-xl font-semibold text-zinc-100">
+            {proposal.summary || "生成方案"}
+          </h2>
+          {proposal.generatedAt ? (
+            <p className="text-xs text-zinc-500">{proposal.generatedAt}</p>
+          ) : null}
+          {quoteId ? (
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400"
+            >
+              下载 PDF
+            </button>
+          ) : null}
+          {proposal.sections?.map((section, index) => (
+            <section key={`${section.title ?? "section"}-${index}`} className="space-y-1">
+              {section.title ? (
+                <h3 className="text-sm font-medium text-zinc-200">{section.title}</h3>
+              ) : null}
+              {section.body ? (
+                <p className="text-sm leading-6 text-zinc-300">{section.body}</p>
+              ) : null}
+            </section>
+          ))}
+          <details className="pt-2">
+            <summary className="cursor-pointer text-xs text-zinc-500">调试 JSON</summary>
+            <pre className="mt-2 overflow-auto rounded-lg border border-zinc-800 bg-black p-3 text-xs text-zinc-400">
+              {result}
+            </pre>
+          </details>
+        </article>
+      ) : result ? (
         <pre className="overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs text-zinc-300">
           {result}
         </pre>

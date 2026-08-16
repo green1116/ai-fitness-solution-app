@@ -79,3 +79,20 @@ export function resolvePlanDocumentTier(params: {
   }
   return { ok: true, renderTier: "enterprise", requestedTier, source: "enterprise-request" };
 }
+
+/** Server-side: highest Plan PDF tier allowed by entitlement. Never reads client headers/body. */
+export function resolveEntitledPlanDocumentTier(
+  entitlement: PlanEntitlementSnapshot,
+): UserTier {
+  const enterprise = resolvePlanDocumentTier({
+    requestedTier: "enterprise",
+    entitlement,
+  });
+  if (enterprise.ok) return enterprise.renderTier;
+  const pro = resolvePlanDocumentTier({
+    requestedTier: "pro",
+    entitlement,
+  });
+  if (pro.ok) return pro.renderTier;
+  return "free";
+}
