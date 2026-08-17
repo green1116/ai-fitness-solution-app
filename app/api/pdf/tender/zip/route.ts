@@ -192,6 +192,7 @@ export async function POST(req: Request) {
     const body = (await req.clone().json().catch(() => ({}))) as {
       projectId?: string;
       planId?: string;
+      companySize?: unknown;
     };
 
     const { projectId, planId } = body;
@@ -310,6 +311,14 @@ export async function POST(req: Request) {
       );
     }
 
+    const bodyCompanySize = Number(body.companySize);
+    const companySize =
+      Number.isFinite(bodyCompanySize) && bodyCompanySize > 0
+        ? Math.round(bodyCompanySize)
+        : project.targetUsers ?? 200;
+    /** 仅本次渲染覆盖人数元数据，不写回 DB */
+    const projectForRender = { ...project, targetUsers: companySize };
+
     const renderTier = normalizeUserTier(entitlement.effectiveLevel ?? "free");
 
     const tenderDocument = buildTenderDocumentContext({
@@ -327,23 +336,29 @@ export async function POST(req: Request) {
       renderTier,
       dataSource,
       tenderId: docCtx.tenderId,
+      companySize,
     });
 
     let planBytes: Buffer;
     let budgetBytes: Buffer;
     try {
       planBytes = toNodeBuffer(
-        await renderPlanPdf(project, project.solution, project.placeholders, {
-          tier: renderTier,
-          tenderDocument: docCtx,
-        }),
+        await renderPlanPdf(
+          projectForRender,
+          project.solution,
+          project.placeholders,
+          {
+            tier: renderTier,
+            tenderDocument: docCtx,
+          },
+        ),
       );
       budgetBytes = toNodeBuffer(
         await renderBudgetPdf(budget, {
           tier: renderTier,
           planId: planIdForEnt,
           companyName: project.clientName ?? project.name ?? "投标企业",
-          companySize: project.targetUsers ?? 200,
+          companySize,
           budgetLevel: project.budgetLevel,
           tenderDocument: docCtx,
         }),
@@ -386,14 +401,14 @@ export async function POST(req: Request) {
         console.log("[ZIP] renderTenderPack:start");
         const finalPack = toNodeBuffer(
           await renderTenderPack({
-            project: project as unknown as ProjectRecord,
+            project: projectForRender as unknown as ProjectRecord,
             solution: project.solution as unknown as SolutionRecord,
             placeholders: project.placeholders as unknown as ProductPlaceholder[],
             budget: budget as unknown as BudgetRecord,
             tier: renderTier,
             planId: planIdForEnt,
             companyName: project.clientName ?? project.name ?? "投标企业",
-            companySize: project.targetUsers ?? 200,
+            companySize,
             budgetLevel: project.budgetLevel,
             tenderDocument: docCtx,
             reqsig: packReqsig,

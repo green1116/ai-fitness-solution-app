@@ -3334,6 +3334,7 @@ score: scoreDetailsSectionRef,
         body: JSON.stringify({
           projectId: resolvedZipProjectId,
           planId: effectivePlanId,
+          companySize: headcount,
           tier: requestTier,
           mode: requestTier,
           docType: "zip",
@@ -3403,6 +3404,7 @@ score: scoreDetailsSectionRef,
     entitlementLevel,
     zipEnabled,
     refreshEntitlements,
+    headcount,
   ],
 );
 
