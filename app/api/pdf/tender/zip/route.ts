@@ -20,10 +20,12 @@ import {
 import type {
   BudgetRecord,
   ProductPlaceholder,
+  ProjectInput,
   ProjectRecord,
   SolutionRecord,
 } from "@/lib/domain/tender";
 import { provisionZipProjectMinimal } from "@/lib/services/tender/provisionZipProjectMinimal";
+import { generateSolution } from "@/lib/services/tender/generateSolution";
 import { isProductionRuntime } from "@/lib/http/productionRouteGuard";
 import {
   clientErrorExtras,
@@ -319,6 +321,36 @@ export async function POST(req: Request) {
     /** 仅本次渲染覆盖人数元数据，不写回 DB */
     const projectForRender = { ...project, targetUsers: companySize };
 
+    const projectInputForRender: ProjectInput = {
+      name: project.name,
+      clientName: project.clientName ?? undefined,
+      industry: project.industry ?? undefined,
+      siteType: project.siteType as ProjectInput["siteType"],
+      areaM2: project.areaM2 ?? undefined,
+      targetUsers: companySize,
+      city: project.city ?? undefined,
+      budgetLevel: project.budgetLevel as ProjectInput["budgetLevel"],
+      deliveryMode: project.deliveryMode as ProjectInput["deliveryMode"],
+      notes: project.notes ?? undefined,
+    };
+    const generatedSolution = generateSolution(projectInputForRender);
+    /** 临时 Solution：按当前 companySize 重算正文/分区，不更新 prisma.solution */
+    const solutionForRender = {
+      id: project.solution.id,
+      projectId: project.id,
+      summary: generatedSolution.summary,
+      background: generatedSolution.background,
+      requirements: generatedSolution.requirements,
+      objectives: generatedSolution.objectives,
+      zoning: generatedSolution.zoning,
+      implementationPlan: generatedSolution.implementationPlan,
+      operationsPlan: generatedSolution.operationsPlan,
+      riskControl: generatedSolution.riskControl,
+      acceptanceCriteria: generatedSolution.acceptanceCriteria,
+      createdAt: project.solution.createdAt,
+      updatedAt: project.solution.updatedAt,
+    };
+
     const renderTier = normalizeUserTier(entitlement.effectiveLevel ?? "free");
 
     const tenderDocument = buildTenderDocumentContext({
@@ -345,7 +377,7 @@ export async function POST(req: Request) {
       planBytes = toNodeBuffer(
         await renderPlanPdf(
           projectForRender,
-          project.solution,
+          solutionForRender,
           project.placeholders,
           {
             tier: renderTier,
@@ -402,7 +434,7 @@ export async function POST(req: Request) {
         const finalPack = toNodeBuffer(
           await renderTenderPack({
             project: projectForRender as unknown as ProjectRecord,
-            solution: project.solution as unknown as SolutionRecord,
+            solution: solutionForRender as unknown as SolutionRecord,
             placeholders: project.placeholders as unknown as ProductPlaceholder[],
             budget: budget as unknown as BudgetRecord,
             tier: renderTier,
