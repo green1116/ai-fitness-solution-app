@@ -74,6 +74,9 @@ export type ResultClientViewProps = {
   onProPlanDownload: () => void;
   onProBudgetDownload: () => void;
   onEnterpriseZip: () => void;
+  showEnterpriseConsultCta?: boolean;
+  onContactEnterprise?: () => void;
+  enterpriseConsultSuccess?: string | null;
   /** 招标文件上传区 */
   showUpload?: boolean;
   uploadingTenderFile?: boolean;
@@ -112,6 +115,9 @@ export default function ResultClientView(props: ResultClientViewProps) {
     onProPlanDownload,
     onProBudgetDownload,
     onEnterpriseZip,
+    showEnterpriseConsultCta = false,
+    onContactEnterprise,
+    enterpriseConsultSuccess = null,
     showUpload = false,
     uploadingTenderFile = false,
     tenderFileName = "",
@@ -287,6 +293,12 @@ export default function ResultClientView(props: ResultClientViewProps) {
               </div>
             ) : null}
 
+            {mounted && enterpriseConsultSuccess ? (
+              <div className="mb-3 rounded-xl border border-emerald-400/40 bg-emerald-950/30 px-3 py-2.5 text-sm text-emerald-50">
+                {enterpriseConsultSuccess}
+              </div>
+            ) : null}
+
             {mounted && !hasClientPaidLicense ? (
               <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs leading-relaxed text-zinc-300">
                 购买成功后系统将自动在本机激活授权；若支付完成仍未解锁，请刷新页面或联系支持。
@@ -413,6 +425,24 @@ export default function ResultClientView(props: ResultClientViewProps) {
                 </p>
               </div>
             </div>
+
+            {mounted && showEnterpriseConsultCta && onContactEnterprise ? (
+              <div className="mt-4 rounded-xl border border-amber-300/40 bg-gradient-to-r from-amber-400/10 to-amber-500/5 px-4 py-4">
+                <div className="text-sm font-semibold text-amber-50">
+                  需要 Enterprise 定制交付或企业采购？
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-amber-100/80">
+                  文档已就绪。如需方案升级、批量采购或专属商务支持，请联系 Enterprise 商务团队。
+                </p>
+                <button
+                  type="button"
+                  onClick={onContactEnterprise}
+                  className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-amber-300/50 bg-amber-400/20 px-4 py-3 text-sm font-semibold text-amber-50 transition hover:bg-amber-400/30"
+                >
+                  联系 Enterprise 商务
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
 

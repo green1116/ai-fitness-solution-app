@@ -582,6 +582,12 @@ function ResultPageInner() {
   const [pendingEnterpriseDownloadAction, setPendingEnterpriseDownloadAction] =
     useState<"pdf" | "zip" | null>(null);
   const [showEnterpriseLeadForm, setShowEnterpriseLeadForm] = useState(false);
+  const [enterpriseLeadFormMode, setEnterpriseLeadFormMode] = useState<
+    "unlock" | "consult"
+  >("unlock");
+  const [enterpriseConsultSuccess, setEnterpriseConsultSuccess] = useState<
+    string | null
+  >(null);
   const [enterpriseLeadSubmitting, setEnterpriseLeadSubmitting] =
     useState(false);
   const [enterpriseLeadEmail, setEnterpriseLeadEmail] = useState("");
@@ -2575,9 +2581,55 @@ score: scoreDetailsSectionRef,
   }, []);
 
   const openEnterpriseLeadForm = useCallback((email?: string) => {
+    setEnterpriseLeadFormMode("unlock");
     setEnterpriseLeadEmail(email ?? "");
     setShowEnterpriseLeadForm(true);
   }, []);
+
+  const openEnterpriseConsultForm = useCallback(() => {
+    setEnterpriseLeadFormMode("consult");
+    setEnterpriseConsultSuccess(null);
+    setEnterpriseLeadEmail(companyEmail || "");
+    setShowEnterpriseLeadForm(true);
+  }, [companyEmail]);
+
+  const handleEnterpriseConsultSubmit = useCallback(
+    async (value: EnterpriseLeadFormValue) => {
+      setEnterpriseLeadSubmitting(true);
+      try {
+        const noteParts: string[] = [];
+        if (value.phone) noteParts.push(`手机：${value.phone}`);
+        if (value.title) noteParts.push(`职位：${value.title}`);
+        const note = noteParts.length > 0 ? noteParts.join("；") : undefined;
+
+        const res = await fetch("/api/lead/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            planId,
+            company: value.company,
+            name: value.name,
+            email: value.email,
+            note,
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.ok) {
+          throw new Error(
+            data?.message || data?.error || "提交失败，请稍后重试"
+          );
+        }
+
+        setEnterpriseConsultSuccess(
+          "咨询已提交，Enterprise 商务团队将在 24 小时内联系您。"
+        );
+        setShowEnterpriseLeadForm(false);
+      } finally {
+        setEnterpriseLeadSubmitting(false);
+      }
+    },
+    [planId]
+  );
 
   const handleEnterpriseLeadSubmit = useCallback(
     async (value: EnterpriseLeadFormValue) => {
@@ -4919,6 +4971,11 @@ score: scoreDetailsSectionRef,
             }
             void handleEnterpriseZipDownloadWithPurchase();
           }}
+          showEnterpriseConsultCta={
+            mounted && canDownloadPaidTier("pro")
+          }
+          onContactEnterprise={openEnterpriseConsultForm}
+          enterpriseConsultSuccess={enterpriseConsultSuccess}
         />
 
         {showDebugUI ? (
@@ -5081,8 +5138,28 @@ score: scoreDetailsSectionRef,
         open={showEnterpriseLeadForm}
         loading={enterpriseLeadSubmitting}
         initialEmail={enterpriseLeadEmail}
-        onClose={() => setShowEnterpriseLeadForm(false)}
-        onSubmit={handleEnterpriseLeadSubmit}
+        title={
+          enterpriseLeadFormMode === "consult"
+            ? "联系 Enterprise 商务"
+            : undefined
+        }
+        description={
+          enterpriseLeadFormMode === "consult"
+            ? "请留下企业与联系信息，Enterprise 商务团队将在 24 小时内与您沟通方案升级、定制交付与企业采购事宜。"
+            : undefined
+        }
+        submitText={
+          enterpriseLeadFormMode === "consult" ? "提交咨询" : undefined
+        }
+        onClose={() => {
+          setShowEnterpriseLeadForm(false);
+          setEnterpriseLeadFormMode("unlock");
+        }}
+        onSubmit={
+          enterpriseLeadFormMode === "consult"
+            ? handleEnterpriseConsultSubmit
+            : handleEnterpriseLeadSubmit
+        }
       />
 
       <UpgradeModal

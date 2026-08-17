@@ -15,6 +15,7 @@ type Props = {
   loading?: boolean;
   initialEmail?: string;
   title?: string;
+  description?: string;
   submitText?: string;
   onClose: () => void;
   onSubmit: (value: EnterpriseLeadFormValue) => Promise<void> | void;
@@ -38,6 +39,7 @@ export default function EnterpriseLeadForm({
   loading = false,
   initialEmail = "",
   title = "填写企业信息后下载",
+  description = "请先填写企业信息，我们将为你生成本次下载记录，并继续企业版下载流程。",
   submitText = "提交并继续",
   onClose,
   onSubmit,
@@ -78,9 +80,7 @@ export default function EnterpriseLeadForm({
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold text-white">{title}</h2>
-            <p className="mt-2 text-sm leading-6 text-white/65">
-              请先填写企业信息，我们将为你生成本次下载记录，并继续企业版下载流程。
-            </p>
+            <p className="mt-2 text-sm leading-6 text-white/65">{description}</p>
           </div>
 
           <button
