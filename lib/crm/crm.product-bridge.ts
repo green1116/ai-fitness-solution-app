@@ -84,7 +84,16 @@ export async function recordEnterpriseConsultationAsLead(input: {
       },
     });
 
-    return { customer, lead };
+    let opportunity;
+    if (lead.status === "QUALIFIED" || lead.score >= 50) {
+      const promoted = await promoteLeadToOpportunity({
+        leadId: lead.id,
+        userId,
+      });
+      opportunity = promoted.opportunity;
+    }
+
+    return { customer, lead, opportunity };
   } catch (err) {
     console.error("[crm/enterprise-consultation-lead]", err);
     return null;
