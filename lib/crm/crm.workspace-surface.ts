@@ -37,9 +37,17 @@ export async function assembleCrmWorkSurface(
   const items: CrmWorkItem[] = [];
 
   for (const customer of customers) {
+    const opportunities = await listOpportunitiesForCustomer(customer.id);
+    const promotedLeadIds = new Set(
+      opportunities
+        .map((opp) => opp.leadId)
+        .filter((leadId): leadId is string => Boolean(leadId)),
+    );
+
     const leads = await listLeadsForCustomer(customer.id);
     for (const lead of leads) {
       if (lead.status !== "QUALIFIED") continue;
+      if (promotedLeadIds.has(lead.id)) continue;
       items.push({
         id: `crm:lead:${lead.id}`,
         customerId: customer.id,
@@ -52,7 +60,6 @@ export async function assembleCrmWorkSurface(
       });
     }
 
-    const opportunities = await listOpportunitiesForCustomer(customer.id);
     for (const opp of opportunities) {
       if (TERMINAL_OPPORTUNITY_STAGES.has(opp.stage)) continue;
       items.push({
