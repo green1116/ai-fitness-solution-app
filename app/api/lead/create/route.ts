@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordEnterpriseConsultationAsLead } from "@/lib/crm/crm.product-bridge";
 import { prisma } from "@/lib/prisma";
 
 function isValidEmail(email: string): boolean {
@@ -47,6 +48,13 @@ export async function POST(req: NextRequest) {
           createdAt: new Date().toISOString(),
         },
       },
+    });
+
+    void recordEnterpriseConsultationAsLead({
+      marketingLeadId: lead.id,
+      planId,
+      company,
+      email,
     });
 
     return NextResponse.json({

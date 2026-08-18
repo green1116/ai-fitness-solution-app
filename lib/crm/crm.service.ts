@@ -13,6 +13,7 @@ export { buildCustomerTimeline } from "./activity/activity.timeline";
 export { aggregateCRMMetrics } from "./crm.metrics";
 export { describeSalesFunnel, advanceLeadToOpportunity } from "./pipeline/crm.pipeline.engine";
 export {
+  recordEnterpriseConsultationAsLead,
   recordQuoteAsLead,
   recordBudgetAsOpportunity,
   recordTenderAsDeal,

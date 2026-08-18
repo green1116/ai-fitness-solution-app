@@ -13,6 +13,7 @@ export async function createLead(input: {
   source?: string;
   score?: number;
   userId?: string;
+  activityMeta?: Record<string, unknown>;
 }): Promise<LeadRow> {
   const computedScore =
     input.score ??
@@ -30,7 +31,13 @@ export async function createLead(input: {
   await logCRMActivity({
     customerId: input.customerId,
     type: "lead.created",
-    meta: { leadId: lead.id, source: lead.source, score: lead.score, userId: input.userId },
+    meta: {
+      leadId: lead.id,
+      source: lead.source,
+      score: lead.score,
+      userId: input.userId,
+      ...input.activityMeta,
+    },
   });
 
   return lead;
