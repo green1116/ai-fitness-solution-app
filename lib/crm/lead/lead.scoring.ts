@@ -18,6 +18,7 @@ export function scoreLead(input: LeadScoreInput): number {
   else if (source.includes("campaign") || source.includes("utm")) score += 15;
   else if (source.includes("organic")) score += 10;
   else if (source.includes("quote")) score += 20;
+  else if (source.includes("enterprise_consultation")) score += 40;
 
   if (input.hasQuote) score += 30;
   if (input.hasProject) score += 15;
