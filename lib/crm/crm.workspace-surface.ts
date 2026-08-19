@@ -30,11 +30,52 @@ export type CrmWorkSurface = Readonly<{
 
 const TERMINAL_OPPORTUNITY_STAGES = new Set(["WON", "LOST"]);
 
+const ENTITY_PRIORITY = {
+  deal: 0,
+  opportunity: 1,
+  lead: 2,
+} as const;
+
+const STAGE_PRIORITY: Record<string, number> = {
+  NEGOTIATION: 0,
+  PROPOSAL: 1,
+  INIT: 2,
+};
+
+type SortableCrmWorkItem = CrmWorkItem & {
+  createdAt: Date;
+  rankValue: number;
+};
+
+function compareCrmWorkItems(a: SortableCrmWorkItem, b: SortableCrmWorkItem): number {
+  const entityDiff = ENTITY_PRIORITY[a.entity] - ENTITY_PRIORITY[b.entity];
+  if (entityDiff !== 0) return entityDiff;
+
+  if (a.entity === "opportunity" && b.entity === "opportunity") {
+    const stageDiff =
+      (STAGE_PRIORITY[a.stage ?? ""] ?? Number.MAX_SAFE_INTEGER) -
+      (STAGE_PRIORITY[b.stage ?? ""] ?? Number.MAX_SAFE_INTEGER);
+    if (stageDiff !== 0) return stageDiff;
+  }
+
+  if (b.rankValue !== a.rankValue) return b.rankValue - a.rankValue;
+
+  const timeDiff = b.createdAt.getTime() - a.createdAt.getTime();
+  if (timeDiff !== 0) return timeDiff;
+
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+function toCrmWorkItem(item: SortableCrmWorkItem): CrmWorkItem {
+  const { createdAt: _createdAt, rankValue: _rankValue, ...publicItem } = item;
+  return publicItem;
+}
+
 export async function assembleCrmWorkSurface(
   organizationId: string,
 ): Promise<CrmWorkSurface> {
   const customers = await listCustomers(organizationId);
-  const items: CrmWorkItem[] = [];
+  const items: SortableCrmWorkItem[] = [];
 
   for (const customer of customers) {
     const opportunities = await listOpportunitiesForCustomer(customer.id);
@@ -57,6 +98,8 @@ export async function assembleCrmWorkSurface(
         status: lead.status,
         score: lead.score,
         label: `${customer.name} · Lead QUALIFIED · score ${lead.score} · ${lead.source}`,
+        createdAt: lead.createdAt,
+        rankValue: lead.score,
       });
     }
 
@@ -78,6 +121,8 @@ export async function assembleCrmWorkSurface(
           status: opp.stage,
           stage: opp.stage,
           label: `${customer.name} · Opportunity ${opp.stage} · ¥${opp.value}`,
+          createdAt: opp.createdAt,
+          rankValue: opp.value,
         });
       }
 
@@ -91,15 +136,20 @@ export async function assembleCrmWorkSurface(
           status: deal.status,
           amount: deal.amount,
           label: `${customer.name} · Deal OPEN · ¥${deal.amount}`,
+          createdAt: deal.createdAt,
+          rankValue: deal.amount,
         });
       }
     }
   }
 
+  items.sort(compareCrmWorkItems);
+  const orderedItems = items.map(toCrmWorkItem);
+
   return {
-    items,
-    qualifiedLeads: items.filter((i) => i.entity === "lead").length,
-    activeOpportunities: items.filter((i) => i.entity === "opportunity").length,
-    openDeals: items.filter((i) => i.entity === "deal").length,
+    items: orderedItems,
+    qualifiedLeads: orderedItems.filter((i) => i.entity === "lead").length,
+    activeOpportunities: orderedItems.filter((i) => i.entity === "opportunity").length,
+    openDeals: orderedItems.filter((i) => i.entity === "deal").length,
   };
 }
