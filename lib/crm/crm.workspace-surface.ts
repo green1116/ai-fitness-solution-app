@@ -62,20 +62,26 @@ export async function assembleCrmWorkSurface(
 
     for (const opp of opportunities) {
       if (TERMINAL_OPPORTUNITY_STAGES.has(opp.stage)) continue;
-      items.push({
-        id: `crm:opp:${opp.id}`,
-        customerId: customer.id,
-        customerName: customer.name,
-        entity: "opportunity",
-        entityId: opp.id,
-        status: opp.stage,
-        stage: opp.stage,
-        label: `${customer.name} · Opportunity ${opp.stage} · ¥${opp.value}`,
-      });
 
       const deals = await listDealsForOpportunity(opp.id);
-      for (const deal of deals) {
-        if (deal.status !== "OPEN") continue;
+      const openDealsForOpp = deals.filter((deal) => deal.status === "OPEN");
+      const skipOpportunityAdvance =
+        opp.stage === "NEGOTIATION" && openDealsForOpp.length > 0;
+
+      if (!skipOpportunityAdvance) {
+        items.push({
+          id: `crm:opp:${opp.id}`,
+          customerId: customer.id,
+          customerName: customer.name,
+          entity: "opportunity",
+          entityId: opp.id,
+          status: opp.stage,
+          stage: opp.stage,
+          label: `${customer.name} · Opportunity ${opp.stage} · ¥${opp.value}`,
+        });
+      }
+
+      for (const deal of openDealsForOpp) {
         items.push({
           id: `crm:deal:${deal.id}`,
           customerId: customer.id,
