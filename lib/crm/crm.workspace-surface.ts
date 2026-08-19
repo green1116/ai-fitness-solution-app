@@ -7,6 +7,7 @@ import { listCustomers } from "./customer/customer.service";
 import { listLeadsForCustomer } from "./lead/lead.service";
 import { listOpportunitiesForCustomer } from "./opportunity/opportunity.service";
 import { listDealsForOpportunity } from "./deal/deal.service";
+import { buildOrganizationTimeline } from "./activity/activity.timeline";
 
 export type CrmWorkItem = Readonly<{
   id: string;
@@ -23,10 +24,76 @@ export type CrmWorkItem = Readonly<{
 
 export type CrmWorkSurface = Readonly<{
   items: readonly CrmWorkItem[];
+  outcomes: readonly CrmOutcomeItem[];
   qualifiedLeads: number;
   activeOpportunities: number;
   openDeals: number;
 }>;
+
+export type CrmOutcomeItem = Readonly<{
+  id: string;
+  timestamp: Date;
+  customerName: string;
+  entity: string;
+  entityId: string | null;
+  event: string;
+  from: string | null;
+  to: string | null;
+  userId: string | null;
+}>;
+
+const CRM_OUTCOME_TYPES = new Set([
+  "lead.promoted",
+  "opportunity.stage_updated",
+  "deal.closed_won",
+]);
+
+function metaString(
+  meta: Record<string, unknown> | null,
+  key: string,
+): string | null {
+  const value = meta?.[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function outcomeEntity(event: string): { entity: string; idKey: string } {
+  if (event === "lead.promoted") return { entity: "lead", idKey: "leadId" };
+  if (event === "deal.closed_won") return { entity: "deal", idKey: "dealId" };
+  return { entity: "opportunity", idKey: "opportunityId" };
+}
+
+async function listCrmOutcomes(
+  organizationId: string,
+): Promise<CrmOutcomeItem[]> {
+  const timelines = await buildOrganizationTimeline(organizationId, 100);
+  const outcomes: CrmOutcomeItem[] = [];
+
+  for (const timeline of timelines) {
+    for (const activity of timeline.activities) {
+      if (!CRM_OUTCOME_TYPES.has(activity.type)) continue;
+      const { entity, idKey } = outcomeEntity(activity.type);
+      outcomes.push({
+        id: activity.id,
+        timestamp: activity.timestamp,
+        customerName: timeline.customerName,
+        entity,
+        entityId: metaString(activity.meta, idKey),
+        event: activity.type,
+        from: metaString(activity.meta, "from"),
+        to: metaString(activity.meta, "to"),
+        userId: metaString(activity.meta, "userId"),
+      });
+    }
+  }
+
+  return outcomes
+    .sort((a, b) => {
+      const timeDiff = b.timestamp.getTime() - a.timestamp.getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    })
+    .slice(0, 10);
+}
 
 const TERMINAL_OPPORTUNITY_STAGES = new Set(["WON", "LOST"]);
 
@@ -145,9 +212,11 @@ export async function assembleCrmWorkSurface(
 
   items.sort(compareCrmWorkItems);
   const orderedItems = items.map(toCrmWorkItem);
+  const outcomes = await listCrmOutcomes(organizationId);
 
   return {
     items: orderedItems,
+    outcomes,
     qualifiedLeads: orderedItems.filter((i) => i.entity === "lead").length,
     activeOpportunities: orderedItems.filter((i) => i.entity === "opportunity").length,
     openDeals: orderedItems.filter((i) => i.entity === "deal").length,

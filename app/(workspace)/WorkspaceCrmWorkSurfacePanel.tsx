@@ -31,7 +31,8 @@ async function loadCrmWork(): Promise<CrmWorkSurface | null> {
 
 export async function WorkspaceCrmWorkSurfacePanel() {
   const crmWork = await loadCrmWork();
-  if (!crmWork || crmWork.items.length === 0) return null;
+  if (!crmWork) return null;
+  if (crmWork.items.length === 0 && crmWork.outcomes.length === 0) return null;
 
   return (
     <section className="mx-auto mb-6 max-w-5xl rounded-lg border border-zinc-800 bg-zinc-950 p-4">
@@ -50,6 +51,22 @@ export async function WorkspaceCrmWorkSurfacePanel() {
           <p className="mt-1 text-lg font-semibold text-emerald-400">{crmWork.openDeals}</p>
         </div>
       </div>
+      {crmWork.outcomes.length > 0 ? (
+        <div className="mt-4">
+          <p className="text-xs text-zinc-500">Latest outcomes</p>
+          <ul className="mt-2 space-y-1">
+            {crmWork.outcomes.map((outcome) => (
+              <li key={outcome.id} className="text-xs text-zinc-400">
+                {outcome.timestamp.toISOString()} · {outcome.customerName} ·{" "}
+                {outcome.entity}
+                {outcome.entityId ? ` ${outcome.entityId}` : ""} · {outcome.event}
+                {outcome.from && outcome.to ? ` · ${outcome.from} → ${outcome.to}` : ""}
+                {outcome.userId ? ` · ${outcome.userId}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <ul className="mt-4 space-y-2">
         {crmWork.items.map((item) => (
           <li
