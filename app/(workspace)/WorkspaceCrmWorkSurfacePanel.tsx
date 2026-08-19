@@ -10,6 +10,12 @@ const ENTITY_BADGE: Record<string, string> = {
   deal: "text-emerald-400 border-emerald-800",
 };
 
+const OPPORTUNITY_ADVANCE_LABEL: Record<string, string> = {
+  INIT: "ADVANCE · INIT → PROPOSAL",
+  PROPOSAL: "ADVANCE · PROPOSAL → NEGOTIATION",
+  NEGOTIATION: "ADVANCE · NEGOTIATION → WON",
+};
+
 async function loadCrmWork(): Promise<CrmWorkSurface | null> {
   try {
     const user = await getCurrentUser();
@@ -63,14 +69,18 @@ export async function WorkspaceCrmWorkSurfacePanel() {
               <WorkspaceCrmActionControl
                 crmItemId={item.id}
                 action="promote"
-                label="PROMOTE"
+                label="PROMOTE · QUALIFIED → Opportunity INIT"
                 submitCrmAction={submitWorkspaceCrmAction}
               />
             ) : item.entity === "opportunity" ? (
               <WorkspaceCrmActionControl
                 crmItemId={item.id}
                 action="advance"
-                label="ADVANCE"
+                label={
+                  OPPORTUNITY_ADVANCE_LABEL[
+                    (item.stage ?? item.status).toUpperCase()
+                  ] ?? "ADVANCE"
+                }
                 hiddenFields={{ currentStage: item.stage ?? item.status }}
                 submitCrmAction={submitWorkspaceCrmAction}
               />
@@ -78,7 +88,7 @@ export async function WorkspaceCrmWorkSurfacePanel() {
               <WorkspaceCrmActionControl
                 crmItemId={item.id}
                 action="close_won"
-                label="CLOSE WON"
+                label="CLOSE WON · OPEN → CLOSED_WON"
                 hiddenFields={{ currentStatus: item.status }}
                 submitCrmAction={submitWorkspaceCrmAction}
               />
