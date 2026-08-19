@@ -13,6 +13,7 @@ import {
   runWithTenantContext,
   type TenantContext,
 } from "@/lib/tenancy/tenant.context";
+import { revalidatePath } from "next/cache";
 
 export type CrmActionResult = {
   result: "SUCCESS" | "BLOCKED" | "FAILED";
@@ -40,6 +41,22 @@ function blockedResult(input: {
     entity: input.entity,
     entityId: input.entityId,
     opportunityId: input.opportunityId ?? null,
+    message: input.message,
+  };
+}
+
+function successResult(input: {
+  entity: string;
+  entityId: string;
+  opportunityId: string | null;
+  message: string;
+}): CrmActionResult {
+  revalidatePath("/projects");
+  return {
+    result: "SUCCESS",
+    entity: input.entity,
+    entityId: input.entityId,
+    opportunityId: input.opportunityId,
     message: input.message,
   };
 }
@@ -180,13 +197,12 @@ export async function submitWorkspaceCrmAction(
           leadId: parsed.id,
           userId,
         });
-        return {
-          result: "SUCCESS",
+        return successResult({
           entity: "lead",
           entityId: parsed.id,
           opportunityId: opportunity.id,
           message: `Promoted -> Opportunity ${opportunity.id}`,
-        };
+        });
       } catch (err) {
         return failedResult({
           entity: "lead",
@@ -223,13 +239,12 @@ export async function submitWorkspaceCrmAction(
           opportunityId: opportunity.id,
           stage: opportunity.stage,
         });
-        return {
-          result: "SUCCESS",
+        return successResult({
           entity: "opportunity",
           entityId: parsed.id,
           opportunityId: opportunity.id,
           message: `Advanced -> ${opportunity.stage}`,
-        };
+        });
       } catch (err) {
         logWorkspaceCrmAction("catch", {
           crmItemId,
@@ -268,13 +283,12 @@ export async function submitWorkspaceCrmAction(
           status: deal.status,
           opportunityId: deal.opportunityId,
         });
-        return {
-          result: "SUCCESS",
+        return successResult({
           entity: "deal",
           entityId: parsed.id,
           opportunityId: deal.opportunityId,
           message: `Closed -> ${deal.status}`,
-        };
+        });
       } catch (err) {
         logWorkspaceCrmAction("catch", {
           crmItemId,
