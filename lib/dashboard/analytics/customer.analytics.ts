@@ -7,10 +7,12 @@ import { aggregateGrowthMetrics } from "@/lib/growth/funnel/funnel.analytics";
 
 export async function analyzeCustomers(organizationId: string) {
   let crm = createEmptyCRMMetrics();
-  try {
-    crm = await aggregateCRMMetrics(organizationId);
-  } catch {
-    crm = createEmptyCRMMetrics();
+  if (organizationId) {
+    try {
+      crm = await aggregateCRMMetrics(organizationId);
+    } catch {
+      crm = createEmptyCRMMetrics();
+    }
   }
 
   const growth = aggregateGrowthMetrics();
@@ -19,7 +21,7 @@ export async function analyzeCustomers(organizationId: string) {
 
   return {
     crm,
-    organizations: 1,
+    organizations: organizationId ? 1 : 0,
     totalCustomers: crm.totalCustomers,
     paidUserRatio: paidRatio,
     lifecycle: {
