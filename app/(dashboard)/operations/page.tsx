@@ -1,7 +1,10 @@
 import { GET } from "@/app/api/operations/surface/route";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
+import { getCurrentUser } from "@/lib/auth/currentUser";
 import type { OperationsSurface } from "@/lib/commercial/operations-surface";
+import { analyzeCustomers } from "@/lib/dashboard/analytics/customer.analytics";
 import { analyzeOperations } from "@/lib/dashboard/analytics/operations.analytics";
+import { listOrganizationsForUser } from "@/lib/organization/organization.service";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +13,16 @@ export default async function OperationsDashboardPage() {
   const surfaceRes = await GET();
   const surface = (await surfaceRes.json()) as OperationsSurface;
   const { summary } = surface;
+
+  const user = await getCurrentUser();
+  const orgs = user ? await listOrganizationsForUser(user.id) : [];
+  const organizationId = orgs[0]?.organization.id ?? "";
+  const customers = await analyzeCustomers(organizationId);
+  const totalWonCustomers = customers.wonCustomerIds.length;
+  const totalWonRevenue = customers.wonCustomerIds.reduce(
+    (sum, id) => sum + (customers.revenueByCustomer[id] ?? 0),
+    0,
+  );
 
   return (
     <div className="space-y-6">
@@ -61,6 +74,30 @@ export default async function OperationsDashboardPage() {
             <p className="text-xs text-zinc-500">Feedback</p>
             <p className="mt-2 text-2xl font-semibold">{summary.escalateCount}</p>
           </div>
+        </div>
+      </section>
+      <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+        <h3 className="font-medium">CRM Win Signals</h3>
+        <ul className="mt-3 space-y-2 text-sm text-zinc-400">
+          <li className="flex justify-between">
+            <span>赢单客户数</span>
+            <span>{totalWonCustomers}</span>
+          </li>
+          <li className="flex justify-between">
+            <span>赢单收入合计</span>
+            <span>{totalWonRevenue}</span>
+          </li>
+        </ul>
+        <div className="mt-4">
+          <h4 className="text-sm font-medium text-zinc-300">赢单客户</h4>
+          <ul className="mt-2 space-y-2 text-sm text-zinc-400">
+            {customers.wonCustomerIds.map((customerId) => (
+              <li key={customerId} className="flex justify-between gap-4">
+                <span className="truncate">{customerId}</span>
+                <span>{customers.revenueByCustomer[customerId] ?? 0}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
     </div>
