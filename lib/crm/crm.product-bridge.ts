@@ -17,6 +17,7 @@ import { createDeal } from "./deal/deal.service";
 import { logProductActivity } from "./activity/activity.tracker";
 import { scoreLead } from "./lead/lead.scoring";
 import { calculateDealValue } from "./deal/deal.value";
+import { getLatestBudgetForProject } from "@/lib/services/budget.service";
 
 async function resolveCrmBridgeContext(planId?: string) {
   const user = await getCurrentUser();
@@ -46,6 +47,29 @@ async function resolveCrmBridgeContext(planId?: string) {
   }
 
   return { userId, organizationId };
+}
+
+async function resolveConsultOpportunityValue(planId: string): Promise<number | undefined> {
+  const pid = (planId || "").trim();
+  if (!pid) return undefined;
+
+  const project = await prisma.project.findUnique({
+    where: { id: pid },
+    select: { id: true },
+  });
+  if (!project) return undefined;
+
+  const budget = await getLatestBudgetForProject(project.id);
+  if (!budget) return undefined;
+
+  const min = Number(budget.totalEstimateMin);
+  const max = Number(budget.totalEstimateMax);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return undefined;
+
+  const midpoint = (min + max) / 2;
+  if (midpoint <= 0) return undefined;
+
+  return midpoint;
 }
 
 export async function recordEnterpriseConsultationAsLead(input: {
@@ -86,9 +110,11 @@ export async function recordEnterpriseConsultationAsLead(input: {
 
     let opportunity;
     if (lead.status === "QUALIFIED" || lead.score >= 50) {
+      const consultValue = await resolveConsultOpportunityValue(input.planId);
       const promoted = await promoteLeadToOpportunity({
         leadId: lead.id,
         userId,
+        value: consultValue ?? 0,
       });
       opportunity = promoted.opportunity;
     }
