@@ -91,12 +91,19 @@ export default async function OperationsDashboardPage() {
         <div className="mt-4">
           <h4 className="text-sm font-medium text-zinc-300">赢单客户</h4>
           <ul className="mt-2 space-y-2 text-sm text-zinc-400">
-            {customers.wonCustomerIds.map((customerId) => (
-              <li key={customerId} className="flex justify-between gap-4">
-                <span className="truncate">{customerId}</span>
-                <span>{customers.revenueByCustomer[customerId] ?? 0}</span>
-              </li>
-            ))}
+            {customers.wonCustomerIds.map((customerId) => {
+              const revenue = customers.revenueByCustomer[customerId] ?? 0;
+              const revenueLabel =
+                revenue > 0 ? "REVENUE CONFIRMED" : "WIN RECORDED";
+              return (
+                <li key={customerId} className="flex justify-between gap-4">
+                  <span className="truncate">
+                    {customerId} · WON · {revenueLabel}
+                  </span>
+                  <span>{revenue}</span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </section>
