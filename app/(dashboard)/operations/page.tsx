@@ -99,10 +99,16 @@ export default async function OperationsDashboardPage() {
                 customers.postWinActivityCountByCustomer[customerId] ?? 0;
               const postWinLabel =
                 postWinCount > 0 ? "POST-WIN ACTIVITY" : "NO POST-WIN ACTIVITY";
+              const engagementLabel =
+                revenue > 0 && postWinCount > 0
+                  ? "POST-WIN COMMERCIAL ENGAGEMENT"
+                  : null;
               return (
                 <li key={customerId} className="flex justify-between gap-4">
                   <span className="truncate">
-                    {customerId} · WON · {revenueLabel} · {postWinLabel} ({postWinCount})
+                    {customerId} · WON · {revenueLabel} · {postWinLabel} (
+                    {postWinCount})
+                    {engagementLabel ? ` · ${engagementLabel}` : ""}
                   </span>
                   <span>{revenue}</span>
                 </li>
