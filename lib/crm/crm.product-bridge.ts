@@ -19,6 +19,52 @@ import { scoreLead } from "./lead/lead.scoring";
 import { calculateDealValue } from "./deal/deal.value";
 import { getLatestBudgetForProject } from "@/lib/services/budget.service";
 
+const BUDGET_CUSTOMER_FALLBACK = "Budget Customer";
+const TENDER_CUSTOMER_FALLBACK = "Tender Customer";
+
+function readCompanyNameFromQuoteInfo(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  return String((value as { companyName?: unknown }).companyName ?? "").trim();
+}
+
+async function resolveCompanyNameFromQuoteOrProject(input: {
+  companyName?: string;
+  quoteId?: string;
+  projectId?: string;
+  fallback: string;
+}): Promise<string> {
+  const provided = (input.companyName || "").trim();
+  const isSentinel =
+    provided === BUDGET_CUSTOMER_FALLBACK ||
+    provided === TENDER_CUSTOMER_FALLBACK;
+
+  if (input.quoteId) {
+    const quote = await prisma.quote.findUnique({
+      where: { id: input.quoteId },
+      select: {
+        companyInfo: true,
+        project: { select: { clientName: true } },
+      },
+    });
+    const fromQuote = readCompanyNameFromQuoteInfo(quote?.companyInfo);
+    if (fromQuote) return fromQuote;
+    const fromProject = (quote?.project?.clientName || "").trim();
+    if (fromProject) return fromProject;
+  }
+
+  if (input.projectId) {
+    const project = await prisma.project.findUnique({
+      where: { id: input.projectId },
+      select: { clientName: true },
+    });
+    const fromProject = (project?.clientName || "").trim();
+    if (fromProject) return fromProject;
+  }
+
+  if (provided && !isSentinel) return provided;
+  return input.fallback;
+}
+
 async function resolveCrmBridgeContext(planId?: string) {
   const user = await getCurrentUser();
   let userId: string | undefined;
@@ -179,9 +225,15 @@ export async function recordBudgetAsOpportunity(input: {
   estimatedValue?: number;
 }) {
   try {
+    const companyName = await resolveCompanyNameFromQuoteOrProject({
+      companyName: input.companyName,
+      quoteId: input.quoteId,
+      fallback: BUDGET_CUSTOMER_FALLBACK,
+    });
+
     const customer = await findOrCreateCustomer({
       organizationId: input.organizationId,
-      name: input.companyName || "Budget Customer",
+      name: companyName,
       userId: input.userId,
     });
 
@@ -235,12 +287,21 @@ export async function recordTenderAsDeal(input: {
   companyName: string;
   userId?: string;
   tenderId?: string;
+  quoteId?: string;
+  projectId?: string;
   estimatedValue?: number;
 }) {
   try {
+    const companyName = await resolveCompanyNameFromQuoteOrProject({
+      companyName: input.companyName,
+      quoteId: input.quoteId,
+      projectId: input.projectId,
+      fallback: TENDER_CUSTOMER_FALLBACK,
+    });
+
     const customer = await findOrCreateCustomer({
       organizationId: input.organizationId,
-      name: input.companyName || "Tender Customer",
+      name: companyName,
       userId: input.userId,
     });
 

@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
       companyName: String(body?.companyName ?? "Tender Customer"),
       userId: gate.userId,
       tenderId: result.tender.id,
+      quoteId,
+      projectId,
       estimatedValue: 15000,
     }).then((crm) => {
       void onTenderGenerated({
