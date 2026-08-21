@@ -90,17 +90,28 @@ export async function WorkspaceCrmWorkSurfacePanel() {
                 submitCrmAction={submitWorkspaceCrmAction}
               />
             ) : item.entity === "opportunity" ? (
-              <WorkspaceCrmActionControl
-                crmItemId={item.id}
-                action="advance"
-                label={
-                  OPPORTUNITY_ADVANCE_LABEL[
-                    (item.stage ?? item.status).toUpperCase()
-                  ] ?? "ADVANCE"
-                }
-                hiddenFields={{ currentStage: item.stage ?? item.status }}
-                submitCrmAction={submitWorkspaceCrmAction}
-              />
+              <div className="mt-2 space-y-1">
+                <WorkspaceCrmActionControl
+                  crmItemId={item.id}
+                  action="advance"
+                  label={
+                    OPPORTUNITY_ADVANCE_LABEL[
+                      (item.stage ?? item.status).toUpperCase()
+                    ] ?? "ADVANCE"
+                  }
+                  hiddenFields={{ currentStage: item.stage ?? item.status }}
+                  submitCrmAction={submitWorkspaceCrmAction}
+                />
+                {(item.stage ?? item.status).toUpperCase() === "NEGOTIATION" ? (
+                  <WorkspaceCrmActionControl
+                    crmItemId={item.id}
+                    action="open_deal"
+                    label="OPEN DEAL · NEGOTIATION → Deal OPEN"
+                    hiddenFields={{ currentStage: item.stage ?? item.status }}
+                    submitCrmAction={submitWorkspaceCrmAction}
+                  />
+                ) : null}
+              </div>
             ) : item.entity === "deal" && item.status === "OPEN" ? (
               <WorkspaceCrmActionControl
                 crmItemId={item.id}

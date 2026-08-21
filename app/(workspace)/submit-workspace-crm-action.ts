@@ -1,10 +1,11 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { closeDealWon } from "@/lib/crm/deal/deal.service";
+import { createDeal, closeDealWon, listDealsForOpportunity } from "@/lib/crm/deal/deal.service";
 import { promoteLeadToOpportunity } from "@/lib/crm/lead/lead.service";
 import { updateOpportunityStage } from "@/lib/crm/opportunity/opportunity.service";
 import type { OpportunityStageName } from "@/lib/crm/opportunity/opportunity.stage";
+import { crmDb } from "@/lib/crm/types";
 import {
   ensureOrganizationForUser,
   listOrganizationsForUser,
@@ -258,6 +259,78 @@ export async function submitWorkspaceCrmAction(
           entityId: parsed.id,
           opportunityId: parsed.id,
           message: describeActionError(err, "Service error: advance failed"),
+        });
+      }
+    }
+
+    if (parsed.entity === "opp" && action === "open_deal") {
+      try {
+        const opportunity = await crmDb().opportunity.findFirst({
+          where: { id: parsed.id },
+        });
+        if (!opportunity) {
+          return failedResult({
+            entity: "opportunity",
+            entityId: parsed.id,
+            opportunityId: parsed.id,
+            message: "Service error: opportunity not found",
+          });
+        }
+
+        if (opportunity.stage.toUpperCase() !== "NEGOTIATION") {
+          return blockedResult({
+            entity: "opportunity",
+            entityId: parsed.id,
+            opportunityId: parsed.id,
+            message: `Invalid transition: open_deal requires NEGOTIATION, got ${opportunity.stage}`,
+          });
+        }
+
+        const deals = await listDealsForOpportunity(opportunity.id);
+        const openDeals = deals.filter((d) => d.status === "OPEN");
+        if (openDeals.length > 0) {
+          return blockedResult({
+            entity: "opportunity",
+            entityId: parsed.id,
+            opportunityId: parsed.id,
+            message: `Invalid transition: open deal already exists (${openDeals[0]?.id})`,
+          });
+        }
+
+        logWorkspaceCrmAction("before-create-deal", {
+          opportunityId: opportunity.id,
+          amount: opportunity.value,
+          userId,
+        });
+        const deal = await createDeal({
+          opportunityId: opportunity.id,
+          amount: opportunity.value,
+          userId,
+        });
+        logWorkspaceCrmAction("after-create-deal", {
+          dealId: deal.id,
+          amount: deal.amount,
+          status: deal.status,
+          opportunityId: deal.opportunityId,
+        });
+        return successResult({
+          entity: "deal",
+          entityId: deal.id,
+          opportunityId: opportunity.id,
+          message: `Opened Deal ${deal.id} · OPEN · ¥${deal.amount}`,
+        });
+      } catch (err) {
+        logWorkspaceCrmAction("catch", {
+          crmItemId,
+          action,
+          errorMessage: err instanceof Error ? err.message : String(err),
+          errorStack: err instanceof Error ? err.stack ?? null : null,
+        });
+        return failedResult({
+          entity: "opportunity",
+          entityId: parsed.id,
+          opportunityId: parsed.id,
+          message: describeActionError(err, "Service error: open_deal failed"),
         });
       }
     }
