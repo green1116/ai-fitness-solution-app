@@ -38,10 +38,64 @@ async function aggregateWonRevenueByCustomer(organizationId: string): Promise<{
   return { wonCustomerIds, revenueByCustomer };
 }
 
+const POST_WIN_PRODUCT_TYPES = new Set([
+  "quote.generated",
+  "budget.generated",
+  "tender.generated",
+]);
+
+async function earliestClosedWonAt(customerId: string): Promise<number | null> {
+  const activities = await crmDb().cRMActivity.findMany({
+    where: { customerId },
+    orderBy: { timestamp: "asc" },
+    take: 500,
+  });
+  const winTs = activities
+    .filter((a) => a.type === "deal.closed_won")
+    .map((a) => a.timestamp.getTime());
+  if (winTs.length > 0) return Math.min(...winTs);
+
+  const opps = await crmDb().opportunity.findMany({ where: { customerId } });
+  const dealTimes: number[] = [];
+  for (const opp of opps) {
+    const deals = await crmDb().deal.findMany({ where: { opportunityId: opp.id } });
+    for (const deal of deals) {
+      if (deal.status === "CLOSED_WON") {
+        dealTimes.push(deal.updatedAt.getTime());
+      }
+    }
+  }
+  return dealTimes.length > 0 ? Math.min(...dealTimes) : null;
+}
+
+async function aggregatePostWinActivityByCustomer(
+  wonCustomerIds: string[],
+): Promise<Record<string, number>> {
+  const postWinActivityCountByCustomer: Record<string, number> = {};
+  for (const customerId of wonCustomerIds) {
+    const after = await earliestClosedWonAt(customerId);
+    if (after == null) {
+      postWinActivityCountByCustomer[customerId] = 0;
+      continue;
+    }
+    const activities = await crmDb().cRMActivity.findMany({
+      where: { customerId },
+      orderBy: { timestamp: "asc" },
+      take: 500,
+    });
+    postWinActivityCountByCustomer[customerId] = activities.filter(
+      (a) =>
+        POST_WIN_PRODUCT_TYPES.has(a.type) && a.timestamp.getTime() > after,
+    ).length;
+  }
+  return postWinActivityCountByCustomer;
+}
+
 export async function analyzeCustomers(organizationId: string) {
   let crm = createEmptyCRMMetrics();
   let wonCustomerIds: string[] = [];
   let revenueByCustomer: Record<string, number> = {};
+  let postWinActivityCountByCustomer: Record<string, number> = {};
 
   if (organizationId) {
     try {
@@ -49,10 +103,13 @@ export async function analyzeCustomers(organizationId: string) {
       const won = await aggregateWonRevenueByCustomer(organizationId);
       wonCustomerIds = won.wonCustomerIds;
       revenueByCustomer = won.revenueByCustomer;
+      postWinActivityCountByCustomer =
+        await aggregatePostWinActivityByCustomer(wonCustomerIds);
     } catch {
       crm = createEmptyCRMMetrics();
       wonCustomerIds = [];
       revenueByCustomer = {};
+      postWinActivityCountByCustomer = {};
     }
   }
 
@@ -74,6 +131,7 @@ export async function analyzeCustomers(organizationId: string) {
     },
     wonCustomerIds,
     revenueByCustomer,
+    postWinActivityCountByCustomer,
     growthOverlay: {
       signups: growth.signups,
       activated: growth.activatedUsers,
