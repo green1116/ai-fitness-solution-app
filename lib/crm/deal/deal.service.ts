@@ -55,6 +55,9 @@ export async function openDealForOpportunity(input: {
 export async function closeDealWon(input: { dealId: string; userId?: string }) {
   const deal = await crmDb().deal.findFirst({ where: { id: input.dealId } });
   if (!deal) throw new Error("Deal not found");
+  if (deal.status === "CLOSED_WON") {
+    return deal;
+  }
 
   const updated = await crmDb().deal.update({
     where: { id: input.dealId },
