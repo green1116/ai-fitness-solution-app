@@ -36,6 +36,22 @@ export async function createDeal(input: {
   return deal;
 }
 
+/** Idempotent open: reuse existing OPEN deal for the opportunity, else create one. */
+export async function openDealForOpportunity(input: {
+  opportunityId: string;
+  amount?: number;
+  userId?: string;
+}): Promise<{ deal: DealRow; reused: boolean }> {
+  const deals = await listDealsForOpportunity(input.opportunityId);
+  const existingOpen = deals.find((d) => d.status === "OPEN");
+  if (existingOpen) {
+    return { deal: existingOpen, reused: true };
+  }
+
+  const deal = await createDeal(input);
+  return { deal, reused: false };
+}
+
 export async function closeDealWon(input: { dealId: string; userId?: string }) {
   const deal = await crmDb().deal.findFirst({ where: { id: input.dealId } });
   if (!deal) throw new Error("Deal not found");

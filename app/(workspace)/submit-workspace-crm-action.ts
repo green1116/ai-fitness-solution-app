@@ -1,7 +1,7 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { createDeal, closeDealWon, listDealsForOpportunity } from "@/lib/crm/deal/deal.service";
+import { openDealForOpportunity, closeDealWon } from "@/lib/crm/deal/deal.service";
 import { promoteLeadToOpportunity } from "@/lib/crm/lead/lead.service";
 import { updateOpportunityStage } from "@/lib/crm/opportunity/opportunity.service";
 import type { OpportunityStageName } from "@/lib/crm/opportunity/opportunity.stage";
@@ -286,38 +286,25 @@ export async function submitWorkspaceCrmAction(
           });
         }
 
-        const deals = await listDealsForOpportunity(opportunity.id);
-        const openDeals = deals.filter((d) => d.status === "OPEN");
-        if (openDeals.length > 0) {
-          return blockedResult({
-            entity: "opportunity",
-            entityId: parsed.id,
-            opportunityId: parsed.id,
-            message: `Invalid transition: open deal already exists (${openDeals[0]?.id})`,
-          });
-        }
-
-        logWorkspaceCrmAction("before-create-deal", {
+        const { deal, reused } = await openDealForOpportunity({
           opportunityId: opportunity.id,
           amount: opportunity.value,
           userId,
         });
-        const deal = await createDeal({
-          opportunityId: opportunity.id,
-          amount: opportunity.value,
-          userId,
-        });
-        logWorkspaceCrmAction("after-create-deal", {
+        logWorkspaceCrmAction(reused ? "after-reuse-deal" : "after-create-deal", {
           dealId: deal.id,
           amount: deal.amount,
           status: deal.status,
           opportunityId: deal.opportunityId,
+          reused,
         });
         return successResult({
           entity: "deal",
           entityId: deal.id,
           opportunityId: opportunity.id,
-          message: `Opened Deal ${deal.id} · OPEN · ¥${deal.amount}`,
+          message: reused
+            ? `Reused Deal ${deal.id} · OPEN · ¥${deal.amount}`
+            : `Opened Deal ${deal.id} · OPEN · ¥${deal.amount}`,
         });
       } catch (err) {
         logWorkspaceCrmAction("catch", {
