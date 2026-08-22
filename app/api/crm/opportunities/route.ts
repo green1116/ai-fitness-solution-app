@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleApiError } from "@/lib/error/global-error.handler";
 import { isKnownApiError } from "@/lib/error/api-error.mapper";
 import { createOpportunity, updateOpportunityStage } from "@/lib/crm/crm.service";
+import {
+  CRM_TENANT_BLOCKED_MESSAGE,
+  isCrmEntityOwnedByOrg,
+} from "@/lib/crm/crm.tenant-guard";
 import { runSaasOrgGate, saasGateErrorResponse } from "@/lib/saas/api-gate";
 import { getCustomerById } from "@/lib/crm/customer/customer.service";
 import type { OpportunityStageName } from "@/lib/crm/opportunity/opportunity.stage";
@@ -21,6 +25,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           { ok: false, message: "opportunityId and stage required", traceId },
           { status: 400 },
+        );
+      }
+      if (
+        !(await isCrmEntityOwnedByOrg({
+          entity: "opp",
+          entityId: opportunityId,
+          organizationId: gate.organizationId,
+        }))
+      ) {
+        return NextResponse.json(
+          { ok: false, message: CRM_TENANT_BLOCKED_MESSAGE, traceId },
+          { status: 403 },
         );
       }
       const opportunity = await updateOpportunityStage({

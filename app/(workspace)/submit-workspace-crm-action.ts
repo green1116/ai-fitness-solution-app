@@ -1,7 +1,7 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { getCustomerById } from "@/lib/crm/customer/customer.service";
+import { CRM_TENANT_BLOCKED_MESSAGE, isCrmEntityOwnedByOrg } from "@/lib/crm/crm.tenant-guard";
 import { openDealForOpportunity, closeDealWon } from "@/lib/crm/deal/deal.service";
 import { promoteLeadToOpportunity } from "@/lib/crm/lead/lead.service";
 import { updateOpportunityStage } from "@/lib/crm/opportunity/opportunity.service";
@@ -143,42 +143,37 @@ function nextOpportunityStage(
   }
 }
 
-const TENANT_BLOCKED_MESSAGE = "Tenant blocked: entity not in organization";
-
-async function assertCrmEntityOwnedByOrg(input: {
+async function workspaceTenantBlocked(input: {
   entity: string;
+  entityId: string;
+  opportunityId?: string | null;
+}): Promise<CrmActionResult> {
+  return blockedResult({
+    entity: input.entity,
+    entityId: input.entityId,
+    opportunityId: input.opportunityId ?? null,
+    message: CRM_TENANT_BLOCKED_MESSAGE,
+  });
+}
+
+async function guardWorkspaceCrmEntity(input: {
+  entity: "lead" | "opp" | "deal";
   entityId: string;
   organizationId: string;
   opportunityId?: string | null;
 }): Promise<CrmActionResult | null> {
-  let customerId: string | null = null;
-
-  if (input.entity === "lead") {
-    const lead = await crmDb().crmLead.findFirst({ where: { id: input.entityId } });
-    customerId = lead?.customerId ?? null;
-  } else if (input.entity === "opp") {
-    const opportunity = await crmDb().opportunity.findFirst({ where: { id: input.entityId } });
-    customerId = opportunity?.customerId ?? null;
-  } else if (input.entity === "deal") {
-    const deal = await crmDb().deal.findFirst({ where: { id: input.entityId } });
-    if (deal) {
-      const opportunity = await crmDb().opportunity.findFirst({
-        where: { id: deal.opportunityId },
-      });
-      customerId = opportunity?.customerId ?? null;
-    }
-  }
-
-  if (!customerId || !(await getCustomerById(customerId, input.organizationId))) {
-    return blockedResult({
+  const owned = await isCrmEntityOwnedByOrg({
+    entity: input.entity,
+    entityId: input.entityId,
+    organizationId: input.organizationId,
+  });
+  if (!owned) {
+    return workspaceTenantBlocked({
       entity: input.entity,
       entityId: input.entityId,
-      opportunityId:
-        input.opportunityId ?? (input.entity === "opp" ? input.entityId : null),
-      message: TENANT_BLOCKED_MESSAGE,
+      opportunityId: input.opportunityId,
     });
   }
-
   return null;
 }
 
@@ -233,8 +228,8 @@ export async function submitWorkspaceCrmAction(
     }
 
     if (parsed.entity === "lead" && action === "promote") {
-      const tenantBlocked = await assertCrmEntityOwnedByOrg({
-        entity: parsed.entity,
+      const tenantBlocked = await guardWorkspaceCrmEntity({
+        entity: "lead",
         entityId: parsed.id,
         organizationId: tenant.organizationId,
         opportunityId: null,
@@ -262,8 +257,8 @@ export async function submitWorkspaceCrmAction(
     }
 
     if (parsed.entity === "opp" && action === "advance") {
-      const tenantBlocked = await assertCrmEntityOwnedByOrg({
-        entity: parsed.entity,
+      const tenantBlocked = await guardWorkspaceCrmEntity({
+        entity: "opp",
         entityId: parsed.id,
         organizationId: tenant.organizationId,
         opportunityId: parsed.id,
@@ -320,8 +315,8 @@ export async function submitWorkspaceCrmAction(
     }
 
     if (parsed.entity === "opp" && action === "open_deal") {
-      const tenantBlocked = await assertCrmEntityOwnedByOrg({
-        entity: parsed.entity,
+      const tenantBlocked = await guardWorkspaceCrmEntity({
+        entity: "opp",
         entityId: parsed.id,
         organizationId: tenant.organizationId,
         opportunityId: parsed.id,
@@ -387,8 +382,8 @@ export async function submitWorkspaceCrmAction(
     }
 
     if (parsed.entity === "deal" && action === "close_won") {
-      const tenantBlocked = await assertCrmEntityOwnedByOrg({
-        entity: parsed.entity,
+      const tenantBlocked = await guardWorkspaceCrmEntity({
+        entity: "deal",
         entityId: parsed.id,
         organizationId: tenant.organizationId,
         opportunityId: null,

@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleApiError } from "@/lib/error/global-error.handler";
 import { isKnownApiError } from "@/lib/error/api-error.mapper";
 import { createLead, promoteLeadToOpportunity } from "@/lib/crm/crm.service";
+import {
+  CRM_TENANT_BLOCKED_MESSAGE,
+  isCrmEntityOwnedByOrg,
+} from "@/lib/crm/crm.tenant-guard";
 import { runSaasOrgGate, saasGateErrorResponse } from "@/lib/saas/api-gate";
 import { getCustomerById } from "@/lib/crm/customer/customer.service";
 
@@ -27,6 +31,18 @@ export async function POST(req: NextRequest) {
       const leadId = String(body?.leadId ?? "").trim();
       if (!leadId) {
         return NextResponse.json({ ok: false, message: "leadId required", traceId }, { status: 400 });
+      }
+      if (
+        !(await isCrmEntityOwnedByOrg({
+          entity: "lead",
+          entityId: leadId,
+          organizationId: gate.organizationId,
+        }))
+      ) {
+        return NextResponse.json(
+          { ok: false, message: CRM_TENANT_BLOCKED_MESSAGE, traceId },
+          { status: 403 },
+        );
       }
       const result = await promoteLeadToOpportunity({
         leadId,

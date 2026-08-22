@@ -3,8 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleApiError } from "@/lib/error/global-error.handler";
 import { isKnownApiError } from "@/lib/error/api-error.mapper";
 import { createDeal, trackDealProgress, closeDealWon, closeDealLost } from "@/lib/crm/crm.service";
+import {
+  CRM_TENANT_BLOCKED_MESSAGE,
+  isCrmEntityOwnedByOrg,
+} from "@/lib/crm/crm.tenant-guard";
 import { runSaasOrgGate, saasGateErrorResponse } from "@/lib/saas/api-gate";
 import type { DealStatus } from "@/lib/crm/types";
+
+function tenantBlockedResponse(traceId: string) {
+  return NextResponse.json(
+    { ok: false, message: CRM_TENANT_BLOCKED_MESSAGE, traceId },
+    { status: 403 },
+  );
+}
 
 export async function POST(req: NextRequest) {
   let traceId = "unknown";
@@ -21,18 +32,45 @@ export async function POST(req: NextRequest) {
       if (!dealId || !status) {
         return NextResponse.json({ ok: false, message: "dealId and status required", traceId }, { status: 400 });
       }
+      if (
+        !(await isCrmEntityOwnedByOrg({
+          entity: "deal",
+          entityId: dealId,
+          organizationId: gate.organizationId,
+        }))
+      ) {
+        return tenantBlockedResponse(traceId);
+      }
       const deal = await trackDealProgress({ dealId, status, userId: gate.userId });
       return NextResponse.json({ ok: true, deal, traceId });
     }
 
     if (action === "close_won") {
       const dealId = String(body?.dealId ?? "").trim();
+      if (
+        !(await isCrmEntityOwnedByOrg({
+          entity: "deal",
+          entityId: dealId,
+          organizationId: gate.organizationId,
+        }))
+      ) {
+        return tenantBlockedResponse(traceId);
+      }
       const deal = await closeDealWon({ dealId, userId: gate.userId });
       return NextResponse.json({ ok: true, deal, traceId });
     }
 
     if (action === "close_lost") {
       const dealId = String(body?.dealId ?? "").trim();
+      if (
+        !(await isCrmEntityOwnedByOrg({
+          entity: "deal",
+          entityId: dealId,
+          organizationId: gate.organizationId,
+        }))
+      ) {
+        return tenantBlockedResponse(traceId);
+      }
       const deal = await closeDealLost({ dealId, userId: gate.userId });
       return NextResponse.json({ ok: true, deal, traceId });
     }
@@ -40,6 +78,16 @@ export async function POST(req: NextRequest) {
     const opportunityId = String(body?.opportunityId ?? "").trim();
     if (!opportunityId) {
       return NextResponse.json({ ok: false, message: "opportunityId required", traceId }, { status: 400 });
+    }
+
+    if (
+      !(await isCrmEntityOwnedByOrg({
+        entity: "opp",
+        entityId: opportunityId,
+        organizationId: gate.organizationId,
+      }))
+    ) {
+      return tenantBlockedResponse(traceId);
     }
 
     const deal = await createDeal({
