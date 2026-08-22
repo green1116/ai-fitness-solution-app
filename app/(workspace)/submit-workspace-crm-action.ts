@@ -1,6 +1,7 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth/currentUser";
+import { getCustomerById } from "@/lib/crm/customer/customer.service";
 import { openDealForOpportunity, closeDealWon } from "@/lib/crm/deal/deal.service";
 import { promoteLeadToOpportunity } from "@/lib/crm/lead/lead.service";
 import { updateOpportunityStage } from "@/lib/crm/opportunity/opportunity.service";
@@ -142,6 +143,45 @@ function nextOpportunityStage(
   }
 }
 
+const TENANT_BLOCKED_MESSAGE = "Tenant blocked: entity not in organization";
+
+async function assertCrmEntityOwnedByOrg(input: {
+  entity: string;
+  entityId: string;
+  organizationId: string;
+  opportunityId?: string | null;
+}): Promise<CrmActionResult | null> {
+  let customerId: string | null = null;
+
+  if (input.entity === "lead") {
+    const lead = await crmDb().crmLead.findFirst({ where: { id: input.entityId } });
+    customerId = lead?.customerId ?? null;
+  } else if (input.entity === "opp") {
+    const opportunity = await crmDb().opportunity.findFirst({ where: { id: input.entityId } });
+    customerId = opportunity?.customerId ?? null;
+  } else if (input.entity === "deal") {
+    const deal = await crmDb().deal.findFirst({ where: { id: input.entityId } });
+    if (deal) {
+      const opportunity = await crmDb().opportunity.findFirst({
+        where: { id: deal.opportunityId },
+      });
+      customerId = opportunity?.customerId ?? null;
+    }
+  }
+
+  if (!customerId || !(await getCustomerById(customerId, input.organizationId))) {
+    return blockedResult({
+      entity: input.entity,
+      entityId: input.entityId,
+      opportunityId:
+        input.opportunityId ?? (input.entity === "opp" ? input.entityId : null),
+      message: TENANT_BLOCKED_MESSAGE,
+    });
+  }
+
+  return null;
+}
+
 export async function submitWorkspaceCrmAction(
   _prev: CrmActionResult | null,
   formData: FormData,
@@ -193,6 +233,14 @@ export async function submitWorkspaceCrmAction(
     }
 
     if (parsed.entity === "lead" && action === "promote") {
+      const tenantBlocked = await assertCrmEntityOwnedByOrg({
+        entity: parsed.entity,
+        entityId: parsed.id,
+        organizationId: tenant.organizationId,
+        opportunityId: null,
+      });
+      if (tenantBlocked) return tenantBlocked;
+
       try {
         const { opportunity } = await promoteLeadToOpportunity({
           leadId: parsed.id,
@@ -214,6 +262,14 @@ export async function submitWorkspaceCrmAction(
     }
 
     if (parsed.entity === "opp" && action === "advance") {
+      const tenantBlocked = await assertCrmEntityOwnedByOrg({
+        entity: parsed.entity,
+        entityId: parsed.id,
+        organizationId: tenant.organizationId,
+        opportunityId: parsed.id,
+      });
+      if (tenantBlocked) return tenantBlocked;
+
       const nextStage = nextOpportunityStage(currentStage);
       if (!nextStage) {
         return blockedResult({
@@ -264,6 +320,14 @@ export async function submitWorkspaceCrmAction(
     }
 
     if (parsed.entity === "opp" && action === "open_deal") {
+      const tenantBlocked = await assertCrmEntityOwnedByOrg({
+        entity: parsed.entity,
+        entityId: parsed.id,
+        organizationId: tenant.organizationId,
+        opportunityId: parsed.id,
+      });
+      if (tenantBlocked) return tenantBlocked;
+
       try {
         const opportunity = await crmDb().opportunity.findFirst({
           where: { id: parsed.id },
@@ -323,6 +387,14 @@ export async function submitWorkspaceCrmAction(
     }
 
     if (parsed.entity === "deal" && action === "close_won") {
+      const tenantBlocked = await assertCrmEntityOwnedByOrg({
+        entity: parsed.entity,
+        entityId: parsed.id,
+        organizationId: tenant.organizationId,
+        opportunityId: null,
+      });
+      if (tenantBlocked) return tenantBlocked;
+
       if (currentStatus.toUpperCase() !== "OPEN") {
         return blockedResult({
           entity: "deal",
