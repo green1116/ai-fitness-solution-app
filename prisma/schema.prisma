@@ -212,6 +212,7 @@ model Lead {
   @@index([email, createdAt])
   @@index([planId, createdAt])
   @@index([status])
+  @@unique([planId, email, intent])
 }
 
 model EmailVerifyCode {
