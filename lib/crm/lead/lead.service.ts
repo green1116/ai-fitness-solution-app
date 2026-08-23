@@ -2,9 +2,9 @@
  * V60 P2 — Lead service
  */
 
-import { crmDb, type LeadRow } from "../types";
+import { prisma } from "@/lib/prisma";
+import { crmDb, type LeadRow, type OpportunityRow } from "../types";
 import { logCRMActivity } from "../activity/activity.tracker";
-import { createOpportunity } from "../opportunity/opportunity.service";
 import { isQualifiedLead, scoreLead, resolveLeadStatusFromScore } from "./lead.scoring";
 import { nextLeadStage } from "./lead.pipeline";
 
@@ -68,28 +68,56 @@ export async function promoteLeadToOpportunity(input: {
   leadId: string;
   value?: number;
   userId?: string;
-}) {
-  const lead = await crmDb().crmLead.findFirst({ where: { id: input.leadId } });
-  if (!lead) throw new Error("Lead not found");
-  if (!isQualifiedLead(lead.score) && lead.status !== "QUALIFIED") {
-    throw new Error("Lead must be qualified before promotion to opportunity");
-  }
+}): Promise<{ lead: LeadRow; opportunity: OpportunityRow }> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`promote:${input.leadId}`}))`;
 
-  const opportunity = await createOpportunity({
-    customerId: lead.customerId,
-    leadId: lead.id,
-    stage: "INIT",
-    value: input.value ?? 0,
-    userId: input.userId,
-  });
+    const lead = await tx.crmLead.findFirst({ where: { id: input.leadId } });
+    if (!lead) throw new Error("Lead not found");
+    if (!isQualifiedLead(lead.score) && lead.status !== "QUALIFIED") {
+      throw new Error("Lead must be qualified before promotion to opportunity");
+    }
 
-  await logCRMActivity({
-    customerId: lead.customerId,
-    type: "lead.promoted",
-    meta: { leadId: lead.id, opportunityId: opportunity.id },
-  });
+    const existingOpportunity = await tx.opportunity.findFirst({
+      where: { leadId: lead.id },
+      orderBy: { createdAt: "asc" },
+    });
+    if (existingOpportunity) {
+      return { lead, opportunity: existingOpportunity };
+    }
 
-  return { lead, opportunity };
+    const opportunity = await tx.opportunity.create({
+      data: {
+        customerId: lead.customerId,
+        leadId: lead.id,
+        stage: "INIT",
+        value: input.value ?? 0,
+      },
+    });
+
+    await tx.cRMActivity.create({
+      data: {
+        customerId: lead.customerId,
+        type: "opportunity.created",
+        meta: {
+          opportunityId: opportunity.id,
+          leadId: lead.id,
+          value: opportunity.value,
+          userId: input.userId,
+        },
+      },
+    });
+
+    await tx.cRMActivity.create({
+      data: {
+        customerId: lead.customerId,
+        type: "lead.promoted",
+        meta: { leadId: lead.id, opportunityId: opportunity.id },
+      },
+    });
+
+    return { lead, opportunity };
+  }, { maxWait: 10_000, timeout: 15_000 });
 }
 
 export async function listLeadsForCustomer(customerId: string) {
