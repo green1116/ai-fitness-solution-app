@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { handleApiError } from "@/lib/error/global-error.handler";
 import { isKnownApiError } from "@/lib/error/api-error.mapper";
-import { createDeal, trackDealProgress, closeDealWon, closeDealLost } from "@/lib/crm/crm.service";
+import { trackDealProgress, closeDealWon, closeDealLost } from "@/lib/crm/crm.service";
+import { openDealForOpportunity } from "@/lib/crm/deal/deal.service";
 import {
   CRM_TENANT_BLOCKED_MESSAGE,
   isCrmEntityOwnedByOrg,
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
       return tenantBlockedResponse(traceId);
     }
 
-    const deal = await createDeal({
+    const { deal } = await openDealForOpportunity({
       opportunityId,
       amount: body?.amount ? Number(body.amount) : undefined,
       userId: gate.userId,

@@ -47,14 +47,47 @@ export async function openDealForOpportunity(input: {
   amount?: number;
   userId?: string;
 }): Promise<{ deal: DealRow; reused: boolean }> {
-  const deals = await listDealsForOpportunity(input.opportunityId);
-  const existingOpen = deals.find((d) => d.status === "OPEN");
-  if (existingOpen) {
-    return { deal: existingOpen, reused: true };
-  }
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`open-deal:${input.opportunityId}`}))`;
 
-  const deal = await createDeal(input);
-  return { deal, reused: false };
+    const existingOpen = await tx.deal.findFirst({
+      where: { opportunityId: input.opportunityId, status: "OPEN" },
+      orderBy: { createdAt: "asc" },
+    });
+    if (existingOpen) {
+      return { deal: existingOpen, reused: true };
+    }
+
+    const opportunity = await tx.opportunity.findFirst({
+      where: { id: input.opportunityId },
+    });
+    if (!opportunity) throw new Error("Opportunity not found");
+
+    const amount = calculateDealValue({ opportunity, amount: input.amount });
+
+    const deal = await tx.deal.create({
+      data: {
+        opportunityId: input.opportunityId,
+        amount,
+        status: "OPEN",
+      },
+    });
+
+    await tx.cRMActivity.create({
+      data: {
+        customerId: opportunity.customerId,
+        type: "deal.created",
+        meta: {
+          dealId: deal.id,
+          opportunityId: opportunity.id,
+          amount,
+          userId: input.userId,
+        },
+      },
+    });
+
+    return { deal, reused: false };
+  }, { maxWait: 10_000, timeout: 15_000 });
 }
 
 export async function closeDealWon(input: { dealId: string; userId?: string }) {
