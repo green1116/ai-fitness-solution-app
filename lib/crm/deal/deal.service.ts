@@ -10,7 +10,6 @@ import {
   type OpportunityStageName,
 } from "../opportunity/opportunity.stage";
 import { calculateDealValue } from "./deal.value";
-import { updateOpportunityStage } from "../opportunity/opportunity.service";
 
 export async function createDeal(input: {
   opportunityId: string;
@@ -151,24 +150,59 @@ export async function closeDealWon(input: { dealId: string; userId?: string }) {
 export async function closeDealLost(input: { dealId: string; userId?: string }) {
   const deal = await crmDb().deal.findFirst({ where: { id: input.dealId } });
   if (!deal) throw new Error("Deal not found");
-
-  const updated = await crmDb().deal.update({
-    where: { id: input.dealId },
-    data: { status: "CLOSED_LOST" },
-  });
-
-  const opportunity = await crmDb().opportunity.findFirst({
-    where: { id: deal.opportunityId },
-  });
-  if (opportunity) {
-    await updateOpportunityStage({
-      opportunityId: opportunity.id,
-      stage: "LOST",
-      userId: input.userId,
-    });
+  if (deal.status === "CLOSED_LOST") {
+    return deal;
   }
 
-  return updated;
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.deal.update({
+      where: { id: input.dealId },
+      data: { status: "CLOSED_LOST" },
+    });
+
+    const opportunity = await tx.opportunity.findFirst({
+      where: { id: deal.opportunityId },
+    });
+    if (opportunity) {
+      const current = opportunity.stage as OpportunityStageName;
+      const stage: OpportunityStageName = "LOST";
+      if (!canAdvanceOpportunityStage(current, stage) && current !== stage) {
+        throw new Error(`Invalid stage transition: ${current} → ${stage}`);
+      }
+
+      await tx.opportunity.update({
+        where: { id: opportunity.id },
+        data: { stage },
+      });
+
+      await tx.cRMActivity.create({
+        data: {
+          customerId: opportunity.customerId,
+          type: "opportunity.stage_updated",
+          meta: {
+            opportunityId: opportunity.id,
+            from: current,
+            to: stage,
+            userId: input.userId,
+          },
+        },
+      });
+
+      await tx.cRMActivity.create({
+        data: {
+          customerId: opportunity.customerId,
+          type: "deal.closed_lost",
+          meta: {
+            dealId: deal.id,
+            amount: updated.amount,
+            userId: input.userId,
+          },
+        },
+      });
+    }
+
+    return updated;
+  });
 }
 
 export async function listDealsForOpportunity(opportunityId: string) {
