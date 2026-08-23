@@ -2,8 +2,13 @@
  * V60 P2 — Deal service
  */
 
+import { prisma } from "@/lib/prisma";
 import { crmDb, type DealRow } from "../types";
 import { logCRMActivity } from "../activity/activity.tracker";
+import {
+  canAdvanceOpportunityStage,
+  type OpportunityStageName,
+} from "../opportunity/opportunity.stage";
 import { calculateDealValue } from "./deal.value";
 import { updateOpportunityStage } from "../opportunity/opportunity.service";
 
@@ -59,28 +64,55 @@ export async function closeDealWon(input: { dealId: string; userId?: string }) {
     return deal;
   }
 
-  const updated = await crmDb().deal.update({
-    where: { id: input.dealId },
-    data: { status: "CLOSED_WON" },
-  });
-
-  const opportunity = await crmDb().opportunity.findFirst({
-    where: { id: deal.opportunityId },
-  });
-  if (opportunity) {
-    await updateOpportunityStage({
-      opportunityId: opportunity.id,
-      stage: "WON",
-      userId: input.userId,
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.deal.update({
+      where: { id: input.dealId },
+      data: { status: "CLOSED_WON" },
     });
-    await logCRMActivity({
-      customerId: opportunity.customerId,
-      type: "deal.closed_won",
-      meta: { dealId: deal.id, amount: updated.amount, userId: input.userId },
-    });
-  }
 
-  return updated;
+    const opportunity = await tx.opportunity.findFirst({
+      where: { id: deal.opportunityId },
+    });
+    if (opportunity) {
+      const current = opportunity.stage as OpportunityStageName;
+      const stage: OpportunityStageName = "WON";
+      if (!canAdvanceOpportunityStage(current, stage) && current !== stage) {
+        throw new Error(`Invalid stage transition: ${current} → ${stage}`);
+      }
+
+      await tx.opportunity.update({
+        where: { id: opportunity.id },
+        data: { stage },
+      });
+
+      await tx.cRMActivity.create({
+        data: {
+          customerId: opportunity.customerId,
+          type: "opportunity.stage_updated",
+          meta: {
+            opportunityId: opportunity.id,
+            from: current,
+            to: stage,
+            userId: input.userId,
+          },
+        },
+      });
+
+      await tx.cRMActivity.create({
+        data: {
+          customerId: opportunity.customerId,
+          type: "deal.closed_won",
+          meta: {
+            dealId: deal.id,
+            amount: updated.amount,
+            userId: input.userId,
+          },
+        },
+      });
+    }
+
+    return updated;
+  });
 }
 
 export async function closeDealLost(input: { dealId: string; userId?: string }) {
