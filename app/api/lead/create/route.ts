@@ -50,12 +50,37 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    void recordEnterpriseConsultationAsLead({
+    const crmBridge = await recordEnterpriseConsultationAsLead({
       marketingLeadId: lead.id,
       planId,
       company,
       email,
     });
+
+    if (!crmBridge) {
+      const priorPayload =
+        lead.payload && typeof lead.payload === "object" && !Array.isArray(lead.payload)
+          ? (lead.payload as Record<string, unknown>)
+          : {};
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          payload: {
+            ...priorPayload,
+            crmBridge: "failed",
+            crmBridgeFailedAt: new Date().toISOString(),
+          },
+        },
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          leadId: lead.id,
+          message: "咨询已记录，但销售系统暂不可用，请稍后重试",
+        },
+        { status: 503 },
+      );
+    }
 
     return NextResponse.json({
       ok: true,
