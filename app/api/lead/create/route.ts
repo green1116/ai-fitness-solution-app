@@ -6,6 +6,28 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function readLeadPayload(payload: unknown): Record<string, unknown> {
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    return payload as Record<string, unknown>;
+  }
+  return {};
+}
+
+function isFailedConsultLead(payload: Record<string, unknown>): boolean {
+  return payload.crmBridge === "failed";
+}
+
+async function findExistingConsultLead(planId: string, email: string) {
+  return prisma.lead.findFirst({
+    where: {
+      planId,
+      email,
+      intent: "consult",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -31,24 +53,44 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const lead = await prisma.lead.create({
-      data: {
-        planId,
-        email,
-        company,
-        name,
-        note: note || null,
-        // 兼容当前 Lead 模型的既有必填字段
-        intent: "consult",
-        source: "download",
-        status: "new",
-        score: 0,
-        payload: {
-          from: "lead_create_api",
-          createdAt: new Date().toISOString(),
+    let lead = await findExistingConsultLead(planId, email);
+    const existingPayload = lead ? readLeadPayload(lead.payload) : {};
+
+    if (lead && !isFailedConsultLead(existingPayload)) {
+      return NextResponse.json({
+        ok: true,
+        leadId: lead.id,
+      });
+    }
+
+    if (!lead) {
+      lead = await prisma.lead.create({
+        data: {
+          planId,
+          email,
+          company,
+          name,
+          note: note || null,
+          intent: "consult",
+          source: "download",
+          status: "new",
+          score: 0,
+          payload: {
+            from: "lead_create_api",
+            createdAt: new Date().toISOString(),
+          },
         },
-      },
-    });
+      });
+    } else {
+      lead = await prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          company,
+          name,
+          note: note || null,
+        },
+      });
+    }
 
     const crmBridge = await recordEnterpriseConsultationAsLead({
       marketingLeadId: lead.id,
@@ -57,11 +99,9 @@ export async function POST(req: NextRequest) {
       email,
     });
 
+    const priorPayload = readLeadPayload(lead.payload);
+
     if (!crmBridge) {
-      const priorPayload =
-        lead.payload && typeof lead.payload === "object" && !Array.isArray(lead.payload)
-          ? (lead.payload as Record<string, unknown>)
-          : {};
       await prisma.lead.update({
         where: { id: lead.id },
         data: {
@@ -81,6 +121,17 @@ export async function POST(req: NextRequest) {
         { status: 503 },
       );
     }
+
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        payload: {
+          ...priorPayload,
+          crmBridge: "synced",
+          crmBridgeSyncedAt: new Date().toISOString(),
+        },
+      },
+    });
 
     return NextResponse.json({
       ok: true,
