@@ -14,10 +14,6 @@ function readLeadPayload(payload: unknown): Record<string, unknown> {
   return {};
 }
 
-function isFailedConsultLead(payload: Record<string, unknown>): boolean {
-  return payload.crmBridge === "failed";
-}
-
 function isSyncedConsultLead(payload: Record<string, unknown>): boolean {
   return payload.crmBridge === "synced";
 }
@@ -26,8 +22,17 @@ function isBridgeInFlight(payload: Record<string, unknown>): boolean {
   return payload.crmBridge === "pending";
 }
 
-function needsCrmBridge(payload: Record<string, unknown>): boolean {
-  return isFailedConsultLead(payload) || payload.crmBridge === undefined;
+const CRM_BRIDGE_PENDING_STALE_MS = 5_000;
+
+function isStalePendingBridge(payload: Record<string, unknown>): boolean {
+  if (!isBridgeInFlight(payload)) return false;
+  const pendingAt = payload.crmBridgePendingAt;
+  if (typeof pendingAt !== "string" || !pendingAt) return true;
+  return Date.now() - new Date(pendingAt).getTime() > CRM_BRIDGE_PENDING_STALE_MS;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -75,6 +80,7 @@ async function claimCrmBridge(input: {
   email: string;
 }): Promise<
   | { action: "skip"; leadId: string }
+  | { action: "wait"; leadId: string }
   | { action: "run"; leadId: string; priorPayload: Record<string, unknown> }
 > {
   const lockKey = consultLeadLockKey(input.planId, input.email);
@@ -85,11 +91,14 @@ async function claimCrmBridge(input: {
     if (!current) throw new Error("Lead missing after consult resolution");
 
     const payload = readLeadPayload(current.payload);
-    if (isSyncedConsultLead(payload) || isBridgeInFlight(payload)) {
+    if (isSyncedConsultLead(payload)) {
       return { action: "skip", leadId: current.id };
     }
     if (await crmBridgeAlreadyRecorded(current.id, tx)) {
       return { action: "skip", leadId: current.id };
+    }
+    if (isBridgeInFlight(payload) && !isStalePendingBridge(payload)) {
+      return { action: "wait", leadId: current.id };
     }
 
     await tx.lead.update({
@@ -127,6 +136,155 @@ async function markLeadCrmBridgeSynced(
   });
 }
 
+async function markLeadCrmBridgeFailed(
+  leadId: string,
+  priorPayload: Record<string, unknown>,
+) {
+  await prisma.lead.update({
+    where: { id: leadId },
+    data: {
+      payload: {
+        ...priorPayload,
+        crmBridge: "failed",
+        crmBridgeFailedAt: new Date().toISOString(),
+      },
+    },
+  });
+}
+
+async function reconcileSkippedBridge(planId: string, email: string, leadId: string) {
+  const latest = await findExistingConsultLead(planId, email);
+  if (!latest || latest.id !== leadId) return false;
+
+  const latestPayload = readLeadPayload(latest.payload);
+  if (isSyncedConsultLead(latestPayload)) return true;
+  if (!(await crmBridgeAlreadyRecorded(latest.id))) return false;
+
+  await markLeadCrmBridgeSynced(latest.id, latestPayload);
+  return true;
+}
+
+async function waitForBridgeCompletion(planId: string, email: string, leadId: string) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (await reconcileSkippedBridge(planId, email, leadId)) {
+      return true;
+    }
+
+    const latest = await findExistingConsultLead(planId, email);
+    if (latest?.id === leadId && isSyncedConsultLead(readLeadPayload(latest.payload))) {
+      return true;
+    }
+
+    await sleep(500);
+  }
+
+  return false;
+}
+
+async function handleBridgeClaim(input: {
+  claim:
+    | { action: "skip"; leadId: string }
+    | { action: "wait"; leadId: string }
+    | { action: "run"; leadId: string; priorPayload: Record<string, unknown> };
+  planId: string;
+  email: string;
+  company: string;
+}) {
+  if (input.claim.action === "skip") {
+    const reconciled = await reconcileSkippedBridge(
+      input.planId,
+      input.email,
+      input.claim.leadId,
+    );
+    if (!reconciled) {
+      throw new Error("CRM bridge skip without reconcilable activity");
+    }
+    return {
+      status: 200 as const,
+      body: { ok: true as const, leadId: input.claim.leadId },
+    };
+  }
+
+  if (input.claim.action === "wait") {
+    const completed = await waitForBridgeCompletion(
+      input.planId,
+      input.email,
+      input.claim.leadId,
+    );
+    if (completed) {
+      return {
+        status: 200 as const,
+        body: { ok: true as const, leadId: input.claim.leadId },
+      };
+    }
+
+    const retryClaim = await claimCrmBridge({
+      planId: input.planId,
+      email: input.email,
+    });
+    return handleBridgeClaim({
+      claim: retryClaim,
+      planId: input.planId,
+      email: input.email,
+      company: input.company,
+    });
+  }
+
+  return runCrmBridge({
+    leadId: input.claim.leadId,
+    planId: input.planId,
+    company: input.company,
+    email: input.email,
+    priorPayload: input.claim.priorPayload,
+  });
+}
+
+async function runCrmBridge(input: {
+  leadId: string;
+  planId: string;
+  company: string;
+  email: string;
+  priorPayload: Record<string, unknown>;
+}) {
+  const crmBridge = await recordEnterpriseConsultationAsLead({
+    marketingLeadId: input.leadId,
+    planId: input.planId,
+    company: input.company,
+    email: input.email,
+  });
+
+  if (!crmBridge) {
+    await markLeadCrmBridgeFailed(input.leadId, input.priorPayload);
+    return {
+      status: 503 as const,
+      body: {
+        ok: false as const,
+        leadId: input.leadId,
+        message: "咨询已记录，但销售系统暂不可用，请稍后重试",
+      },
+    };
+  }
+
+  await markLeadCrmBridgeSynced(input.leadId, input.priorPayload);
+  return {
+    status: 200 as const,
+    body: { ok: true as const, leadId: input.leadId },
+  };
+}
+
+async function resetOrphanPending(planId: string, email: string) {
+  const lead = await findExistingConsultLead(planId, email);
+  if (!lead) return;
+
+  const payload = readLeadPayload(lead.payload);
+  if (
+    isBridgeInFlight(payload) &&
+    !(await crmBridgeAlreadyRecorded(lead.id))
+  ) {
+    await markLeadCrmBridgeFailed(lead.id, payload);
+  }
+}
+
 async function resolveConsultLead(input: {
   planId: string;
   email: string;
@@ -138,7 +296,7 @@ async function resolveConsultLead(input: {
   let lead = await findExistingConsultLead(input.planId, input.email, input.tx);
   const existingPayload = lead ? readLeadPayload(lead.payload) : {};
 
-  if (lead && !needsCrmBridge(existingPayload)) {
+  if (lead && isSyncedConsultLead(existingPayload)) {
     return { kind: "existing_success" as const, lead };
   }
 
@@ -166,7 +324,7 @@ async function resolveConsultLead(input: {
       lead = await findExistingConsultLead(input.planId, input.email, input.tx);
       if (!lead) throw err;
       const payload = readLeadPayload(lead.payload);
-      if (!needsCrmBridge(payload)) {
+      if (isSyncedConsultLead(payload)) {
         return { kind: "existing_success" as const, lead };
       }
     }
@@ -185,12 +343,15 @@ async function resolveConsultLead(input: {
 }
 
 export async function POST(req: NextRequest) {
+  let planId = "";
+  let email = "";
+
   try {
     const body = await req.json();
-    const planId = String(body?.planId || "").trim();
+    planId = String(body?.planId || "").trim();
     const company = String(body?.company || "").trim();
     const name = String(body?.name || "").trim();
-    const email = String(body?.email || "")
+    email = String(body?.email || "")
       .trim()
       .toLowerCase();
     const note = String(body?.note || "").trim();
@@ -232,57 +393,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const lead = resolved.lead;
     const claim = await claimCrmBridge({ planId, email });
-
-    if (claim.action === "skip") {
-      const latest = await findExistingConsultLead(planId, email);
-      const latestPayload = readLeadPayload(latest?.payload);
-      if (
-        latest &&
-        (isSyncedConsultLead(latestPayload) ||
-          (await crmBridgeAlreadyRecorded(latest.id)))
-      ) {
-        if (!isSyncedConsultLead(latestPayload)) {
-          await markLeadCrmBridgeSynced(latest.id, latestPayload);
-        }
-      }
-      return NextResponse.json({ ok: true, leadId: claim.leadId }, { status: 200 });
-    }
-
-    const priorPayload = claim.priorPayload;
-    const crmBridge = await recordEnterpriseConsultationAsLead({
-      marketingLeadId: claim.leadId,
+    const outcome = await handleBridgeClaim({
+      claim,
       planId,
-      company,
       email,
+      company,
     });
-
-    if (!crmBridge) {
-      await prisma.lead.update({
-        where: { id: claim.leadId },
-        data: {
-          payload: {
-            ...priorPayload,
-            crmBridge: "failed",
-            crmBridgeFailedAt: new Date().toISOString(),
-          },
-        },
-      });
-      return NextResponse.json(
-        {
-          ok: false,
-          leadId: claim.leadId,
-          message: "咨询已记录，但销售系统暂不可用，请稍后重试",
-        },
-        { status: 503 },
-      );
-    }
-
-    await markLeadCrmBridgeSynced(claim.leadId, priorPayload);
-    return NextResponse.json({ ok: true, leadId: claim.leadId }, { status: 200 });
+    return NextResponse.json(outcome.body, { status: outcome.status });
   } catch (err: unknown) {
     console.error("[lead/create]", err);
+    if (planId && email) {
+      await resetOrphanPending(planId, email).catch(() => {});
+    }
     return NextResponse.json(
       {
         ok: false,
