@@ -134,7 +134,7 @@ function nextOpportunityStage(
     case "PROPOSAL":
       return "NEGOTIATION";
     case "NEGOTIATION":
-      return "WON";
+      return null;
     case "WON":
     case "LOST":
       return null;
