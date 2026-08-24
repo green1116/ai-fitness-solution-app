@@ -27,9 +27,16 @@ function checkMatrixUnchanged() {
   assert(
     buildTenderUpgradeHref(
       { organizationId: "org1", projectId: "p1", quoteId: "q1" },
-      { authenticated: true },
-    ).includes("/dashboard/enterprise?"),
-    "auth upgrade uses enterprise dashboard",
+      { authenticated: true, currentPath: "/budget" },
+    ).startsWith("/budget?"),
+    "auth upgrade stays on customer path",
+  );
+  assert(
+    !buildTenderUpgradeHref(
+      { organizationId: "org1", projectId: "p1", quoteId: "q1" },
+      { authenticated: true, currentPath: "/budget" },
+    ).includes("/dashboard/enterprise"),
+    "auth upgrade avoids internal dashboard route",
   );
   assert(
     buildTenderUpgradeHref({ projectId: "p1" }, { authenticated: false }).includes("/register?plan=ENTERPRISE"),
@@ -97,6 +104,16 @@ function checkQuoteUx() {
   console.log("✓ quote context UX");
 }
 
+function checkNoInternalDashboardCta() {
+  const nav = read("app/(product)/ProductCommercialNav.tsx");
+  const tender = read("app/(product)/tender/page.tsx");
+  const project = read("app/(workspace)/projects/[id]/page.tsx");
+  assert(!nav.includes('href="/dashboard/enterprise"'), "nav has no internal dashboard href");
+  assert(!tender.includes('href="/dashboard/enterprise"'), "tender page has no internal dashboard href");
+  assert(!project.includes('href="/dashboard/enterprise"'), "project page has no internal dashboard href");
+  console.log("✓ no internal dashboard CTA");
+}
+
 function main() {
   checkMatrixUnchanged();
   checkTenderPage();
@@ -106,6 +123,7 @@ function main() {
   checkApiUntouched();
   checkBudgetUx();
   checkQuoteUx();
+  checkNoInternalDashboardCta();
   console.log("\n✓ tender entitlement UI — ALL CHECKS PASSED");
 }
 

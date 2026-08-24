@@ -82,7 +82,7 @@ function BudgetForm() {
             ...ctx,
             organizationId,
             ...(ownedProjectId ? { projectId: ownedProjectId } : {}),
-          }),
+          }, { currentPath: "/budget" }),
         );
       }
       writeStoredProductContext({
@@ -162,7 +162,7 @@ function BudgetForm() {
             projectId: boundProjectId,
             quoteId: data.quoteId?.trim() || quoteId,
             budgetId: data.budgetId,
-          }),
+          }, { currentPath: "/budget" }),
         );
       }
     } catch (err) {
@@ -278,7 +278,7 @@ function BudgetForm() {
                     tenderEntitlement.upgradeHref ||
                     buildTenderUpgradeHref(
                       { organizationId, projectId, quoteId, budgetId },
-                      { authenticated: Boolean(organizationId) },
+                      { authenticated: Boolean(organizationId), currentPath: "/budget" },
                     )
                   }
                   label={tenderEntitlement.upgradeCta}

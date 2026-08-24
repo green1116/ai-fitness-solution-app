@@ -58,7 +58,9 @@ function ProductCommercialNavInner() {
   );
   const [canGenerateTender, setCanGenerateTender] = useState(false);
   const [upgradeCta, setUpgradeCta] = useState("升级到 Enterprise 解锁标书");
-  const [upgradeHref, setUpgradeHref] = useState(buildTenderUpgradeHref(ctx, { authenticated: false }));
+  const [upgradeHref, setUpgradeHref] = useState(
+    buildTenderUpgradeHref(ctx, { authenticated: false, currentPath: pathname }),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -73,7 +75,7 @@ function ProductCommercialNavInner() {
       const entitlement = await loadTenderClientEntitlement(orgId, {
         ...ctx,
         organizationId: orgId || ctx.organizationId,
-      });
+      }, { currentPath: pathname });
       if (cancelled) return;
       setCanGenerateTender(entitlement.canGenerateTender);
       setUpgradeCta(entitlement.upgradeCta);
@@ -103,7 +105,7 @@ export function ProductCommercialNav() {
           <NavLinks
             ctx={{}}
             canGenerateTender={false}
-            upgradeHref={buildTenderUpgradeHref({}, { authenticated: false })}
+            upgradeHref={buildTenderUpgradeHref({}, { authenticated: false, currentPath: "/tender" })}
           />
         }
       >

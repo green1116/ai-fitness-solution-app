@@ -109,7 +109,7 @@ export default async function ProjectDetailPage({
                     quoteId: project.quotes[0]?.id,
                     budgetId: project.budgets[0]?.id,
                   },
-                  { authenticated: Boolean(organization?.id) },
+                  { authenticated: Boolean(organization?.id), currentPath: "/tender" },
                 )}
               />
             </div>

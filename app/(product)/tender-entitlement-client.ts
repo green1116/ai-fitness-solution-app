@@ -38,6 +38,7 @@ export type TenderClientEntitlement = {
 export async function loadTenderClientEntitlement(
   organizationId: string,
   ctx: ProductCommercialContext = {},
+  options?: { currentPath?: string },
 ): Promise<TenderClientEntitlement> {
   const denied: TenderClientEntitlement = {
     organizationId,
@@ -50,7 +51,7 @@ export async function loadTenderClientEntitlement(
         ...ctx,
         organizationId: organizationId || ctx.organizationId,
       },
-      { authenticated: Boolean(organizationId) },
+      { authenticated: Boolean(organizationId), currentPath: options?.currentPath },
     ),
     upgradeCta: "升级到 Enterprise 解锁标书",
   };

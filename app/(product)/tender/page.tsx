@@ -56,7 +56,7 @@ function TenderForm() {
         loadTenderClientEntitlement(organizationId, {
           ...ctx,
           organizationId,
-        }),
+        }, { currentPath: "/tender" }),
       ]);
       if (cancelled) return;
       const ownedProjectId = pickOwnedProjectId(ctx.projectId, ownedIds);
@@ -98,7 +98,7 @@ function TenderForm() {
           projectId,
           quoteId,
           budgetId,
-        }),
+        }, { currentPath: "/tender" }),
       ]);
       setEntitlement(latest);
       if (!latest.canGenerateTender) {
@@ -150,7 +150,7 @@ function TenderForm() {
               entitlement.upgradeHref ||
               buildTenderUpgradeHref(
                 { organizationId, projectId, quoteId, budgetId },
-                { authenticated: Boolean(organizationId) },
+                { authenticated: Boolean(organizationId), currentPath: "/tender" },
               )
             }
             label={entitlement.upgradeCta}

@@ -13,7 +13,7 @@ export function tenderEnterpriseUpgradeLabel(): string {
 
 export function buildTenderUpgradeHref(
   ctx: ProductCommercialContext,
-  options?: { authenticated?: boolean },
+  options?: { authenticated?: boolean; currentPath?: string },
 ): string {
   if (options?.authenticated === false || !ctx.organizationId) {
     const params = new URLSearchParams();
@@ -28,5 +28,6 @@ export function buildTenderUpgradeHref(
   params.set("intent", "tender");
   const query = buildProductContextSearch(ctx);
   if (query) params.set("context", query);
-  return `${TENDER_UPGRADE_HREF}?${params.toString()}`;
+  const currentPath = options?.currentPath?.trim() || "/tender";
+  return `${currentPath}?${params.toString()}`;
 }
