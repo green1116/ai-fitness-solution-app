@@ -10,6 +10,11 @@ import {
   resolveClientProductContext,
   writeStoredProductContext,
 } from "@/app/(product)/commercial-context";
+import {
+  loadTenderClientEntitlement,
+  type TenderClientEntitlement,
+} from "@/app/(product)/tender-entitlement-client";
+import { TenderEnterpriseUpgradeCta } from "@/app/(product)/TenderEnterpriseUpgradeCta";
 
 type OrgMe = { organizationId?: string | null };
 type ProjectList = { ok?: boolean; projects?: Array<{ id: string }> };
@@ -34,6 +39,7 @@ function TenderForm() {
   const [quoteId, setQuoteId] = useState("");
   const [budgetId, setBudgetId] = useState("");
   const [organizationId, setOrganizationId] = useState("");
+  const [entitlement, setEntitlement] = useState<TenderClientEntitlement | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState("");
 
@@ -44,12 +50,16 @@ function TenderForm() {
       const organizationId = await resolveOrganizationId();
       if (cancelled) return;
       setOrganizationId(organizationId);
-      const ownedIds = organizationId ? await listOwnedProjectIds(organizationId) : [];
+      const [ownedIds, nextEntitlement] = await Promise.all([
+        organizationId ? listOwnedProjectIds(organizationId) : Promise.resolve([] as string[]),
+        loadTenderClientEntitlement(organizationId),
+      ]);
       if (cancelled) return;
       const ownedProjectId = pickOwnedProjectId(ctx.projectId, ownedIds);
       setProjectId(ownedProjectId);
       setQuoteId(ctx.quoteId ?? "");
       setBudgetId(ctx.budgetId ?? "");
+      setEntitlement(nextEntitlement);
       writeStoredProductContext({
         ...ctx,
         organizationId,
@@ -63,6 +73,9 @@ function TenderForm() {
   }, [searchParams]);
 
   async function handleGenerate() {
+    if (!entitlement?.canGenerateTender) {
+      return;
+    }
     if (!projectId || !quoteId) {
       alert("缺少方案/项目上下文，请先生成方案");
       return;
@@ -74,7 +87,14 @@ function TenderForm() {
     try {
       const organizationId = await resolveOrganizationId();
       setOrganizationId(organizationId);
-      const ownedIds = organizationId ? await listOwnedProjectIds(organizationId) : [];
+      const [ownedIds, latest] = await Promise.all([
+        organizationId ? listOwnedProjectIds(organizationId) : Promise.resolve([] as string[]),
+        loadTenderClientEntitlement(organizationId),
+      ]);
+      setEntitlement(latest);
+      if (!latest.canGenerateTender) {
+        return;
+      }
       const ownedProjectId = pickOwnedProjectId(projectId, ownedIds);
       if (!ownedProjectId) {
         throw new Error("项目不属于当前组织");
@@ -103,6 +123,8 @@ function TenderForm() {
   }
 
   const missingContext = !projectId || !quoteId;
+  const tenderLocked = entitlement !== null && !entitlement.canGenerateTender;
+  const entitlementPending = entitlement === null;
 
   return (
     <div className="space-y-6">
@@ -110,7 +132,16 @@ function TenderForm() {
       <p className="text-sm text-zinc-400">Budget + Quote → PDF Engine → 招标文件（核心商业点）</p>
       <ProductIntelligenceExperience />
 
-      {missingContext ? (
+      {tenderLocked ? (
+        <section className="space-y-3 rounded-2xl border border-amber-700/60 bg-zinc-950 p-6 text-sm text-zinc-300">
+          <p>标书生成为 Enterprise 功能。当前套餐：{entitlement.currentPlan}。</p>
+          <p>升级到 {entitlement.recommendedPlan} 后即可生成标书，项目上下文会保留。</p>
+          <TenderEnterpriseUpgradeCta
+            href={entitlement.upgradeHref}
+            label={entitlement.upgradeCta}
+          />
+        </section>
+      ) : missingContext ? (
         <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-6 text-sm text-zinc-300">
           <p>当前没有方案上下文。请先完成方案与预算，系统会自动带入 ID。</p>
           <Link
@@ -130,10 +161,10 @@ function TenderForm() {
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={loading}
+            disabled={loading || entitlementPending || !entitlement?.canGenerateTender}
             className="rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black disabled:opacity-50"
           >
-            {loading ? "生成中…" : "生成标书 PDF"}
+            {loading ? "生成中…" : entitlementPending ? "校验套餐…" : "生成标书 PDF"}
           </button>
         </section>
       )}
