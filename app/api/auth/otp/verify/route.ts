@@ -2,6 +2,7 @@
 import { NextRequest } from "next/server";
 import crypto from "crypto";
 import { issuePdfDownloadToken, getClientIp } from "@/lib/pdfDownloadToken";
+import { normalizeEmail } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createSessionCookie } from "@/lib/session";
 import { fail, ok, requestIdFromHeaders } from "@/lib/api-response";
@@ -35,15 +36,21 @@ async function verifyOtp(email: string, code: string): Promise<boolean> {
     return false;
   }
 
-  // 比较 hash（request 路由存储的是 codeHash）
+  const codeHash = sha256(code);
+
+  // 比较 hash（优先兼容旧 codeHash 字段）
   if (row.codeHash) {
-    const codeHash = sha256(code);
     if (row.codeHash !== codeHash) {
       return false;
     }
   } else if (row.code) {
-    // 兼容旧数据：如果有 code 字段，直接比较
-    if (String(row.code).trim() !== code.trim()) {
+    const storedCode = String(row.code).trim();
+    // 兼容当前 schema：hash 持久化在 code 字段
+    if (storedCode.length === 64) {
+      if (storedCode !== codeHash) {
+        return false;
+      }
+    } else if (storedCode !== code.trim()) {
       return false;
     }
   } else {
@@ -67,9 +74,11 @@ export async function POST(req: NextRequest) {
     return fail("BAD_REQUEST", "Invalid JSON", 400, requestId);
   }
 
-  const email = String(body?.email || "").trim().toLowerCase();
+  const email = normalizeEmail(String(body?.email || ""));
   const code = String(body?.code || "").trim();
   const planId = String(body?.planId || "").trim();
+  const organizationName =
+    typeof body?.organizationName === "string" ? body.organizationName.trim() : undefined;
   const mode = (body?.mode ? String(body.mode) : null) as string | null;
 
   if (!email || !email.includes("@") || !code) {
@@ -78,10 +87,6 @@ export async function POST(req: NextRequest) {
 
   if (!isEmail(email)) {
     return fail("BAD_REQUEST", "Email invalid", 400, requestId);
-  }
-
-  if (!planId) {
-    return fail("BAD_REQUEST", "planId required", 400, requestId);
   }
 
   // 限流：10 分钟最多 5 次验证尝试
@@ -105,27 +110,34 @@ export async function POST(req: NextRequest) {
       return fail("FORBIDDEN", "OTP invalid", 403, requestId);
     }
 
-    // ✅ 获取 IP 和 User-Agent（用于日志记录）
-    const clientIp = getClientIp(req.headers);
-    const userAgent = req.headers.get("user-agent") || undefined;
-
-    // ✅ 验证成功后签发 downloadToken（写入 PdfDownloadTokenState）
-    const issued = await issuePdfDownloadToken({
-      planId,
-      mode: mode ?? "basic",
-      // ttlSeconds 可用 env 默认，不传也行
-      // maxUses 可用 env 默认，不传也行
-    });
+    let issued:
+      | {
+          downloadToken: string;
+          expAt: Date;
+          maxUses: number;
+        }
+      | undefined;
+    if (planId) {
+      // ✅ 下载场景仍然签发 downloadToken（写入 PdfDownloadTokenState）
+      issued = await issuePdfDownloadToken({
+        planId,
+        mode: mode ?? "basic",
+      });
+    }
 
     // ✅ 创建 session cookie（用于后续的 session 验证）
     const res = ok({
       requestId,
-      downloadToken: issued.downloadToken, // 关键：返回"数据库型 token"（base64url 格式）
-      expAt: issued.expAt,
-      maxUses: issued.maxUses,
-      mode: mode ?? "basic",
+      ...(issued
+        ? {
+            downloadToken: issued.downloadToken,
+            expAt: issued.expAt,
+            maxUses: issued.maxUses,
+            mode: mode ?? "basic",
+          }
+        : { mode: "auth" }),
     });
-    await createSessionCookie(res, email, 30);
+    await createSessionCookie(res, email, 30, { organizationName });
 
     safeLog("otp_verify_ok", { requestId, email, ip, planId });
     return res;

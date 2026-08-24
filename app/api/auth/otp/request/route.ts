@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { generateOtpCode, normalizeEmail, sha256 } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,16 +16,14 @@ function getResendClient() {
   return new Resend(resendKey);
 }
 
-function genCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const email = String(body?.email || "").trim().toLowerCase();
+    const email = normalizeEmail(String(body?.email || ""));
     const planId = String(body?.planId || "").trim();
-    const code = genCode();
+    const code = generateOtpCode();
+    const codeHash = sha256(code);
+    const expiresAt = new Date(Date.now() + 10 * 60_000);
 
     if (!email) {
       return json(400, {
@@ -58,11 +58,24 @@ export async function POST(req: NextRequest) {
       `,
     });
 
+    await prisma.emailOtp.upsert({
+      where: { email },
+      update: {
+        code: codeHash,
+        expiresAt,
+      },
+      create: {
+        email,
+        code: codeHash,
+        expiresAt,
+      },
+    });
+
     return json(200, {
       ok: true,
       email,
       planId,
-      code,
+      expiresAt: expiresAt.toISOString(),
       id: result.data?.id || null,
     });
   } catch (e: any) {

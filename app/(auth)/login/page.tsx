@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-type Step = "phone" | "code";
+type Step = "email" | "code";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("phone");
-  const [phone, setPhone] = useState("");
+  const [step, setStep] = useState<Step>("email");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
@@ -22,8 +22,8 @@ export default function LoginPage() {
   }, [cooldown]);
 
   async function sendCode() {
-    if (!phone.trim()) {
-      alert("请输入手机号");
+    if (!email.trim()) {
+      alert("请输入邮箱");
       return;
     }
     setLoading(true);
@@ -31,12 +31,12 @@ export default function LoginPage() {
       const r = await fetch("/api/auth/otp/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phone.trim() }),
+        body: JSON.stringify({ email: email.trim() }),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j?.error || "发送验证码失败");
+      if (!r.ok) throw new Error(j?.message || "发送验证码失败");
       setStep("code");
-      setMsg("验证码已发送");
+      setMsg("验证码已发送至邮箱");
       setCooldown(60);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "发送失败");
@@ -52,10 +52,10 @@ export default function LoginPage() {
       const r = await fetch("/api/auth/otp/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phone.trim(), code: code.trim() }),
+        body: JSON.stringify({ email: email.trim(), code: code.trim() }),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j?.error || "登录失败");
+      if (!r.ok) throw new Error(j?.message || "登录失败");
       router.push("/overview");
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "登录失败");
@@ -68,12 +68,13 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 py-16">
       <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
         <h1 className="text-2xl font-bold">登录</h1>
-        <p className="mt-2 text-sm text-zinc-600">手机号验证码登录</p>
+        <p className="mt-2 text-sm text-zinc-600">邮箱验证码登录</p>
         <form onSubmit={submitLogin} className="mt-6 space-y-4">
           <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="手机号"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
             className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
           />
           {step === "code" ? (
