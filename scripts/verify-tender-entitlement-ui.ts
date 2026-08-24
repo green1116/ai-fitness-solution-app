@@ -129,6 +129,7 @@ function checkNoInternalDashboardCta() {
   const cta = read("app/(product)/TenderEnterpriseUpgradeCta.tsx");
   assert(cta.includes("href: string"), "CTA href is required");
   assert(!cta.includes("href ="), "CTA has no default href");
+  assert(cta.includes("EnterpriseLeadForm") || cta.includes("isEnterpriseRegisterHref"), "CTA supports contact conversion");
   const authHref = buildTenderUpgradeHref(
     { organizationId: "org1", projectId: "p1", quoteId: "q1" },
     { authenticated: true, currentPath: "/budget" },

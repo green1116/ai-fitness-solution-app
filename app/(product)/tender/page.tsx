@@ -154,6 +154,7 @@ function TenderForm() {
               )
             }
             label={entitlement.upgradeCta}
+            context={{ organizationId, projectId, quoteId, budgetId }}
           />
         </section>
       ) : missingContext ? (

@@ -30,3 +30,26 @@ export function buildTenderUpgradeHref(
   const currentPath = options?.currentPath?.trim() || "/tender";
   return `${currentPath}?${params.toString()}`;
 }
+
+export function resolveEnterpriseContactPlanId(ctx: ProductCommercialContext): string {
+  return ctx.projectId?.trim() || ctx.organizationId?.trim() || "product-tender";
+}
+
+export function buildEnterpriseContactNote(
+  value: { phone?: string; title?: string },
+  ctx: ProductCommercialContext,
+): string {
+  const parts: string[] = [];
+  if (value.phone?.trim()) parts.push(`手机：${value.phone.trim()}`);
+  if (value.title?.trim()) parts.push(`职位：${value.title.trim()}`);
+  if (ctx.organizationId?.trim()) parts.push(`organizationId：${ctx.organizationId.trim()}`);
+  if (ctx.projectId?.trim()) parts.push(`projectId：${ctx.projectId.trim()}`);
+  if (ctx.quoteId?.trim()) parts.push(`quoteId：${ctx.quoteId.trim()}`);
+  if (ctx.budgetId?.trim()) parts.push(`budgetId：${ctx.budgetId.trim()}`);
+  parts.push("tender_upgrade");
+  return parts.join("；");
+}
+
+export function isEnterpriseRegisterHref(href: string): boolean {
+  return href.startsWith("/register");
+}

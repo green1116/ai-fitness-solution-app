@@ -111,6 +111,12 @@ export default async function ProjectDetailPage({
                   },
                   { authenticated: Boolean(organization?.id), currentPath: "/tender" },
                 )}
+                context={{
+                  organizationId: organization?.id,
+                  projectId: project.id,
+                  quoteId: project.quotes[0]?.id,
+                  budgetId: project.budgets[0]?.id,
+                }}
               />
             </div>
           </div>

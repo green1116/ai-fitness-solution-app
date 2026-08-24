@@ -51,7 +51,7 @@ function NavLinks({
       ) : (
         <span className="inline-flex items-center gap-2 text-zinc-500">
           <span title="Enterprise 功能">标书 Tender（锁定）</span>
-          <TenderEnterpriseUpgradeCta href={upgradeHref} label={upgradeCta} />
+          <TenderEnterpriseUpgradeCta href={upgradeHref} label={upgradeCta} context={ctx} />
         </span>
       )}
     </>
