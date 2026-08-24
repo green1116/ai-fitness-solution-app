@@ -15,6 +15,7 @@ import {
   type TenderClientEntitlement,
 } from "@/app/(product)/tender-entitlement-client";
 import { TenderEnterpriseUpgradeCta } from "@/app/(product)/TenderEnterpriseUpgradeCta";
+import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
 
 type OrgMe = { organizationId?: string | null };
 type ProjectList = { ok?: boolean; projects?: Array<{ id: string }> };
@@ -52,7 +53,10 @@ function TenderForm() {
       setOrganizationId(organizationId);
       const [ownedIds, nextEntitlement] = await Promise.all([
         organizationId ? listOwnedProjectIds(organizationId) : Promise.resolve([] as string[]),
-        loadTenderClientEntitlement(organizationId),
+        loadTenderClientEntitlement(organizationId, {
+          ...ctx,
+          organizationId,
+        }),
       ]);
       if (cancelled) return;
       const ownedProjectId = pickOwnedProjectId(ctx.projectId, ownedIds);
@@ -89,7 +93,12 @@ function TenderForm() {
       setOrganizationId(organizationId);
       const [ownedIds, latest] = await Promise.all([
         organizationId ? listOwnedProjectIds(organizationId) : Promise.resolve([] as string[]),
-        loadTenderClientEntitlement(organizationId),
+        loadTenderClientEntitlement(organizationId, {
+          organizationId,
+          projectId,
+          quoteId,
+          budgetId,
+        }),
       ]);
       setEntitlement(latest);
       if (!latest.canGenerateTender) {
@@ -137,7 +146,13 @@ function TenderForm() {
           <p>标书生成为 Enterprise 功能。当前套餐：{entitlement.currentPlan}。</p>
           <p>升级到 {entitlement.recommendedPlan} 后即可生成标书，项目上下文会保留。</p>
           <TenderEnterpriseUpgradeCta
-            href={entitlement.upgradeHref}
+            href={
+              entitlement.upgradeHref ||
+              buildTenderUpgradeHref(
+                { organizationId, projectId, quoteId, budgetId },
+                { authenticated: Boolean(organizationId) },
+              )
+            }
             label={entitlement.upgradeCta}
           />
         </section>

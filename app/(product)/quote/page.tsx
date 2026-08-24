@@ -76,6 +76,7 @@ function QuoteForm() {
   const searchParams = useSearchParams();
   const [companyName, setCompanyName] = useState("");
   const [companyLocked, setCompanyLocked] = useState(false);
+  const [contextReady, setContextReady] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [organizationId, setOrganizationId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -90,7 +91,10 @@ function QuoteForm() {
       const organizationId = await resolveOrganizationId();
       if (cancelled) return;
       setOrganizationId(organizationId);
-      if (!organizationId) return;
+      if (!organizationId) {
+        setContextReady(true);
+        return;
+      }
 
       const owned = await listOwnedProjects(organizationId);
       if (cancelled) return;
@@ -110,6 +114,7 @@ function QuoteForm() {
         setCompanyName(resolvedName);
         setCompanyLocked(true);
       }
+      setContextReady(true);
     }
     void hydrate();
     return () => {
@@ -214,7 +219,11 @@ function QuoteForm() {
       <ProductIntelligenceExperience />
 
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-        {companyLocked ? (
+        {!contextReady ? (
+          <p className="rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-500">
+            加载项目上下文…
+          </p>
+        ) : companyLocked ? (
           <p className="rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-300">
             企业：{companyName}
           </p>
@@ -229,7 +238,7 @@ function QuoteForm() {
         <button
           type="button"
           onClick={handleGenerate}
-          disabled={loading}
+          disabled={loading || !contextReady}
           className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
         >
           {loading ? "生成中…" : "生成方案"}

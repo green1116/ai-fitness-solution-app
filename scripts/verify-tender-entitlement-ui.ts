@@ -2,7 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { PLAN_FEATURE_MATRIX } from "../lib/feature-flags/feature.service";
-import { TENDER_RECOMMENDED_PLAN, TENDER_UPGRADE_HREF } from "../app/(product)/tender-entitlement";
+import {
+  buildTenderUpgradeHref,
+  TENDER_RECOMMENDED_PLAN,
+  TENDER_UPGRADE_HREF,
+} from "../app/(product)/tender-entitlement";
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -19,7 +23,18 @@ function checkMatrixUnchanged() {
   assert(PLAN_FEATURE_MATRIX.PRO.canGenerateTender === false, "PRO no tender");
   assert(PLAN_FEATURE_MATRIX.ENTERPRISE.canGenerateTender === true, "ENTERPRISE tender");
   assert(TENDER_RECOMMENDED_PLAN === "ENTERPRISE", "upgrade target ENTERPRISE");
-  assert(TENDER_UPGRADE_HREF.includes("plan=ENTERPRISE"), "upgrade href enterprise");
+  assert(TENDER_UPGRADE_HREF === "/dashboard/enterprise", "logged-in upgrade route");
+  assert(
+    buildTenderUpgradeHref(
+      { organizationId: "org1", projectId: "p1", quoteId: "q1" },
+      { authenticated: true },
+    ).includes("/dashboard/enterprise?"),
+    "auth upgrade uses enterprise dashboard",
+  );
+  assert(
+    buildTenderUpgradeHref({ projectId: "p1" }, { authenticated: false }).includes("/register?plan=ENTERPRISE"),
+    "guest upgrade keeps register fallback",
+  );
   console.log("✓ PLAN_FEATURE_MATRIX unchanged");
 }
 
@@ -28,7 +43,7 @@ function checkTenderPage() {
   assert(src.includes("/api/billing/subscription") || src.includes("loadTenderClientEntitlement"), "loads subscription entitlement");
   assert(src.includes("canGenerateTender"), "checks canGenerateTender");
   assert(src.includes("if (!entitlement?.canGenerateTender)"), "blocks generate without entitlement");
-  assert(src.includes("loadTenderClientEntitlement(organizationId)"), "rechecks before generate");
+  assert(src.includes("loadTenderClientEntitlement(organizationId, {"), "rechecks before generate");
   assert(src.includes("tender_generation_click") || src.includes("loadTenderClientEntitlement"), "reuses paywall path");
   console.log("✓ tender page entitlement gate");
 }
@@ -66,6 +81,22 @@ function checkApiUntouched() {
   console.log("✓ tender API not rewritten");
 }
 
+function checkBudgetUx() {
+  const src = read("app/(product)/budget/page.tsx");
+  assert(!src.includes("setResult(JSON.stringify"), "budget does not render raw JSON");
+  assert(!src.includes("<pre"), "budget customer UI has no raw debug pre");
+  assert(src.includes("预算已生成，可直接下载 PDF"), "budget shows customer summary");
+  assert(src.includes("继续到 Tender 需要 Enterprise"), "budget uses enterprise upgrade wording");
+  console.log("✓ budget customer UX");
+}
+
+function checkQuoteUx() {
+  const src = read("app/(product)/quote/page.tsx");
+  assert(src.includes("const [contextReady, setContextReady]"), "quote waits for context");
+  assert(src.includes("加载项目上下文"), "quote hides company input while resolving");
+  console.log("✓ quote context UX");
+}
+
 function main() {
   checkMatrixUnchanged();
   checkTenderPage();
@@ -73,6 +104,8 @@ function main() {
   checkProjectDetail();
   checkPaywallReuse();
   checkApiUntouched();
+  checkBudgetUx();
+  checkQuoteUx();
   console.log("\n✓ tender entitlement UI — ALL CHECKS PASSED");
 }
 

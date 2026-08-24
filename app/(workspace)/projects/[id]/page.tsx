@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { TenderEnterpriseUpgradeCta } from "@/app/(product)/TenderEnterpriseUpgradeCta";
-import { TENDER_UPGRADE_HREF } from "@/app/(product)/tender-entitlement";
+import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { evaluatePaywall } from "@/lib/growth/conversion/paywall.engine";
 import { listOrganizationsForUser } from "@/lib/organization/organization.service";
@@ -101,7 +101,17 @@ export default async function ProjectDetailPage({
               {tenderPaywall?.recommendedPlan ?? "ENTERPRISE"}
             </div>
             <div className="mt-3">
-              <TenderEnterpriseUpgradeCta href={TENDER_UPGRADE_HREF} />
+              <TenderEnterpriseUpgradeCta
+                href={buildTenderUpgradeHref(
+                  {
+                    organizationId: organization?.id,
+                    projectId: project.id,
+                    quoteId: project.quotes[0]?.id,
+                    budgetId: project.budgets[0]?.id,
+                  },
+                  { authenticated: Boolean(organization?.id) },
+                )}
+              />
             </div>
           </div>
         )}

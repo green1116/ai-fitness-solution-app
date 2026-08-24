@@ -10,6 +10,12 @@ import {
   resolveClientProductContext,
   writeStoredProductContext,
 } from "@/app/(product)/commercial-context";
+import {
+  loadTenderClientEntitlement,
+  type TenderClientEntitlement,
+} from "@/app/(product)/tender-entitlement-client";
+import { TenderEnterpriseUpgradeCta } from "@/app/(product)/TenderEnterpriseUpgradeCta";
+import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
 
 type OrgMe = { organizationId?: string | null };
 type ProjectList = { ok?: boolean; projects?: Array<{ id: string }> };
@@ -18,6 +24,7 @@ type CalculateBudgetResponse = {
   budgetId?: string;
   projectId?: string;
   quoteId?: string;
+  structure?: { totalEstimateMin?: number; totalEstimateMax?: number; currency?: string };
   message?: string;
 };
 
@@ -44,8 +51,17 @@ function BudgetForm() {
   const [companySize, setCompanySize] = useState("100");
   const [budgetTier, setBudgetTier] = useState<"low" | "mid" | "high">("mid");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState("");
   const [budgetId, setBudgetId] = useState("");
+  const [error, setError] = useState("");
+  const [budgetSummary, setBudgetSummary] = useState<{
+    companySize: number;
+    budgetTier: "low" | "mid" | "high";
+    totalEstimateMin?: number;
+    totalEstimateMax?: number;
+    currency?: string;
+  } | null>(null);
+  const [tenderEntitlement, setTenderEntitlement] =
+    useState<TenderClientEntitlement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +76,15 @@ function BudgetForm() {
       setProjectId(ownedProjectId);
       setQuoteId(ctx.quoteId ?? "");
       setBudgetId(ctx.budgetId ?? "");
+      if (organizationId) {
+        setTenderEntitlement(
+          await loadTenderClientEntitlement(organizationId, {
+            ...ctx,
+            organizationId,
+            ...(ownedProjectId ? { projectId: ownedProjectId } : {}),
+          }),
+        );
+      }
       writeStoredProductContext({
         ...ctx,
         organizationId,
@@ -79,7 +104,7 @@ function BudgetForm() {
     }
 
     setLoading(true);
-    setResult("");
+    setError("");
 
     try {
       const organizationId = await resolveOrganizationId();
@@ -101,13 +126,22 @@ function BudgetForm() {
         }),
       });
       const data = (await res.json()) as CalculateBudgetResponse;
-      setResult(JSON.stringify(data, null, 2));
+      if (!res.ok || data.ok !== true) {
+        throw new Error(data.message || "预算计算失败");
+      }
       if (data.ok === true && data.budgetId) {
         const quoteProjectId = data.projectId?.trim() || "";
         const boundProjectId =
           pickOwnedProjectId(quoteProjectId, ownedIds) || ownedProjectId;
         setBudgetId(data.budgetId);
         setProjectId(boundProjectId);
+        setBudgetSummary({
+          companySize: Number(companySize),
+          budgetTier,
+          totalEstimateMin: data.structure?.totalEstimateMin,
+          totalEstimateMax: data.structure?.totalEstimateMax,
+          currency: data.structure?.currency,
+        });
         writeStoredProductContext({
           organizationId,
           projectId: boundProjectId,
@@ -122,9 +156,17 @@ function BudgetForm() {
             budgetId: data.budgetId,
           }),
         );
+        setTenderEntitlement(
+          await loadTenderClientEntitlement(organizationId, {
+            organizationId,
+            projectId: boundProjectId,
+            quoteId: data.quoteId?.trim() || quoteId,
+            budgetId: data.budgetId,
+          }),
+        );
       }
-    } catch {
-      setResult("请求失败");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "请求失败");
     } finally {
       setLoading(false);
     }
@@ -196,7 +238,7 @@ function BudgetForm() {
           >
             {loading ? "计算中…" : "计算预算"}
           </button>
-          {projectId ? (
+          {projectId && budgetSummary ? (
             <button
               type="button"
               onClick={handleDownloadPdf}
@@ -205,7 +247,46 @@ function BudgetForm() {
               下载 PDF
             </button>
           ) : null}
-          {budgetId ? (
+          {budgetSummary ? (
+            <section className="rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
+              <p>预算已生成，可直接下载 PDF。</p>
+              <p className="mt-2 text-zinc-400">
+                企业规模 {budgetSummary.companySize} 人 · 档位{" "}
+                {budgetSummary.budgetTier === "low"
+                  ? "低档"
+                  : budgetSummary.budgetTier === "mid"
+                    ? "中档"
+                    : "高档"}
+                {typeof budgetSummary.totalEstimateMin === "number" &&
+                typeof budgetSummary.totalEstimateMax === "number"
+                  ? ` · 预算区间 ${budgetSummary.currency ?? "CNY"} ${budgetSummary.totalEstimateMin} - ${budgetSummary.totalEstimateMax}`
+                  : ""}
+              </p>
+            </section>
+          ) : null}
+          {budgetId && tenderEntitlement && !tenderEntitlement.canGenerateTender ? (
+            <section className="rounded-xl border border-amber-700/50 bg-black p-4 text-sm text-zinc-300">
+              <p>
+                继续到 Tender 需要 Enterprise。当前套餐：{tenderEntitlement.currentPlan}。
+              </p>
+              <p className="mt-1 text-zinc-500">
+                升级后可继续生成完整标书，当前项目上下文会保留。
+              </p>
+              <div className="mt-3">
+                <TenderEnterpriseUpgradeCta
+                  href={
+                    tenderEntitlement.upgradeHref ||
+                    buildTenderUpgradeHref(
+                      { organizationId, projectId, quoteId, budgetId },
+                      { authenticated: Boolean(organizationId) },
+                    )
+                  }
+                  label={tenderEntitlement.upgradeCta}
+                />
+              </div>
+            </section>
+          ) : null}
+          {budgetId && tenderEntitlement?.canGenerateTender ? (
             <Link
               href={productHref("/tender", {
                 organizationId,
@@ -215,16 +296,16 @@ function BudgetForm() {
               })}
               className="block text-sm text-emerald-400 hover:underline"
             >
-              继续生成标书
+              前往生成标书
             </Link>
           ) : null}
         </section>
       )}
 
-      {result ? (
-        <pre className="overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs text-zinc-300">
-          {result}
-        </pre>
+      {error ? (
+        <p className="rounded-xl border border-rose-900/50 bg-rose-950/20 p-4 text-sm text-rose-300">
+          {error}
+        </p>
       ) : null}
     </div>
   );

@@ -1,6 +1,10 @@
 "use client";
 
-import { TENDER_RECOMMENDED_PLAN, TENDER_UPGRADE_HREF } from "./tender-entitlement";
+import type { ProductCommercialContext } from "./commercial-context";
+import {
+  buildTenderUpgradeHref,
+  TENDER_RECOMMENDED_PLAN,
+} from "./tender-entitlement";
 
 type SubscriptionResponse = {
   ok?: boolean;
@@ -33,6 +37,7 @@ export type TenderClientEntitlement = {
 
 export async function loadTenderClientEntitlement(
   organizationId: string,
+  ctx: ProductCommercialContext = {},
 ): Promise<TenderClientEntitlement> {
   const denied: TenderClientEntitlement = {
     organizationId,
@@ -40,7 +45,13 @@ export async function loadTenderClientEntitlement(
     currentPlan: "BASIC",
     recommendedPlan: TENDER_RECOMMENDED_PLAN,
     trigger: "tender_generation_click",
-    upgradeHref: TENDER_UPGRADE_HREF,
+    upgradeHref: buildTenderUpgradeHref(
+      {
+        ...ctx,
+        organizationId: organizationId || ctx.organizationId,
+      },
+      { authenticated: Boolean(organizationId) },
+    ),
     upgradeCta: "升级到 Enterprise 解锁标书",
   };
   if (!organizationId) return denied;

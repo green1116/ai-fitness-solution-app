@@ -11,16 +11,18 @@ import {
 } from "./commercial-context";
 import { loadTenderClientEntitlement } from "./tender-entitlement-client";
 import { TenderEnterpriseUpgradeCta } from "./TenderEnterpriseUpgradeCta";
-import { TENDER_UPGRADE_HREF } from "./tender-entitlement";
+import { buildTenderUpgradeHref } from "./tender-entitlement";
 
 function NavLinks({
   ctx,
   canGenerateTender,
   upgradeCta,
+  upgradeHref,
 }: {
   ctx: ProductCommercialContext;
   canGenerateTender: boolean;
   upgradeCta?: string;
+  upgradeHref?: string;
 }) {
   return (
     <>
@@ -40,7 +42,7 @@ function NavLinks({
       ) : (
         <span className="inline-flex items-center gap-2 text-zinc-500">
           <span title="Enterprise 功能">标书 Tender（锁定）</span>
-          <TenderEnterpriseUpgradeCta href={TENDER_UPGRADE_HREF} label={upgradeCta} />
+          <TenderEnterpriseUpgradeCta href={upgradeHref} label={upgradeCta} />
         </span>
       )}
     </>
@@ -56,6 +58,7 @@ function ProductCommercialNavInner() {
   );
   const [canGenerateTender, setCanGenerateTender] = useState(false);
   const [upgradeCta, setUpgradeCta] = useState("升级到 Enterprise 解锁标书");
+  const [upgradeHref, setUpgradeHref] = useState(buildTenderUpgradeHref(ctx, { authenticated: false }));
 
   useEffect(() => {
     let cancelled = false;
@@ -67,10 +70,14 @@ function ProductCommercialNavInner() {
         const me = (await meRes.json().catch(() => ({}))) as { organizationId?: string | null };
         orgId = typeof me.organizationId === "string" ? me.organizationId.trim() : "";
       }
-      const entitlement = await loadTenderClientEntitlement(orgId);
+      const entitlement = await loadTenderClientEntitlement(orgId, {
+        ...ctx,
+        organizationId: orgId || ctx.organizationId,
+      });
       if (cancelled) return;
       setCanGenerateTender(entitlement.canGenerateTender);
       setUpgradeCta(entitlement.upgradeCta);
+      setUpgradeHref(entitlement.upgradeHref);
     }
     void load();
     return () => {
@@ -79,14 +86,27 @@ function ProductCommercialNavInner() {
   }, [ctx.organizationId, pathname]);
 
   return (
-    <NavLinks ctx={ctx} canGenerateTender={canGenerateTender} upgradeCta={upgradeCta} />
+    <NavLinks
+      ctx={ctx}
+      canGenerateTender={canGenerateTender}
+      upgradeCta={upgradeCta}
+      upgradeHref={upgradeHref}
+    />
   );
 }
 
 export function ProductCommercialNav() {
   return (
     <nav className="mx-auto flex max-w-5xl items-center gap-6 text-sm">
-      <Suspense fallback={<NavLinks ctx={{}} canGenerateTender={false} />}>
+      <Suspense
+        fallback={
+          <NavLinks
+            ctx={{}}
+            canGenerateTender={false}
+            upgradeHref={buildTenderUpgradeHref({}, { authenticated: false })}
+          />
+        }
+      >
         <ProductCommercialNavInner />
       </Suspense>
     </nav>
