@@ -5,7 +5,6 @@ import { PLAN_FEATURE_MATRIX } from "../lib/feature-flags/feature.service";
 import {
   buildTenderUpgradeHref,
   TENDER_RECOMMENDED_PLAN,
-  TENDER_UPGRADE_HREF,
 } from "../app/(product)/tender-entitlement";
 
 const ROOT = path.resolve(__dirname, "..");
@@ -23,7 +22,10 @@ function checkMatrixUnchanged() {
   assert(PLAN_FEATURE_MATRIX.PRO.canGenerateTender === false, "PRO no tender");
   assert(PLAN_FEATURE_MATRIX.ENTERPRISE.canGenerateTender === true, "ENTERPRISE tender");
   assert(TENDER_RECOMMENDED_PLAN === "ENTERPRISE", "upgrade target ENTERPRISE");
-  assert(TENDER_UPGRADE_HREF === "/dashboard/enterprise", "logged-in upgrade route");
+  assert(
+    !read("app/(product)/tender-entitlement.ts").includes("TENDER_UPGRADE_HREF"),
+    "no TENDER_UPGRADE_HREF dashboard fallback",
+  );
   assert(
     buildTenderUpgradeHref(
       { organizationId: "org1", projectId: "p1", quoteId: "q1" },
@@ -60,6 +62,8 @@ function checkNav() {
   assert(src.includes("canGenerateTender"), "nav checks tender flag");
   assert(src.includes("TenderEnterpriseUpgradeCta"), "nav shows upgrade CTA");
   assert(src.includes("标书 Tender（锁定）"), "nav locks tender");
+  assert(src.includes("productHref"), "nav preserves commercial context");
+  assert(!src.includes('href="/dashboard"'), "nav console is not /dashboard");
   console.log("✓ product nav lock");
 }
 
@@ -104,13 +108,34 @@ function checkQuoteUx() {
   console.log("✓ quote context UX");
 }
 
+function hasDashboardTarget(src: string) {
+  return /["'`]\/dashboard(?:\/[^"'`\s]*)?["'`]/.test(src) || src.includes("/dashboard/enterprise");
+}
+
 function checkNoInternalDashboardCta() {
-  const nav = read("app/(product)/ProductCommercialNav.tsx");
-  const tender = read("app/(product)/tender/page.tsx");
-  const project = read("app/(workspace)/projects/[id]/page.tsx");
-  assert(!nav.includes('href="/dashboard/enterprise"'), "nav has no internal dashboard href");
-  assert(!tender.includes('href="/dashboard/enterprise"'), "tender page has no internal dashboard href");
-  assert(!project.includes('href="/dashboard/enterprise"'), "project page has no internal dashboard href");
+  const files = [
+    "app/(product)/TenderEnterpriseUpgradeCta.tsx",
+    "app/(product)/tender-entitlement.ts",
+    "app/(product)/tender-entitlement-client.ts",
+    "app/(product)/ProductCommercialNav.tsx",
+    "app/(product)/budget/page.tsx",
+    "app/(product)/tender/page.tsx",
+    "app/(workspace)/projects/[id]/page.tsx",
+  ];
+  for (const file of files) {
+    const src = read(file);
+    assert(!hasDashboardTarget(src), `${file} never targets /dashboard*`);
+  }
+  const cta = read("app/(product)/TenderEnterpriseUpgradeCta.tsx");
+  assert(cta.includes("href: string"), "CTA href is required");
+  assert(!cta.includes("href ="), "CTA has no default href");
+  const authHref = buildTenderUpgradeHref(
+    { organizationId: "org1", projectId: "p1", quoteId: "q1" },
+    { authenticated: true, currentPath: "/budget" },
+  );
+  const guestHref = buildTenderUpgradeHref({ projectId: "p1" }, { authenticated: false });
+  assert(!authHref.includes("/dashboard"), "auth CTA href is not /dashboard*");
+  assert(!guestHref.includes("/dashboard"), "guest CTA href is not /dashboard*");
   console.log("✓ no internal dashboard CTA");
 }
 

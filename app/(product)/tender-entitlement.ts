@@ -4,7 +4,6 @@ import {
   type ProductCommercialContext,
 } from "./commercial-context";
 
-export const TENDER_UPGRADE_HREF = "/dashboard/enterprise";
 export const TENDER_RECOMMENDED_PLAN = "ENTERPRISE" as const;
 
 export function tenderEnterpriseUpgradeLabel(): string {

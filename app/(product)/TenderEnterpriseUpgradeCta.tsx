@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { TENDER_UPGRADE_HREF, tenderEnterpriseUpgradeLabel } from "./tender-entitlement";
+import { tenderEnterpriseUpgradeLabel } from "./tender-entitlement";
 
 export function TenderEnterpriseUpgradeCta({
-  href = TENDER_UPGRADE_HREF,
+  href,
   label,
 }: {
-  href?: string;
+  href: string;
   label?: string;
 }) {
   return (
