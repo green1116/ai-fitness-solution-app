@@ -13,13 +13,33 @@ type ProjectItem = {
   tenderCount: number;
 };
 
+async function resolveOrganizationId(): Promise<string> {
+  const meRes = await fetch("/api/auth/me");
+  const me = (await meRes.json()) as { organizationId?: string | null };
+  return typeof me.organizationId === "string" ? me.organizationId.trim() : "";
+}
+
+function orgHeaders(organizationId: string): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    "x-organization-id": organizationId,
+  };
+}
+
 export function ProjectsPageClient() {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function loadProjects() {
-    const res = await fetch("/api/project/list");
+    const organizationId = await resolveOrganizationId();
+    if (!organizationId) {
+      setProjects([]);
+      return;
+    }
+    const res = await fetch("/api/project/list", {
+      headers: { "x-organization-id": organizationId },
+    });
     const data = await res.json();
     if (data.ok) setProjects(data.projects);
   }
@@ -32,10 +52,12 @@ export function ProjectsPageClient() {
     if (!name.trim()) return;
     setLoading(true);
     try {
+      const organizationId = await resolveOrganizationId();
+      if (!organizationId) return;
       const res = await fetch("/api/project/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        headers: orgHeaders(organizationId),
+        body: JSON.stringify({ name, organizationId }),
       });
       const data = await res.json();
       if (data.ok) {

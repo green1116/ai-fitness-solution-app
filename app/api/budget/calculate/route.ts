@@ -31,7 +31,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await calculateBudget({ quoteId, companySize, budgetTier });
+    const result = await calculateBudget({
+      quoteId,
+      companySize,
+      budgetTier,
+      organizationId: gate.organizationId,
+    });
 
     await trackFeatureUsage(gate.organizationId, "canGenerateBudget");
     trackBudgetCalculated({ userId: gate.userId, organizationId: gate.organizationId, quoteId });
@@ -57,6 +62,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       budgetId: result.budget.id,
+      projectId: result.budget.projectId,
+      quoteId,
       structure: result.engine.structure,
       syncedStatus: result.engine.syncedStatus,
       plan: gate.feature.plan,

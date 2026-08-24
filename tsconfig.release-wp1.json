@@ -164,6 +164,8 @@
     "lib/workflow/experience/ewas-freeze-manifest.ts",
     "lib/workflow/experience/index.ts",
     "app/(product)/ProductIntelligenceExperience.tsx",
+    "app/(product)/commercial-context.ts",
+    "app/(product)/ProductCommercialNav.tsx",
     "app/(product)/layout.tsx",
     "app/(workspace)/layout.tsx",
     "app/(workspace)/projects/page.tsx",

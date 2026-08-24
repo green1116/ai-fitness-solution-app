@@ -7,11 +7,13 @@ import { TenderStatus, type Prisma } from "@prisma/client";
 import { runTenderEngine } from "@/lib/product-engine";
 import { createQuoteOrchestrator } from "@/lib/quote-lifecycle";
 import { prisma } from "@/lib/prisma";
+import { assertResourceBelongsToTenant } from "@/lib/tenancy/tenant.guard";
 
 export type GenerateTenderInput = {
   projectId: string;
   quoteId: string;
   budgetId?: string;
+  organizationId?: string;
 };
 
 export async function generateTender(input: GenerateTenderInput) {
@@ -28,6 +30,16 @@ export async function generateTender(input: GenerateTenderInput) {
 
   if (!project || !quote) {
     throw new Error("Project or Quote not found");
+  }
+
+  if (quote.projectId !== project.id) {
+    throw new Error("Quote does not belong to project");
+  }
+  if (budget && budget.projectId !== project.id) {
+    throw new Error("Budget does not belong to project");
+  }
+  if (input.organizationId) {
+    assertResourceBelongsToTenant(project.organizationId, input.organizationId);
   }
 
   const tender = await prisma.tender.create({

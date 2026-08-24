@@ -31,7 +31,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await generateTender({ projectId, quoteId, budgetId });
+    const result = await generateTender({
+      projectId,
+      quoteId,
+      budgetId,
+      organizationId: gate.organizationId,
+    });
 
     await trackFeatureUsage(gate.organizationId, "canGenerateTender");
     trackTenderGenerated({ userId: gate.userId, organizationId: gate.organizationId, projectId });

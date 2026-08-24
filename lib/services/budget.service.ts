@@ -7,11 +7,13 @@ import type { Prisma } from "@prisma/client";
 import type { QuoteOrchestrationStepResult } from "@/lib/quote-lifecycle";
 import { runBudgetEngine } from "@/lib/product-engine";
 import { prisma } from "@/lib/prisma";
+import { assertResourceBelongsToTenant } from "@/lib/tenancy/tenant.guard";
 
 export type CalculateBudgetInput = {
   quoteId: string;
   companySize: number;
   budgetTier?: "low" | "mid" | "high";
+  organizationId?: string;
 };
 
 type StoredQuoteContent = {
@@ -27,6 +29,10 @@ export async function calculateBudget(input: CalculateBudgetInput) {
 
   if (!quote) {
     throw new Error("Quote not found");
+  }
+
+  if (input.organizationId) {
+    assertResourceBelongsToTenant(quote.project.organizationId, input.organizationId);
   }
 
   const stored = quote.content as StoredQuoteContent | null;

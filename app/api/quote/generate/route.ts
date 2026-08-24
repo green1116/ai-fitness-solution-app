@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       quoteId: result.quote.id,
+      projectId,
       status: result.quote.status,
       proposal: result.engine.proposal,
       orchestrationId: result.engine.runtime.orchestrationId,

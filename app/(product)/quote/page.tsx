@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ProductIntelligenceExperience } from "@/app/(product)/ProductIntelligenceExperience";
+import {
+  companyNameFromProject,
+  pickOwnedProjectId,
+  productHref,
+  resolveClientProductContext,
+  writeStoredProductContext,
+} from "@/app/(product)/commercial-context";
 
 type OrgMe = { organizationId?: string | null };
-type ProjectList = { ok?: boolean; projects?: Array<{ id: string }> };
+type ProjectListItem = { id: string; name?: string; clientName?: string | null };
+type ProjectList = { ok?: boolean; projects?: ProjectListItem[] };
 type ProjectCreate = { ok?: boolean; project?: { id: string }; message?: string };
 type QuoteProposalView = {
   summary?: string;
@@ -15,6 +24,7 @@ type GenerateQuoteResponse = {
   ok?: boolean;
   status?: string;
   quoteId?: string;
+  projectId?: string;
   proposal?: QuoteProposalView;
   message?: string;
 };
@@ -32,17 +42,18 @@ async function resolveOrganizationId(): Promise<string> {
   return typeof me.organizationId === "string" ? me.organizationId.trim() : "";
 }
 
-async function resolveOrgProject(
-  organizationId: string,
-  companyName: string,
-): Promise<string> {
+async function listOwnedProjects(organizationId: string): Promise<ProjectListItem[]> {
   const listRes = await fetch("/api/project/list", {
     headers: { "x-organization-id": organizationId },
   });
   const list = (await listRes.json()) as ProjectList;
-  const existingId = list.projects?.[0]?.id?.trim();
-  if (existingId) return existingId;
+  return list.ok === true ? list.projects ?? [] : [];
+}
 
+async function createOrgProject(
+  organizationId: string,
+  companyName: string,
+): Promise<string> {
   const createRes = await fetch("/api/project/create", {
     method: "POST",
     headers: orgHeaders(organizationId),
@@ -60,16 +71,54 @@ async function resolveOrgProject(
   return createdId;
 }
 
-export default function QuotePage() {
+function QuoteForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [companyName, setCompanyName] = useState("");
+  const [companyLocked, setCompanyLocked] = useState(false);
+  const [projectId, setProjectId] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string>("");
+  const [result, setResult] = useState("");
   const [proposal, setProposal] = useState<QuoteProposalView | null>(null);
   const [quoteId, setQuoteId] = useState("");
-  const [organizationId, setOrganizationId] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function hydrate() {
+      const ctx = resolveClientProductContext(searchParams);
+      const organizationId = await resolveOrganizationId();
+      if (cancelled) return;
+      setOrganizationId(organizationId);
+      if (!organizationId) return;
+
+      const owned = await listOwnedProjects(organizationId);
+      if (cancelled) return;
+      const ownedProjectId = pickOwnedProjectId(
+        ctx.projectId,
+        owned.map((p) => p.id),
+      );
+      const ownedProject = owned.find((p) => p.id === ownedProjectId);
+      const resolvedName = companyNameFromProject(ownedProject);
+      setProjectId(ownedProjectId);
+      writeStoredProductContext({
+        ...ctx,
+        organizationId,
+        ...(ownedProjectId ? { projectId: ownedProjectId } : {}),
+      });
+      if (resolvedName) {
+        setCompanyName(resolvedName);
+        setCompanyLocked(true);
+      }
+    }
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   async function handleGenerate() {
-    if (!companyName) {
+    if (!companyName.trim()) {
       alert("请填写企业名称");
       return;
     }
@@ -82,21 +131,27 @@ export default function QuotePage() {
     try {
       const organizationId = await resolveOrganizationId();
       setOrganizationId(organizationId);
-      const projectId = organizationId
-        ? await resolveOrgProject(organizationId, companyName)
-        : "";
+      if (!organizationId) {
+        throw new Error("缺少组织上下文");
+      }
+
+      const owned = await listOwnedProjects(organizationId);
+      let nextProjectId = pickOwnedProjectId(
+        projectId,
+        owned.map((p) => p.id),
+      );
+      if (!nextProjectId) {
+        nextProjectId = await createOrgProject(organizationId, companyName.trim());
+      }
 
       const res = await fetch("/api/quote/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(organizationId ? { "x-organization-id": organizationId } : {}),
-        },
+        headers: orgHeaders(organizationId),
         body: JSON.stringify({
-          projectId,
-          companyName,
-          workspaceId: "ws-default",
-          ...(organizationId ? { organizationId } : {}),
+          projectId: nextProjectId,
+          companyName: companyName.trim(),
+          workspaceId: organizationId,
+          organizationId,
         }),
       });
       const data = (await res.json()) as GenerateQuoteResponse;
@@ -104,9 +159,27 @@ export default function QuotePage() {
         data.ok === true && data.status === "READY" && data.proposal
           ? data.proposal
           : null;
+      const nextQuoteId = readyProposal && data.quoteId ? data.quoteId : "";
+      const boundProjectId = data.projectId?.trim() || nextProjectId;
       setProposal(readyProposal);
-      setQuoteId(readyProposal && data.quoteId ? data.quoteId : "");
+      setQuoteId(nextQuoteId);
+      setProjectId(boundProjectId);
       setResult(JSON.stringify(data, null, 2));
+
+      if (readyProposal && nextQuoteId) {
+        writeStoredProductContext({
+          organizationId,
+          projectId: boundProjectId,
+          quoteId: nextQuoteId,
+        });
+        router.push(
+          productHref("/budget", {
+            organizationId,
+            projectId: boundProjectId,
+            quoteId: nextQuoteId,
+          }),
+        );
+      }
     } catch {
       setProposal(null);
       setQuoteId("");
@@ -137,16 +210,22 @@ export default function QuotePage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">方案生成 Quote</h1>
-      <p className="text-sm text-zinc-400">输入企业信息 → 调用 V58 Orchestrator → 返回 AI 方案</p>
+      <p className="text-sm text-zinc-400">组织/项目上下文 → 调用 V58 Orchestrator → 返回 AI 方案</p>
       <ProductIntelligenceExperience />
 
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-        <input
-          className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-3"
-          placeholder="企业名称"
-          value={companyName}
-          onChange={(e) => setCompanyName(e.target.value)}
-        />
+        {companyLocked ? (
+          <p className="rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-300">
+            企业：{companyName}
+          </p>
+        ) : (
+          <input
+            className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-3"
+            placeholder="企业名称"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+          />
+        )}
         <button
           type="button"
           onClick={handleGenerate}
@@ -197,5 +276,13 @@ export default function QuotePage() {
         </pre>
       ) : null}
     </div>
+  );
+}
+
+export default function QuotePage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-zinc-500">加载方案上下文…</p>}>
+      <QuoteForm />
+    </Suspense>
   );
 }
