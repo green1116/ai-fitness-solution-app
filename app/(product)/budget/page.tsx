@@ -27,6 +27,50 @@ type CalculateBudgetResponse = {
   message?: string;
 };
 
+type BudgetSummaryState = {
+  companySize: number;
+  budgetTier: "low" | "mid" | "high";
+  totalEstimateMin?: number;
+  totalEstimateMax?: number;
+  currency?: string;
+};
+
+const BUDGET_SUMMARY_STORAGE_KEY = "product-budget-summary";
+
+function readStoredBudgetSummary(budgetId: string): BudgetSummaryState | null {
+  if (typeof window === "undefined") return null;
+  const id = budgetId.trim();
+  if (!id) return null;
+  try {
+    const raw = window.sessionStorage.getItem(BUDGET_SUMMARY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as BudgetSummaryState & { budgetId?: string };
+    if (parsed.budgetId !== id) return null;
+    if (typeof parsed.companySize !== "number" || !parsed.budgetTier) return null;
+    return {
+      companySize: parsed.companySize,
+      budgetTier: parsed.budgetTier,
+      ...(typeof parsed.totalEstimateMin === "number"
+        ? { totalEstimateMin: parsed.totalEstimateMin }
+        : {}),
+      ...(typeof parsed.totalEstimateMax === "number"
+        ? { totalEstimateMax: parsed.totalEstimateMax }
+        : {}),
+      ...(parsed.currency ? { currency: parsed.currency } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredBudgetSummary(budgetId: string, summary: BudgetSummaryState): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(
+    BUDGET_SUMMARY_STORAGE_KEY,
+    JSON.stringify({ budgetId, ...summary }),
+  );
+}
+
 async function resolveOrganizationId(): Promise<string> {
   const meRes = await fetch("/api/auth/me");
   const me = (await meRes.json()) as OrgMe;
@@ -52,13 +96,7 @@ function BudgetForm() {
   const [loading, setLoading] = useState(false);
   const [budgetId, setBudgetId] = useState("");
   const [error, setError] = useState("");
-  const [budgetSummary, setBudgetSummary] = useState<{
-    companySize: number;
-    budgetTier: "low" | "mid" | "high";
-    totalEstimateMin?: number;
-    totalEstimateMax?: number;
-    currency?: string;
-  } | null>(null);
+  const [budgetSummary, setBudgetSummary] = useState<BudgetSummaryState | null>(null);
   const [tenderEntitlement, setTenderEntitlement] =
     useState<TenderClientEntitlement | null>(null);
 
@@ -74,7 +112,16 @@ function BudgetForm() {
       const ownedProjectId = pickOwnedProjectId(ctx.projectId, ownedIds);
       setProjectId(ownedProjectId);
       setQuoteId(ctx.quoteId ?? "");
-      setBudgetId(ctx.budgetId ?? "");
+      const nextBudgetId = ctx.budgetId ?? "";
+      setBudgetId(nextBudgetId);
+      if (nextBudgetId) {
+        const stored = readStoredBudgetSummary(nextBudgetId);
+        if (stored) {
+          setBudgetSummary(stored);
+          setCompanySize(String(stored.companySize));
+          setBudgetTier(stored.budgetTier);
+        }
+      }
       if (organizationId) {
         setTenderEntitlement(
           await loadTenderClientEntitlement(organizationId, {
@@ -141,6 +188,13 @@ function BudgetForm() {
           totalEstimateMax: data.structure?.totalEstimateMax,
           currency: data.structure?.currency,
         });
+        writeStoredBudgetSummary(data.budgetId, {
+          companySize: Number(companySize),
+          budgetTier,
+          totalEstimateMin: data.structure?.totalEstimateMin,
+          totalEstimateMax: data.structure?.totalEstimateMax,
+          currency: data.structure?.currency,
+        });
         writeStoredProductContext({
           organizationId,
           projectId: boundProjectId,
@@ -172,7 +226,8 @@ function BudgetForm() {
   }
 
   async function handleDownloadPdf() {
-    if (!projectId) return;
+    if (!projectId || !budgetId) return;
+    const sizeForPdf = budgetSummary?.companySize ?? Number(companySize);
     const res = await fetch("/api/pdf/tender/budget", {
       method: "POST",
       credentials: "include",
@@ -180,7 +235,7 @@ function BudgetForm() {
       body: JSON.stringify({
         projectId,
         planId: projectId,
-        companySize: Number(companySize),
+        companySize: sizeForPdf,
       }),
     });
     if (!res.ok) {
@@ -236,7 +291,7 @@ function BudgetForm() {
           >
             {loading ? "计算中…" : "计算预算"}
           </button>
-          {projectId && budgetSummary ? (
+          {projectId && budgetId ? (
             <button
               type="button"
               onClick={handleDownloadPdf}
@@ -245,21 +300,23 @@ function BudgetForm() {
               下载 PDF
             </button>
           ) : null}
-          {budgetSummary ? (
+          {budgetId ? (
             <section className="rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
               <p>预算已生成，可直接下载 PDF。</p>
-              <p className="mt-2 text-zinc-400">
-                企业规模 {budgetSummary.companySize} 人 · 配置{" "}
-                {budgetSummary.budgetTier === "low"
-                  ? "基础"
-                  : budgetSummary.budgetTier === "mid"
-                    ? "标准"
-                    : "高端"}
-                {typeof budgetSummary.totalEstimateMin === "number" &&
-                typeof budgetSummary.totalEstimateMax === "number"
-                  ? ` · 预算区间 ${budgetSummary.currency ?? "CNY"} ${budgetSummary.totalEstimateMin} - ${budgetSummary.totalEstimateMax}`
-                  : ""}
-              </p>
+              {budgetSummary ? (
+                <p className="mt-2 text-zinc-400">
+                  企业规模 {budgetSummary.companySize} 人 · 配置{" "}
+                  {budgetSummary.budgetTier === "low"
+                    ? "基础"
+                    : budgetSummary.budgetTier === "mid"
+                      ? "标准"
+                      : "高端"}
+                  {typeof budgetSummary.totalEstimateMin === "number" &&
+                  typeof budgetSummary.totalEstimateMax === "number"
+                    ? ` · 预算区间 ${budgetSummary.currency ?? "CNY"} ${budgetSummary.totalEstimateMin} - ${budgetSummary.totalEstimateMax}`
+                    : ""}
+                </p>
+              ) : null}
             </section>
           ) : null}
           {budgetId && tenderEntitlement && !tenderEntitlement.canGenerateTender ? (

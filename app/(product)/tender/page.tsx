@@ -15,6 +15,7 @@ import {
 } from "@/app/(product)/tender-entitlement-client";
 import { TenderEnterpriseUpgradeCta } from "@/app/(product)/TenderEnterpriseUpgradeCta";
 import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
+import { downloadTenderPack } from "@/components/documents/downloadTenderPack";
 
 type OrgMe = { organizationId?: string | null };
 type ProjectList = { ok?: boolean; projects?: Array<{ id: string }> };
@@ -42,6 +43,8 @@ function TenderForm() {
   const [entitlement, setEntitlement] = useState<TenderClientEntitlement | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [downloadReady, setDownloadReady] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +89,7 @@ function TenderForm() {
 
     setLoading(true);
     setMessage("");
+    setDownloadReady(false);
 
     try {
       const organizationId = await resolveOrganizationId();
@@ -101,6 +105,7 @@ function TenderForm() {
       ]);
       setEntitlement(latest);
       if (!latest.canGenerateTender) {
+        setMessage("标书生成失败，请稍后重试");
         return;
       }
       const ownedProjectId = pickOwnedProjectId(projectId, ownedIds);
@@ -129,11 +134,26 @@ function TenderForm() {
         setMessage("标书生成失败，请稍后重试");
         return;
       }
+      setProjectId(ownedProjectId);
       setMessage("标书已生成");
+      setDownloadReady(true);
     } catch {
       setMessage("标书生成失败，请稍后重试");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDownloadPack() {
+    if (!projectId || downloading) return;
+    setDownloading(true);
+    setMessage("标书已生成");
+    try {
+      await downloadTenderPack(projectId);
+    } catch {
+      setMessage("标书下载失败，请稍后重试");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -191,15 +211,29 @@ function TenderForm() {
       )}
 
       {message ? (
-        <p
-          className={
-            message === "标书已生成"
-              ? "rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4 text-sm text-emerald-300"
-              : "rounded-xl border border-rose-900/50 bg-rose-950/20 p-4 text-sm text-rose-300"
-          }
-        >
-          {message}
-        </p>
+        <div className="space-y-3">
+          <p
+            className={
+              message === "标书已生成"
+                ? "rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4 text-sm text-emerald-300"
+                : "rounded-xl border border-rose-900/50 bg-rose-950/20 p-4 text-sm text-rose-300"
+            }
+          >
+            {message}
+          </p>
+          {downloadReady && projectId ? (
+            <button
+              type="button"
+              onClick={() => {
+                void handleDownloadPack();
+              }}
+              disabled={downloading}
+              className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
+            >
+              {downloading ? "下载中…" : "下载标书"}
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
