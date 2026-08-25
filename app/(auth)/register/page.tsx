@@ -64,7 +64,7 @@ function RegisterForm() {
         throw new Error(body?.message || "注册失败");
       }
       trackConversion({ stage: "activation" });
-      router.push(resolvePostSignupPath());
+      router.push(resolvePostSignupPath(params.get("returnTo")));
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "注册失败");
     } finally {

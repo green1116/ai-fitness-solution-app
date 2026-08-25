@@ -19,6 +19,9 @@ export function buildTenderUpgradeHref(
     params.set("plan", TENDER_RECOMMENDED_PLAN);
     const query = buildProductContextSearch(ctx);
     if (query) params.set("context", query);
+    const path = normalizeProductReturnPath(options?.currentPath);
+    const returnTo = query ? `${path}?${query}` : path;
+    params.set("returnTo", returnTo);
     return `/register?${params.toString()}`;
   }
 
@@ -29,6 +32,12 @@ export function buildTenderUpgradeHref(
   if (query) params.set("context", query);
   const currentPath = options?.currentPath?.trim() || "/tender";
   return `${currentPath}?${params.toString()}`;
+}
+
+function normalizeProductReturnPath(currentPath?: string): "/quote" | "/budget" | "/tender" {
+  const path = (currentPath ?? "").trim().split(/[?#]/, 1)[0];
+  if (path === "/quote" || path === "/budget" || path === "/tender") return path;
+  return "/tender";
 }
 
 export function resolveEnterpriseContactPlanId(ctx: ProductCommercialContext): string {
