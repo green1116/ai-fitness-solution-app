@@ -287,9 +287,13 @@ function BudgetForm() {
             type="button"
             onClick={handleCalculate}
             disabled={loading}
-            className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
+            className={
+              budgetId
+                ? "rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400 disabled:opacity-50"
+                : "rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
+            }
           >
-            {loading ? "计算中…" : "计算预算"}
+            {loading ? "计算中…" : budgetId ? "重新计算" : "计算预算"}
           </button>
           {projectId && budgetId ? (
             <button
@@ -319,6 +323,19 @@ function BudgetForm() {
               ) : null}
             </section>
           ) : null}
+          {budgetId && tenderEntitlement?.canGenerateTender ? (
+            <Link
+              href={productHref("/tender", {
+                organizationId,
+                projectId,
+                quoteId,
+                budgetId,
+              })}
+              className="inline-flex rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black"
+            >
+              前往生成标书
+            </Link>
+          ) : null}
           {budgetId && tenderEntitlement && !tenderEntitlement.canGenerateTender ? (
             <section className="rounded-xl border border-amber-700/50 bg-black p-4 text-sm text-zinc-300">
               <p>
@@ -341,19 +358,6 @@ function BudgetForm() {
                 />
               </div>
             </section>
-          ) : null}
-          {budgetId && tenderEntitlement?.canGenerateTender ? (
-            <Link
-              href={productHref("/tender", {
-                organizationId,
-                projectId,
-                quoteId,
-                budgetId,
-              })}
-              className="block text-sm text-emerald-400 hover:underline"
-            >
-              前往生成标书
-            </Link>
           ) : null}
         </section>
       )}

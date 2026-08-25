@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   companyNameFromProject,
   pickOwnedProjectId,
@@ -71,7 +72,6 @@ async function createOrgProject(
 }
 
 function QuoteForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [companyName, setCompanyName] = useState("");
   const [companyLocked, setCompanyLocked] = useState(false);
@@ -176,13 +176,6 @@ function QuoteForm() {
           projectId: boundProjectId,
           quoteId: nextQuoteId,
         });
-        router.push(
-          productHref("/budget", {
-            organizationId,
-            projectId: boundProjectId,
-            quoteId: nextQuoteId,
-          }),
-        );
       } else {
         setError("方案生成失败，请稍后重试");
       }
@@ -254,13 +247,25 @@ function QuoteForm() {
             <p className="text-xs text-zinc-500">{proposal.generatedAt}</p>
           ) : null}
           {quoteId ? (
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400"
-            >
-              下载 PDF
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href={productHref("/budget", {
+                  organizationId,
+                  projectId,
+                  quoteId,
+                })}
+                className="rounded-xl bg-white px-6 py-3 font-semibold text-black"
+              >
+                继续预算
+              </Link>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400"
+              >
+                下载 PDF
+              </button>
+            </div>
           ) : null}
           {proposal.sections?.map((section, index) => (
             <section key={`${section.title ?? "section"}-${index}`} className="space-y-1">

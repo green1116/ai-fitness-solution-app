@@ -80,6 +80,8 @@ function TenderForm() {
 
   async function handleGenerate() {
     if (!entitlement?.canGenerateTender) {
+      setMessage("当前套餐无法生成标书");
+      setDownloadReady(false);
       return;
     }
     if (!projectId || !quoteId) {
@@ -105,7 +107,7 @@ function TenderForm() {
       ]);
       setEntitlement(latest);
       if (!latest.canGenerateTender) {
-        setMessage("标书生成失败，请稍后重试");
+        setMessage("当前套餐无法生成标书");
         return;
       }
       const ownedProjectId = pickOwnedProjectId(projectId, ownedIds);
@@ -232,6 +234,19 @@ function TenderForm() {
             >
               {downloading ? "下载中…" : "下载标书"}
             </button>
+          ) : null}
+          {message === "当前套餐无法生成标书" ? (
+            <TenderEnterpriseUpgradeCta
+              href={
+                entitlement?.upgradeHref ||
+                buildTenderUpgradeHref(
+                  { organizationId, projectId, quoteId, budgetId },
+                  { authenticated: Boolean(organizationId), currentPath: "/tender" },
+                )
+              }
+              label={entitlement?.upgradeCta}
+              context={{ organizationId, projectId, quoteId, budgetId }}
+            />
           ) : null}
         </div>
       ) : null}
