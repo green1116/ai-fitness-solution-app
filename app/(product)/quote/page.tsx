@@ -65,7 +65,7 @@ async function createOrgProject(
   const created = (await createRes.json()) as ProjectCreate;
   const createdId = created.project?.id?.trim();
   if (!created.ok || !createdId) {
-    throw new Error(created.message || "项目创建失败");
+    throw new Error("项目创建失败");
   }
   return createdId;
 }
@@ -79,7 +79,7 @@ function QuoteForm() {
   const [projectId, setProjectId] = useState("");
   const [organizationId, setOrganizationId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState("");
+  const [error, setError] = useState("");
   const [proposal, setProposal] = useState<QuoteProposalView | null>(null);
   const [quoteId, setQuoteId] = useState("");
 
@@ -128,7 +128,7 @@ function QuoteForm() {
     }
 
     setLoading(true);
-    setResult("");
+    setError("");
     setProposal(null);
     setQuoteId("");
 
@@ -136,7 +136,8 @@ function QuoteForm() {
       const organizationId = await resolveOrganizationId();
       setOrganizationId(organizationId);
       if (!organizationId) {
-        throw new Error("缺少组织上下文");
+        setError("请先登录后再生成方案");
+        return;
       }
 
       const owned = await listOwnedProjects(organizationId);
@@ -168,7 +169,6 @@ function QuoteForm() {
       setProposal(readyProposal);
       setQuoteId(nextQuoteId);
       setProjectId(boundProjectId);
-      setResult(JSON.stringify(data, null, 2));
 
       if (readyProposal && nextQuoteId) {
         writeStoredProductContext({
@@ -183,11 +183,13 @@ function QuoteForm() {
             quoteId: nextQuoteId,
           }),
         );
+      } else {
+        setError("方案生成失败，请稍后重试");
       }
     } catch {
       setProposal(null);
       setQuoteId("");
-      setResult("请求失败");
+      setError("方案生成失败，请稍后重试");
     } finally {
       setLoading(false);
     }
@@ -206,20 +208,20 @@ function QuoteForm() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `quote-${quoteId}.pdf`;
+    link.download = "quote.pdf";
     link.click();
     URL.revokeObjectURL(url);
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">方案生成 Quote</h1>
-      <p className="text-sm text-zinc-400">组织/项目上下文 → 调用 V58 Orchestrator → 返回 AI 方案</p>
+      <h1 className="text-2xl font-bold">方案生成</h1>
+      <p className="text-sm text-zinc-400">填写企业信息，生成专业健身空间方案</p>
 
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
         {!contextReady ? (
           <p className="rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-500">
-            加载项目上下文…
+            加载中…
           </p>
         ) : companyLocked ? (
           <p className="rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-300">
@@ -270,17 +272,13 @@ function QuoteForm() {
               ) : null}
             </section>
           ))}
-          <details className="pt-2">
-            <summary className="cursor-pointer text-xs text-zinc-500">调试 JSON</summary>
-            <pre className="mt-2 overflow-auto rounded-lg border border-zinc-800 bg-black p-3 text-xs text-zinc-400">
-              {result}
-            </pre>
-          </details>
         </article>
-      ) : result ? (
-        <pre className="overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs text-zinc-300">
-          {result}
-        </pre>
+      ) : null}
+
+      {error ? (
+        <p className="rounded-xl border border-rose-900/50 bg-rose-950/20 p-4 text-sm text-rose-300">
+          {error}
+        </p>
       ) : null}
     </div>
   );
@@ -288,7 +286,7 @@ function QuoteForm() {
 
 export default function QuotePage() {
   return (
-    <Suspense fallback={<p className="text-sm text-zinc-500">加载方案上下文…</p>}>
+    <Suspense fallback={<p className="text-sm text-zinc-500">加载中…</p>}>
       <QuoteForm />
     </Suspense>
   );

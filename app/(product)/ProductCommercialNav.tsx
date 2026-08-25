@@ -13,44 +13,32 @@ import { loadTenderClientEntitlement } from "./tender-entitlement-client";
 import { TenderEnterpriseUpgradeCta } from "./TenderEnterpriseUpgradeCta";
 import { buildTenderUpgradeHref } from "./tender-entitlement";
 
-const CUSTOMER_PRODUCT_PATHS = ["/quote", "/budget", "/tender"] as const;
-
-function customerProductHref(pathname: string, ctx: ProductCommercialContext): string {
-  const path = CUSTOMER_PRODUCT_PATHS.find((p) => p === pathname) ?? "/quote";
-  return productHref(path, ctx);
-}
-
 function NavLinks({
   ctx,
-  pathname,
   canGenerateTender,
   upgradeCta,
   upgradeHref,
 }: {
   ctx: ProductCommercialContext;
-  pathname: string;
   canGenerateTender: boolean;
   upgradeCta?: string;
   upgradeHref: string;
 }) {
   return (
     <>
-      <Link href={customerProductHref(pathname, ctx)} className="font-semibold text-zinc-300 hover:text-white">
-        控制台
-      </Link>
       <Link href={productHref("/quote", ctx)} className="text-zinc-400 hover:text-white">
-        方案 Quote
+        方案
       </Link>
       <Link href={productHref("/budget", ctx)} className="text-zinc-400 hover:text-white">
-        预算 Budget
+        预算
       </Link>
       {canGenerateTender ? (
         <Link href={productHref("/tender", ctx)} className="text-zinc-400 hover:text-white">
-          标书 Tender
+          标书
         </Link>
       ) : (
         <span className="inline-flex items-center gap-2 text-zinc-500">
-          <span title="Enterprise 功能">标书 Tender（锁定）</span>
+          <span title="Enterprise 功能">标书（锁定）</span>
           <TenderEnterpriseUpgradeCta href={upgradeHref} label={upgradeCta} context={ctx} />
         </span>
       )}
@@ -99,7 +87,6 @@ function ProductCommercialNavInner() {
   return (
     <NavLinks
       ctx={ctx}
-      pathname={pathname}
       canGenerateTender={canGenerateTender}
       upgradeCta={upgradeCta}
       upgradeHref={upgradeHref}
@@ -114,7 +101,6 @@ export function ProductCommercialNav() {
         fallback={
           <NavLinks
             ctx={{}}
-            pathname="/quote"
             canGenerateTender={false}
             upgradeHref={buildTenderUpgradeHref({}, { authenticated: false, currentPath: "/tender" })}
           />

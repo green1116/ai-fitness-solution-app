@@ -98,7 +98,7 @@ function BudgetForm() {
 
   async function handleCalculate() {
     if (!quoteId) {
-      alert("缺少方案上下文，请先生成方案");
+      alert("请先生成方案");
       return;
     }
 
@@ -126,7 +126,7 @@ function BudgetForm() {
       });
       const data = (await res.json()) as CalculateBudgetResponse;
       if (!res.ok || data.ok !== true) {
-        throw new Error(data.message || "预算计算失败");
+        throw new Error("BUDGET_CALCULATE_FAILED");
       }
       if (data.ok === true && data.budgetId) {
         const quoteProjectId = data.projectId?.trim() || "";
@@ -164,8 +164,8 @@ function BudgetForm() {
           }, { currentPath: "/budget" }),
         );
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "请求失败");
+    } catch {
+      setError("预算计算失败，请稍后重试");
     } finally {
       setLoading(false);
     }
@@ -198,12 +198,12 @@ function BudgetForm() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">预算计算 Budget</h1>
-      <p className="text-sm text-zinc-400">根据 Quote → 成本模型 → 价格区间</p>
+      <h1 className="text-2xl font-bold">预算计算</h1>
+      <p className="text-sm text-zinc-400">根据方案估算投资区间</p>
 
       {!quoteId ? (
         <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-6 text-sm text-zinc-300">
-          <p>当前没有方案上下文。请先生成方案，系统会自动带入 Quote。</p>
+          <p>当前没有可用方案。请先生成方案，系统会自动带入后续步骤。</p>
           <Link
             href={productHref("/quote", { organizationId, projectId })}
             className="inline-block text-emerald-400 hover:underline"
@@ -224,9 +224,9 @@ function BudgetForm() {
             value={budgetTier}
             onChange={(e) => setBudgetTier(e.target.value as "low" | "mid" | "high")}
           >
-            <option value="low">低档</option>
-            <option value="mid">中档</option>
-            <option value="high">高档</option>
+            <option value="low">基础</option>
+            <option value="mid">标准</option>
+            <option value="high">高端</option>
           </select>
           <button
             type="button"
@@ -249,12 +249,12 @@ function BudgetForm() {
             <section className="rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
               <p>预算已生成，可直接下载 PDF。</p>
               <p className="mt-2 text-zinc-400">
-                企业规模 {budgetSummary.companySize} 人 · 档位{" "}
+                企业规模 {budgetSummary.companySize} 人 · 配置{" "}
                 {budgetSummary.budgetTier === "low"
-                  ? "低档"
+                  ? "基础"
                   : budgetSummary.budgetTier === "mid"
-                    ? "中档"
-                    : "高档"}
+                    ? "标准"
+                    : "高端"}
                 {typeof budgetSummary.totalEstimateMin === "number" &&
                 typeof budgetSummary.totalEstimateMax === "number"
                   ? ` · 预算区间 ${budgetSummary.currency ?? "CNY"} ${budgetSummary.totalEstimateMin} - ${budgetSummary.totalEstimateMax}`
@@ -265,10 +265,10 @@ function BudgetForm() {
           {budgetId && tenderEntitlement && !tenderEntitlement.canGenerateTender ? (
             <section className="rounded-xl border border-amber-700/50 bg-black p-4 text-sm text-zinc-300">
               <p>
-                继续到 Tender 需要 Enterprise。当前套餐：{tenderEntitlement.currentPlan}。
+                继续生成标书需要 Enterprise。当前套餐：{tenderEntitlement.currentPlan}。
               </p>
               <p className="mt-1 text-zinc-500">
-                升级后可继续生成完整标书，当前项目上下文会保留。
+                升级后可继续生成完整标书，当前进度会保留。
               </p>
               <div className="mt-3">
                 <TenderEnterpriseUpgradeCta
@@ -312,7 +312,7 @@ function BudgetForm() {
 
 export default function BudgetPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-zinc-500">加载预算上下文…</p>}>
+    <Suspense fallback={<p className="text-sm text-zinc-500">加载中…</p>}>
       <BudgetForm />
     </Suspense>
   );

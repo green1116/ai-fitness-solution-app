@@ -41,7 +41,7 @@ function TenderForm() {
   const [organizationId, setOrganizationId] = useState("");
   const [entitlement, setEntitlement] = useState<TenderClientEntitlement | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -80,12 +80,12 @@ function TenderForm() {
       return;
     }
     if (!projectId || !quoteId) {
-      alert("缺少方案/项目上下文，请先生成方案");
+      alert("请先完成方案与预算");
       return;
     }
 
     setLoading(true);
-    setResult("");
+    setMessage("");
 
     try {
       const organizationId = await resolveOrganizationId();
@@ -105,7 +105,8 @@ function TenderForm() {
       }
       const ownedProjectId = pickOwnedProjectId(projectId, ownedIds);
       if (!ownedProjectId) {
-        throw new Error("项目不属于当前组织");
+        setMessage("无法确认当前项目，请返回方案页重试");
+        return;
       }
 
       const res = await fetch("/api/tender/generate", {
@@ -121,10 +122,16 @@ function TenderForm() {
           ...(organizationId ? { organizationId } : {}),
         }),
       });
-      const data = await res.json();
-      setResult(JSON.stringify(data, null, 2));
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+      } | null;
+      if (!res.ok || data?.ok !== true) {
+        setMessage("标书生成失败，请稍后重试");
+        return;
+      }
+      setMessage("标书已生成");
     } catch {
-      setResult("请求失败");
+      setMessage("标书生成失败，请稍后重试");
     } finally {
       setLoading(false);
     }
@@ -136,13 +143,13 @@ function TenderForm() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">标书生成 Tender</h1>
-      <p className="text-sm text-zinc-400">Budget + Quote → PDF Engine → 招标文件（核心商业点）</p>
+      <h1 className="text-2xl font-bold">标书生成</h1>
+      <p className="text-sm text-zinc-400">根据方案与预算生成招标文件</p>
 
       {tenderLocked ? (
         <section className="space-y-3 rounded-2xl border border-amber-700/60 bg-zinc-950 p-6 text-sm text-zinc-300">
           <p>标书生成为 Enterprise 功能。当前套餐：{entitlement.currentPlan}。</p>
-          <p>升级到 {entitlement.recommendedPlan} 后即可生成标书，项目上下文会保留。</p>
+          <p>升级到 {entitlement.recommendedPlan} 后即可生成标书，当前项目进度会保留。</p>
           <TenderEnterpriseUpgradeCta
             href={
               entitlement.upgradeHref ||
@@ -157,7 +164,7 @@ function TenderForm() {
         </section>
       ) : missingContext ? (
         <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-6 text-sm text-zinc-300">
-          <p>当前没有方案上下文。请先完成方案与预算，系统会自动带入 ID。</p>
+          <p>当前缺少方案信息。请先完成方案与预算。</p>
           <Link
             href={productHref(quoteId ? "/budget" : "/quote", {
               organizationId,
@@ -178,15 +185,21 @@ function TenderForm() {
             disabled={loading || entitlementPending || !entitlement?.canGenerateTender}
             className="rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black disabled:opacity-50"
           >
-            {loading ? "生成中…" : entitlementPending ? "校验套餐…" : "生成标书 PDF"}
+            {loading ? "生成中…" : entitlementPending ? "准备中…" : "生成标书 PDF"}
           </button>
         </section>
       )}
 
-      {result ? (
-        <pre className="overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs text-zinc-300">
-          {result}
-        </pre>
+      {message ? (
+        <p
+          className={
+            message === "标书已生成"
+              ? "rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4 text-sm text-emerald-300"
+              : "rounded-xl border border-rose-900/50 bg-rose-950/20 p-4 text-sm text-rose-300"
+          }
+        >
+          {message}
+        </p>
       ) : null}
     </div>
   );
@@ -194,7 +207,7 @@ function TenderForm() {
 
 export default function TenderPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-zinc-500">加载标书上下文…</p>}>
+    <Suspense fallback={<p className="text-sm text-zinc-500">加载中…</p>}>
       <TenderForm />
     </Suspense>
   );
