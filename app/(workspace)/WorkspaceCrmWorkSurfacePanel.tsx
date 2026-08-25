@@ -32,7 +32,13 @@ async function loadCrmWork(): Promise<CrmWorkSurface | null> {
 export async function WorkspaceCrmWorkSurfacePanel() {
   const crmWork = await loadCrmWork();
   if (!crmWork) return null;
-  if (crmWork.items.length === 0 && crmWork.outcomes.length === 0) return null;
+  if (
+    crmWork.items.length === 0 &&
+    crmWork.outcomes.length === 0 &&
+    crmWork.consultQueue.length === 0
+  ) {
+    return null;
+  }
 
   return (
     <section className="mx-auto mb-6 max-w-5xl rounded-lg border border-zinc-800 bg-zinc-950 p-4">
@@ -51,6 +57,45 @@ export async function WorkspaceCrmWorkSurfacePanel() {
           <p className="mt-1 text-lg font-semibold text-emerald-400">{crmWork.openDeals}</p>
         </div>
       </div>
+      {crmWork.consultQueue.length > 0 ? (
+        <div className="mt-4">
+          <p className="text-xs text-zinc-500">Marketing consult queue</p>
+          <ul className="mt-2 space-y-2">
+            {crmWork.consultQueue.map((lead) => (
+              <li
+                key={lead.id}
+                className="rounded-md border border-zinc-800 px-3 py-2 text-sm"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-zinc-200">
+                    {lead.company || lead.name || lead.email}
+                  </span>
+                  <span className="rounded border border-zinc-700 px-1.5 py-0.5 text-xs uppercase tracking-wide text-zinc-400">
+                    consult · {lead.status}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-400">
+                  {[lead.name, lead.email].filter(Boolean).join(" · ")}
+                </p>
+                <p className="mt-0.5 text-xs text-zinc-600">
+                  {lead.createdAt.toISOString()}
+                  {lead.projectId ? ` · project ${lead.projectId}` : ""}
+                </p>
+                {lead.phone || lead.title ? (
+                  <p className="mt-0.5 text-xs text-zinc-600">
+                    {[
+                      lead.phone ? `phone ${lead.phone}` : null,
+                      lead.title ? `title ${lead.title}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {crmWork.outcomes.length > 0 ? (
         <div className="mt-4">
           <p className="text-xs text-zinc-500">Latest outcomes</p>

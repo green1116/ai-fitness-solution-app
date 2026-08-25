@@ -32,9 +32,22 @@ export type CrmWorkItem = Readonly<{
 export type CrmWorkSurface = Readonly<{
   items: readonly CrmWorkItem[];
   outcomes: readonly CrmOutcomeItem[];
+  consultQueue: readonly MarketingConsultQueueItem[];
   qualifiedLeads: number;
   activeOpportunities: number;
   openDeals: number;
+}>;
+
+export type MarketingConsultQueueItem = Readonly<{
+  id: string;
+  company: string | null;
+  name: string | null;
+  email: string;
+  status: string;
+  createdAt: Date;
+  projectId?: string;
+  phone?: string;
+  title?: string;
 }>;
 
 export type CrmOutcomeItem = Readonly<{
@@ -94,6 +107,19 @@ function parseConsultNoteAttribution(note: string | null | undefined): {
   return result;
 }
 
+function parseConsultNoteContact(note: string | null | undefined): {
+  phone?: string;
+  title?: string;
+} {
+  if (!note) return {};
+  const phone = note.match(/手机：([^；]+)/)?.[1]?.trim();
+  const title = note.match(/职位：([^；]+)/)?.[1]?.trim();
+  return {
+    ...(phone ? { phone } : {}),
+    ...(title ? { title } : {}),
+  };
+}
+
 type ConsultVisibility = {
   contactEmail?: string;
   sourceLabel?: string;
@@ -105,6 +131,7 @@ type ConsultVisibility = {
 async function loadConsultVisibilityByCrmLeadId(
   customerId: string,
   crmLeads: readonly LeadRow[],
+  crmMarketingLeadIds?: Set<string>,
 ): Promise<Map<string, ConsultVisibility>> {
   const byCrmLeadId = new Map<string, ConsultVisibility>();
   const activities = await crmDb().cRMActivity.findMany({
@@ -128,6 +155,9 @@ async function loadConsultVisibilityByCrmLeadId(
         .filter((id): id is string => Boolean(id)),
     ),
   ];
+  for (const marketingLeadId of marketingLeadIds) {
+    crmMarketingLeadIds?.add(marketingLeadId);
+  }
 
   const marketingLeads =
     marketingLeadIds.length === 0
@@ -177,6 +207,54 @@ async function loadConsultVisibilityByCrmLeadId(
   }
 
   return byCrmLeadId;
+}
+
+async function listMarketingConsultQueue(
+  organizationId: string,
+  excludeMarketingLeadIds: ReadonlySet<string>,
+): Promise<MarketingConsultQueueItem[]> {
+  const leads = await prisma.lead.findMany({
+    where: {
+      intent: "consult",
+      payload: {
+        path: ["organizationId"],
+        equals: organizationId,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      company: true,
+      name: true,
+      email: true,
+      status: true,
+      createdAt: true,
+      note: true,
+      payload: true,
+    },
+  });
+
+  const items: MarketingConsultQueueItem[] = [];
+  for (const lead of leads) {
+    if (excludeMarketingLeadIds.has(lead.id)) continue;
+    const payload = asMeta(lead.payload);
+    if (metaString(payload, "crmBridge") === "synced") continue;
+
+    const projectId = metaString(payload, "projectId") ?? undefined;
+    const contact = parseConsultNoteContact(lead.note);
+    items.push({
+      id: lead.id,
+      company: lead.company,
+      name: lead.name,
+      email: lead.email,
+      status: lead.status,
+      createdAt: lead.createdAt,
+      ...(projectId ? { projectId } : {}),
+      ...contact,
+    });
+  }
+  return items;
 }
 
 function outcomeEntity(event: string): { entity: string; idKey: string } {
@@ -266,6 +344,7 @@ export async function assembleCrmWorkSurface(
 ): Promise<CrmWorkSurface> {
   const customers = await listCustomers(organizationId);
   const items: SortableCrmWorkItem[] = [];
+  const crmMarketingLeadIds = new Set<string>();
 
   for (const customer of customers) {
     const opportunities = await listOpportunitiesForCustomer(customer.id);
@@ -279,6 +358,7 @@ export async function assembleCrmWorkSurface(
     const visibilityByLead = await loadConsultVisibilityByCrmLeadId(
       customer.id,
       leads,
+      crmMarketingLeadIds,
     );
 
     for (const lead of leads) {
@@ -344,10 +424,15 @@ export async function assembleCrmWorkSurface(
   items.sort(compareCrmWorkItems);
   const orderedItems = items.map(toCrmWorkItem);
   const outcomes = await listCrmOutcomes(organizationId);
+  const consultQueue = await listMarketingConsultQueue(
+    organizationId,
+    crmMarketingLeadIds,
+  );
 
   return {
     items: orderedItems,
     outcomes,
+    consultQueue,
     qualifiedLeads: orderedItems.filter((i) => i.entity === "lead").length,
     activeOpportunities: orderedItems.filter((i) => i.entity === "opportunity").length,
     openDeals: orderedItems.filter((i) => i.entity === "deal").length,
