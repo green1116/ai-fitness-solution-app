@@ -3,11 +3,13 @@
  * Org-scoped, deterministic, reuses existing CRM read services.
  */
 
+import { prisma } from "@/lib/prisma";
 import { listCustomers } from "./customer/customer.service";
 import { listLeadsForCustomer } from "./lead/lead.service";
 import { listOpportunitiesForCustomer } from "./opportunity/opportunity.service";
 import { listDealsForOpportunity } from "./deal/deal.service";
 import { buildOrganizationTimeline } from "./activity/activity.timeline";
+import { crmDb, type LeadRow } from "./types";
 
 export type CrmWorkItem = Readonly<{
   id: string;
@@ -20,6 +22,11 @@ export type CrmWorkItem = Readonly<{
   stage?: string;
   amount?: number;
   label: string;
+  contactEmail?: string;
+  sourceLabel?: string;
+  projectId?: string;
+  quoteId?: string;
+  budgetId?: string;
 }>;
 
 export type CrmWorkSurface = Readonly<{
@@ -48,12 +55,128 @@ const CRM_OUTCOME_TYPES = new Set([
   "deal.closed_won",
 ]);
 
+const ENTERPRISE_CONSULT_SOURCE = "enterprise_consultation";
+const ENTERPRISE_CONSULT_LABEL = "Enterprise Consultation";
+
 function metaString(
   meta: Record<string, unknown> | null,
   key: string,
 ): string | null {
   const value = meta?.[key];
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function asMeta(meta: unknown): Record<string, unknown> | null {
+  if (meta && typeof meta === "object" && !Array.isArray(meta)) {
+    return meta as Record<string, unknown>;
+  }
+  return null;
+}
+
+function isSafeAttributionId(value: string): boolean {
+  return /^[A-Za-z0-9_-]{8,128}$/.test(value);
+}
+
+function parseConsultNoteAttribution(note: string | null | undefined): {
+  projectId?: string;
+  quoteId?: string;
+  budgetId?: string;
+} {
+  if (!note) return {};
+  const result: { projectId?: string; quoteId?: string; budgetId?: string } = {};
+  for (const key of ["projectId", "quoteId", "budgetId"] as const) {
+    const match = note.match(new RegExp(`${key}：([^；]+)`));
+    const value = match?.[1]?.trim();
+    if (value && isSafeAttributionId(value)) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+type ConsultVisibility = {
+  contactEmail?: string;
+  sourceLabel?: string;
+  projectId?: string;
+  quoteId?: string;
+  budgetId?: string;
+};
+
+async function loadConsultVisibilityByCrmLeadId(
+  customerId: string,
+  crmLeads: readonly LeadRow[],
+): Promise<Map<string, ConsultVisibility>> {
+  const byCrmLeadId = new Map<string, ConsultVisibility>();
+  const activities = await crmDb().cRMActivity.findMany({
+    where: { customerId },
+    orderBy: { timestamp: "desc" },
+  });
+
+  const createdMetaByLeadId = new Map<string, Record<string, unknown>>();
+  for (const activity of activities) {
+    if (activity.type !== "lead.created") continue;
+    const meta = asMeta(activity.meta);
+    const leadId = metaString(meta, "leadId");
+    if (!leadId || !meta || createdMetaByLeadId.has(leadId)) continue;
+    createdMetaByLeadId.set(leadId, meta);
+  }
+
+  const marketingLeadIds = [
+    ...new Set(
+      [...createdMetaByLeadId.values()]
+        .map((meta) => metaString(meta, "marketingLeadId"))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const marketingLeads =
+    marketingLeadIds.length === 0
+      ? []
+      : await prisma.lead.findMany({
+          where: { id: { in: marketingLeadIds } },
+          select: { id: true, email: true, note: true },
+        });
+  const marketingById = new Map(marketingLeads.map((lead) => [lead.id, lead]));
+  const sourceByCrmLeadId = new Map(crmLeads.map((lead) => [lead.id, lead.source]));
+
+  for (const [crmLeadId, meta] of createdMetaByLeadId) {
+    const marketingLeadId = metaString(meta, "marketingLeadId");
+    const marketing = marketingLeadId ? marketingById.get(marketingLeadId) : undefined;
+    const emailFromLead = marketing?.email?.trim();
+    const contactEmail =
+      emailFromLead && emailFromLead.length > 0
+        ? emailFromLead
+        : metaString(meta, "email") ?? undefined;
+
+    const crmSource =
+      sourceByCrmLeadId.get(crmLeadId) ?? metaString(meta, "source") ?? "";
+    const attribution = parseConsultNoteAttribution(marketing?.note);
+
+    const visibility: ConsultVisibility = {};
+    if (contactEmail) visibility.contactEmail = contactEmail;
+    if (crmSource === ENTERPRISE_CONSULT_SOURCE) {
+      visibility.sourceLabel = ENTERPRISE_CONSULT_LABEL;
+    }
+    if (attribution.projectId) visibility.projectId = attribution.projectId;
+    if (attribution.quoteId) visibility.quoteId = attribution.quoteId;
+    if (attribution.budgetId) visibility.budgetId = attribution.budgetId;
+
+    if (Object.keys(visibility).length > 0) {
+      byCrmLeadId.set(crmLeadId, visibility);
+    }
+  }
+
+  for (const lead of crmLeads) {
+    if (lead.source !== ENTERPRISE_CONSULT_SOURCE) continue;
+    const existing = byCrmLeadId.get(lead.id) ?? {};
+    if (existing.sourceLabel) continue;
+    byCrmLeadId.set(lead.id, {
+      ...existing,
+      sourceLabel: ENTERPRISE_CONSULT_LABEL,
+    });
+  }
+
+  return byCrmLeadId;
 }
 
 function outcomeEntity(event: string): { entity: string; idKey: string } {
@@ -153,6 +276,11 @@ export async function assembleCrmWorkSurface(
     );
 
     const leads = await listLeadsForCustomer(customer.id);
+    const visibilityByLead = await loadConsultVisibilityByCrmLeadId(
+      customer.id,
+      leads,
+    );
+
     for (const lead of leads) {
       if (lead.status !== "QUALIFIED") continue;
       if (promotedLeadIds.has(lead.id)) continue;
@@ -167,6 +295,7 @@ export async function assembleCrmWorkSurface(
         label: `${customer.name} · Lead QUALIFIED · score ${lead.score} · ${lead.source}`,
         createdAt: lead.createdAt,
         rankValue: lead.score,
+        ...visibilityByLead.get(lead.id),
       });
     }
 
@@ -190,6 +319,7 @@ export async function assembleCrmWorkSurface(
           label: `${customer.name} · Opportunity ${opp.stage} · ¥${opp.value}`,
           createdAt: opp.createdAt,
           rankValue: opp.value,
+          ...(opp.leadId ? visibilityByLead.get(opp.leadId) : undefined),
         });
       }
 
@@ -205,6 +335,7 @@ export async function assembleCrmWorkSurface(
           label: `${customer.name} · Deal OPEN · ¥${deal.amount}`,
           createdAt: deal.createdAt,
           rankValue: deal.amount,
+          ...(opp.leadId ? visibilityByLead.get(opp.leadId) : undefined),
         });
       }
     }
