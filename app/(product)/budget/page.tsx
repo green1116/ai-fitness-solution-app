@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ProductIntelligenceExperience } from "@/app/(product)/ProductIntelligenceExperience";
 import {
   pickOwnedProjectId,
   productHref,
@@ -201,7 +200,6 @@ function BudgetForm() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">预算计算 Budget</h1>
       <p className="text-sm text-zinc-400">根据 Quote → 成本模型 → 价格区间</p>
-      <ProductIntelligenceExperience />
 
       {!quoteId ? (
         <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-6 text-sm text-zinc-300">

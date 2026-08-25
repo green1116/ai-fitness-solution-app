@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ProductIntelligenceExperience } from "@/app/(product)/ProductIntelligenceExperience";
 import {
   pickOwnedProjectId,
   productHref,
@@ -139,7 +138,6 @@ function TenderForm() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">标书生成 Tender</h1>
       <p className="text-sm text-zinc-400">Budget + Quote → PDF Engine → 招标文件（核心商业点）</p>
-      <ProductIntelligenceExperience />
 
       {tenderLocked ? (
         <section className="space-y-3 rounded-2xl border border-amber-700/60 bg-zinc-950 p-6 text-sm text-zinc-300">

@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ProductIntelligenceExperience } from "@/app/(product)/ProductIntelligenceExperience";
 import {
   companyNameFromProject,
   pickOwnedProjectId,
@@ -216,7 +215,6 @@ function QuoteForm() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">方案生成 Quote</h1>
       <p className="text-sm text-zinc-400">组织/项目上下文 → 调用 V58 Orchestrator → 返回 AI 方案</p>
-      <ProductIntelligenceExperience />
 
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
         {!contextReady ? (
