@@ -10,7 +10,7 @@ export { createOpportunity, updateOpportunityStage } from "./opportunity/opportu
 export { createDeal, closeDealWon, closeDealLost, trackDealProgress, calculateDealValue } from "./deal/deal.service";
 export { logCRMActivity, logProductActivity } from "./activity/activity.tracker";
 export { buildCustomerTimeline } from "./activity/activity.timeline";
-export { aggregateCRMMetrics } from "./crm.metrics";
+export { aggregateCRMMetrics, aggregateRevenueIntelligenceSnapshot } from "./crm.metrics";
 export { describeSalesFunnel, advanceLeadToOpportunity } from "./pipeline/crm.pipeline.engine";
 export { assembleCrmWorkSurface } from "./crm.workspace-surface";
 export {
