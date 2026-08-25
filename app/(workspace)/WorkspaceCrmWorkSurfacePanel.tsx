@@ -82,6 +82,23 @@ export async function WorkspaceCrmWorkSurfacePanel() {
               </span>
             </div>
             <p className="mt-1 text-xs text-zinc-500">{item.label}</p>
+            {item.contactEmail ? (
+              <p className="mt-1 text-xs text-zinc-400">{item.contactEmail}</p>
+            ) : null}
+            {item.sourceLabel ? (
+              <p className="mt-0.5 text-xs text-zinc-500">{item.sourceLabel}</p>
+            ) : null}
+            {item.projectId || item.quoteId || item.budgetId ? (
+              <p className="mt-0.5 text-xs text-zinc-600">
+                {[
+                  item.projectId ? `project ${item.projectId}` : null,
+                  item.quoteId ? `quote ${item.quoteId}` : null,
+                  item.budgetId ? `budget ${item.budgetId}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            ) : null}
             {item.entity === "lead" && item.status === "QUALIFIED" ? (
               <WorkspaceCrmActionControl
                 crmItemId={item.id}
