@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordEnterpriseConsultationAsLead } from "@/lib/crm/crm.product-bridge";
+import { listOrganizationsForUser } from "@/lib/organization/organization.service";
 import { prisma } from "@/lib/prisma";
 
 function isValidEmail(email: string): boolean {
@@ -12,6 +14,48 @@ function readLeadPayload(payload: unknown): Record<string, unknown> {
     return payload as Record<string, unknown>;
   }
   return {};
+}
+
+/** Server-trusted tenant only — never from client body/note/bare planId. */
+async function resolveTrustedTenantPayload(planId: string): Promise<{
+  organizationId?: string;
+  projectId?: string;
+}> {
+  const user = await getCurrentUser();
+  if (!user) return {};
+
+  const organizationId = (await listOrganizationsForUser(user.id))[0]?.organization
+    .id;
+  if (!organizationId) return {};
+
+  const pid = planId.trim();
+  if (!pid || pid === "product-tender") {
+    return { organizationId };
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: pid },
+    select: { id: true, organizationId: true },
+  });
+  if (project?.organizationId === organizationId) {
+    return { organizationId, projectId: project.id };
+  }
+
+  return { organizationId };
+}
+
+function withTrustedTenant(
+  payload: Record<string, unknown>,
+  tenant: { organizationId?: string; projectId?: string },
+): Record<string, unknown> {
+  if (!tenant.organizationId) return payload;
+  const next: Record<string, unknown> = {
+    ...payload,
+    organizationId: tenant.organizationId,
+  };
+  if (tenant.projectId) next.projectId = tenant.projectId;
+  else delete next.projectId;
+  return next;
 }
 
 function isSyncedConsultLead(payload: Record<string, unknown>): boolean {
@@ -291,6 +335,7 @@ async function resolveConsultLead(input: {
   company: string;
   name: string;
   note: string;
+  tenant: { organizationId?: string; projectId?: string };
   tx: Prisma.TransactionClient;
 }) {
   let lead = await findExistingConsultLead(input.planId, input.email, input.tx);
@@ -313,10 +358,13 @@ async function resolveConsultLead(input: {
           source: "download",
           status: "new",
           score: 0,
-          payload: {
-            from: "lead_create_api",
-            createdAt: new Date().toISOString(),
-          },
+          payload: withTrustedTenant(
+            {
+              from: "lead_create_api",
+              createdAt: new Date().toISOString(),
+            },
+            input.tenant,
+          ),
         },
       });
     } catch (err) {
@@ -327,6 +375,15 @@ async function resolveConsultLead(input: {
       if (isSyncedConsultLead(payload)) {
         return { kind: "existing_success" as const, lead };
       }
+      lead = await input.tx.lead.update({
+        where: { id: lead.id },
+        data: {
+          company: input.company,
+          name: input.name,
+          note: input.note || null,
+          payload: withTrustedTenant(payload, input.tenant),
+        },
+      });
     }
   } else {
     lead = await input.tx.lead.update({
@@ -335,6 +392,7 @@ async function resolveConsultLead(input: {
         company: input.company,
         name: input.name,
         note: input.note || null,
+        payload: withTrustedTenant(existingPayload, input.tenant),
       },
     });
   }
@@ -370,6 +428,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const tenant = await resolveTrustedTenantPayload(planId);
     const lockKey = consultLeadLockKey(planId, email);
     const resolved = await prisma.$transaction(
       async (tx) => {
@@ -380,6 +439,7 @@ export async function POST(req: NextRequest) {
           company,
           name,
           note,
+          tenant,
           tx,
         });
       },
