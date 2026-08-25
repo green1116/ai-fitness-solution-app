@@ -208,10 +208,8 @@ export default function EnterpriseLeadForm({
                   email: form.email.trim(),
                   title: form.title.trim(),
                 });
-              } catch (err) {
-                setError(
-                  err instanceof Error ? err.message : "提交失败，请稍后重试。"
-                );
+              } catch {
+                setError("提交失败，请稍后重试");
               }
             }}
             className="rounded-xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"

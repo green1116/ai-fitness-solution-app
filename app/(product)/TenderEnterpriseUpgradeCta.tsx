@@ -78,13 +78,13 @@ export function TenderEnterpriseUpgradeCta({
         } | null;
         if (!res.ok || !data?.ok) {
           submittedRef.current = false;
-          throw new Error(data?.message || "提交失败，请稍后重试");
+          throw new Error("SUBMIT_FAILED");
         }
         setOpen(false);
         setSuccess(SUCCESS_MESSAGE);
-      } catch (err) {
+      } catch {
         submittedRef.current = false;
-        throw err;
+        throw new Error("SUBMIT_FAILED");
       } finally {
         setLoading(false);
       }
