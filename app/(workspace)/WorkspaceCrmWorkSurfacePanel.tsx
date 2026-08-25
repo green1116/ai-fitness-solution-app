@@ -1,5 +1,9 @@
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { listOrganizationsForUser } from "@/lib/organization/organization.service";
+import {
+  aggregateRevenueIntelligenceSnapshot,
+  type RevenueIntelligenceSnapshot,
+} from "@/lib/crm/crm.metrics";
 import { assembleCrmWorkSurface, type CrmWorkSurface } from "@/lib/crm/crm.workspace-surface";
 import { WorkspaceCrmActionControl } from "./WorkspaceCrmActionControl";
 import { submitWorkspaceCrmAction } from "./submit-workspace-crm-action";
@@ -16,26 +20,40 @@ const OPPORTUNITY_ADVANCE_LABEL: Record<string, string> = {
   NEGOTIATION: "ADVANCE · NEGOTIATION → WON",
 };
 
-async function loadCrmWork(): Promise<CrmWorkSurface | null> {
+async function loadCrmWorkSurface(): Promise<{
+  crmWork: CrmWorkSurface;
+  intelligence: RevenueIntelligenceSnapshot;
+} | null> {
   try {
     const user = await getCurrentUser();
     if (!user) return null;
     const orgs = await listOrganizationsForUser(user.id);
     const organizationId = orgs[0]?.organization.id;
     if (!organizationId) return null;
-    return await assembleCrmWorkSurface(organizationId);
+    const [crmWork, intelligence] = await Promise.all([
+      assembleCrmWorkSurface(organizationId),
+      aggregateRevenueIntelligenceSnapshot(organizationId),
+    ]);
+    return { crmWork, intelligence };
   } catch {
     return null;
   }
 }
 
 export async function WorkspaceCrmWorkSurfacePanel() {
-  const crmWork = await loadCrmWork();
-  if (!crmWork) return null;
+  const loaded = await loadCrmWorkSurface();
+  if (!loaded) return null;
+  const { crmWork, intelligence } = loaded;
+  const hasIntelligence =
+    intelligence.openPipeline.count > 0 ||
+    intelligence.consultFunnel.consult > 0 ||
+    intelligence.consultFunnel.opportunity > 0 ||
+    intelligence.consultFunnel.won > 0;
   if (
     crmWork.items.length === 0 &&
     crmWork.outcomes.length === 0 &&
-    crmWork.consultQueue.length === 0
+    crmWork.consultQueue.length === 0 &&
+    !hasIntelligence
   ) {
     return null;
   }
@@ -57,6 +75,35 @@ export async function WorkspaceCrmWorkSurfacePanel() {
           <p className="mt-1 text-lg font-semibold text-emerald-400">{crmWork.openDeals}</p>
         </div>
       </div>
+      {hasIntelligence ? (
+        <div className="mt-4 space-y-3">
+          <p className="text-xs text-zinc-500">Revenue Intelligence</p>
+          <div>
+            <p className="text-xs text-zinc-600">Open Pipeline</p>
+            <p className="mt-1 text-sm text-zinc-300">
+              {intelligence.openPipeline.count} opportunities · ¥
+              {intelligence.openPipeline.totalValue}
+            </p>
+            {intelligence.openPipelineByStage.length > 0 ? (
+              <ul className="mt-1 space-y-0.5">
+                {intelligence.openPipelineByStage.map((row) => (
+                  <li key={row.stage} className="text-xs text-zinc-500">
+                    {row.stage} · {row.count} · ¥{row.totalValue}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+          <div>
+            <p className="text-xs text-zinc-600">Consult Funnel</p>
+            <p className="mt-1 text-xs text-zinc-400">
+              consult {intelligence.consultFunnel.consult} → opportunity{" "}
+              {intelligence.consultFunnel.opportunity} → won{" "}
+              {intelligence.consultFunnel.won}
+            </p>
+          </div>
+        </div>
+      ) : null}
       {crmWork.consultQueue.length > 0 ? (
         <div className="mt-4">
           <p className="text-xs text-zinc-500">Marketing consult queue</p>
