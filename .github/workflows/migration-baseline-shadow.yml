@@ -1,0 +1,84 @@
+name: Migration Baseline Shadow
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "prisma/**"
+      - ".github/workflows/migration-baseline-shadow.yml"
+  push:
+    branches:
+      - main
+      - "ci/*"
+      - "release/*"
+    paths:
+      - "prisma/**"
+      - ".github/workflows/migration-baseline-shadow.yml"
+
+jobs:
+  migration-baseline-shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: prisma_shadow
+          POSTGRES_PASSWORD: prisma_shadow
+          POSTGRES_DB: prisma_shadow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prisma_shadow -d prisma_shadow"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CI: "true"
+      SHADOW_DATABASE_URL: postgresql://prisma_shadow:prisma_shadow@localhost:5432/prisma_shadow
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prisma generate
+        shell: bash
+        run: |
+          # schema/prisma.config require datasource env names; map ephemeral shadow only (no prod secrets).
+          export DATABASE_URL="${SHADOW_DATABASE_URL}"
+          export DIRECT_URL="${SHADOW_DATABASE_URL}"
+          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma generate
+
+      - name: Migration baseline diff (shadow only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DATABASE_URL="${SHADOW_DATABASE_URL}"
+          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "${SHADOW_DATABASE_URL}" \
+            --script > migration-baseline-diff.sql
+
+          echo "===== migration-baseline-diff.sql (first 200 lines) ====="
+          head -n 200 migration-baseline-diff.sql || true
+          echo "===== total lines: $(wc -l < migration-baseline-diff.sql) ====="
+
+      - name: Upload baseline diff SQL
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-baseline-diff
+          path: migration-baseline-diff.sql
+          if-no-files-found: error
+          retention-days: 14
