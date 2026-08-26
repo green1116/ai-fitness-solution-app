@@ -35,8 +35,11 @@ jobs:
             exit 1
           fi
 
-          pg_dump --version
-          pg_dump --version | grep -Eq 'pg_dump \(PostgreSQL\) 17\.' || {
+          PG17_BIN="/usr/lib/postgresql/17/bin"
+          PG_DUMP="${PG17_BIN}/pg_dump"
+
+          "$PG_DUMP" --version
+          "$PG_DUMP" --version | grep -Eq 'pg_dump \(PostgreSQL\) 17\.' || {
             echo "expected pg_dump 17.x"
             exit 1
           }
@@ -44,7 +47,7 @@ jobs:
           OUT="production-$(date -u +%Y%m%dT%H%M%SZ).dump"
 
           set +e
-          pg_dump --dbname="$DIRECT_URL" --format=custom --file="$OUT" \
+          "$PG_DUMP" --dbname="$DIRECT_URL" --format=custom --file="$OUT" \
             >pg_dump.out 2>pg_dump.err
           code=$?
           set -e
