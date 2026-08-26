@@ -1,0 +1,68 @@
+name: Production DB Backup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  production-db-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      CI: "true"
+      # Read-only dump via direct Postgres (not pooler). No secrets.DATABASE_URL.
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Dump production database (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DIRECT_URL:-}" ]; then
+            echo "DIRECT_URL secret is missing"
+            exit 1
+          fi
+
+          OUT="production-$(date -u +%Y%m%dT%H%M%SZ).dump"
+
+          set +e
+          pg_dump --dbname="$DIRECT_URL" --format=custom --file="$OUT" \
+            >pg_dump.out 2>pg_dump.err
+          code=$?
+          set -e
+
+          scrub() {
+            sed -E 's#postgres(ql)?://[^[:space:]\"'\'']+#\[REDACTED\]#gi'
+          }
+
+          if [ -s pg_dump.err ]; then
+            scrub <pg_dump.err >&2 || true
+          fi
+
+          if [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+
+          if [ ! -f "$OUT" ] || [ ! -s "$OUT" ]; then
+            echo "dump_empty_or_missing"
+            exit 1
+          fi
+
+          bytes=$(wc -c <"$OUT" | tr -d ' ')
+          echo "dump_byte_size=${bytes}"
+          echo "DUMP_FILE=${OUT}" >>"$GITHUB_ENV"
+
+      - name: Upload dump artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-db-backup
+          path: ${{ env.DUMP_FILE }}
+          if-no-files-found: error
+          retention-days: 7
