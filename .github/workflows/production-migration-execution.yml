@@ -1,0 +1,121 @@
+name: Production Migration Execution
+
+on:
+  workflow_dispatch:
+
+jobs:
+  production-migration-execution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      CI: "true"
+      # Direct Postgres only. Never use secrets.DATABASE_URL.
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Production migration execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DATABASE_URL="$DIRECT_URL"
+          export DIRECT_URL="$DIRECT_URL"
+
+          scrub() {
+            sed -E 's#postgres(ql)?://[^[:space:]\"'\'']+#\[REDACTED\]#gi'
+          }
+
+          # 1) resolve missing_schema as applied (no SQL DDL)
+          set +e
+          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate resolve \
+            --applied 20260826110000_missing_schema_alignment \
+            >resolve.out 2>resolve.err
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            scrub <resolve.err >&2 || true
+            exit "$code"
+          fi
+
+          # 2) assert pending migrations exactly retirement + lead_indexes
+          set +e
+          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate status \
+            >predeploy-status.out 2>predeploy-status.err
+          set -e
+          if [ -s predeploy-status.err ]; then scrub <predeploy-status.err >&2; fi
+
+          grep -E '^[[:space:]]*[0-9]{14}_[A-Za-z0-9_]+[[:space:]]*$' predeploy-status.out \
+            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | sort > pending.actual
+          printf '%s\n' \
+            '20260826154500_production_legacy_schema_retirement' \
+            '20260826170000_lead_indexes_alignment' \
+            | sort > pending.expected
+
+          if ! cmp -s pending.actual pending.expected; then
+            echo "pending_migrations_mismatch: expected retirement + lead_indexes only"
+            echo "expected:"
+            cat pending.expected
+            echo "actual:"
+            cat pending.actual
+            exit 1
+          fi
+
+          # 3) deploy pending (retirement + lead indexes)
+          set +e
+          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate deploy \
+            >deploy.out 2>deploy.err
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            scrub <deploy.err >&2 || true
+            exit "$code"
+          fi
+
+          # 4) migrate status (printed)
+          set +e
+          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate status \
+            >status.out 2>status.err
+          code=$?
+          set -e
+          if [ -s status.err ]; then scrub <status.err >&2; fi
+          scrub <status.out
+          if [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+
+          # 5) migrate diff — fail if non-empty
+          set +e
+          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate diff \
+            --from-url "$DIRECT_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --script > prod-exec-diff.sql 2>prod-exec-diff.err
+          code=$?
+          set -e
+          if [ -s prod-exec-diff.err ]; then scrub <prod-exec-diff.err >&2; fi
+          if [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+
+          bytes=$(wc -c < prod-exec-diff.sql | tr -d ' ')
+          echo "final_diff_byte_size=${bytes}"
+
+          if grep -Eq '^[[:space:]]*-- This is an empty migration\.[[:space:]]*$' prod-exec-diff.sql \
+            || [ ! -s prod-exec-diff.sql ]; then
+            exit 0
+          fi
+
+          # Non-empty residual schema drift
+          exit 1
