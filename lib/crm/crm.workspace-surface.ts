@@ -47,6 +47,7 @@ export type ConsultInitQueueItem = Readonly<{
   leadScore: number;
   createdAt: Date;
   contactEmail?: string;
+  contactPhone?: string;
   sourceLabel?: string;
 }>;
 
@@ -134,6 +135,7 @@ function parseConsultNoteContact(note: string | null | undefined): {
 
 type ConsultVisibility = {
   contactEmail?: string;
+  contactPhone?: string;
   sourceLabel?: string;
   projectId?: string;
   quoteId?: string;
@@ -176,7 +178,7 @@ async function loadConsultVisibilityByCrmLeadId(
       ? []
       : await prisma.lead.findMany({
           where: { id: { in: marketingLeadIds } },
-          select: { id: true, email: true, note: true },
+          select: { id: true, email: true, phone: true, note: true },
         });
   const marketingById = new Map(marketingLeads.map((lead) => [lead.id, lead]));
   const sourceByCrmLeadId = new Map(crmLeads.map((lead) => [lead.id, lead.source]));
@@ -190,12 +192,20 @@ async function loadConsultVisibilityByCrmLeadId(
         ? emailFromLead
         : metaString(meta, "email") ?? undefined;
 
+    const phoneFromLead = marketing?.phone?.trim();
+    const noteContact = parseConsultNoteContact(marketing?.note);
+    const contactPhone =
+      phoneFromLead && phoneFromLead.length > 0
+        ? phoneFromLead
+        : noteContact.phone;
+
     const crmSource =
       sourceByCrmLeadId.get(crmLeadId) ?? metaString(meta, "source") ?? "";
     const attribution = parseConsultNoteAttribution(marketing?.note);
 
     const visibility: ConsultVisibility = {};
     if (contactEmail) visibility.contactEmail = contactEmail;
+    if (contactPhone) visibility.contactPhone = contactPhone;
     if (crmSource === ENTERPRISE_CONSULT_SOURCE) {
       visibility.sourceLabel = ENTERPRISE_CONSULT_LABEL;
     }
@@ -434,6 +444,9 @@ export async function assembleCrmWorkSurface(
           createdAt: opp.createdAt,
           ...(visibility?.contactEmail
             ? { contactEmail: visibility.contactEmail }
+            : {}),
+          ...(visibility?.contactPhone
+            ? { contactPhone: visibility.contactPhone }
             : {}),
           ...(visibility?.sourceLabel
             ? { sourceLabel: visibility.sourceLabel }

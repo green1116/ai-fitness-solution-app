@@ -130,6 +130,11 @@ export async function WorkspaceCrmWorkSurfacePanel() {
                 {item.contactEmail ? (
                   <p className="mt-0.5 text-xs text-zinc-500">{item.contactEmail}</p>
                 ) : null}
+                {item.contactPhone ? (
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    phone {item.contactPhone}
+                  </p>
+                ) : null}
                 {item.sourceLabel ? (
                   <p className="mt-0.5 text-xs text-zinc-600">{item.sourceLabel}</p>
                 ) : null}
