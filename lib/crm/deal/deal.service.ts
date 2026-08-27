@@ -147,12 +147,32 @@ export async function closeDealWon(input: { dealId: string; userId?: string }) {
   });
 }
 
-export async function closeDealLost(input: { dealId: string; userId?: string }) {
+export async function closeDealLost(input: {
+  dealId: string;
+  userId?: string;
+  reason?: string;
+  survivorDealId?: string;
+  survivorOpportunityId?: string;
+  marketingLeadId?: string;
+}) {
   const deal = await crmDb().deal.findFirst({ where: { id: input.dealId } });
   if (!deal) throw new Error("Deal not found");
   if (deal.status === "CLOSED_LOST") {
     return deal;
   }
+
+  const reconciliationMeta = {
+    ...(input.reason !== undefined ? { reason: input.reason } : {}),
+    ...(input.survivorDealId !== undefined
+      ? { survivorDealId: input.survivorDealId }
+      : {}),
+    ...(input.survivorOpportunityId !== undefined
+      ? { survivorOpportunityId: input.survivorOpportunityId }
+      : {}),
+    ...(input.marketingLeadId !== undefined
+      ? { marketingLeadId: input.marketingLeadId }
+      : {}),
+  };
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.deal.update({
@@ -184,6 +204,7 @@ export async function closeDealLost(input: { dealId: string; userId?: string }) 
             from: current,
             to: stage,
             userId: input.userId,
+            ...reconciliationMeta,
           },
         },
       });
@@ -196,6 +217,7 @@ export async function closeDealLost(input: { dealId: string; userId?: string }) 
             dealId: deal.id,
             amount: updated.amount,
             userId: input.userId,
+            ...reconciliationMeta,
           },
         },
       });
