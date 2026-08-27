@@ -33,9 +33,21 @@ export type CrmWorkSurface = Readonly<{
   items: readonly CrmWorkItem[];
   outcomes: readonly CrmOutcomeItem[];
   consultQueue: readonly MarketingConsultQueueItem[];
+  consultInitQueue: readonly ConsultInitQueueItem[];
   qualifiedLeads: number;
   activeOpportunities: number;
   openDeals: number;
+}>;
+
+export type ConsultInitQueueItem = Readonly<{
+  id: string;
+  opportunityId: string;
+  customerId: string;
+  customerName: string;
+  leadScore: number;
+  createdAt: Date;
+  contactEmail?: string;
+  sourceLabel?: string;
 }>;
 
 export type MarketingConsultQueueItem = Readonly<{
@@ -344,6 +356,7 @@ export async function assembleCrmWorkSurface(
 ): Promise<CrmWorkSurface> {
   const customers = await listCustomers(organizationId);
   const items: SortableCrmWorkItem[] = [];
+  const consultInitQueue: ConsultInitQueueItem[] = [];
   const crmMarketingLeadIds = new Set<string>();
 
   for (const customer of customers) {
@@ -355,6 +368,7 @@ export async function assembleCrmWorkSurface(
     );
 
     const leads = await listLeadsForCustomer(customer.id);
+    const leadsById = new Map(leads.map((lead) => [lead.id, lead]));
     const visibilityByLead = await loadConsultVisibilityByCrmLeadId(
       customer.id,
       leads,
@@ -403,6 +417,30 @@ export async function assembleCrmWorkSurface(
         });
       }
 
+      const linkedLead = opp.leadId ? leadsById.get(opp.leadId) : undefined;
+      if (
+        String(opp.stage).toUpperCase() === "INIT" &&
+        linkedLead?.source === ENTERPRISE_CONSULT_SOURCE
+      ) {
+        const visibility = opp.leadId
+          ? visibilityByLead.get(opp.leadId)
+          : undefined;
+        consultInitQueue.push({
+          id: `crm:opp:${opp.id}`,
+          opportunityId: opp.id,
+          customerId: customer.id,
+          customerName: customer.name,
+          leadScore: linkedLead.score,
+          createdAt: opp.createdAt,
+          ...(visibility?.contactEmail
+            ? { contactEmail: visibility.contactEmail }
+            : {}),
+          ...(visibility?.sourceLabel
+            ? { sourceLabel: visibility.sourceLabel }
+            : { sourceLabel: ENTERPRISE_CONSULT_LABEL }),
+        });
+      }
+
       for (const deal of openDealsForOpp) {
         items.push({
           id: `crm:deal:${deal.id}`,
@@ -423,6 +461,16 @@ export async function assembleCrmWorkSurface(
 
   items.sort(compareCrmWorkItems);
   const orderedItems = items.map(toCrmWorkItem);
+  consultInitQueue.sort((a, b) => {
+    if (b.leadScore !== a.leadScore) return b.leadScore - a.leadScore;
+    const timeDiff = a.createdAt.getTime() - b.createdAt.getTime();
+    if (timeDiff !== 0) return timeDiff;
+    return a.opportunityId < b.opportunityId
+      ? -1
+      : a.opportunityId > b.opportunityId
+        ? 1
+        : 0;
+  });
   const outcomes = await listCrmOutcomes(organizationId);
   const consultQueue = await listMarketingConsultQueue(
     organizationId,
@@ -433,8 +481,10 @@ export async function assembleCrmWorkSurface(
     items: orderedItems,
     outcomes,
     consultQueue,
+    consultInitQueue,
     qualifiedLeads: orderedItems.filter((i) => i.entity === "lead").length,
-    activeOpportunities: orderedItems.filter((i) => i.entity === "opportunity").length,
+    activeOpportunities: orderedItems.filter((i) => i.entity === "opportunity")
+      .length,
     openDeals: orderedItems.filter((i) => i.entity === "deal").length,
   };
 }

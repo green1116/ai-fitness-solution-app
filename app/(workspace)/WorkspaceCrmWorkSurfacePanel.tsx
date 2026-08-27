@@ -53,6 +53,7 @@ export async function WorkspaceCrmWorkSurfacePanel() {
     crmWork.items.length === 0 &&
     crmWork.outcomes.length === 0 &&
     crmWork.consultQueue.length === 0 &&
+    crmWork.consultInitQueue.length === 0 &&
     !hasIntelligence
   ) {
     return null;
@@ -102,6 +103,46 @@ export async function WorkspaceCrmWorkSurfacePanel() {
               {intelligence.consultFunnel.won}
             </p>
           </div>
+        </div>
+      ) : null}
+      {crmWork.consultInitQueue.length > 0 ? (
+        <div className="mt-4">
+          <p className="text-xs text-zinc-500">
+            Consult INIT queue · ADVANCE INIT → PROPOSAL
+          </p>
+          <ul className="mt-2 space-y-2">
+            {crmWork.consultInitQueue.map((item) => (
+              <li
+                key={item.id}
+                className="rounded-md border border-amber-900/60 px-3 py-2 text-sm"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-zinc-200">
+                    {item.customerName}
+                  </span>
+                  <span className="rounded border border-amber-800 px-1.5 py-0.5 text-xs uppercase tracking-wide text-amber-400">
+                    opportunity · INIT
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-400">
+                  score {item.leadScore} · {item.createdAt.toISOString()}
+                </p>
+                {item.contactEmail ? (
+                  <p className="mt-0.5 text-xs text-zinc-500">{item.contactEmail}</p>
+                ) : null}
+                {item.sourceLabel ? (
+                  <p className="mt-0.5 text-xs text-zinc-600">{item.sourceLabel}</p>
+                ) : null}
+                <WorkspaceCrmActionControl
+                  crmItemId={item.id}
+                  action="advance"
+                  label="ADVANCE · INIT → PROPOSAL"
+                  hiddenFields={{ currentStage: "INIT" }}
+                  submitCrmAction={submitWorkspaceCrmAction}
+                />
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
       {crmWork.consultQueue.length > 0 ? (
