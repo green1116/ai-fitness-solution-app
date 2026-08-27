@@ -11,7 +11,11 @@ import {
   listOrganizationsForUser,
 } from "@/lib/organization/organization.service";
 import { findOrCreateCustomer } from "./customer/customer.service";
-import { createLead, promoteLeadToOpportunity } from "./lead/lead.service";
+import {
+  createLead,
+  findOrCreateConsultationLeadByMarketingId,
+  promoteLeadToOpportunity,
+} from "./lead/lead.service";
 import { createOpportunity, updateOpportunityStage } from "./opportunity/opportunity.service";
 import { createDeal } from "./deal/deal.service";
 import { logProductActivity } from "./activity/activity.tracker";
@@ -142,16 +146,14 @@ export async function recordEnterpriseConsultationAsLead(input: {
 
     const leadScore = scoreLead({ source: "enterprise_consultation" });
 
-    const lead = await createLead({
+    const lead = await findOrCreateConsultationLeadByMarketingId({
       customerId: customer.id,
-      source: "enterprise_consultation",
-      score: leadScore,
+      organizationId,
+      marketingLeadId: input.marketingLeadId,
+      email: input.email,
+      planId: input.planId,
       userId,
-      activityMeta: {
-        marketingLeadId: input.marketingLeadId,
-        email: input.email,
-        planId: input.planId,
-      },
+      score: leadScore,
     });
 
     let opportunity;

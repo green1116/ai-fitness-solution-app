@@ -2,9 +2,18 @@
  * V60 P2 — Customer service
  */
 
+import { prisma } from "@/lib/prisma";
 import { crmDb, type CustomerRow } from "../types";
 import { normalizeCustomerStatus } from "./customer.model";
 import { logCRMActivity } from "../activity/activity.tracker";
+
+function normalizeCustomerName(name: string): string {
+  return name.trim();
+}
+
+function customerIdentityLockKey(organizationId: string, name: string): string {
+  return `crm:customer:${organizationId}:${name}`;
+}
 
 export async function createCustomer(input: {
   organizationId: string;
@@ -15,7 +24,7 @@ export async function createCustomer(input: {
   const customer = await crmDb().customer.create({
     data: {
       organizationId: input.organizationId,
-      name: input.name.trim(),
+      name: normalizeCustomerName(input.name),
       industry: input.industry?.trim() ?? "",
       status: "ACTIVE",
     },
@@ -44,17 +53,50 @@ export async function listCustomers(organizationId: string, take = 50) {
   });
 }
 
+/**
+ * Application-layer identity: organizationId + trimmed company name.
+ * Concurrent callers are serialized with a transaction advisory lock.
+ * No email-based Customer identity.
+ */
 export async function findOrCreateCustomer(input: {
   organizationId: string;
   name: string;
   industry?: string;
   userId?: string;
 }): Promise<CustomerRow> {
-  const existing = await crmDb().customer.findFirst({
-    where: { organizationId: input.organizationId, name: input.name.trim() },
-  });
-  if (existing) return existing;
-  return createCustomer(input);
+  const name = normalizeCustomerName(input.name);
+  const lockKey = customerIdentityLockKey(input.organizationId, name);
+
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+
+      const existing = await tx.customer.findFirst({
+        where: { organizationId: input.organizationId, name },
+      });
+      if (existing) return existing;
+
+      const customer = await tx.customer.create({
+        data: {
+          organizationId: input.organizationId,
+          name,
+          industry: input.industry?.trim() ?? "",
+          status: "ACTIVE",
+        },
+      });
+
+      await tx.cRMActivity.create({
+        data: {
+          customerId: customer.id,
+          type: "customer.created",
+          meta: { name: customer.name, userId: input.userId },
+        },
+      });
+
+      return customer;
+    },
+    { maxWait: 10_000, timeout: 15_000 },
+  );
 }
 
 export async function updateCustomer(input: {
@@ -72,7 +114,7 @@ export async function updateCustomer(input: {
   return crmDb().customer.update({
     where: { id: input.customerId },
     data: {
-      name: input.name?.trim(),
+      name: input.name !== undefined ? normalizeCustomerName(input.name) : undefined,
       industry: input.industry?.trim(),
       status: input.status ? normalizeCustomerStatus(input.status) : undefined,
     },
