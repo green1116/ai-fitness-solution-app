@@ -43,6 +43,9 @@ export async function updateOpportunityStage(input: {
   opportunityId: string;
   stage: OpportunityStageName;
   userId?: string;
+  reason?: string;
+  survivorLeadId?: string;
+  marketingLeadId?: string;
 }) {
   const opportunity = await crmDb().opportunity.findFirst({
     where: { id: input.opportunityId },
@@ -62,7 +65,19 @@ export async function updateOpportunityStage(input: {
   await logCRMActivity({
     customerId: opportunity.customerId,
     type: "opportunity.stage_updated",
-    meta: { opportunityId: opportunity.id, from: current, to: input.stage, userId: input.userId },
+    meta: {
+      opportunityId: opportunity.id,
+      from: current,
+      to: input.stage,
+      userId: input.userId,
+      ...(input.reason !== undefined ? { reason: input.reason } : {}),
+      ...(input.survivorLeadId !== undefined
+        ? { survivorLeadId: input.survivorLeadId }
+        : {}),
+      ...(input.marketingLeadId !== undefined
+        ? { marketingLeadId: input.marketingLeadId }
+        : {}),
+    },
   });
 
   return updated;
