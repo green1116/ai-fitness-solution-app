@@ -94,7 +94,40 @@ jobs:
           "$PSQL" -v ON_ERROR_STOP=1 -c 'SELECT version();'
 
           set +e
+          "$PG_RESTORE" --list "$DUMP" > toc.list 2>pg_restore_list.err
+          list_code=$?
+          set -e
+
+          if [ -s pg_restore_list.err ]; then
+            sed -E 's#postgres(ql)?://[^[:space:]\"'\'']+#\[REDACTED\]#gi' pg_restore_list.err >&2 || true
+          fi
+
+          if [ "$list_code" -ne 0 ]; then
+            echo "pg_restore_list_failed exit=${list_code}"
+            exit "$list_code"
+          fi
+
+          # Remove ONLY supabase_vault / vault schema extension-related TOC entries.
+          # All other TOC entries remain; any non-vault restore error must still FAIL.
+          grep -Ev \
+            -e 'supabase_vault' \
+            -e '[[:space:]]SCHEMA[[:space:]]+-[[:space:]]+vault([[:space:]]|$)' \
+            -e '[[:space:]]ACL[[:space:]]+-[[:space:]]+vault([[:space:]]|$)' \
+            -e '[[:space:]]COMMENT[[:space:]]+-[[:space:]]+SCHEMA[[:space:]]+vault([[:space:]]|$)' \
+            -e '[[:space:]](TABLE|TABLE DATA|VIEW|SEQUENCE|SEQUENCE SET|FUNCTION|AGGREGATE|TYPE|DOMAIN|INDEX|CONSTRAINT|FK CONSTRAINT|TRIGGER|ACL|COMMENT|DEFAULT|POLICY|ROW SECURITY|MATERIALIZED VIEW)[[:space:]]+vault[[:space:]]' \
+            toc.list > toc.filtered.list
+
+          filtered=$(
+            comm -23 \
+              <(grep -E '^[0-9]+;' toc.list | sort) \
+              <(grep -E '^[0-9]+;' toc.filtered.list | sort) \
+              | wc -l | tr -d ' '
+          )
+          echo "supabase_vault_toc_filtered=${filtered}"
+
+          set +e
           "$PG_RESTORE" \
+            --use-list=toc.filtered.list \
             --host="$PGHOST" \
             --port="$PGPORT" \
             --username="$PGUSER" \
