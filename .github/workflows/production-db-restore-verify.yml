@@ -1,0 +1,160 @@
+name: Production DB Restore Verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_run_id:
+        description: Workflow run ID that uploaded production-db-backup artifact
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  production-db-restore-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Temporary Postgres 17 only. NEVER use production secrets / DIRECT_URL / DATABASE_URL.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: restore
+          POSTGRES_PASSWORD: restore
+          POSTGRES_DB: restore_verify
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U restore -d restore_verify"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      CI: "true"
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: restore
+      PGPASSWORD: restore
+      PGDATABASE: restore_verify
+
+    steps:
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl ca-certificates gnupg lsb-release
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Download production-db-backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: production-db-backup
+          path: backup
+          run-id: ${{ inputs.backup_run_id }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+
+      - name: Restore dump into temporary PostgreSQL 17
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PG17_BIN="/usr/lib/postgresql/17/bin"
+          PG_RESTORE="${PG17_BIN}/pg_restore"
+          PSQL="${PG17_BIN}/psql"
+
+          "$PG_RESTORE" --version
+          "$PG_RESTORE" --version | grep -Eq 'pg_restore \(PostgreSQL\) 17\.' || {
+            echo "expected pg_restore 17.x"
+            exit 1
+          }
+
+          mapfile -t dumps < <(find backup -type f -name '*.dump' | sort)
+          if [ "${#dumps[@]}" -ne 1 ]; then
+            echo "expected exactly one .dump in artifact, found ${#dumps[@]}"
+            find backup -type f -print || true
+            exit 1
+          fi
+          DUMP="${dumps[0]}"
+          bytes=$(wc -c <"$DUMP" | tr -d ' ')
+          echo "dump_byte_size=${bytes}"
+          if [ ! -s "$DUMP" ]; then
+            echo "dump_empty"
+            exit 1
+          fi
+
+          "$PSQL" -v ON_ERROR_STOP=1 -c 'SELECT version();'
+
+          set +e
+          "$PG_RESTORE" \
+            --host="$PGHOST" \
+            --port="$PGPORT" \
+            --username="$PGUSER" \
+            --dbname="$PGDATABASE" \
+            --no-owner \
+            --no-acl \
+            --exit-on-error \
+            "$DUMP" \
+            >pg_restore.out 2>pg_restore.err
+          code=$?
+          set -e
+
+          if [ -s pg_restore.err ]; then
+            # Temp DB only — still redact accidental URLs if present
+            sed -E 's#postgres(ql)?://[^[:space:]\"'\'']+#\[REDACTED\]#gi' pg_restore.err >&2 || true
+          fi
+
+          if [ "$code" -ne 0 ]; then
+            echo "pg_restore_failed exit=${code}"
+            exit "$code"
+          fi
+
+          echo "pg_restore_ok"
+
+      - name: Verify key tables exist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PSQL="/usr/lib/postgresql/17/bin/psql"
+
+          missing=0
+          for table in \
+            Lead \
+            organization \
+            crm_customer \
+            crm_lead \
+            crm_opportunity \
+            crm_deal \
+            crm_activity \
+            _prisma_migrations
+          do
+            exists=$("$PSQL" -v ON_ERROR_STOP=1 -tAc \
+              "SELECT EXISTS (
+                 SELECT 1
+                 FROM pg_catalog.pg_class c
+                 JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                 WHERE n.nspname = 'public'
+                   AND c.relkind = 'r'
+                   AND c.relname = '${table}'
+               );")
+            exists=$(echo "$exists" | tr -d '[:space:]')
+            if [ "$exists" != "t" ]; then
+              echo "missing_table=${table}"
+              missing=1
+            else
+              echo "table_ok=${table}"
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
