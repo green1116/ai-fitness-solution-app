@@ -47,15 +47,13 @@ async function resolveTrustedTenantPayload(planId: string): Promise<{
 function withTrustedTenant(
   payload: Record<string, unknown>,
   tenant: { organizationId?: string; projectId?: string },
-): Record<string, unknown> {
-  if (!tenant.organizationId) return payload;
-  const next: Record<string, unknown> = {
-    ...payload,
-    organizationId: tenant.organizationId,
-  };
+): Prisma.InputJsonObject {
+  const next: Record<string, unknown> = { ...payload };
+  if (!tenant.organizationId) return next as Prisma.InputJsonObject;
+  next.organizationId = tenant.organizationId;
   if (tenant.projectId) next.projectId = tenant.projectId;
   else delete next.projectId;
-  return next;
+  return next as Prisma.InputJsonObject;
 }
 
 function isSyncedConsultLead(payload: Record<string, unknown>): boolean {
