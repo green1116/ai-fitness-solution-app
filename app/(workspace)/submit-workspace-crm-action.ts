@@ -257,6 +257,13 @@ export async function submitWorkspaceCrmAction(
     }
 
     if (parsed.entity === "opp" && action === "advance") {
+      logWorkspaceCrmAction("advance-dispatch", {
+        crmItemId,
+        crmAction: action,
+        currentStage,
+        opportunityId: parsed.id,
+      });
+
       const tenantBlocked = await guardWorkspaceCrmEntity({
         entity: "opp",
         entityId: parsed.id,
@@ -276,7 +283,7 @@ export async function submitWorkspaceCrmAction(
       }
 
       try {
-        logWorkspaceCrmAction("before-update-opportunity-stage", {
+        console.info("[workspace.crm.action] before-update-opportunity-stage", {
           opportunityId: parsed.id,
           currentStage,
           nextStage,

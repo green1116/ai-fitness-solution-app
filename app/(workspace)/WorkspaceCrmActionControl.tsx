@@ -1,34 +1,28 @@
 "use client";
 
 import { useActionState } from "react";
-
-type CrmActionResult = {
-  result: "SUCCESS" | "BLOCKED" | "FAILED";
-  entity: string | null;
-  entityId: string | null;
-  opportunityId: string | null;
-  message: string | null;
-};
-
-type SubmitCrmAction = (
-  prev: CrmActionResult | null,
-  formData: FormData,
-) => Promise<CrmActionResult>;
+import {
+  submitWorkspaceCrmAction,
+  type CrmActionResult,
+} from "./submit-workspace-crm-action";
 
 export function WorkspaceCrmActionControl({
   crmItemId,
   action,
   label,
   hiddenFields,
-  submitCrmAction,
 }: {
   crmItemId: string;
   action: string;
   label: string;
   hiddenFields?: Record<string, string>;
-  submitCrmAction: SubmitCrmAction;
+  /** @deprecated bound directly; kept for call-site compat */
+  submitCrmAction?: (
+    prev: CrmActionResult | null,
+    formData: FormData,
+  ) => Promise<CrmActionResult>;
 }) {
-  const [state, formAction] = useActionState(submitCrmAction, null);
+  const [state, formAction] = useActionState(submitWorkspaceCrmAction, null);
   const isSuccess = state?.result === "SUCCESS";
   const isBlocked = state?.result === "BLOCKED";
   const isFailed = state?.result === "FAILED";
@@ -49,7 +43,7 @@ export function WorkspaceCrmActionControl({
 
   return (
     <div className="mt-2 flex flex-col gap-1">
-      <form action={formAction} className="flex items-center gap-2">
+      <form action={formAction} method="post" className="flex items-center gap-2">
         <input type="hidden" name="crmItemId" value={crmItemId} />
         <input type="hidden" name="crmAction" value={action} />
         {hiddenFields
