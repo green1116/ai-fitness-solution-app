@@ -9,7 +9,11 @@ import { listLeadsForCustomer } from "./lead/lead.service";
 import { listOpportunitiesForCustomer } from "./opportunity/opportunity.service";
 import { listDealsForOpportunity } from "./deal/deal.service";
 import { buildOrganizationTimeline } from "./activity/activity.timeline";
-import { crmDb, type LeadRow } from "./types";
+import {
+  buildRevenueIntelligenceSnapshot,
+  type RevenueIntelligenceSnapshot,
+} from "./crm.metrics";
+import { type LeadRow } from "./types";
 
 export type CrmWorkItem = Readonly<{
   id: string;
@@ -34,6 +38,7 @@ export type CrmWorkSurface = Readonly<{
   outcomes: readonly CrmOutcomeItem[];
   consultQueue: readonly MarketingConsultQueueItem[];
   consultInitQueue: readonly ConsultInitQueueItem[];
+  intelligence: RevenueIntelligenceSnapshot;
   qualifiedLeads: number;
   activeOpportunities: number;
   openDeals: number;
@@ -148,14 +153,14 @@ async function loadConsultVisibilityByCrmLeadId(
   crmMarketingLeadIds?: Set<string>,
 ): Promise<Map<string, ConsultVisibility>> {
   const byCrmLeadId = new Map<string, ConsultVisibility>();
-  const activities = await crmDb().cRMActivity.findMany({
-    where: { customerId },
+  const activities = await prisma.cRMActivity.findMany({
+    where: { customerId, type: "lead.created" },
     orderBy: { timestamp: "desc" },
+    take: 200,
   });
 
   const createdMetaByLeadId = new Map<string, Record<string, unknown>>();
   for (const activity of activities) {
-    if (activity.type !== "lead.created") continue;
     const meta = asMeta(activity.meta);
     const leadId = metaString(meta, "leadId");
     if (!leadId || !meta || createdMetaByLeadId.has(leadId)) continue;
@@ -368,6 +373,10 @@ export async function assembleCrmWorkSurface(
   const items: SortableCrmWorkItem[] = [];
   const consultInitQueue: ConsultInitQueueItem[] = [];
   const crmMarketingLeadIds = new Set<string>();
+  const stageTotals = new Map<string, { count: number; totalValue: number }>();
+  const consultLeadIds = new Set<string>();
+  const consultOpportunityIds = new Set<string>();
+  const consultWonOpportunityIds = new Set<string>();
 
   for (const customer of customers) {
     const opportunities = await listOpportunitiesForCustomer(customer.id);
@@ -386,6 +395,9 @@ export async function assembleCrmWorkSurface(
     );
 
     for (const lead of leads) {
+      if (lead.source === ENTERPRISE_CONSULT_SOURCE) {
+        consultLeadIds.add(lead.id);
+      }
       if (lead.status !== "QUALIFIED") continue;
       if (promotedLeadIds.has(lead.id)) continue;
       items.push({
@@ -404,9 +416,31 @@ export async function assembleCrmWorkSurface(
     }
 
     for (const opp of opportunities) {
+      if (!TERMINAL_OPPORTUNITY_STAGES.has(opp.stage)) {
+        const bucket = stageTotals.get(opp.stage) ?? { count: 0, totalValue: 0 };
+        bucket.count += 1;
+        bucket.totalValue += opp.value;
+        stageTotals.set(opp.stage, bucket);
+      }
+
+      const isConsultOpp = Boolean(
+        opp.leadId && consultLeadIds.has(opp.leadId),
+      );
+      const needsDeals =
+        !TERMINAL_OPPORTUNITY_STAGES.has(opp.stage) || isConsultOpp;
+      const deals = needsDeals
+        ? await listDealsForOpportunity(opp.id)
+        : [];
+
+      if (isConsultOpp) {
+        consultOpportunityIds.add(opp.id);
+        if (deals.some((deal) => deal.status === "CLOSED_WON")) {
+          consultWonOpportunityIds.add(opp.id);
+        }
+      }
+
       if (TERMINAL_OPPORTUNITY_STAGES.has(opp.stage)) continue;
 
-      const deals = await listDealsForOpportunity(opp.id);
       const openDealsForOpp = deals.filter((deal) => deal.status === "OPEN");
       const skipOpportunityAdvance =
         opp.stage === "NEGOTIATION" && openDealsForOpp.length > 0;
@@ -490,11 +524,19 @@ export async function assembleCrmWorkSurface(
     crmMarketingLeadIds,
   );
 
+  const intelligence = buildRevenueIntelligenceSnapshot({
+    stageTotals,
+    consultLeadIds,
+    consultOpportunityIds,
+    consultWonOpportunityIds,
+  });
+
   return {
     items: orderedItems,
     outcomes,
     consultQueue,
     consultInitQueue,
+    intelligence,
     qualifiedLeads: orderedItems.filter((i) => i.entity === "lead").length,
     activeOpportunities: orderedItems.filter((i) => i.entity === "opportunity")
       .length,

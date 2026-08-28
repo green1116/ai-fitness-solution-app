@@ -1,10 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { listOrganizationsForUser } from "@/lib/organization/organization.service";
-import {
-  aggregateRevenueIntelligenceSnapshot,
-  type RevenueIntelligenceSnapshot,
-} from "@/lib/crm/crm.metrics";
-import { assembleCrmWorkSurface, type CrmWorkSurface } from "@/lib/crm/crm.workspace-surface";
+import { assembleCrmWorkSurface } from "@/lib/crm/crm.workspace-surface";
 import { WorkspaceCrmActionControl } from "./WorkspaceCrmActionControl";
 import { submitWorkspaceCrmAction } from "./submit-workspace-crm-action";
 
@@ -20,30 +16,23 @@ const OPPORTUNITY_ADVANCE_LABEL: Record<string, string> = {
   NEGOTIATION: "ADVANCE · NEGOTIATION → WON",
 };
 
-async function loadCrmWorkSurface(): Promise<{
-  crmWork: CrmWorkSurface;
-  intelligence: RevenueIntelligenceSnapshot;
-} | null> {
+async function loadCrmWorkSurface() {
   try {
     const user = await getCurrentUser();
     if (!user) return null;
     const orgs = await listOrganizationsForUser(user.id);
     const organizationId = orgs[0]?.organization.id;
     if (!organizationId) return null;
-    const [crmWork, intelligence] = await Promise.all([
-      assembleCrmWorkSurface(organizationId),
-      aggregateRevenueIntelligenceSnapshot(organizationId),
-    ]);
-    return { crmWork, intelligence };
+    return assembleCrmWorkSurface(organizationId);
   } catch {
     return null;
   }
 }
 
 export async function WorkspaceCrmWorkSurfacePanel() {
-  const loaded = await loadCrmWorkSurface();
-  if (!loaded) return null;
-  const { crmWork, intelligence } = loaded;
+  const crmWork = await loadCrmWorkSurface();
+  if (!crmWork) return null;
+  const { intelligence } = crmWork;
   const hasIntelligence =
     intelligence.openPipeline.count > 0 ||
     intelligence.consultFunnel.consult > 0 ||

@@ -74,6 +74,42 @@ export function createEmptyCRMMetrics(): CRMMetrics {
   };
 }
 
+export function buildRevenueIntelligenceSnapshot(input: {
+  stageTotals: ReadonlyMap<string, { count: number; totalValue: number }>;
+  consultLeadIds: ReadonlySet<string>;
+  consultOpportunityIds: ReadonlySet<string>;
+  consultWonOpportunityIds: ReadonlySet<string>;
+}): RevenueIntelligenceSnapshot {
+  const orderedStages = [
+    ...OPEN_PIPELINE_STAGE_ORDER.filter((stage) => input.stageTotals.has(stage)),
+    ...[...input.stageTotals.keys()]
+      .filter((stage) => !(OPEN_PIPELINE_STAGE_ORDER as readonly string[]).includes(stage))
+      .sort(),
+  ];
+
+  const openPipelineByStage: OpenPipelineStageMetric[] = orderedStages.map((stage) => {
+    const bucket = input.stageTotals.get(stage) ?? { count: 0, totalValue: 0 };
+    return {
+      stage,
+      count: bucket.count,
+      totalValue: bucket.totalValue,
+    };
+  });
+
+  return {
+    openPipelineByStage,
+    openPipeline: {
+      count: openPipelineByStage.reduce((sum, row) => sum + row.count, 0),
+      totalValue: openPipelineByStage.reduce((sum, row) => sum + row.totalValue, 0),
+    },
+    consultFunnel: {
+      consult: input.consultLeadIds.size,
+      opportunity: input.consultOpportunityIds.size,
+      won: input.consultWonOpportunityIds.size,
+    },
+  };
+}
+
 /**
  * Read-only Revenue Intelligence Snapshot v1.
  * Org-scoped; open pipeline uses Opportunity.value only (never Deal.amount).
@@ -120,34 +156,12 @@ export async function aggregateRevenueIntelligenceSnapshot(
     }
   }
 
-  const orderedStages = [
-    ...OPEN_PIPELINE_STAGE_ORDER.filter((stage) => stageTotals.has(stage)),
-    ...[...stageTotals.keys()]
-      .filter((stage) => !(OPEN_PIPELINE_STAGE_ORDER as readonly string[]).includes(stage))
-      .sort(),
-  ];
-
-  const openPipelineByStage: OpenPipelineStageMetric[] = orderedStages.map((stage) => {
-    const bucket = stageTotals.get(stage) ?? { count: 0, totalValue: 0 };
-    return {
-      stage,
-      count: bucket.count,
-      totalValue: bucket.totalValue,
-    };
+  return buildRevenueIntelligenceSnapshot({
+    stageTotals,
+    consultLeadIds,
+    consultOpportunityIds,
+    consultWonOpportunityIds,
   });
-
-  return {
-    openPipelineByStage,
-    openPipeline: {
-      count: openPipelineByStage.reduce((sum, row) => sum + row.count, 0),
-      totalValue: openPipelineByStage.reduce((sum, row) => sum + row.totalValue, 0),
-    },
-    consultFunnel: {
-      consult: consultLeadIds.size,
-      opportunity: consultOpportunityIds.size,
-      won: consultWonOpportunityIds.size,
-    },
-  };
 }
 
 export function createEmptyRevenueIntelligenceSnapshot(): RevenueIntelligenceSnapshot {
