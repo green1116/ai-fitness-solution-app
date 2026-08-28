@@ -5,7 +5,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { listCustomers } from "./customer/customer.service";
-import { buildOrganizationTimeline } from "./activity/activity.timeline";
+import { buildOrganizationTimeline, limitActivitiesPerCustomer } from "./activity/activity.timeline";
 import {
   buildRevenueIntelligenceSnapshot,
   type RevenueIntelligenceSnapshot,
@@ -144,45 +144,50 @@ type ConsultVisibility = {
   budgetId?: string;
 };
 
-async function loadConsultVisibilityByCrmLeadId(
-  customerId: string,
-  crmLeads: readonly LeadRow[],
-  crmMarketingLeadIds?: Set<string>,
-): Promise<Map<string, ConsultVisibility>> {
-  const byCrmLeadId = new Map<string, ConsultVisibility>();
+type MarketingLeadContact = {
+  id: string;
+  email: string;
+  phone: string | null;
+  note: string | null;
+};
+
+async function loadLeadCreatedActivitiesByCustomerId(
+  customerIds: readonly string[],
+): Promise<Map<string, Array<{ meta: unknown }>>> {
+  if (customerIds.length === 0) return new Map();
+
   const activities = await prisma.cRMActivity.findMany({
-    where: { customerId, type: "lead.created" },
+    where: {
+      customerId: { in: [...customerIds] },
+      type: "lead.created",
+    },
     orderBy: { timestamp: "desc" },
-    take: 200,
+    select: { customerId: true, meta: true },
   });
 
+  return limitActivitiesPerCustomer(activities, 200);
+}
+
+function buildConsultVisibilityByCrmLeadId(
+  crmLeads: readonly LeadRow[],
+  leadCreatedActivities: readonly { meta: unknown }[],
+  marketingById: ReadonlyMap<string, MarketingLeadContact>,
+  crmMarketingLeadIds?: Set<string>,
+): Map<string, ConsultVisibility> {
+  const byCrmLeadId = new Map<string, ConsultVisibility>();
   const createdMetaByLeadId = new Map<string, Record<string, unknown>>();
-  for (const activity of activities) {
+  for (const activity of leadCreatedActivities) {
     const meta = asMeta(activity.meta);
     const leadId = metaString(meta, "leadId");
     if (!leadId || !meta || createdMetaByLeadId.has(leadId)) continue;
     createdMetaByLeadId.set(leadId, meta);
   }
 
-  const marketingLeadIds = [
-    ...new Set(
-      [...createdMetaByLeadId.values()]
-        .map((meta) => metaString(meta, "marketingLeadId"))
-        .filter((id): id is string => Boolean(id)),
-    ),
-  ];
-  for (const marketingLeadId of marketingLeadIds) {
-    crmMarketingLeadIds?.add(marketingLeadId);
+  for (const meta of createdMetaByLeadId.values()) {
+    const marketingLeadId = metaString(meta, "marketingLeadId");
+    if (marketingLeadId) crmMarketingLeadIds?.add(marketingLeadId);
   }
 
-  const marketingLeads =
-    marketingLeadIds.length === 0
-      ? []
-      : await prisma.lead.findMany({
-          where: { id: { in: marketingLeadIds } },
-          select: { id: true, email: true, phone: true, note: true },
-        });
-  const marketingById = new Map(marketingLeads.map((lead) => [lead.id, lead]));
   const sourceByCrmLeadId = new Map(crmLeads.map((lead) => [lead.id, lead.source]));
 
   for (const [crmLeadId, meta] of createdMetaByLeadId) {
@@ -231,6 +236,20 @@ async function loadConsultVisibilityByCrmLeadId(
   }
 
   return byCrmLeadId;
+}
+
+function collectMarketingLeadIdsFromActivities(
+  activitiesByCustomerId: ReadonlyMap<string, readonly { meta: unknown }[]>,
+): string[] {
+  const marketingLeadIds = new Set<string>();
+  for (const activities of activitiesByCustomerId.values()) {
+    for (const activity of activities) {
+      const meta = asMeta(activity.meta);
+      const marketingLeadId = metaString(meta, "marketingLeadId");
+      if (marketingLeadId) marketingLeadIds.add(marketingLeadId);
+    }
+  }
+  return [...marketingLeadIds];
 }
 
 async function listMarketingConsultQueue(
@@ -382,9 +401,9 @@ export async function assembleCrmWorkSurface(
 ): Promise<CrmWorkSurface> {
   const customers = await listCustomers(organizationId);
   const customerIds = customers.map((customer) => customer.id);
-  const [allOpportunities, allLeads] =
+  const [allOpportunities, allLeads, leadCreatedActivitiesByCustomerId] =
     customerIds.length === 0
-      ? [[], []]
+      ? [[], [], new Map<string, Array<{ meta: unknown }>>()] as const
       : await Promise.all([
           prisma.opportunity.findMany({
             where: { customerId: { in: customerIds } },
@@ -392,7 +411,19 @@ export async function assembleCrmWorkSurface(
           prisma.crmLead.findMany({
             where: { customerId: { in: customerIds } },
           }),
+          loadLeadCreatedActivitiesByCustomerId(customerIds),
         ]);
+  const marketingLeadIds = collectMarketingLeadIdsFromActivities(
+    leadCreatedActivitiesByCustomerId,
+  );
+  const marketingLeads =
+    marketingLeadIds.length === 0
+      ? []
+      : await prisma.lead.findMany({
+          where: { id: { in: marketingLeadIds } },
+          select: { id: true, email: true, phone: true, note: true },
+        });
+  const marketingById = new Map(marketingLeads.map((lead) => [lead.id, lead]));
   const opportunityIds = allOpportunities.map((opp) => opp.id);
   const allDeals: DealRow[] =
     opportunityIds.length === 0
@@ -425,9 +456,10 @@ export async function assembleCrmWorkSurface(
 
     const leads = leadsByCustomerId.get(customer.id) ?? [];
     const leadsById = new Map(leads.map((lead) => [lead.id, lead]));
-    const visibilityByLead = await loadConsultVisibilityByCrmLeadId(
-      customer.id,
+    const visibilityByLead = buildConsultVisibilityByCrmLeadId(
       leads,
+      leadCreatedActivitiesByCustomerId.get(customer.id) ?? [],
+      marketingById,
       crmMarketingLeadIds,
     );
 
