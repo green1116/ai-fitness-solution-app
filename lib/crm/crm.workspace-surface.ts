@@ -5,15 +5,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { listCustomers } from "./customer/customer.service";
-import { listLeadsForCustomer } from "./lead/lead.service";
-import { listOpportunitiesForCustomer } from "./opportunity/opportunity.service";
-import { listDealsForOpportunity } from "./deal/deal.service";
 import { buildOrganizationTimeline } from "./activity/activity.timeline";
 import {
   buildRevenueIntelligenceSnapshot,
   type RevenueIntelligenceSnapshot,
 } from "./crm.metrics";
-import { type LeadRow } from "./types";
+import { type DealRow, type LeadRow, type OpportunityRow } from "./types";
 
 export type CrmWorkItem = Readonly<{
   id: string;
@@ -366,10 +363,50 @@ function toCrmWorkItem(item: SortableCrmWorkItem): CrmWorkItem {
   return publicItem;
 }
 
+function groupRowsByKey<T extends { [key: string]: unknown }>(
+  rows: readonly T[],
+  key: keyof T & string,
+): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    const groupKey = String(row[key]);
+    const bucket = grouped.get(groupKey);
+    if (bucket) bucket.push(row);
+    else grouped.set(groupKey, [row]);
+  }
+  return grouped;
+}
+
 export async function assembleCrmWorkSurface(
   organizationId: string,
 ): Promise<CrmWorkSurface> {
   const customers = await listCustomers(organizationId);
+  const customerIds = customers.map((customer) => customer.id);
+  const [allOpportunities, allLeads] =
+    customerIds.length === 0
+      ? [[], []]
+      : await Promise.all([
+          prisma.opportunity.findMany({
+            where: { customerId: { in: customerIds } },
+          }),
+          prisma.crmLead.findMany({
+            where: { customerId: { in: customerIds } },
+          }),
+        ]);
+  const opportunityIds = allOpportunities.map((opp) => opp.id);
+  const allDeals: DealRow[] =
+    opportunityIds.length === 0
+      ? []
+      : await prisma.deal.findMany({
+          where: { opportunityId: { in: opportunityIds } },
+        });
+  const opportunitiesByCustomerId = groupRowsByKey<OpportunityRow>(
+    allOpportunities,
+    "customerId",
+  );
+  const leadsByCustomerId = groupRowsByKey<LeadRow>(allLeads, "customerId");
+  const dealsByOpportunityId = groupRowsByKey<DealRow>(allDeals, "opportunityId");
+
   const items: SortableCrmWorkItem[] = [];
   const consultInitQueue: ConsultInitQueueItem[] = [];
   const crmMarketingLeadIds = new Set<string>();
@@ -379,14 +416,14 @@ export async function assembleCrmWorkSurface(
   const consultWonOpportunityIds = new Set<string>();
 
   for (const customer of customers) {
-    const opportunities = await listOpportunitiesForCustomer(customer.id);
+    const opportunities = opportunitiesByCustomerId.get(customer.id) ?? [];
     const promotedLeadIds = new Set(
       opportunities
         .map((opp) => opp.leadId)
         .filter((leadId): leadId is string => Boolean(leadId)),
     );
 
-    const leads = await listLeadsForCustomer(customer.id);
+    const leads = leadsByCustomerId.get(customer.id) ?? [];
     const leadsById = new Map(leads.map((lead) => [lead.id, lead]));
     const visibilityByLead = await loadConsultVisibilityByCrmLeadId(
       customer.id,
@@ -429,7 +466,7 @@ export async function assembleCrmWorkSurface(
       const needsDeals =
         !TERMINAL_OPPORTUNITY_STAGES.has(opp.stage) || isConsultOpp;
       const deals = needsDeals
-        ? await listDealsForOpportunity(opp.id)
+        ? dealsByOpportunityId.get(opp.id) ?? []
         : [];
 
       if (isConsultOpp) {
