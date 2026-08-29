@@ -53,7 +53,11 @@ export async function updateOpportunityStage(input: {
   if (!opportunity) throw new Error("Opportunity not found");
 
   const current = opportunity.stage as OpportunityStageName;
-  if (!canAdvanceOpportunityStage(current, input.stage) && current !== input.stage) {
+  if (current === input.stage) {
+    return opportunity;
+  }
+
+  if (!canAdvanceOpportunityStage(current, input.stage)) {
     throw new Error(`Invalid stage transition: ${current} → ${input.stage}`);
   }
 

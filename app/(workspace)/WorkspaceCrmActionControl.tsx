@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect } from "react";
 import {
   submitWorkspaceCrmAction,
   type CrmActionResult,
@@ -22,8 +23,15 @@ export function WorkspaceCrmActionControl({
     formData: FormData,
   ) => Promise<CrmActionResult>;
 }) {
+  const router = useRouter();
   const [state, formAction] = useActionState(submitWorkspaceCrmAction, null);
   const isSuccess = state?.result === "SUCCESS";
+
+  useEffect(() => {
+    if (isSuccess && action === "advance") {
+      router.refresh();
+    }
+  }, [action, isSuccess, router]);
   const isBlocked = state?.result === "BLOCKED";
   const isFailed = state?.result === "FAILED";
   const statusLabel = isSuccess
