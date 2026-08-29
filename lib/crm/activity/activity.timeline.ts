@@ -51,14 +51,17 @@ export async function buildOrganizationTimeline(organizationId: string, take = 1
   if (customers.length === 0) return [];
 
   const perCustomerTake = Math.ceil(take / Math.max(customers.length, 1));
-  const customerIds = customers.map((customer) => customer.id);
-  const activities = await prisma.cRMActivity.findMany({
-    where: { customerId: { in: customerIds } },
-    orderBy: { timestamp: "desc" },
-  });
-  const activitiesByCustomerId = limitActivitiesPerCustomer(
-    activities,
-    perCustomerTake,
+  const activityGroups = await Promise.all(
+    customers.map((customer) =>
+      prisma.cRMActivity.findMany({
+        where: { customerId: customer.id },
+        orderBy: { timestamp: "desc" },
+        take: perCustomerTake,
+      }),
+    ),
+  );
+  const activitiesByCustomerId = new Map(
+    customers.map((customer, index) => [customer.id, activityGroups[index] ?? []]),
   );
 
   return customers.map((customer) => ({

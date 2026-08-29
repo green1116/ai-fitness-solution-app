@@ -587,11 +587,10 @@ export async function assembleCrmWorkSurface(
         ? 1
         : 0;
   });
-  const outcomes = await listCrmOutcomes(organizationId);
-  const consultQueue = await listMarketingConsultQueue(
-    organizationId,
-    crmMarketingLeadIds,
-  );
+  const [outcomes, consultQueue] = await Promise.all([
+    listCrmOutcomes(organizationId),
+    listMarketingConsultQueue(organizationId, crmMarketingLeadIds),
+  ]);
 
   const intelligence = buildRevenueIntelligenceSnapshot({
     stageTotals,
