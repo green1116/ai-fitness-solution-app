@@ -2,12 +2,14 @@ import { getCurrentUser } from "@/lib/auth/currentUser";
 import { listOrganizationsForUser } from "@/lib/organization/organization.service";
 import {
   assembleCrmWorkSurface,
+  type ConsultInitQueueItem,
   type CrmWorkItem,
 } from "@/lib/crm/crm.workspace-surface";
 import { WorkspaceCrmActionControl } from "./WorkspaceCrmActionControl";
 import { submitWorkspaceCrmAction } from "./submit-workspace-crm-action";
 
 const MIXED_INBOX_TAKE = 10;
+const INIT_QUEUE_TAKE = 10;
 
 const ENTITY_BADGE: Record<string, string> = {
   lead: "text-sky-400 border-sky-800",
@@ -108,6 +110,38 @@ function CrmWorkItemRow({ item }: { item: CrmWorkItem }) {
   );
 }
 
+function ConsultInitQueueRow({ item }: { item: ConsultInitQueueItem }) {
+  return (
+    <li className="rounded-md border border-amber-900/60 px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium text-zinc-200">{item.customerName}</span>
+        <span className="rounded border border-amber-800 px-1.5 py-0.5 text-xs uppercase tracking-wide text-amber-400">
+          opportunity · INIT
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-zinc-400">
+        score {item.leadScore} · {item.createdAt.toISOString()}
+      </p>
+      {item.contactEmail ? (
+        <p className="mt-0.5 text-xs text-zinc-500">{item.contactEmail}</p>
+      ) : null}
+      {item.contactPhone ? (
+        <p className="mt-0.5 text-xs text-zinc-500">phone {item.contactPhone}</p>
+      ) : null}
+      {item.sourceLabel ? (
+        <p className="mt-0.5 text-xs text-zinc-600">{item.sourceLabel}</p>
+      ) : null}
+      <WorkspaceCrmActionControl
+        crmItemId={item.id}
+        action="advance"
+        label="ADVANCE · INIT → PROPOSAL"
+        hiddenFields={{ currentStage: "INIT" }}
+        submitCrmAction={submitWorkspaceCrmAction}
+      />
+    </li>
+  );
+}
+
 export async function WorkspaceCrmWorkSurfacePanel() {
   const crmWork = await loadCrmWorkSurface();
   if (!crmWork) return null;
@@ -129,6 +163,8 @@ export async function WorkspaceCrmWorkSurfacePanel() {
 
   const visibleMixed = crmWork.items.slice(0, MIXED_INBOX_TAKE);
   const tailMixed = crmWork.items.slice(MIXED_INBOX_TAKE);
+  const visibleInit = crmWork.consultInitQueue.slice(0, INIT_QUEUE_TAKE);
+  const tailInit = crmWork.consultInitQueue.slice(INIT_QUEUE_TAKE);
 
   return (
     <section className="mx-auto mb-6 max-w-5xl rounded-lg border border-zinc-800 bg-zinc-950 p-4">
@@ -144,45 +180,27 @@ export async function WorkspaceCrmWorkSurfacePanel() {
         <div className="mt-4">
           <p className="text-xs text-zinc-500">
             Consult INIT queue · ADVANCE INIT → PROPOSAL
+            {crmWork.consultInitQueue.length > visibleInit.length
+              ? ` · top ${visibleInit.length} of ${crmWork.consultInitQueue.length}`
+              : ""}
           </p>
           <ul className="mt-2 space-y-2">
-            {crmWork.consultInitQueue.map((item) => (
-              <li
-                key={item.id}
-                className="rounded-md border border-amber-900/60 px-3 py-2 text-sm"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium text-zinc-200">
-                    {item.customerName}
-                  </span>
-                  <span className="rounded border border-amber-800 px-1.5 py-0.5 text-xs uppercase tracking-wide text-amber-400">
-                    opportunity · INIT
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-zinc-400">
-                  score {item.leadScore} · {item.createdAt.toISOString()}
-                </p>
-                {item.contactEmail ? (
-                  <p className="mt-0.5 text-xs text-zinc-500">{item.contactEmail}</p>
-                ) : null}
-                {item.contactPhone ? (
-                  <p className="mt-0.5 text-xs text-zinc-500">
-                    phone {item.contactPhone}
-                  </p>
-                ) : null}
-                {item.sourceLabel ? (
-                  <p className="mt-0.5 text-xs text-zinc-600">{item.sourceLabel}</p>
-                ) : null}
-                <WorkspaceCrmActionControl
-                  crmItemId={item.id}
-                  action="advance"
-                  label="ADVANCE · INIT → PROPOSAL"
-                  hiddenFields={{ currentStage: "INIT" }}
-                  submitCrmAction={submitWorkspaceCrmAction}
-                />
-              </li>
+            {visibleInit.map((item) => (
+              <ConsultInitQueueRow key={item.id} item={item} />
             ))}
           </ul>
+          {tailInit.length > 0 ? (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-zinc-500">
+                + {tailInit.length} more INIT
+              </summary>
+              <ul className="mt-2 space-y-2">
+                {tailInit.map((item) => (
+                  <ConsultInitQueueRow key={item.id} item={item} />
+                ))}
+              </ul>
+            </details>
+          ) : null}
         </div>
       ) : null}
       {visibleMixed.length > 0 ? (
