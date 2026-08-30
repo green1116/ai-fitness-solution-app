@@ -1,6 +1,7 @@
 // app/api/auth/me/route.ts
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/currentUser";
+import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
 import {
   ensureOrganizationForUser,
   listOrganizationsForUser,
@@ -17,6 +18,7 @@ export async function GET() {
       user: null,
       authenticated: false,
       organizationId: null,
+      isPlatformAdmin: false,
     });
   }
 
@@ -33,5 +35,6 @@ export async function GET() {
     user,
     authenticated: true,
     organizationId: organization.id,
+    isPlatformAdmin: isPlatformAdminEmail(user.email),
   });
 }

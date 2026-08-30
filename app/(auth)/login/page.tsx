@@ -56,7 +56,9 @@ export default function LoginPage() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.message || "登录失败");
-      router.push("/overview");
+      const meRes = await fetch("/api/auth/me");
+      const me = await meRes.json().catch(() => ({}));
+      router.push(me?.isPlatformAdmin ? "/overview" : "/projects");
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "登录失败");
     } finally {

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { getCurrentUser } from "@/lib/auth/currentUser";
+import { redirect } from "next/navigation";
 import {
   PEX_INTELLIGENCE_ENDPOINT,
   readProductIntelligenceExperience,
@@ -12,6 +14,9 @@ export default async function WorkspaceLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
   const { status, signals, attention } = await readProductIntelligenceExperience();
 
   return (
