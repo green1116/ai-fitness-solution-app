@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 
 export default async function SalesDashboardPage() {
   const user = await getCurrentUser();
-  if (!isPlatformAdminEmail(user?.email)) redirect("/customers");
+  if (!isPlatformAdminEmail(user?.email)) redirect("/projects");
   const sales = analyzeSales("ceo-global");
   const funnel = buildSalesFunnelWidget(sales.pipeline);
 

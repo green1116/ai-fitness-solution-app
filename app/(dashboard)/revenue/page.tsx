@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 
 export default async function RevenueDashboardPage() {
   const user = await getCurrentUser();
-  if (!isPlatformAdminEmail(user?.email)) redirect("/customers");
+  if (!isPlatformAdminEmail(user?.email)) redirect("/projects");
   const revenue = analyzeRevenue();
 
   return (

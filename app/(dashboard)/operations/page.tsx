@@ -46,7 +46,7 @@ export default async function OperationsDashboardPage() {
   const { summary } = surface;
 
   const user = await getCurrentUser();
-  if (!isPlatformAdminEmail(user?.email)) redirect("/customers");
+  if (!isPlatformAdminEmail(user?.email)) redirect("/projects");
 
   const orgs = user ? await listOrganizationsForUser(user.id) : [];
   const organizationId = orgs[0]?.organization.id ?? "";

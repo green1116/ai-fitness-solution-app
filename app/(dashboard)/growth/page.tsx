@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 
 export default async function GrowthDashboardPage() {
   const user = await getCurrentUser();
-  if (!isPlatformAdminEmail(user?.email)) redirect("/customers");
+  if (!isPlatformAdminEmail(user?.email)) redirect("/projects");
   const growth = analyzeGrowth();
   const funnel = buildFunnelWidget(growth.funnel);
 

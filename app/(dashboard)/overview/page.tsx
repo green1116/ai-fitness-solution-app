@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 
 export default async function OverviewDashboardPage() {
   const user = await getCurrentUser();
-  if (!isPlatformAdminEmail(user?.email)) redirect("/customers");
+  if (!isPlatformAdminEmail(user?.email)) redirect("/projects");
   const data = refreshDashboardData("ceo-global");
   const coreKpis = data.kpis.filter((k) =>
     ["mrr", "arr", "active_users", "conversion", "churn"].includes(k.id),
