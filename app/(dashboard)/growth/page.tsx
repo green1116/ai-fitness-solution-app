@@ -1,8 +1,13 @@
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
+import { getCurrentUser } from "@/lib/auth/currentUser";
 import { analyzeGrowth } from "@/lib/dashboard/analytics/growth.analytics";
+import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
 import { buildFunnelWidget } from "@/lib/dashboard/widgets/funnel.widget";
+import { redirect } from "next/navigation";
 
-export default function GrowthDashboardPage() {
+export default async function GrowthDashboardPage() {
+  const user = await getCurrentUser();
+  if (!isPlatformAdminEmail(user?.email)) redirect("/customers");
   const growth = analyzeGrowth();
   const funnel = buildFunnelWidget(growth.funnel);
 

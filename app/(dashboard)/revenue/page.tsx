@@ -1,7 +1,12 @@
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
+import { getCurrentUser } from "@/lib/auth/currentUser";
 import { analyzeRevenue } from "@/lib/dashboard/analytics/revenue.analytics";
+import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
+import { redirect } from "next/navigation";
 
-export default function RevenueDashboardPage() {
+export default async function RevenueDashboardPage() {
+  const user = await getCurrentUser();
+  if (!isPlatformAdminEmail(user?.email)) redirect("/customers");
   const revenue = analyzeRevenue();
 
   return (

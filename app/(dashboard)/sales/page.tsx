@@ -1,8 +1,13 @@
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
+import { getCurrentUser } from "@/lib/auth/currentUser";
 import { analyzeSales } from "@/lib/dashboard/analytics/sales.analytics";
+import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
 import { buildSalesFunnelWidget } from "@/lib/dashboard/widgets/funnel.widget";
+import { redirect } from "next/navigation";
 
-export default function SalesDashboardPage() {
+export default async function SalesDashboardPage() {
+  const user = await getCurrentUser();
+  if (!isPlatformAdminEmail(user?.email)) redirect("/customers");
   const sales = analyzeSales("ceo-global");
   const funnel = buildSalesFunnelWidget(sales.pipeline);
 

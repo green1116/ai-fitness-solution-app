@@ -4,8 +4,10 @@ import { getCurrentUser } from "@/lib/auth/currentUser";
 import type { OperationsSurface } from "@/lib/commercial/operations-surface";
 import { analyzeCustomers } from "@/lib/dashboard/analytics/customer.analytics";
 import { analyzeOperations } from "@/lib/dashboard/analytics/operations.analytics";
+import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
 import { listOrganizationsForUser } from "@/lib/organization/organization.service";
 import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +46,8 @@ export default async function OperationsDashboardPage() {
   const { summary } = surface;
 
   const user = await getCurrentUser();
+  if (!isPlatformAdminEmail(user?.email)) redirect("/customers");
+
   const orgs = user ? await listOrganizationsForUser(user.id) : [];
   const organizationId = orgs[0]?.organization.id ?? "";
   const customers = await analyzeCustomers(organizationId);

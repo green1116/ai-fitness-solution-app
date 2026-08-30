@@ -1,8 +1,13 @@
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { KpiGrid } from "@/components/dashboard/KpiGrid";
+import { getCurrentUser } from "@/lib/auth/currentUser";
 import { refreshDashboardData } from "@/lib/dashboard/dashboard.service";
+import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
+import { redirect } from "next/navigation";
 
-export default function OverviewDashboardPage() {
+export default async function OverviewDashboardPage() {
+  const user = await getCurrentUser();
+  if (!isPlatformAdminEmail(user?.email)) redirect("/customers");
   const data = refreshDashboardData("ceo-global");
   const coreKpis = data.kpis.filter((k) =>
     ["mrr", "arr", "active_users", "conversion", "churn"].includes(k.id),
