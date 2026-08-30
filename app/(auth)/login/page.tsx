@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [cooldown, setCooldown] = useState(0);
+  const submitLockRef = useRef(false);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -47,6 +48,8 @@ export default function LoginPage() {
 
   async function submitLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     setLoading(true);
     try {
       const r = await fetch("/api/auth/otp/verify", {
@@ -59,10 +62,11 @@ export default function LoginPage() {
       const meRes = await fetch("/api/auth/me");
       const me = await meRes.json().catch(() => ({}));
       router.push(me?.isPlatformAdmin ? "/overview" : "/projects");
+      return;
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "登录失败");
-    } finally {
+      submitLockRef.current = false;
       setLoading(false);
+      alert(err instanceof Error ? err.message : "登录失败");
     }
   }
 
