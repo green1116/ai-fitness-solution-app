@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ProductIntelligenceExperience } from "@/app/(product)/ProductIntelligenceExperience";
+
+const VISIBLE_PROJECTS = 5;
 
 type ProjectItem = {
   id: string;
@@ -24,6 +25,23 @@ function orgHeaders(organizationId: string): HeadersInit {
     "Content-Type": "application/json",
     "x-organization-id": organizationId,
   };
+}
+
+function ProjectRow({ project }: { project: ProjectItem }) {
+  return (
+    <li>
+      <Link
+        href={`/projects/${project.id}`}
+        className="block rounded-xl border border-zinc-800 bg-black p-4 hover:border-zinc-600"
+      >
+        <div className="font-semibold">{project.name}</div>
+        <div className="mt-1 text-xs text-zinc-400">
+          {project.clientName ?? "—"} · Quote {project.quoteCount} · Tender{" "}
+          {project.tenderCount}
+        </div>
+      </Link>
+    </li>
+  );
 }
 
 export function ProjectsPageClient() {
@@ -69,10 +87,12 @@ export function ProjectsPageClient() {
     }
   }
 
+  const visibleProjects = projects.slice(0, VISIBLE_PROJECTS);
+  const tailProjects = projects.slice(VISIBLE_PROJECTS);
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">项目 Workspace</h1>
-      <ProductIntelligenceExperience />
 
       <section className="flex gap-3 rounded-2xl border border-zinc-800 bg-black p-4">
         <input
@@ -91,21 +111,25 @@ export function ProjectsPageClient() {
         </button>
       </section>
 
-      <ul className="space-y-3">
-        {projects.map((p) => (
-          <li key={p.id}>
-            <Link
-              href={`/projects/${p.id}`}
-              className="block rounded-xl border border-zinc-800 bg-black p-4 hover:border-zinc-600"
-            >
-              <div className="font-semibold">{p.name}</div>
-              <div className="mt-1 text-xs text-zinc-400">
-                {p.clientName ?? "—"} · Quote {p.quoteCount} · Tender {p.tenderCount}
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {visibleProjects.length > 0 ? (
+        <ul className="space-y-3">
+          {visibleProjects.map((project) => (
+            <ProjectRow key={project.id} project={project} />
+          ))}
+        </ul>
+      ) : null}
+      {tailProjects.length > 0 ? (
+        <details>
+          <summary className="cursor-pointer text-sm text-zinc-500">
+            + {tailProjects.length} more projects
+          </summary>
+          <ul className="mt-3 space-y-3">
+            {tailProjects.map((project) => (
+              <ProjectRow key={project.id} project={project} />
+            ))}
+          </ul>
+        </details>
+      ) : null}
     </div>
   );
 }

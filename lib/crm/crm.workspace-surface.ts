@@ -599,8 +599,11 @@ export async function assembleCrmWorkSurface(
     consultWonOpportunityIds,
   });
 
+  const consultInitIds = new Set(consultInitQueue.map((item) => item.id));
+  const inboxItems = orderedItems.filter((item) => !consultInitIds.has(item.id));
+
   return {
-    items: orderedItems,
+    items: inboxItems,
     outcomes,
     consultQueue,
     consultInitQueue,
