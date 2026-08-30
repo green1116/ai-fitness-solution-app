@@ -2,26 +2,155 @@
  * V61 P2 — Customer analytics (V60 P2 CRM via metrics layer)
  */
 
-import { aggregateCRMMetrics, createEmptyCRMMetrics } from "@/lib/crm/crm.metrics";
-import { crmDb } from "@/lib/crm/types";
+import { createEmptyCRMMetrics } from "@/lib/crm/crm.metrics";
+import { sumDealRevenue } from "@/lib/crm/deal/deal.value";
+import type {
+  CRMActivityRow,
+  CRMMetrics,
+  CustomerRow,
+  DealRow,
+  LeadRow,
+  OpportunityRow,
+} from "@/lib/crm/types";
 import { aggregateGrowthMetrics } from "@/lib/growth/funnel/funnel.analytics";
+import { prisma } from "@/lib/prisma";
 
-async function aggregateWonRevenueByCustomer(organizationId: string): Promise<{
-  wonCustomerIds: string[];
-  revenueByCustomer: Record<string, number>;
-}> {
-  const revenueByCustomer: Record<string, number> = {};
-  if (!organizationId) {
-    return { wonCustomerIds: [], revenueByCustomer };
+const POST_WIN_PRODUCT_TYPES = new Set([
+  "quote.generated",
+  "budget.generated",
+  "tender.generated",
+]);
+
+const ACTIVITY_LOOKBACK = 500;
+
+type OrgCustomerAnalyticsSnapshot = {
+  customers: CustomerRow[];
+  leadsByCustomerId: Map<string, LeadRow[]>;
+  opportunitiesByCustomerId: Map<string, OpportunityRow[]>;
+  dealsByOpportunityId: Map<string, DealRow[]>;
+  activitiesByCustomerId: Map<string, CRMActivityRow[]>;
+};
+
+function groupRowsByKey<T extends { [key: string]: unknown }>(
+  rows: readonly T[],
+  key: keyof T & string,
+): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    const groupKey = String(row[key]);
+    const bucket = grouped.get(groupKey);
+    if (bucket) bucket.push(row);
+    else grouped.set(groupKey, [row]);
+  }
+  return grouped;
+}
+
+function limitActivitiesPerCustomer(
+  activities: readonly CRMActivityRow[],
+  customerIds: readonly string[],
+  limit: number,
+): Map<string, CRMActivityRow[]> {
+  const grouped = groupRowsByKey(activities, "customerId");
+  const limited = new Map<string, CRMActivityRow[]>();
+  for (const customerId of customerIds) {
+    const rows = [...(grouped.get(customerId) ?? [])].sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+    );
+    limited.set(customerId, rows.slice(0, limit));
+  }
+  return limited;
+}
+
+async function loadOrgCustomerAnalyticsSnapshot(
+  organizationId: string,
+): Promise<OrgCustomerAnalyticsSnapshot> {
+  const customers = await prisma.customer.findMany({ where: { organizationId } });
+  const customerIds = customers.map((customer) => customer.id);
+
+  if (customerIds.length === 0) {
+    return {
+      customers,
+      leadsByCustomerId: new Map(),
+      opportunitiesByCustomerId: new Map(),
+      dealsByOpportunityId: new Map(),
+      activitiesByCustomerId: new Map(),
+    };
   }
 
-  const customers = await crmDb().customer.findMany({ where: { organizationId } });
+  const [allLeads, allOpportunities, allActivities] = await Promise.all([
+    prisma.crmLead.findMany({ where: { customerId: { in: customerIds } } }),
+    prisma.opportunity.findMany({ where: { customerId: { in: customerIds } } }),
+    prisma.cRMActivity.findMany({
+      where: { customerId: { in: customerIds } },
+      orderBy: { timestamp: "asc" },
+    }),
+  ]);
+
+  const opportunityIds = allOpportunities.map((opp) => opp.id);
+  const allDeals =
+    opportunityIds.length === 0
+      ? []
+      : await prisma.deal.findMany({
+          where: { opportunityId: { in: opportunityIds } },
+        });
+
+  return {
+    customers,
+    leadsByCustomerId: groupRowsByKey(allLeads, "customerId"),
+    opportunitiesByCustomerId: groupRowsByKey(allOpportunities, "customerId"),
+    dealsByOpportunityId: groupRowsByKey(allDeals, "opportunityId"),
+    activitiesByCustomerId: limitActivitiesPerCustomer(
+      allActivities,
+      customerIds,
+      ACTIVITY_LOOKBACK,
+    ),
+  };
+}
+
+function computeCrmMetricsFromSnapshot(snapshot: OrgCustomerAnalyticsSnapshot): CRMMetrics {
+  const { customers, leadsByCustomerId, opportunitiesByCustomerId, dealsByOpportunityId } =
+    snapshot;
+  let totalLeads = 0;
+  let qualifiedLeads = 0;
+  let opportunities = 0;
+  const allDeals: Pick<DealRow, "amount" | "status">[] = [];
+
   for (const customer of customers) {
-    const opps = await crmDb().opportunity.findMany({ where: { customerId: customer.id } });
+    const leads = leadsByCustomerId.get(customer.id) ?? [];
+    totalLeads += leads.length;
+    qualifiedLeads += leads.filter((lead) => lead.status === "QUALIFIED").length;
+
+    const opps = opportunitiesByCustomerId.get(customer.id) ?? [];
+    opportunities += opps.length;
+
+    for (const opp of opps) {
+      const deals = dealsByOpportunityId.get(opp.id) ?? [];
+      allDeals.push(...deals);
+    }
+  }
+
+  return {
+    totalCustomers: customers.length,
+    totalLeads,
+    qualifiedLeads,
+    opportunities,
+    dealsWon: allDeals.filter((deal) => deal.status === "CLOSED_WON").length,
+    revenue: sumDealRevenue(allDeals),
+  };
+}
+
+function computeWonRevenueFromSnapshot(snapshot: OrgCustomerAnalyticsSnapshot): {
+  wonCustomerIds: string[];
+  revenueByCustomer: Record<string, number>;
+} {
+  const revenueByCustomer: Record<string, number> = {};
+
+  for (const customer of snapshot.customers) {
+    const opps = snapshot.opportunitiesByCustomerId.get(customer.id) ?? [];
     let total = 0;
     let hasWon = false;
     for (const opp of opps) {
-      const deals = await crmDb().deal.findMany({ where: { opportunityId: opp.id } });
+      const deals = snapshot.dealsByOpportunityId.get(opp.id) ?? [];
       for (const deal of deals) {
         if (deal.status === "CLOSED_WON") {
           hasWon = true;
@@ -34,31 +163,26 @@ async function aggregateWonRevenueByCustomer(organizationId: string): Promise<{
     }
   }
 
-  const wonCustomerIds = Object.keys(revenueByCustomer).sort();
-  return { wonCustomerIds, revenueByCustomer };
+  return {
+    wonCustomerIds: Object.keys(revenueByCustomer).sort(),
+    revenueByCustomer,
+  };
 }
 
-const POST_WIN_PRODUCT_TYPES = new Set([
-  "quote.generated",
-  "budget.generated",
-  "tender.generated",
-]);
-
-async function earliestClosedWonAt(customerId: string): Promise<number | null> {
-  const activities = await crmDb().cRMActivity.findMany({
-    where: { customerId },
-    orderBy: { timestamp: "asc" },
-    take: 500,
-  });
+function earliestClosedWonAtFromSnapshot(
+  customerId: string,
+  snapshot: OrgCustomerAnalyticsSnapshot,
+): number | null {
+  const activities = snapshot.activitiesByCustomerId.get(customerId) ?? [];
   const winTs = activities
-    .filter((a) => a.type === "deal.closed_won")
-    .map((a) => a.timestamp.getTime());
+    .filter((activity) => activity.type === "deal.closed_won")
+    .map((activity) => activity.timestamp.getTime());
   if (winTs.length > 0) return Math.min(...winTs);
 
-  const opps = await crmDb().opportunity.findMany({ where: { customerId } });
+  const opps = snapshot.opportunitiesByCustomerId.get(customerId) ?? [];
   const dealTimes: number[] = [];
   for (const opp of opps) {
-    const deals = await crmDb().deal.findMany({ where: { opportunityId: opp.id } });
+    const deals = snapshot.dealsByOpportunityId.get(opp.id) ?? [];
     for (const deal of deals) {
       if (deal.status === "CLOSED_WON") {
         dealTimes.push(deal.updatedAt.getTime());
@@ -68,24 +192,21 @@ async function earliestClosedWonAt(customerId: string): Promise<number | null> {
   return dealTimes.length > 0 ? Math.min(...dealTimes) : null;
 }
 
-async function aggregatePostWinActivityByCustomer(
+function computePostWinActivityFromSnapshot(
+  snapshot: OrgCustomerAnalyticsSnapshot,
   wonCustomerIds: string[],
-): Promise<Record<string, number>> {
+): Record<string, number> {
   const postWinActivityCountByCustomer: Record<string, number> = {};
   for (const customerId of wonCustomerIds) {
-    const after = await earliestClosedWonAt(customerId);
+    const after = earliestClosedWonAtFromSnapshot(customerId, snapshot);
     if (after == null) {
       postWinActivityCountByCustomer[customerId] = 0;
       continue;
     }
-    const activities = await crmDb().cRMActivity.findMany({
-      where: { customerId },
-      orderBy: { timestamp: "asc" },
-      take: 500,
-    });
+    const activities = snapshot.activitiesByCustomerId.get(customerId) ?? [];
     postWinActivityCountByCustomer[customerId] = activities.filter(
-      (a) =>
-        POST_WIN_PRODUCT_TYPES.has(a.type) && a.timestamp.getTime() > after,
+      (activity) =>
+        POST_WIN_PRODUCT_TYPES.has(activity.type) && activity.timestamp.getTime() > after,
     ).length;
   }
   return postWinActivityCountByCustomer;
@@ -99,12 +220,15 @@ export async function analyzeCustomers(organizationId: string) {
 
   if (organizationId) {
     try {
-      crm = await aggregateCRMMetrics(organizationId);
-      const won = await aggregateWonRevenueByCustomer(organizationId);
+      const snapshot = await loadOrgCustomerAnalyticsSnapshot(organizationId);
+      crm = computeCrmMetricsFromSnapshot(snapshot);
+      const won = computeWonRevenueFromSnapshot(snapshot);
       wonCustomerIds = won.wonCustomerIds;
       revenueByCustomer = won.revenueByCustomer;
-      postWinActivityCountByCustomer =
-        await aggregatePostWinActivityByCustomer(wonCustomerIds);
+      postWinActivityCountByCustomer = computePostWinActivityFromSnapshot(
+        snapshot,
+        wonCustomerIds,
+      );
     } catch {
       crm = createEmptyCRMMetrics();
       wonCustomerIds = [];
