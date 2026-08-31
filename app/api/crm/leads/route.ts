@@ -4,6 +4,10 @@ import { handleApiError } from "@/lib/error/global-error.handler";
 import { isKnownApiError } from "@/lib/error/api-error.mapper";
 import { createLead, promoteLeadToOpportunity } from "@/lib/crm/crm.service";
 import {
+  CRM_PLATFORM_MUTATION_BLOCKED_MESSAGE,
+  isCrmPlatformMutationAllowed,
+} from "@/lib/crm/crm.mutation-auth";
+import {
   CRM_TENANT_BLOCKED_MESSAGE,
   isCrmEntityOwnedByOrg,
 } from "@/lib/crm/crm.tenant-guard";
@@ -28,6 +32,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (body?.action === "promote") {
+      if (!isCrmPlatformMutationAllowed(gate.email)) {
+        return NextResponse.json(
+          { ok: false, message: CRM_PLATFORM_MUTATION_BLOCKED_MESSAGE, traceId },
+          { status: 403 },
+        );
+      }
       const leadId = String(body?.leadId ?? "").trim();
       if (!leadId) {
         return NextResponse.json({ ok: false, message: "leadId required", traceId }, { status: 400 });

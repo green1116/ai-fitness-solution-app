@@ -1,6 +1,10 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth/currentUser";
+import {
+  CRM_PLATFORM_MUTATION_BLOCKED_MESSAGE,
+  isCrmPlatformMutationAllowed,
+} from "@/lib/crm/crm.mutation-auth";
 import { CRM_TENANT_BLOCKED_MESSAGE, isCrmEntityOwnedByOrg } from "@/lib/crm/crm.tenant-guard";
 import { openDealForOpportunity, closeDealWon } from "@/lib/crm/deal/deal.service";
 import { promoteLeadToOpportunity } from "@/lib/crm/lead/lead.service";
@@ -224,6 +228,16 @@ export async function submitWorkspaceCrmAction(
         entityId: parsed.id,
         opportunityId: parsed.entity === "opp" ? parsed.id : null,
         message: "Auth blocked: unable to resolve user",
+      });
+    }
+
+    const user = await getCurrentUser();
+    if (!isCrmPlatformMutationAllowed(user?.email)) {
+      return blockedResult({
+        entity: parsed.entity,
+        entityId: parsed.id,
+        opportunityId: parsed.entity === "opp" ? parsed.id : null,
+        message: CRM_PLATFORM_MUTATION_BLOCKED_MESSAGE,
       });
     }
 

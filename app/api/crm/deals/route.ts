@@ -5,6 +5,10 @@ import { isKnownApiError } from "@/lib/error/api-error.mapper";
 import { trackDealProgress, closeDealWon, closeDealLost } from "@/lib/crm/crm.service";
 import { openDealForOpportunity } from "@/lib/crm/deal/deal.service";
 import {
+  CRM_PLATFORM_MUTATION_BLOCKED_MESSAGE,
+  isCrmPlatformMutationAllowed,
+} from "@/lib/crm/crm.mutation-auth";
+import {
   CRM_TENANT_BLOCKED_MESSAGE,
   isCrmEntityOwnedByOrg,
 } from "@/lib/crm/crm.tenant-guard";
@@ -47,6 +51,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "close_won") {
+      if (!isCrmPlatformMutationAllowed(gate.email)) {
+        return NextResponse.json(
+          { ok: false, message: CRM_PLATFORM_MUTATION_BLOCKED_MESSAGE, traceId },
+          { status: 403 },
+        );
+      }
       const dealId = String(body?.dealId ?? "").trim();
       if (
         !(await isCrmEntityOwnedByOrg({
@@ -79,6 +89,13 @@ export async function POST(req: NextRequest) {
     const opportunityId = String(body?.opportunityId ?? "").trim();
     if (!opportunityId) {
       return NextResponse.json({ ok: false, message: "opportunityId required", traceId }, { status: 400 });
+    }
+
+    if (!isCrmPlatformMutationAllowed(gate.email)) {
+      return NextResponse.json(
+        { ok: false, message: CRM_PLATFORM_MUTATION_BLOCKED_MESSAGE, traceId },
+        { status: 403 },
+      );
     }
 
     if (
