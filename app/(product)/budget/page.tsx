@@ -36,18 +36,52 @@ type BudgetSummaryState = {
   currency?: string;
 };
 
+type BudgetSummaryBinding = {
+  projectId: string;
+  quoteId?: string;
+};
+
 const BUDGET_SUMMARY_STORAGE_KEY = "product-budget-summary";
 
-function readStoredBudgetSummary(budgetId: string): BudgetSummaryState | null {
+function trimBindingId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function budgetSummaryMatchesBinding(
+  parsed: BudgetSummaryState & {
+    budgetId?: string;
+    projectId?: string;
+    quoteId?: string;
+  },
+  binding: BudgetSummaryBinding,
+): boolean {
+  const projectId = trimBindingId(binding.projectId);
+  const storedProjectId = trimBindingId(parsed.projectId);
+  if (!projectId || storedProjectId !== projectId) return false;
+  const quoteId = trimBindingId(binding.quoteId);
+  const storedQuoteId = trimBindingId(parsed.quoteId);
+  if (quoteId && storedQuoteId && storedQuoteId !== quoteId) return false;
+  return true;
+}
+
+function readStoredBudgetSummary(
+  budgetId: string,
+  binding?: BudgetSummaryBinding,
+): BudgetSummaryState | null {
   if (typeof window === "undefined") return null;
   const id = budgetId.trim();
   if (!id) return null;
   try {
     const raw = window.sessionStorage.getItem(BUDGET_SUMMARY_STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as BudgetSummaryState & { budgetId?: string };
+    const parsed = JSON.parse(raw) as BudgetSummaryState & {
+      budgetId?: string;
+      projectId?: string;
+      quoteId?: string;
+    };
     if (parsed.budgetId !== id) return null;
     if (typeof parsed.companySize !== "number" || !parsed.budgetTier) return null;
+    if (binding && !budgetSummaryMatchesBinding(parsed, binding)) return null;
     return {
       companySize: parsed.companySize,
       budgetTier: parsed.budgetTier,
@@ -64,12 +98,43 @@ function readStoredBudgetSummary(budgetId: string): BudgetSummaryState | null {
   }
 }
 
-function writeStoredBudgetSummary(budgetId: string, summary: BudgetSummaryState): void {
+function writeStoredBudgetSummary(
+  budgetId: string,
+  summary: BudgetSummaryState,
+  binding?: BudgetSummaryBinding,
+): void {
   if (typeof window === "undefined") return;
   window.sessionStorage.setItem(
     BUDGET_SUMMARY_STORAGE_KEY,
-    JSON.stringify({ budgetId, ...summary }),
+    JSON.stringify({
+      budgetId,
+      ...summary,
+      ...(binding?.projectId ? { projectId: binding.projectId } : {}),
+      ...(binding?.quoteId ? { quoteId: binding.quoteId } : {}),
+    }),
   );
+}
+
+function resolveBoundBudgetSummary(
+  budgetId: string,
+  binding: BudgetSummaryBinding,
+): BudgetSummaryState | null {
+  const id = budgetId.trim();
+  return id ? readStoredBudgetSummary(id, binding) : null;
+}
+
+async function applyProjectBudgetDefaults(
+  projectId: string,
+  organizationId: string,
+  apply: (defaults: {
+    companySize?: number;
+    budgetTier?: "low" | "mid" | "high";
+  }) => void,
+): Promise<void> {
+  const defaults = await fetchProjectBudgetDefaults(projectId, organizationId);
+  if (!defaults) return;
+  if (defaults.companySize) apply({ companySize: defaults.companySize });
+  if (defaults.budgetTier) apply({ budgetTier: defaults.budgetTier });
 }
 
 async function resolveOrganizationId(): Promise<string> {
@@ -126,6 +191,17 @@ async function fetchProjectBudgetDefaults(
   };
 }
 
+function isBudgetDraftDirty(
+  companySize: string,
+  budgetTier: "low" | "mid" | "high",
+  budgetSummary: BudgetSummaryState | null,
+): boolean {
+  if (!budgetSummary) return false;
+  const size = Number(companySize);
+  if (!Number.isFinite(size) || size <= 0) return true;
+  return size !== budgetSummary.companySize || budgetTier !== budgetSummary.budgetTier;
+}
+
 function BudgetForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -140,6 +216,9 @@ function BudgetForm() {
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummaryState | null>(null);
   const [tenderEntitlement, setTenderEntitlement] =
     useState<TenderClientEntitlement | null>(null);
+  const budgetDraftDirty = isBudgetDraftDirty(companySize, budgetTier, budgetSummary);
+  const canDownloadPdf =
+    Boolean(projectId && budgetId && budgetSummary) && !budgetDraftDirty;
 
   useEffect(() => {
     let cancelled = false;
@@ -151,44 +230,57 @@ function BudgetForm() {
       setOrganizationId(organizationId);
       const ownedIds = organizationId ? await listOwnedProjectIds(organizationId) : [];
       if (cancelled) return;
+      const urlProjectId = urlCtx.projectId?.trim() ?? "";
       const urlBudgetId = urlCtx.budgetId?.trim() ?? "";
       const ownedProjectId = pickOwnedProjectId(
-        urlCtx.projectId?.trim() || ctx.projectId,
+        urlProjectId || ctx.projectId,
         ownedIds,
       );
       const resolvedQuoteId = urlCtx.quoteId?.trim() || ctx.quoteId?.trim() || "";
       setProjectId(ownedProjectId);
       setQuoteId(resolvedQuoteId);
+      let entitlementBudgetId = "";
 
-      if (ownedProjectId) {
-        setBudgetId(urlBudgetId);
-        setBudgetSummary(null);
-        if (urlBudgetId) {
-          const stored = readStoredBudgetSummary(urlBudgetId);
+      if (urlProjectId && ownedProjectId) {
+        const binding: BudgetSummaryBinding = {
+          projectId: ownedProjectId,
+          ...(resolvedQuoteId ? { quoteId: resolvedQuoteId } : {}),
+        };
+        const budgetCandidates = [urlBudgetId, ctx.budgetId?.trim() ?? ""].filter(
+          (id, index, ids) => id && ids.indexOf(id) === index,
+        );
+        let acceptedBudgetId = "";
+        let acceptedSummary: BudgetSummaryState | null = null;
+        for (const candidateId of budgetCandidates) {
+          const stored = resolveBoundBudgetSummary(candidateId, binding);
           if (stored) {
-            setBudgetSummary(stored);
-            setCompanySize(String(stored.companySize));
-            setBudgetTier(stored.budgetTier);
-          } else if (organizationId) {
-            const defaults = await fetchProjectBudgetDefaults(ownedProjectId, organizationId);
-            if (cancelled) return;
-            if (defaults?.companySize) setCompanySize(String(defaults.companySize));
-            if (defaults?.budgetTier) setBudgetTier(defaults.budgetTier);
+            acceptedBudgetId = candidateId;
+            acceptedSummary = stored;
+            break;
           }
+        }
+        entitlementBudgetId = acceptedBudgetId;
+        setBudgetId(acceptedBudgetId);
+        setBudgetSummary(acceptedSummary);
+        if (acceptedSummary) {
+          setCompanySize(String(acceptedSummary.companySize));
+          setBudgetTier(acceptedSummary.budgetTier);
         } else if (organizationId) {
-          const defaults = await fetchProjectBudgetDefaults(ownedProjectId, organizationId);
+          await applyProjectBudgetDefaults(ownedProjectId, organizationId, (defaults) => {
+            if (defaults.companySize) setCompanySize(String(defaults.companySize));
+            if (defaults.budgetTier) setBudgetTier(defaults.budgetTier);
+          });
           if (cancelled) return;
-          if (defaults?.companySize) setCompanySize(String(defaults.companySize));
-          if (defaults?.budgetTier) setBudgetTier(defaults.budgetTier);
         }
         writeStoredProductContext({
           organizationId,
           projectId: ownedProjectId,
           ...(resolvedQuoteId ? { quoteId: resolvedQuoteId } : {}),
-          ...(urlBudgetId ? { budgetId: urlBudgetId } : {}),
+          ...(acceptedBudgetId ? { budgetId: acceptedBudgetId } : {}),
         });
       } else {
         const nextBudgetId = ctx.budgetId ?? "";
+        entitlementBudgetId = nextBudgetId;
         setBudgetId(nextBudgetId);
         let hydratedFromSummary = false;
         if (nextBudgetId) {
@@ -218,8 +310,7 @@ function BudgetForm() {
             organizationId,
             projectId: ownedProjectId,
             quoteId: resolvedQuoteId || ctx.quoteId,
-            ...(ownedProjectId && urlBudgetId ? { budgetId: urlBudgetId } : {}),
-            ...(!ownedProjectId && ctx.budgetId ? { budgetId: ctx.budgetId } : {}),
+            ...(entitlementBudgetId ? { budgetId: entitlementBudgetId } : {}),
           }, { currentPath: "/budget" }),
         );
       }
@@ -275,13 +366,20 @@ function BudgetForm() {
           totalEstimateMax: data.structure?.totalEstimateMax,
           currency: data.structure?.currency,
         });
-        writeStoredBudgetSummary(data.budgetId, {
-          companySize: Number(companySize),
-          budgetTier,
-          totalEstimateMin: data.structure?.totalEstimateMin,
-          totalEstimateMax: data.structure?.totalEstimateMax,
-          currency: data.structure?.currency,
-        });
+        writeStoredBudgetSummary(
+          data.budgetId,
+          {
+            companySize: Number(companySize),
+            budgetTier,
+            totalEstimateMin: data.structure?.totalEstimateMin,
+            totalEstimateMax: data.structure?.totalEstimateMax,
+            currency: data.structure?.currency,
+          },
+          {
+            projectId: boundProjectId,
+            quoteId: data.quoteId?.trim() || quoteId,
+          },
+        );
         writeStoredProductContext({
           organizationId,
           projectId: boundProjectId,
@@ -313,8 +411,7 @@ function BudgetForm() {
   }
 
   async function handleDownloadPdf() {
-    if (!projectId || !budgetId) return;
-    const sizeForPdf = budgetSummary?.companySize ?? Number(companySize);
+    if (!canDownloadPdf || !budgetSummary) return;
     const res = await fetch("/api/pdf/tender/budget", {
       method: "POST",
       credentials: "include",
@@ -322,7 +419,8 @@ function BudgetForm() {
       body: JSON.stringify({
         projectId,
         planId: projectId,
-        companySize: sizeForPdf,
+        companySize: budgetSummary.companySize,
+        budgetTier: budgetSummary.budgetTier,
       }),
     });
     if (!res.ok) {
@@ -386,10 +484,14 @@ function BudgetForm() {
             <button
               type="button"
               onClick={handleDownloadPdf}
-              className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400"
+              disabled={!canDownloadPdf}
+              className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               下载 PDF
             </button>
+          ) : null}
+          {budgetId && budgetDraftDirty ? (
+            <p className="text-sm text-amber-300">参数已修改，请重新计算预算</p>
           ) : null}
           {budgetId ? (
             <section className="rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
