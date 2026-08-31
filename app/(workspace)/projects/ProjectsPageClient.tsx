@@ -32,9 +32,9 @@ function ProjectRow({ project }: { project: ProjectItem }) {
     <li>
       <Link
         href={`/projects/${project.id}`}
-        className="block rounded-xl border border-zinc-800 bg-black p-4 hover:border-zinc-600"
+        className="block cursor-pointer rounded-xl border border-zinc-800 bg-black p-4 transition hover:border-zinc-600 hover:bg-zinc-950"
       >
-        <div className="font-semibold">{project.name}</div>
+        <div className="font-semibold text-white hover:underline">{project.name}</div>
         <div className="mt-1 text-xs text-zinc-400">
           {project.clientName ?? "—"} · Quote {project.quoteCount} · Tender{" "}
           {project.tenderCount}

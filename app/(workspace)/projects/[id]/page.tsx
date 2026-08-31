@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { TenderEnterpriseUpgradeCta } from "@/app/(product)/TenderEnterpriseUpgradeCta";
 import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { evaluatePaywall } from "@/lib/growth/conversion/paywall.engine";
-import { listOrganizationsForUser } from "@/lib/organization/organization.service";
+import {
+  ensureOrganizationForUser,
+  listOrganizationsForUser,
+} from "@/lib/organization/organization.service";
 import {
   PEX_INTELLIGENCE_ENDPOINT,
   readProductIntelligenceExperience,
@@ -17,22 +20,34 @@ export default async function ProjectDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const existing = await listOrganizationsForUser(user.id);
+  const organization =
+    existing[0]?.organization ??
+    (await ensureOrganizationForUser({
+      userId: user.id,
+      name: user.name ?? undefined,
+    }));
+
   const { id } = await params;
   const project = await getProjectById(id);
-  const { status, signals, attention } = await readProductIntelligenceExperience();
-  const user = await getCurrentUser();
-  const organization =
-    user ? (await listOrganizationsForUser(user.id))[0]?.organization : null;
-  const tenderPaywall = organization
-    ? await evaluatePaywall({
-        organizationId: organization.id,
-        userId: user?.id,
-        trigger: "tender_generation_click",
-      })
-    : null;
-  const canGenerateTender = tenderPaywall ? !tenderPaywall.showPaywall : false;
+  if (
+    !project ||
+    !project.organizationId ||
+    project.organizationId !== organization.id
+  ) {
+    notFound();
+  }
 
-  if (!project) notFound();
+  const { status, signals, attention } = await readProductIntelligenceExperience();
+  const tenderPaywall = await evaluatePaywall({
+    organizationId: organization.id,
+    userId: user.id,
+    trigger: "tender_generation_click",
+  });
+  const canGenerateTender = !tenderPaywall.showPaywall;
 
   return (
     <div className="space-y-6">
