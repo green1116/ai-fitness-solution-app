@@ -1,16 +1,13 @@
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { analyzeCustomers } from "@/lib/dashboard/analytics/customer.analytics";
+import { analyzePlatformCustomers } from "@/lib/dashboard/analytics/customer.analytics";
 import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
-import { listOrganizationsForUser } from "@/lib/organization/organization.service";
 import { redirect } from "next/navigation";
 
 export default async function CustomersDashboardPage() {
   const user = await getCurrentUser();
   if (!isPlatformAdminEmail(user?.email)) redirect("/projects");
-  const orgs = user ? await listOrganizationsForUser(user.id) : [];
-  const organizationId = orgs[0]?.organization.id ?? "";
-  const customers = await analyzeCustomers(organizationId);
+  const customers = await analyzePlatformCustomers();
 
   return (
     <div className="space-y-6">

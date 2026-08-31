@@ -212,6 +212,62 @@ function computePostWinActivityFromSnapshot(
   return postWinActivityCountByCustomer;
 }
 
+function mergeCrmMetrics(parts: readonly CRMMetrics[]): CRMMetrics {
+  return parts.reduce(
+    (acc, part) => ({
+      totalCustomers: acc.totalCustomers + part.totalCustomers,
+      totalLeads: acc.totalLeads + part.totalLeads,
+      qualifiedLeads: acc.qualifiedLeads + part.qualifiedLeads,
+      opportunities: acc.opportunities + part.opportunities,
+      dealsWon: acc.dealsWon + part.dealsWon,
+      revenue: acc.revenue + part.revenue,
+    }),
+    createEmptyCRMMetrics(),
+  );
+}
+
+async function listDistinctCrmOrganizationIds(): Promise<string[]> {
+  const rows = await prisma.customer.findMany({
+    select: { organizationId: true },
+    distinct: ["organizationId"],
+  });
+  return rows.map((row) => row.organizationId).sort();
+}
+
+function buildCustomerAnalyticsView(input: {
+  crm: CRMMetrics;
+  organizations: number;
+  wonCustomerIds: string[];
+  revenueByCustomer: Record<string, number>;
+  postWinActivityCountByCustomer: Record<string, number>;
+}) {
+  const growth = aggregateGrowthMetrics();
+  const paidRatio =
+    growth.signups > 0 ? Math.round((growth.paidUsers / growth.signups) * 100) : 0;
+
+  return {
+    crm: input.crm,
+    organizations: input.organizations,
+    totalCustomers: input.crm.totalCustomers,
+    paidUserRatio: paidRatio,
+    lifecycle: {
+      leads: input.crm.totalLeads,
+      qualified: input.crm.qualifiedLeads,
+      opportunities: input.crm.opportunities,
+      dealsWon: input.crm.dealsWon,
+      revenue: input.crm.revenue,
+    },
+    wonCustomerIds: input.wonCustomerIds,
+    revenueByCustomer: input.revenueByCustomer,
+    postWinActivityCountByCustomer: input.postWinActivityCountByCustomer,
+    growthOverlay: {
+      signups: growth.signups,
+      activated: growth.activatedUsers,
+      paid: growth.paidUsers,
+    },
+  };
+}
+
 export async function analyzeCustomers(organizationId: string) {
   let crm = createEmptyCRMMetrics();
   let wonCustomerIds: string[] = [];
@@ -237,31 +293,57 @@ export async function analyzeCustomers(organizationId: string) {
     }
   }
 
-  const growth = aggregateGrowthMetrics();
-  const paidRatio =
-    growth.signups > 0 ? Math.round((growth.paidUsers / growth.signups) * 100) : 0;
-
-  return {
+  return buildCustomerAnalyticsView({
     crm,
     organizations: organizationId ? 1 : 0,
-    totalCustomers: crm.totalCustomers,
-    paidUserRatio: paidRatio,
-    lifecycle: {
-      leads: crm.totalLeads,
-      qualified: crm.qualifiedLeads,
-      opportunities: crm.opportunities,
-      dealsWon: crm.dealsWon,
-      revenue: crm.revenue,
-    },
     wonCustomerIds,
     revenueByCustomer,
     postWinActivityCountByCustomer,
-    growthOverlay: {
-      signups: growth.signups,
-      activated: growth.activatedUsers,
-      paid: growth.paidUsers,
-    },
-  };
+  });
+}
+
+export async function analyzePlatformCustomers() {
+  let crm = createEmptyCRMMetrics();
+  let wonCustomerIds: string[] = [];
+  let revenueByCustomer: Record<string, number> = {};
+  let postWinActivityCountByCustomer: Record<string, number> = {};
+  let organizations = 0;
+
+  try {
+    const organizationIds = await listDistinctCrmOrganizationIds();
+    organizations = organizationIds.length;
+    const crmParts: CRMMetrics[] = [];
+
+    for (const organizationId of organizationIds) {
+      const snapshot = await loadOrgCustomerAnalyticsSnapshot(organizationId);
+      crmParts.push(computeCrmMetricsFromSnapshot(snapshot));
+      const won = computeWonRevenueFromSnapshot(snapshot);
+      for (const customerId of won.wonCustomerIds) {
+        revenueByCustomer[customerId] = won.revenueByCustomer[customerId];
+      }
+      Object.assign(
+        postWinActivityCountByCustomer,
+        computePostWinActivityFromSnapshot(snapshot, won.wonCustomerIds),
+      );
+    }
+
+    crm = mergeCrmMetrics(crmParts);
+    wonCustomerIds = Object.keys(revenueByCustomer).sort();
+  } catch {
+    crm = createEmptyCRMMetrics();
+    wonCustomerIds = [];
+    revenueByCustomer = {};
+    postWinActivityCountByCustomer = {};
+    organizations = 0;
+  }
+
+  return buildCustomerAnalyticsView({
+    crm,
+    organizations,
+    wonCustomerIds,
+    revenueByCustomer,
+    postWinActivityCountByCustomer,
+  });
 }
 
 export function analyzeCustomersFromEvents() {

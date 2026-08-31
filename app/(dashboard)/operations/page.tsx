@@ -2,10 +2,9 @@ import { GET } from "@/app/api/operations/surface/route";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import type { OperationsSurface } from "@/lib/commercial/operations-surface";
-import { analyzeCustomers } from "@/lib/dashboard/analytics/customer.analytics";
+import { analyzePlatformCustomers } from "@/lib/dashboard/analytics/customer.analytics";
 import { analyzeOperations } from "@/lib/dashboard/analytics/operations.analytics";
 import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
-import { listOrganizationsForUser } from "@/lib/organization/organization.service";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 
@@ -48,9 +47,7 @@ export default async function OperationsDashboardPage() {
   const user = await getCurrentUser();
   if (!isPlatformAdminEmail(user?.email)) redirect("/projects");
 
-  const orgs = user ? await listOrganizationsForUser(user.id) : [];
-  const organizationId = orgs[0]?.organization.id ?? "";
-  const customers = await analyzeCustomers(organizationId);
+  const customers = await analyzePlatformCustomers();
   const totalWonCustomers = customers.wonCustomerIds.length;
   const totalWonRevenue = customers.wonCustomerIds.reduce(
     (sum, id) => sum + (customers.revenueByCustomer[id] ?? 0),
