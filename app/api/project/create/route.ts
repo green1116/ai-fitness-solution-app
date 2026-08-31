@@ -5,6 +5,10 @@ import { isKnownApiError } from "@/lib/error/api-error.mapper";
 import { getGrowthEventsSnapshot } from "@/lib/growth/growth.events.store";
 import { recordProjectCreation } from "@/lib/growth/growth.service";
 import { runSaasOrgGate, saasGateErrorResponse } from "@/lib/saas/api-gate";
+import {
+  parseBudgetLevelValue,
+  parseSiteTypeValue,
+} from "@/lib/project/project-intake";
 import { createProject } from "@/lib/services/project.service";
 
 export async function POST(req: NextRequest) {
@@ -35,6 +39,8 @@ export async function POST(req: NextRequest) {
       city: body?.city,
       areaM2: body?.areaM2 ? Number(body.areaM2) : undefined,
       targetUsers: body?.targetUsers ? Number(body.targetUsers) : undefined,
+      siteType: parseSiteTypeValue(body?.siteType),
+      budgetLevel: parseBudgetLevelValue(body?.budgetLevel),
       notes: body?.notes,
       organizationId: gate.organizationId,
     });

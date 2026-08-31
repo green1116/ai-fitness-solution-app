@@ -117,9 +117,13 @@ export async function GET(req: NextRequest, context: RouteContext) {
             hasBudget: Boolean(project.budgets[0]),
             name: project.name,
             clientName: project.clientName,
+            industry: project.industry,
+            city: project.city,
             areaM2: project.areaM2,
             targetUsers: project.targetUsers,
+            siteType: project.siteType,
             budgetLevel: project.budgetLevel,
+            notes: project.notes,
           }
         : { exists: false },
       planJob: planJob

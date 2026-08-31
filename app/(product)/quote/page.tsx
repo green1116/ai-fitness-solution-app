@@ -10,6 +10,11 @@ import {
   resolveClientProductContext,
   writeStoredProductContext,
 } from "@/app/(product)/commercial-context";
+import {
+  projectIntakeToCreatePayload,
+  quotePayloadFromProjectIntake,
+  type StoredProjectIntake,
+} from "@/lib/project/project-intake";
 
 type OrgMe = { organizationId?: string | null };
 type ProjectListItem = { id: string; name?: string; clientName?: string | null };
@@ -73,6 +78,21 @@ async function listOwnedProjects(organizationId: string): Promise<ProjectListIte
   return list.ok === true ? list.projects ?? [] : [];
 }
 
+async function fetchProjectIntake(
+  projectId: string,
+  organizationId: string,
+): Promise<StoredProjectIntake | null> {
+  const res = await fetch(`/api/project/${encodeURIComponent(projectId)}`, {
+    headers: { "x-organization-id": organizationId },
+  });
+  const data = (await res.json()) as {
+    ok?: boolean;
+    project?: StoredProjectIntake & { exists?: boolean };
+  };
+  if (!data.ok || !data.project?.exists) return null;
+  return data.project;
+}
+
 async function createOrgProject(
   organizationId: string,
   companyName: string,
@@ -81,8 +101,18 @@ async function createOrgProject(
     method: "POST",
     headers: orgHeaders(organizationId),
     body: JSON.stringify({
-      name: companyName,
-      clientName: companyName,
+      ...projectIntakeToCreatePayload({
+        name: companyName,
+        clientName: companyName,
+        scenario: "企业办公楼",
+        goal: "提升员工健康",
+        companySize: "",
+        area: "",
+        budget: "5-10万",
+        city: "",
+        industry: "",
+        notes: "",
+      }),
       organizationId,
     }),
   });
@@ -105,6 +135,7 @@ function QuoteForm() {
   const [error, setError] = useState("");
   const [proposal, setProposal] = useState<QuoteProposalView | null>(null);
   const [quoteId, setQuoteId] = useState("");
+  const [projectIntake, setProjectIntake] = useState<StoredProjectIntake | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,8 +156,16 @@ function QuoteForm() {
         owned.map((p) => p.id),
       );
       const ownedProject = owned.find((p) => p.id === ownedProjectId);
-      const resolvedName = companyNameFromProject(ownedProject);
+      const storedIntake =
+        ownedProjectId && organizationId
+          ? await fetchProjectIntake(ownedProjectId, organizationId)
+          : null;
+      if (cancelled) return;
+      const resolvedName =
+        companyNameFromProject(storedIntake ?? ownedProject) ||
+        companyNameFromProject(ownedProject);
       setProjectId(ownedProjectId);
+      setProjectIntake(storedIntake);
       writeStoredProductContext({
         ...ctx,
         organizationId,
@@ -168,19 +207,28 @@ function QuoteForm() {
         projectId,
         owned.map((p) => p.id),
       );
+      let intake = projectIntake;
+      if (nextProjectId) {
+        intake = (await fetchProjectIntake(nextProjectId, organizationId)) ?? intake;
+        setProjectIntake(intake);
+      }
       if (!nextProjectId) {
         nextProjectId = await createOrgProject(organizationId, companyName.trim());
+        intake = (await fetchProjectIntake(nextProjectId, organizationId)) ?? intake;
+        setProjectIntake(intake);
       }
 
       const res = await fetch("/api/quote/generate", {
         method: "POST",
         headers: orgHeaders(organizationId),
-        body: JSON.stringify({
-          projectId: nextProjectId,
-          companyName: companyName.trim(),
-          workspaceId: organizationId,
-          organizationId,
-        }),
+        body: JSON.stringify(
+          quotePayloadFromProjectIntake({
+            projectId: nextProjectId,
+            organizationId,
+            companyName: companyName.trim(),
+            project: intake,
+          }),
+        ),
       });
       const data = (await res.json()) as GenerateQuoteResponse;
       const readyProposal =
@@ -240,9 +288,21 @@ function QuoteForm() {
             加载中…
           </p>
         ) : companyLocked ? (
-          <p className="rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-300">
-            企业：{companyName}
-          </p>
+          <div className="space-y-3 rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-300">
+            <p>企业：{companyName}</p>
+            {projectIntake ? (
+              <p className="text-xs text-zinc-500">
+                {[
+                  projectIntake.targetUsers ? `${projectIntake.targetUsers} 人` : null,
+                  projectIntake.areaM2 ? `${projectIntake.areaM2} ㎡` : null,
+                  projectIntake.city?.trim() || null,
+                  projectIntake.industry?.trim() || null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "项目参数已绑定"}
+              </p>
+            ) : null}
+          </div>
         ) : (
           <input
             className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-3"
