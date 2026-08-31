@@ -29,6 +29,29 @@ type GenerateQuoteResponse = {
   message?: string;
 };
 
+const SECTION_PREVIEW_MAX = 120;
+
+function truncateSectionPreview(body: string, max = SECTION_PREVIEW_MAX): string {
+  const trimmed = body.replace(/\s+/g, " ").trim();
+  if (!trimmed) return "";
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max).trimEnd()}…`;
+}
+
+function buildCustomerSummary(
+  proposal: QuoteProposalView,
+  companyName: string,
+): string {
+  const sectionCount = proposal.sections?.length ?? 0;
+  const base =
+    proposal.summary?.trim() ||
+    `已为 ${companyName.trim() || "您的企业"} 生成健身空间方案建议。`;
+  if (sectionCount > 0) {
+    return `${base} 共 ${sectionCount} 个章节，完整正文请下载 Plan PDF 查看。`;
+  }
+  return `${base} 完整正文请下载 Plan PDF 查看。`;
+}
+
 function orgHeaders(organizationId: string): HeadersInit {
   return {
     "Content-Type": "application/json",
@@ -240,12 +263,13 @@ function QuoteForm() {
 
       {proposal ? (
         <article className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
-          <h2 className="text-xl font-semibold text-zinc-100">
-            {proposal.summary || "生成方案"}
-          </h2>
+          <h2 className="text-xl font-semibold text-zinc-100">方案结果摘要</h2>
           {proposal.generatedAt ? (
             <p className="text-xs text-zinc-500">{proposal.generatedAt}</p>
           ) : null}
+          <p className="text-sm leading-relaxed text-zinc-300">
+            {buildCustomerSummary(proposal, companyName)}
+          </p>
           {quoteId ? (
             <div className="flex flex-wrap items-center gap-3">
               <Link
@@ -267,16 +291,29 @@ function QuoteForm() {
               </button>
             </div>
           ) : null}
-          {proposal.sections?.map((section, index) => (
-            <section key={`${section.title ?? "section"}-${index}`} className="space-y-1">
-              {section.title ? (
-                <h3 className="text-sm font-medium text-zinc-200">{section.title}</h3>
-              ) : null}
-              {section.body ? (
-                <p className="text-sm leading-6 text-zinc-300">{section.body}</p>
-              ) : null}
-            </section>
-          ))}
+          {proposal.sections && proposal.sections.length > 0 ? (
+            <div className="space-y-3">
+              <p className="text-xs text-zinc-500">章节预览（完整内容见 PDF）</p>
+              {proposal.sections.map((section, index) => {
+                const preview = section.body
+                  ? truncateSectionPreview(section.body)
+                  : "";
+                return (
+                  <section
+                    key={`${section.title ?? "section"}-${index}`}
+                    className="rounded-lg border border-zinc-800 bg-black/40 px-4 py-3"
+                  >
+                    {section.title ? (
+                      <h3 className="text-sm font-medium text-zinc-200">{section.title}</h3>
+                    ) : null}
+                    {preview ? (
+                      <p className="mt-1 text-xs leading-relaxed text-zinc-400">{preview}</p>
+                    ) : null}
+                  </section>
+                );
+              })}
+            </div>
+          ) : null}
         </article>
       ) : null}
 
