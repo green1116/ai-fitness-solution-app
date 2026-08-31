@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  parseProductContextSearch,
   pickOwnedProjectId,
   productHref,
   resolveClientProductContext,
@@ -85,6 +86,46 @@ async function listOwnedProjectIds(organizationId: string): Promise<string[]> {
   return list.ok === true ? (list.projects ?? []).map((p) => p.id).filter(Boolean) : [];
 }
 
+function projectBudgetLevelToTier(
+  level: string | null | undefined,
+): "low" | "mid" | "high" | null {
+  const value = String(level ?? "").trim().toLowerCase();
+  if (value === "low" || value === "mid" || value === "high") return value;
+  if (value === "custom") return "high";
+  return null;
+}
+
+async function fetchProjectBudgetDefaults(
+  projectId: string,
+  organizationId: string,
+): Promise<{ companySize?: number; budgetTier?: "low" | "mid" | "high" } | null> {
+  const res = await fetch(`/api/project/${encodeURIComponent(projectId)}`, {
+    headers: { "x-organization-id": organizationId },
+  });
+  const data = (await res.json()) as {
+    ok?: boolean;
+    project?: {
+      exists?: boolean;
+      targetUsers?: number | null;
+      budgetLevel?: string | null;
+    };
+  };
+  if (!data.ok || !data.project?.exists) return null;
+
+  const companySize =
+    typeof data.project.targetUsers === "number" &&
+    Number.isFinite(data.project.targetUsers) &&
+    data.project.targetUsers > 0
+      ? Math.floor(data.project.targetUsers)
+      : undefined;
+  const budgetTier = projectBudgetLevelToTier(data.project.budgetLevel);
+
+  return {
+    ...(companySize ? { companySize } : {}),
+    ...(budgetTier ? { budgetTier } : {}),
+  };
+}
+
 function BudgetForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -103,39 +144,85 @@ function BudgetForm() {
   useEffect(() => {
     let cancelled = false;
     async function hydrate() {
+      const urlCtx = parseProductContextSearch(searchParams);
       const ctx = resolveClientProductContext(searchParams);
       const organizationId = await resolveOrganizationId();
       if (cancelled) return;
       setOrganizationId(organizationId);
       const ownedIds = organizationId ? await listOwnedProjectIds(organizationId) : [];
       if (cancelled) return;
-      const ownedProjectId = pickOwnedProjectId(ctx.projectId, ownedIds);
+      const urlBudgetId = urlCtx.budgetId?.trim() ?? "";
+      const ownedProjectId = pickOwnedProjectId(
+        urlCtx.projectId?.trim() || ctx.projectId,
+        ownedIds,
+      );
+      const resolvedQuoteId = urlCtx.quoteId?.trim() || ctx.quoteId?.trim() || "";
       setProjectId(ownedProjectId);
-      setQuoteId(ctx.quoteId ?? "");
-      const nextBudgetId = ctx.budgetId ?? "";
-      setBudgetId(nextBudgetId);
-      if (nextBudgetId) {
-        const stored = readStoredBudgetSummary(nextBudgetId);
-        if (stored) {
-          setBudgetSummary(stored);
-          setCompanySize(String(stored.companySize));
-          setBudgetTier(stored.budgetTier);
+      setQuoteId(resolvedQuoteId);
+
+      if (ownedProjectId) {
+        setBudgetId(urlBudgetId);
+        setBudgetSummary(null);
+        if (urlBudgetId) {
+          const stored = readStoredBudgetSummary(urlBudgetId);
+          if (stored) {
+            setBudgetSummary(stored);
+            setCompanySize(String(stored.companySize));
+            setBudgetTier(stored.budgetTier);
+          } else if (organizationId) {
+            const defaults = await fetchProjectBudgetDefaults(ownedProjectId, organizationId);
+            if (cancelled) return;
+            if (defaults?.companySize) setCompanySize(String(defaults.companySize));
+            if (defaults?.budgetTier) setBudgetTier(defaults.budgetTier);
+          }
+        } else if (organizationId) {
+          const defaults = await fetchProjectBudgetDefaults(ownedProjectId, organizationId);
+          if (cancelled) return;
+          if (defaults?.companySize) setCompanySize(String(defaults.companySize));
+          if (defaults?.budgetTier) setBudgetTier(defaults.budgetTier);
         }
+        writeStoredProductContext({
+          organizationId,
+          projectId: ownedProjectId,
+          ...(resolvedQuoteId ? { quoteId: resolvedQuoteId } : {}),
+          ...(urlBudgetId ? { budgetId: urlBudgetId } : {}),
+        });
+      } else {
+        const nextBudgetId = ctx.budgetId ?? "";
+        setBudgetId(nextBudgetId);
+        let hydratedFromSummary = false;
+        if (nextBudgetId) {
+          const stored = readStoredBudgetSummary(nextBudgetId);
+          if (stored) {
+            setBudgetSummary(stored);
+            setCompanySize(String(stored.companySize));
+            setBudgetTier(stored.budgetTier);
+            hydratedFromSummary = true;
+          }
+        }
+        if (!hydratedFromSummary && ownedProjectId && organizationId) {
+          const defaults = await fetchProjectBudgetDefaults(ownedProjectId, organizationId);
+          if (cancelled) return;
+          if (defaults?.companySize) setCompanySize(String(defaults.companySize));
+          if (defaults?.budgetTier) setBudgetTier(defaults.budgetTier);
+        }
+        writeStoredProductContext({
+          ...ctx,
+          organizationId,
+          ...(ownedProjectId ? { projectId: ownedProjectId } : {}),
+        });
       }
       if (organizationId) {
         setTenderEntitlement(
           await loadTenderClientEntitlement(organizationId, {
-            ...ctx,
             organizationId,
-            ...(ownedProjectId ? { projectId: ownedProjectId } : {}),
+            projectId: ownedProjectId,
+            quoteId: resolvedQuoteId || ctx.quoteId,
+            ...(ownedProjectId && urlBudgetId ? { budgetId: urlBudgetId } : {}),
+            ...(!ownedProjectId && ctx.budgetId ? { budgetId: ctx.budgetId } : {}),
           }, { currentPath: "/budget" }),
         );
       }
-      writeStoredProductContext({
-        ...ctx,
-        organizationId,
-        ...(ownedProjectId ? { projectId: ownedProjectId } : {}),
-      });
     }
     void hydrate();
     return () => {

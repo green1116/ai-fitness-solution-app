@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   companyNameFromProject,
+  parseProductContextSearch,
   pickOwnedProjectId,
   productHref,
   resolveClientProductContext,
@@ -35,6 +36,70 @@ type GenerateQuoteResponse = {
 };
 
 const SECTION_PREVIEW_MAX = 120;
+const QUOTE_BY_PROJECT_KEY = "product-quote-by-project";
+const QUOTE_PROPOSAL_KEY = "product-quote-proposal";
+
+function trimQuoteId(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readStoredQuoteIdForProject(projectId: string): string {
+  if (typeof window === "undefined") return "";
+  const id = projectId.trim();
+  if (!id) return "";
+  try {
+    const raw = window.sessionStorage.getItem(QUOTE_BY_PROJECT_KEY);
+    if (!raw) return "";
+    const map = JSON.parse(raw) as Record<string, string>;
+    return trimQuoteId(map[id]);
+  } catch {
+    return "";
+  }
+}
+
+function readStoredQuoteProposal(quoteId: string): QuoteProposalView | null {
+  if (typeof window === "undefined") return null;
+  const id = trimQuoteId(quoteId);
+  if (!id) return null;
+  try {
+    const raw = window.sessionStorage.getItem(QUOTE_PROPOSAL_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, QuoteProposalView>;
+    const proposal = map[id];
+    return proposal && typeof proposal === "object" ? proposal : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredQuoteForProject(
+  projectId: string,
+  quoteId: string,
+  proposal: QuoteProposalView,
+): void {
+  if (typeof window === "undefined") return;
+  const project = projectId.trim();
+  const quote = trimQuoteId(quoteId);
+  if (!project || !quote) return;
+  try {
+    const raw = window.sessionStorage.getItem(QUOTE_BY_PROJECT_KEY);
+    const byProject = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    byProject[project] = quote;
+    window.sessionStorage.setItem(QUOTE_BY_PROJECT_KEY, JSON.stringify(byProject));
+
+    const proposalRaw = window.sessionStorage.getItem(QUOTE_PROPOSAL_KEY);
+    const byQuote = proposalRaw ? (JSON.parse(proposalRaw) as Record<string, QuoteProposalView>) : {};
+    byQuote[quote] = proposal;
+    window.sessionStorage.setItem(QUOTE_PROPOSAL_KEY, JSON.stringify(byQuote));
+  } catch {
+    // ignore
+  }
+}
+
+function stubProposalForRestore(companyName: string): QuoteProposalView {
+  const name = companyName.trim() || "您的企业";
+  return { summary: `已为 ${name} 生成健身空间方案建议。` };
+}
 
 function truncateSectionPreview(body: string, max = SECTION_PREVIEW_MAX): string {
   const trimmed = body.replace(/\s+/g, " ").trim();
@@ -140,6 +205,7 @@ function QuoteForm() {
   useEffect(() => {
     let cancelled = false;
     async function hydrate() {
+      const urlCtx = parseProductContextSearch(searchParams);
       const ctx = resolveClientProductContext(searchParams);
       const organizationId = await resolveOrganizationId();
       if (cancelled) return;
@@ -151,8 +217,9 @@ function QuoteForm() {
 
       const owned = await listOwnedProjects(organizationId);
       if (cancelled) return;
+      const urlProjectId = urlCtx.projectId?.trim() ?? "";
       const ownedProjectId = pickOwnedProjectId(
-        ctx.projectId,
+        urlProjectId || ctx.projectId,
         owned.map((p) => p.id),
       );
       const ownedProject = owned.find((p) => p.id === ownedProjectId);
@@ -166,11 +233,29 @@ function QuoteForm() {
         companyNameFromProject(ownedProject);
       setProjectId(ownedProjectId);
       setProjectIntake(storedIntake);
-      writeStoredProductContext({
-        ...ctx,
-        organizationId,
-        ...(ownedProjectId ? { projectId: ownedProjectId } : {}),
-      });
+      if (ownedProjectId) {
+        const resolvedQuoteId =
+          trimQuoteId(urlCtx.quoteId) ||
+          trimQuoteId(ctx.quoteId) ||
+          readStoredQuoteIdForProject(ownedProjectId);
+        if (resolvedQuoteId) {
+          const storedProposal = readStoredQuoteProposal(resolvedQuoteId);
+          setQuoteId(resolvedQuoteId);
+          setProposal(
+            storedProposal ?? stubProposalForRestore(resolvedName || companyName),
+          );
+        }
+        writeStoredProductContext({
+          organizationId,
+          projectId: ownedProjectId,
+          ...(resolvedQuoteId ? { quoteId: resolvedQuoteId } : {}),
+        });
+      } else {
+        writeStoredProductContext({
+          ...ctx,
+          organizationId,
+        });
+      }
       if (resolvedName) {
         setCompanyName(resolvedName);
         setCompanyLocked(true);
@@ -186,6 +271,9 @@ function QuoteForm() {
   async function handleGenerate() {
     if (!companyName.trim()) {
       alert("请填写企业名称");
+      return;
+    }
+    if (quoteId.trim()) {
       return;
     }
 
@@ -242,6 +330,7 @@ function QuoteForm() {
       setProjectId(boundProjectId);
 
       if (readyProposal && nextQuoteId) {
+        writeStoredQuoteForProject(boundProjectId, nextQuoteId, readyProposal);
         writeStoredProductContext({
           organizationId,
           projectId: boundProjectId,
