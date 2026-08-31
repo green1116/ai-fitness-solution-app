@@ -18,6 +18,12 @@ import { ensureProjectFromPlanJobId } from "@/lib/services/tender/provisionProje
 
 export const runtime = "nodejs";
 
+function parseRequestBudgetTier(raw: unknown): "low" | "mid" | "high" | undefined {
+  const value = String(raw ?? "").trim().toLowerCase();
+  if (value === "low" || value === "mid" || value === "high") return value;
+  return undefined;
+}
+
 /**
  * Budget PDF：权限来源唯一 = entitlement.budgetEnabled。
  * 数据来源：优先 Prisma Budget 行；缺失时使用 stub budget 兜底（避免"完整结果未生成"导致 404）。
@@ -29,6 +35,8 @@ export async function POST(req: Request) {
       planId?: string;
       tier?: string;
       companySize?: unknown;
+      budgetTier?: unknown;
+      budgetLevel?: unknown;
     };
     const { projectId, planId, tier: bodyTier } = body;
 
@@ -242,12 +250,15 @@ export async function POST(req: Request) {
         ? Math.round(bodyCompanySize)
         : project.targetUsers ?? 200;
 
+    const requestBudgetTier = parseRequestBudgetTier(body.budgetTier ?? body.budgetLevel);
+    const pdfBudgetLevel = requestBudgetTier ?? project.budgetLevel;
+
     const pdfBytes = await renderBudgetPdf(budget, {
       tier: renderTier,
       planId: requestPlanId,
       companyName: project.clientName ?? project.name ?? "投标企业",
       companySize,
-      budgetLevel: project.budgetLevel,
+      budgetLevel: pdfBudgetLevel,
     });
 
     return new Response(new Uint8Array(pdfBytes), {
