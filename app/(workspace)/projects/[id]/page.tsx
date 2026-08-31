@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { TenderEnterpriseUpgradeCta } from "@/app/(product)/TenderEnterpriseUpgradeCta";
 import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
 import { getCurrentUser } from "@/lib/auth/currentUser";
+import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
 import { evaluatePaywall } from "@/lib/growth/conversion/paywall.engine";
 import {
   ensureOrganizationForUser,
@@ -41,7 +42,9 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
-  const { status, signals, attention } = await readProductIntelligenceExperience();
+  const pex = isPlatformAdminEmail(user.email)
+    ? await readProductIntelligenceExperience()
+    : null;
   const tenderPaywall = await evaluatePaywall({
     organizationId: organization.id,
     userId: user.id,
@@ -60,17 +63,20 @@ export default async function ProjectDetailPage({
           {project.clientName ?? "—"} · {project.city ?? "—"}
         </p>
       </div>
-      <section className="rounded-lg border border-zinc-800 bg-black p-4 text-sm">
-        <p className="text-xs text-zinc-600">只读 · GET {PEX_INTELLIGENCE_ENDPOINT}</p>
-        <p className="mt-2">Status: {status}</p>
-        <p className="mt-1 text-zinc-300">
-          Signals: open {signals.openCount} · queued {signals.queuedCount} · watch{" "}
-          {signals.watchCount} · held {signals.heldCount} · escalate {signals.escalateCount}
-        </p>
-        <p className="mt-1 text-zinc-300">
-          Attention: open {attention.openCount} · escalate {attention.escalateCount}
-        </p>
-      </section>
+      {pex ? (
+        <section className="rounded-lg border border-zinc-800 bg-black p-4 text-sm">
+          <p className="text-xs text-zinc-600">只读 · GET {PEX_INTELLIGENCE_ENDPOINT}</p>
+          <p className="mt-2">Status: {pex.status}</p>
+          <p className="mt-1 text-zinc-300">
+            Signals: open {pex.signals.openCount} · queued {pex.signals.queuedCount} · watch{" "}
+            {pex.signals.watchCount} · held {pex.signals.heldCount} · escalate{" "}
+            {pex.signals.escalateCount}
+          </p>
+          <p className="mt-1 text-zinc-300">
+            Attention: open {pex.attention.openCount} · escalate {pex.attention.escalateCount}
+          </p>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-3">
         <Link
