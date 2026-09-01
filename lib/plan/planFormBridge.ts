@@ -32,7 +32,7 @@ export const PLAN_FORM_BY_PROJECT_PREFIX = "attaguy_plan_form:";
 export function budgetLabelToTier(label: string): "low" | "mid" | "high" {
   const v = String(label || "").trim();
   if (v.includes("低") || v.includes("5万以内")) return "low";
-  if (v.includes("高") || v.includes("80万以上") || v.includes("30-80万")) return "high";
+  if (v.includes("高") || v.includes("80万以上")) return "high";
   return "mid";
 }
 
