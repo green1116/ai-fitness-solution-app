@@ -37,19 +37,7 @@ jobs:
             sed -E 's#postgres(ql)?://[^[:space:]\"'\'']+#\[REDACTED\]#gi'
           }
 
-          # 1) resolve missing_schema as applied (no SQL DDL)
-          set +e
-          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate resolve \
-            --applied 20260826110000_missing_schema_alignment \
-            >resolve.out 2>resolve.err
-          code=$?
-          set -e
-          if [ "$code" -ne 0 ]; then
-            scrub <resolve.err >&2 || true
-            exit "$code"
-          fi
-
-          # 2) assert pending migrations exactly retirement + lead_indexes
+          # 1) assert pending migrations are within allowed set (retirement + lead_indexes + budget_label)
           set +e
           npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate status \
             >predeploy-status.out 2>predeploy-status.err
@@ -62,18 +50,23 @@ jobs:
           printf '%s\n' \
             '20260826154500_production_legacy_schema_retirement' \
             '20260826170000_lead_indexes_alignment' \
+            '20260901083000_project_budget_label' \
             | sort > pending.expected
 
-          if ! cmp -s pending.actual pending.expected; then
-            echo "pending_migrations_mismatch: expected retirement + lead_indexes only"
-            echo "expected:"
+          if [ ! -s pending.actual ]; then
+            echo "pending_migrations_mismatch: no pending migrations"
+            exit 1
+          fi
+          if comm -23 pending.actual pending.expected | grep -q .; then
+            echo "pending_migrations_mismatch: unexpected pending migration(s)"
+            echo "allowed:"
             cat pending.expected
             echo "actual:"
             cat pending.actual
             exit 1
           fi
 
-          # 3) deploy pending (retirement + lead indexes)
+          # 2) deploy pending (allowed migrations only)
           set +e
           npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate deploy \
             >deploy.out 2>deploy.err
@@ -84,7 +77,7 @@ jobs:
             exit "$code"
           fi
 
-          # 4) migrate status (printed)
+          # 3) migrate status (printed)
           set +e
           npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate status \
             >status.out 2>status.err
@@ -96,7 +89,7 @@ jobs:
             exit "$code"
           fi
 
-          # 5) migrate diff — fail if non-empty
+          # 4) migrate diff — fail if non-empty
           set +e
           npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate diff \
             --from-url "$DIRECT_URL" \
