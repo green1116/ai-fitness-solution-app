@@ -16,6 +16,10 @@ import {
 } from "@/app/(product)/tender-entitlement-client";
 import { TenderEnterpriseUpgradeCta } from "@/app/(product)/TenderEnterpriseUpgradeCta";
 import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
+import {
+  isBudgetOverLabelUpperBound,
+  resolveProjectBudgetLabel,
+} from "@/lib/project/project-intake";
 
 type OrgMe = { organizationId?: string | null };
 type ProjectList = { ok?: boolean; projects?: Array<{ id: string }> };
@@ -129,12 +133,14 @@ async function applyProjectBudgetDefaults(
   apply: (defaults: {
     companySize?: number;
     budgetTier?: "low" | "mid" | "high";
+    budgetLabel?: string;
   }) => void,
 ): Promise<void> {
   const defaults = await fetchProjectBudgetDefaults(projectId, organizationId);
   if (!defaults) return;
   if (defaults.companySize) apply({ companySize: defaults.companySize });
   if (defaults.budgetTier) apply({ budgetTier: defaults.budgetTier });
+  if (defaults.budgetLabel) apply({ budgetLabel: defaults.budgetLabel });
 }
 
 async function resolveOrganizationId(): Promise<string> {
@@ -163,7 +169,11 @@ function projectBudgetLevelToTier(
 async function fetchProjectBudgetDefaults(
   projectId: string,
   organizationId: string,
-): Promise<{ companySize?: number; budgetTier?: "low" | "mid" | "high" } | null> {
+): Promise<{
+  companySize?: number;
+  budgetTier?: "low" | "mid" | "high";
+  budgetLabel?: string;
+} | null> {
   const res = await fetch(`/api/project/${encodeURIComponent(projectId)}`, {
     headers: { "x-organization-id": organizationId },
   });
@@ -173,6 +183,7 @@ async function fetchProjectBudgetDefaults(
       exists?: boolean;
       targetUsers?: number | null;
       budgetLevel?: string | null;
+      budgetLabel?: string | null;
     };
   };
   if (!data.ok || !data.project?.exists) return null;
@@ -184,10 +195,15 @@ async function fetchProjectBudgetDefaults(
       ? Math.floor(data.project.targetUsers)
       : undefined;
   const budgetTier = projectBudgetLevelToTier(data.project.budgetLevel);
+  const budgetLabel = resolveProjectBudgetLabel(
+    data.project.budgetLabel,
+    data.project.budgetLevel,
+  );
 
   return {
     ...(companySize ? { companySize } : {}),
     ...(budgetTier ? { budgetTier } : {}),
+    budgetLabel,
   };
 }
 
@@ -214,11 +230,18 @@ function BudgetForm() {
   const [budgetId, setBudgetId] = useState("");
   const [error, setError] = useState("");
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummaryState | null>(null);
+  const [projectBudgetLabel, setProjectBudgetLabel] = useState("");
   const [tenderEntitlement, setTenderEntitlement] =
     useState<TenderClientEntitlement | null>(null);
   const budgetDraftDirty = isBudgetDraftDirty(companySize, budgetTier, budgetSummary);
   const canDownloadPdf =
     Boolean(projectId && budgetId && budgetSummary) && !budgetDraftDirty;
+  const budgetOverLabel =
+    budgetSummary &&
+    projectBudgetLabel &&
+    !budgetDraftDirty &&
+    typeof budgetSummary.totalEstimateMax === "number" &&
+    isBudgetOverLabelUpperBound(budgetSummary.totalEstimateMax, projectBudgetLabel);
 
   useEffect(() => {
     let cancelled = false;
@@ -269,6 +292,7 @@ function BudgetForm() {
           await applyProjectBudgetDefaults(ownedProjectId, organizationId, (defaults) => {
             if (defaults.companySize) setCompanySize(String(defaults.companySize));
             if (defaults.budgetTier) setBudgetTier(defaults.budgetTier);
+            if (defaults.budgetLabel) setProjectBudgetLabel(defaults.budgetLabel);
           });
           if (cancelled) return;
         }
@@ -297,6 +321,7 @@ function BudgetForm() {
           if (cancelled) return;
           if (defaults?.companySize) setCompanySize(String(defaults.companySize));
           if (defaults?.budgetTier) setBudgetTier(defaults.budgetTier);
+          if (defaults?.budgetLabel) setProjectBudgetLabel(defaults.budgetLabel);
         }
         writeStoredProductContext({
           ...ctx,
@@ -366,6 +391,10 @@ function BudgetForm() {
           totalEstimateMax: data.structure?.totalEstimateMax,
           currency: data.structure?.currency,
         });
+        if (boundProjectId && organizationId) {
+          const defaults = await fetchProjectBudgetDefaults(boundProjectId, organizationId);
+          if (defaults?.budgetLabel) setProjectBudgetLabel(defaults.budgetLabel);
+        }
         writeStoredBudgetSummary(
           data.budgetId,
           {
@@ -492,6 +521,11 @@ function BudgetForm() {
           ) : null}
           {budgetId && budgetDraftDirty ? (
             <p className="text-sm text-amber-300">参数已修改，请重新计算预算</p>
+          ) : null}
+          {budgetOverLabel ? (
+            <p className="text-sm text-amber-300">
+              估算上限超出所选预算区间「{projectBudgetLabel}」，请复核规模或调整档位
+            </p>
           ) : null}
           {budgetId ? (
             <section className="rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">

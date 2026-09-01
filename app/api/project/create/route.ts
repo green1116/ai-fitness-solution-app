@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
       targetUsers: body?.targetUsers ? Number(body.targetUsers) : undefined,
       siteType: parseSiteTypeValue(body?.siteType),
       budgetLevel: parseBudgetLevelValue(body?.budgetLevel),
+      budgetLabel:
+        typeof body?.budgetLabel === "string" ? body.budgetLabel.trim() : undefined,
       notes: body?.notes,
       organizationId: gate.organizationId,
     });

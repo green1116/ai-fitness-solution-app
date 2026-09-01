@@ -15,6 +15,7 @@ export type CreateProjectInput = {
   targetUsers?: number;
   city?: string;
   budgetLevel?: BudgetLevel;
+  budgetLabel?: string;
   deliveryMode?: DeliveryMode;
   notes?: string;
   organizationId?: string;
@@ -41,6 +42,7 @@ export async function createProject(input: CreateProjectInput) {
       targetUsers: input.targetUsers,
       city: input.city,
       budgetLevel: input.budgetLevel ?? BudgetLevel.mid,
+      budgetLabel: input.budgetLabel?.trim() || undefined,
       deliveryMode: input.deliveryMode ?? DeliveryMode.standard,
       notes: input.notes,
       organizationId: input.organizationId,

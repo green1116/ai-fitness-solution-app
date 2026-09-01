@@ -7,6 +7,9 @@ import {
 } from "@/lib/plan/planFormBridge";
 import { prisma } from "@/lib/prisma";
 import {
+  resolveProjectBudgetLabel,
+} from "@/lib/project/project-intake";
+import {
   ensureProjectFromPlanJobId,
   provisionProjectFromPlan,
 } from "@/lib/services/tender/provisionProjectFromPlan";
@@ -123,6 +126,10 @@ export async function GET(req: NextRequest, context: RouteContext) {
             targetUsers: project.targetUsers,
             siteType: project.siteType,
             budgetLevel: project.budgetLevel,
+            budgetLabel: resolveProjectBudgetLabel(
+              project.budgetLabel,
+              project.budgetLevel,
+            ),
             notes: project.notes,
           }
         : { exists: false },

@@ -63,6 +63,44 @@ export function budgetLabelToProjectLevel(label: string): BudgetLevel {
   return budgetLabelToTier(label) as BudgetLevel;
 }
 
+export function budgetLevelToDefaultLabel(
+  level: string | null | undefined,
+): typeof PROJECT_BUDGET_OPTIONS[number] {
+  const value = String(level ?? "").trim().toLowerCase();
+  if (value === "low") return "5万以内";
+  if (value === "high") return "30-80万";
+  return PROJECT_BUDGET_OPTIONS[1];
+}
+
+export function resolveProjectBudgetLabel(
+  budgetLabel: string | null | undefined,
+  budgetLevel: string | null | undefined,
+): string {
+  const label = String(budgetLabel ?? "").trim();
+  if (label) return label;
+  return budgetLevelToDefaultLabel(budgetLevel);
+}
+
+/** Upper bound in yuan; null means no cap (e.g. 80万以上). */
+export function budgetLabelUpperBoundYuan(label: string): number | null {
+  const v = String(label || "").trim();
+  if (!v || v.includes("80万以上")) return null;
+  if (v.includes("5万以内")) return 50000;
+  if (v.includes("5-10万")) return 100000;
+  if (v.includes("10-30万")) return 300000;
+  if (v.includes("30-80万")) return 800000;
+  return null;
+}
+
+export function isBudgetOverLabelUpperBound(
+  totalEstimateMax: number,
+  label: string,
+): boolean {
+  const upper = budgetLabelUpperBoundYuan(label);
+  if (upper === null || !Number.isFinite(totalEstimateMax)) return false;
+  return totalEstimateMax > upper;
+}
+
 export function parseSiteTypeValue(raw: unknown): SiteType | undefined {
   const value = String(raw ?? "").trim().toLowerCase();
   if ((Object.values(SiteType) as string[]).includes(value)) {
@@ -96,6 +134,7 @@ export function projectIntakeToCreatePayload(form: ProjectIntakeForm) {
         : undefined,
     siteType: scenarioToSiteType(form.scenario),
     budgetLevel: budgetLabelToProjectLevel(form.budget),
+    budgetLabel: form.budget.trim(),
     notes:
       [form.goal.trim(), form.notes.trim()].filter(Boolean).join(" · ") || undefined,
   };
@@ -110,6 +149,7 @@ export type StoredProjectIntake = {
   targetUsers?: number | null;
   siteType?: string | null;
   budgetLevel?: string | null;
+  budgetLabel?: string | null;
   notes?: string | null;
 };
 

@@ -286,6 +286,7 @@ model Project {
   targetUsers    Int?
   city           String?
   budgetLevel    BudgetLevel
+  budgetLabel    String?
   deliveryMode   DeliveryMode
   notes          String?
   organizationId String?
