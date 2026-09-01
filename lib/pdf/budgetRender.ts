@@ -720,29 +720,63 @@ async function renderBrand2Pages(
       const priceBoxH = FREEZE_INVESTMENT_BOX_HEIGHT;
       const priceBoxW = W - M.l - M.r;
       const boxY = y - 14;
+      const colInset = 20;
+      const contentW = priceBoxW - colInset * 2;
+
       drawBox(p, M.l, boxY, priceBoxW, priceBoxH, rgb(0.96, 0.97, 0.98));
       drawEditorialDivider(p, boxY + priceBoxH - 8, M.l, W, 0.92, FREEZE_DIVIDER_COLOR);
+
+      const labelY = boxY + priceBoxH - 26;
       drawTextF(
         p,
         ctx.font,
         "INVESTMENT OVERVIEW · CNY",
-        M.l + 20,
-        boxY + priceBoxH - 26,
+        M.l + colInset,
+        labelY,
         FREEZE_INVESTMENT_LABEL_SIZE,
         rgb(0.5, 0.52, 0.55),
       );
-      drawTextF(
-        p,
-        ctx.fontBold,
-        `${fmtMoney(totalMin)}  —  ${fmtMoney(totalMax)}`,
-        M.l + 20,
-        boxY + 40,
-        FREEZE_INVESTMENT_PRICE_SIZE,
-        rgb(0.1, 0.11, 0.13),
-      );
 
-      const vx = M.l + priceBoxW * 0.54;
-      let vy = boxY + priceBoxH - 38;
+      const amountMinText = fmtMoney(totalMin);
+      const amountMaxText = fmtMoney(totalMax);
+      const amountSingleLine = `${amountMinText}  —  ${amountMaxText}`;
+      const amountSize = FREEZE_INVESTMENT_PRICE_SIZE;
+      let amountY = labelY - 28;
+      if (
+        ctx.fontBold.widthOfTextAtSize(amountSingleLine, amountSize) <= contentW
+      ) {
+        drawTextF(
+          p,
+          ctx.fontBold,
+          amountSingleLine,
+          M.l + colInset,
+          amountY,
+          amountSize,
+          rgb(0.1, 0.11, 0.13),
+        );
+      } else {
+        drawTextF(
+          p,
+          ctx.fontBold,
+          amountMinText,
+          M.l + colInset,
+          amountY,
+          amountSize,
+          rgb(0.1, 0.11, 0.13),
+        );
+        amountY -= amountSize + 6;
+        drawTextF(
+          p,
+          ctx.fontBold,
+          `— ${amountMaxText}`,
+          M.l + colInset,
+          amountY,
+          amountSize,
+          rgb(0.1, 0.11, 0.13),
+        );
+      }
+
+      let vy = boxY - 14;
       const values = [
         "商用标准配置，适配高使用密度",
         "分项闭环核算，便于内部审批/对外沟通",
@@ -752,18 +786,18 @@ async function renderBrand2Pages(
         const lines = wrapTextCN(t, {
           font: ctx.font,
           fontSize: 10.5,
-          maxWidth: W - M.r - vx - 4,
+          maxWidth: contentW - 14,
           maxLines: 2,
         });
-        drawTextF(p, ctx.font, "—", vx - 18, vy, 10, rgb(0.6, 0.62, 0.65));
+        drawTextF(p, ctx.font, "—", M.l + colInset - 14, vy, 10, rgb(0.6, 0.62, 0.65));
         for (const line of lines) {
-          drawTextF(p, ctx.font, line, vx, vy, 10.5, rgb(0.18, 0.2, 0.24));
+          drawTextF(p, ctx.font, line, M.l + colInset, vy, 10.5, rgb(0.18, 0.2, 0.24));
           vy -= 22;
         }
         vy -= 10;
       }
 
-      y = boxY - 44;
+      y = vy - 20;
 
       drawTenderCoverConfidentialBlock(p, ctx.font, {
         baseY: COVER_CONFIDENTIAL_BASE_Y,
