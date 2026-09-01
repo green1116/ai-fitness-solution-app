@@ -127,20 +127,20 @@ function resolveBoundBudgetSummary(
   return id ? readStoredBudgetSummary(id, binding) : null;
 }
 
-async function applyProjectBudgetDefaults(
-  projectId: string,
-  organizationId: string,
-  apply: (defaults: {
-    companySize?: number;
-    budgetTier?: "low" | "mid" | "high";
-    budgetLabel?: string;
-  }) => void,
-): Promise<void> {
-  const defaults = await fetchProjectBudgetDefaults(projectId, organizationId);
-  if (!defaults) return;
-  if (defaults.companySize) apply({ companySize: defaults.companySize });
-  if (defaults.budgetTier) apply({ budgetTier: defaults.budgetTier });
-  if (defaults.budgetLabel) apply({ budgetLabel: defaults.budgetLabel });
+const QUOTE_BY_PROJECT_KEY = "product-quote-by-project";
+
+function readStoredQuoteIdForProject(projectId: string): string {
+  if (typeof window === "undefined") return "";
+  const id = projectId.trim();
+  if (!id) return "";
+  try {
+    const raw = window.sessionStorage.getItem(QUOTE_BY_PROJECT_KEY);
+    if (!raw) return "";
+    const map = JSON.parse(raw) as Record<string, string>;
+    return typeof map[id] === "string" ? map[id].trim() : "";
+  } catch {
+    return "";
+  }
 }
 
 async function resolveOrganizationId(): Promise<string> {
@@ -221,9 +221,14 @@ function isBudgetDraftDirty(
 function BudgetForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [quoteId, setQuoteId] = useState("");
-  const [projectId, setProjectId] = useState("");
+  const [quoteId, setQuoteId] = useState(
+    () => parseProductContextSearch(searchParams).quoteId?.trim() ?? "",
+  );
+  const [projectId, setProjectId] = useState(
+    () => parseProductContextSearch(searchParams).projectId?.trim() ?? "",
+  );
   const [organizationId, setOrganizationId] = useState("");
+  const [contextReady, setContextReady] = useState(false);
   const [companySize, setCompanySize] = useState("100");
   const [budgetTier, setBudgetTier] = useState<"low" | "mid" | "high">("mid");
   const [loading, setLoading] = useState(false);
@@ -245,57 +250,87 @@ function BudgetForm() {
 
   useEffect(() => {
     let cancelled = false;
+    setContextReady(false);
     async function hydrate() {
       const urlCtx = parseProductContextSearch(searchParams);
       const ctx = resolveClientProductContext(searchParams);
+      const urlQuoteId = urlCtx.quoteId?.trim() ?? "";
+      const urlProjectId = urlCtx.projectId?.trim() ?? "";
+      if (urlQuoteId) setQuoteId(urlQuoteId);
+      if (urlProjectId) setProjectId(urlProjectId);
       const organizationId = await resolveOrganizationId();
       if (cancelled) return;
       setOrganizationId(organizationId);
       const ownedIds = organizationId ? await listOwnedProjectIds(organizationId) : [];
       if (cancelled) return;
-      const urlProjectId = urlCtx.projectId?.trim() ?? "";
       const urlBudgetId = urlCtx.budgetId?.trim() ?? "";
       const ownedProjectId = pickOwnedProjectId(
         urlProjectId || ctx.projectId,
         ownedIds,
       );
-      const resolvedQuoteId = urlCtx.quoteId?.trim() || ctx.quoteId?.trim() || "";
+      const resolvedQuoteId =
+        urlQuoteId ||
+        ctx.quoteId?.trim() ||
+        (ownedProjectId ? readStoredQuoteIdForProject(ownedProjectId) : "");
       setProjectId(ownedProjectId);
       setQuoteId(resolvedQuoteId);
       let entitlementBudgetId = "";
 
-      if (urlProjectId && ownedProjectId) {
+      if (ownedProjectId) {
         const binding: BudgetSummaryBinding = {
           projectId: ownedProjectId,
           ...(resolvedQuoteId ? { quoteId: resolvedQuoteId } : {}),
         };
-        const budgetCandidates = [urlBudgetId, ctx.budgetId?.trim() ?? ""].filter(
-          (id, index, ids) => id && ids.indexOf(id) === index,
-        );
+        let projectDefaults: Awaited<ReturnType<typeof fetchProjectBudgetDefaults>> = null;
+        if (organizationId) {
+          projectDefaults = await fetchProjectBudgetDefaults(
+            ownedProjectId,
+            organizationId,
+          );
+          if (cancelled) return;
+          if (projectDefaults?.companySize) {
+            setCompanySize(String(projectDefaults.companySize));
+          }
+          if (projectDefaults?.budgetTier) setBudgetTier(projectDefaults.budgetTier);
+          if (projectDefaults?.budgetLabel) {
+            setProjectBudgetLabel(projectDefaults.budgetLabel);
+          }
+        }
+
+        const budgetCandidates: string[] = [];
+        if (urlBudgetId) budgetCandidates.push(urlBudgetId);
+        const ctxBudgetId = ctx.budgetId?.trim() ?? "";
+        if (ctxBudgetId && ctxBudgetId !== urlBudgetId) {
+          if (resolveBoundBudgetSummary(ctxBudgetId, binding)) {
+            budgetCandidates.push(ctxBudgetId);
+          }
+        }
+
         let acceptedBudgetId = "";
         let acceptedSummary: BudgetSummaryState | null = null;
         for (const candidateId of budgetCandidates) {
           const stored = resolveBoundBudgetSummary(candidateId, binding);
-          if (stored) {
-            acceptedBudgetId = candidateId;
-            acceptedSummary = stored;
-            break;
-          }
+          if (!stored) continue;
+          const sizeMatches =
+            !projectDefaults?.companySize ||
+            stored.companySize === projectDefaults.companySize;
+          const tierMatches =
+            !projectDefaults?.budgetTier ||
+            stored.budgetTier === projectDefaults.budgetTier;
+          if (!sizeMatches || !tierMatches) continue;
+          acceptedBudgetId = candidateId;
+          acceptedSummary = stored;
+          break;
         }
+
         entitlementBudgetId = acceptedBudgetId;
         setBudgetId(acceptedBudgetId);
         setBudgetSummary(acceptedSummary);
         if (acceptedSummary) {
           setCompanySize(String(acceptedSummary.companySize));
           setBudgetTier(acceptedSummary.budgetTier);
-        } else if (organizationId) {
-          await applyProjectBudgetDefaults(ownedProjectId, organizationId, (defaults) => {
-            if (defaults.companySize) setCompanySize(String(defaults.companySize));
-            if (defaults.budgetTier) setBudgetTier(defaults.budgetTier);
-            if (defaults.budgetLabel) setProjectBudgetLabel(defaults.budgetLabel);
-          });
-          if (cancelled) return;
         }
+
         writeStoredProductContext({
           organizationId,
           projectId: ownedProjectId,
@@ -339,6 +374,7 @@ function BudgetForm() {
           }, { currentPath: "/budget" }),
         );
       }
+      if (!cancelled) setContextReady(true);
     }
     void hydrate();
     return () => {
@@ -470,7 +506,9 @@ function BudgetForm() {
       <h1 className="text-2xl font-bold">预算计算</h1>
       <p className="text-sm text-zinc-400">根据方案估算投资区间</p>
 
-      {!quoteId ? (
+      {!contextReady ? (
+        <p className="text-sm text-zinc-500">加载项目上下文…</p>
+      ) : !quoteId ? (
         <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-6 text-sm text-zinc-300">
           <p>当前没有可用方案。请先生成方案，系统会自动带入后续步骤。</p>
           <Link
