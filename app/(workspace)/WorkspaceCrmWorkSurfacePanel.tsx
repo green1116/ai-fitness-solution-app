@@ -1,3 +1,9 @@
+import Link from "next/link";
+
+import {
+  productHref,
+  type ProductCommercialContext,
+} from "@/app/(product)/commercial-context";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { listOrganizationsForUser } from "@/lib/organization/organization.service";
 import {
@@ -30,13 +36,69 @@ async function loadCrmWorkSurface() {
     const orgs = await listOrganizationsForUser(user.id);
     const organizationId = orgs[0]?.organization.id;
     if (!organizationId) return null;
-    return assembleCrmWorkSurface(organizationId);
+    return {
+      organizationId,
+      crmWork: await assembleCrmWorkSurface(organizationId),
+    };
   } catch {
     return null;
   }
 }
 
-function CrmWorkItemRow({ item }: { item: CrmWorkItem }) {
+type ProductRoute = "/quote" | "/budget" | "/tender";
+
+const PRODUCT_ROUTE_LABEL: Record<ProductRoute, string> = {
+  "/quote": "方案",
+  "/budget": "预算",
+  "/tender": "标书",
+};
+
+function crmWorkItemProductContext(
+  item: CrmWorkItem,
+  organizationId: string,
+): ProductCommercialContext {
+  return {
+    organizationId,
+    ...(item.projectId ? { projectId: item.projectId } : {}),
+    ...(item.quoteId ? { quoteId: item.quoteId } : {}),
+    ...(item.budgetId ? { budgetId: item.budgetId } : {}),
+  };
+}
+
+function pickCrmWorkItemProductRoute(item: CrmWorkItem): ProductRoute | null {
+  if (item.projectId && item.quoteId && item.budgetId) return "/tender";
+  if (item.quoteId && item.budgetId) return "/budget";
+  if (item.quoteId) return "/quote";
+  return null;
+}
+
+function CrmWorkItemProductLink({
+  item,
+  organizationId,
+}: {
+  item: CrmWorkItem;
+  organizationId: string;
+}) {
+  const route = pickCrmWorkItemProductRoute(item);
+  if (!route) return null;
+
+  const href = productHref(route, crmWorkItemProductContext(item, organizationId));
+  return (
+    <p className="mt-0.5 text-xs">
+      <Link href={href} className="text-sky-500/90 hover:text-sky-400">
+        打开{PRODUCT_ROUTE_LABEL[route]}
+      </Link>
+    </p>
+  );
+}
+
+function CrmWorkItemRow({
+  item,
+  organizationId,
+}: {
+  item: CrmWorkItem;
+  organizationId: string;
+}) {
   return (
     <li className="rounded-md border border-zinc-800 px-3 py-2 text-sm">
       <div className="flex items-center justify-between gap-3">
@@ -54,17 +116,7 @@ function CrmWorkItemRow({ item }: { item: CrmWorkItem }) {
       {item.sourceLabel ? (
         <p className="mt-0.5 text-xs text-zinc-500">{item.sourceLabel}</p>
       ) : null}
-      {item.projectId || item.quoteId || item.budgetId ? (
-        <p className="mt-0.5 text-xs text-zinc-600">
-          {[
-            item.projectId ? `project ${item.projectId}` : null,
-            item.quoteId ? `quote ${item.quoteId}` : null,
-            item.budgetId ? `budget ${item.budgetId}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-      ) : null}
+      <CrmWorkItemProductLink item={item} organizationId={organizationId} />
       {item.entity === "lead" && item.status === "QUALIFIED" ? (
         <WorkspaceCrmActionControl
           crmItemId={item.id}
@@ -143,8 +195,9 @@ function ConsultInitQueueRow({ item }: { item: ConsultInitQueueItem }) {
 }
 
 export async function WorkspaceCrmWorkSurfacePanel() {
-  const crmWork = await loadCrmWorkSurface();
-  if (!crmWork) return null;
+  const loaded = await loadCrmWorkSurface();
+  if (!loaded) return null;
+  const { organizationId, crmWork } = loaded;
   const { intelligence } = crmWork;
   const hasIntelligence =
     intelligence.openPipeline.count > 0 ||
@@ -213,7 +266,11 @@ export async function WorkspaceCrmWorkSurfacePanel() {
           </p>
           <ul className="mt-2 space-y-2">
             {visibleMixed.map((item) => (
-              <CrmWorkItemRow key={item.id} item={item} />
+              <CrmWorkItemRow
+                key={item.id}
+                item={item}
+                organizationId={organizationId}
+              />
             ))}
           </ul>
         </div>
@@ -225,7 +282,11 @@ export async function WorkspaceCrmWorkSurfacePanel() {
           </summary>
           <ul className="mt-2 space-y-2">
             {tailMixed.map((item) => (
-              <CrmWorkItemRow key={item.id} item={item} />
+              <CrmWorkItemRow
+                key={item.id}
+                item={item}
+                organizationId={organizationId}
+              />
             ))}
           </ul>
         </details>

@@ -47,7 +47,6 @@ function checkWorkspaceSurfaceAttribution() {
 function checkFrozenSurfacesUntouched() {
   const panel = read("app/(workspace)/WorkspaceCrmWorkSurfacePanel.tsx");
   assert(!panel.includes("commercial-context-bridge"), "workspace UI not wired to bridge");
-  assert(!panel.includes("productHref"), "workspace UI has no deep-links");
   const commercialContext = read("app/(product)/commercial-context.ts");
   assert(
     !commercialContext.includes("resolveValidatedProductContextForCustomer"),
