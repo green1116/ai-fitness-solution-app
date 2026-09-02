@@ -7,6 +7,7 @@ import {
   parseProductContextSearch,
   pickOwnedProjectId,
   productHref,
+  readStoredQuoteIdForProject,
   resolveClientProductContext,
   writeStoredProductContext,
 } from "@/app/(product)/commercial-context";
@@ -125,22 +126,6 @@ function resolveBoundBudgetSummary(
 ): BudgetSummaryState | null {
   const id = budgetId.trim();
   return id ? readStoredBudgetSummary(id, binding) : null;
-}
-
-const QUOTE_BY_PROJECT_KEY = "product-quote-by-project";
-
-function readStoredQuoteIdForProject(projectId: string): string {
-  if (typeof window === "undefined") return "";
-  const id = projectId.trim();
-  if (!id) return "";
-  try {
-    const raw = window.sessionStorage.getItem(QUOTE_BY_PROJECT_KEY);
-    if (!raw) return "";
-    const map = JSON.parse(raw) as Record<string, string>;
-    return typeof map[id] === "string" ? map[id].trim() : "";
-  } catch {
-    return "";
-  }
 }
 
 async function resolveOrganizationId(): Promise<string> {

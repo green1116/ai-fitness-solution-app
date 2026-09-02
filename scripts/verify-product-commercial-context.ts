@@ -89,6 +89,14 @@ function checkBudgetPage() {
   assert(!src.includes("resolveOrgProjectId"), "budget does not use org first project helper");
   assert(src.includes("data.projectId"), "budget PDF/context uses quote.projectId from API");
   assert(src.includes("pickOwnedProjectId"), "budget verifies owned project");
+  assert(
+    src.includes("readStoredQuoteIdForProject"),
+    "budget uses shared quote-by-project helper",
+  );
+  assert(
+    !src.includes("function readStoredQuoteIdForProject"),
+    "budget does not duplicate quote-by-project helper",
+  );
   console.log("✓ budget page context");
 }
 
