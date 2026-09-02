@@ -41,6 +41,7 @@ function checkAdapterModule() {
     "ops adapter reuses validated CRM resolver",
   );
   assert(src.includes("lookupOpsCrmIdentitySeed"), "adapter uses identity registry");
+  assert(src.includes("lookupOpsCrmIdentityLink"), "adapter uses identity store");
   assert(src.includes("getCustomerById"), "adapter validates CRM tenancy");
   assert(!src.includes("action-delivery"), "adapter not coupled to EADS");
   assert(!src.includes("action-consumption"), "adapter not coupled to EAC");

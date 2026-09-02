@@ -9,6 +9,7 @@ import type { ProductCommercialContext } from "@/app/(product)/commercial-contex
 import { getCustomerById } from "@/lib/crm/customer/customer.service";
 import { resolveValidatedProductContextForCustomer } from "@/lib/product/commercial-context-bridge";
 import { lookupOpsCrmIdentitySeed } from "@/lib/product/runtime-ops-crm-identity-registry";
+import { lookupOpsCrmIdentityLink } from "@/lib/product/runtime-ops-crm-identity-store";
 
 function trimId(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -26,7 +27,9 @@ export async function resolveCrmCustomerIdForOpsCustomer(
   const opsId = trimId(opsCustomerId);
   if (!orgId || !opsId) return null;
 
-  const crmCustomerId = lookupOpsCrmIdentitySeed(orgId, opsId);
+  const crmCustomerId =
+    lookupOpsCrmIdentitySeed(orgId, opsId) ??
+    (await lookupOpsCrmIdentityLink(orgId, opsId));
   if (!crmCustomerId) return null;
 
   const customer = await getCustomerById(crmCustomerId, orgId);

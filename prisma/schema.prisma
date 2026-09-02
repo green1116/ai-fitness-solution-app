@@ -65,6 +65,7 @@ model Organization {
   invoices      SaasInvoice[]
   payments      Payment[]
   crmCustomers  Customer[]
+  opsCrmIdentityLinks OpsCrmIdentityLink[]
 
   @@map("organization")
 }
@@ -588,6 +589,7 @@ model Customer {
   leads         CrmLead[]
   opportunities Opportunity[]
   activities    CRMActivity[]
+  opsCrmIdentityLinks OpsCrmIdentityLink[]
 
   @@index([organizationId])
   @@map("crm_customer")
@@ -668,4 +670,22 @@ model WorkspaceReviewRecovery {
   @@unique([organizationId, surfaceItemId])
   @@index([organizationId])
   @@map("workspace_review_recovery")
+}
+
+/// Runtime Ops ↔ CRM explicit identity link (tenant-scoped).
+model OpsCrmIdentityLink {
+  id             String   @id @default(cuid())
+  organizationId String
+  opsCustomerId  String
+  crmCustomerId  String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [crmCustomerId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, opsCustomerId])
+  @@index([organizationId])
+  @@index([crmCustomerId])
+  @@map("ops_crm_identity_link")
 }
