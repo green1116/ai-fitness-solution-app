@@ -60,7 +60,10 @@ function checkFrozenLayersUntouched() {
   assert(!eac.includes("runtime-ops-product-context-adapter"), "EAC untouched");
   assert(!eac.includes("runtime-ops-crm-identity-registry"), "EAC untouched by registry");
   assert(!ewas.includes("runtime-ops-product-context-adapter"), "EWAS untouched");
-  assert(!workspace.includes("runtime-ops-product-context-adapter"), "workspace UI untouched");
+  assert(
+    workspace.includes("resolveValidatedProductContextForOpsCustomer"),
+    "workspace action panel consumes ops PCX adapter",
+  );
   console.log("✓ frozen runtime ops layers untouched");
 }
 
