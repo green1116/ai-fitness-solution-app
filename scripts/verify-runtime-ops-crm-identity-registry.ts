@@ -128,6 +128,10 @@ async function checkRuntimeValidation() {
     "seed lookup returns crm customer id",
   );
 
+  await prisma.customer.deleteMany({
+    where: { id: RUNTIME_OPS_CRM_IDENTITY_VERIFY_CRM_CUSTOMER_ID },
+  });
+
   const missing = await getCustomerById(
     RUNTIME_OPS_CRM_IDENTITY_VERIFY_CRM_CUSTOMER_ID,
     RUNTIME_OPS_CRM_IDENTITY_VERIFY_ORG_ID,
