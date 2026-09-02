@@ -60,6 +60,7 @@ export function ProjectsPageClient() {
   const [form, setForm] = useState<ProjectIntakeForm>(DEFAULT_PROJECT_INTAKE);
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const [createError, setCreateError] = useState("");
 
   function updateField<K extends keyof ProjectIntakeForm>(key: K, value: ProjectIntakeForm[K]) {
@@ -131,8 +132,16 @@ export function ProjectsPageClient() {
     }
   }
 
-  const visibleProjects = projects.slice(0, VISIBLE_PROJECTS);
-  const tailProjects = projects.slice(VISIBLE_PROJECTS);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredProjects = normalizedQuery
+    ? projects.filter((project) => {
+        const name = project.name.toLowerCase();
+        const clientName = (project.clientName ?? "").toLowerCase();
+        return name.includes(normalizedQuery) || clientName.includes(normalizedQuery);
+      })
+    : projects;
+  const visibleProjects = filteredProjects.slice(0, VISIBLE_PROJECTS);
+  const tailProjects = filteredProjects.slice(VISIBLE_PROJECTS);
 
   return (
     <div className="space-y-6">
@@ -237,10 +246,21 @@ export function ProjectsPageClient() {
         </button>
       </section>
 
+      {!listLoading && projects.length > 0 ? (
+        <input
+          className={INPUT_CLS}
+          placeholder="搜索项目或企业名称"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      ) : null}
+
       {listLoading ? (
         <p className="text-sm text-zinc-500">项目加载中...</p>
       ) : projects.length === 0 ? (
         <p className="text-sm text-zinc-500">暂无项目</p>
+      ) : filteredProjects.length === 0 ? (
+        <p className="text-sm text-zinc-500">无匹配项目</p>
       ) : (
         <>
           {visibleProjects.length > 0 ? (
