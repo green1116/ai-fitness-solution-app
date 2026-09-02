@@ -37,7 +37,7 @@ jobs:
             sed -E 's#postgres(ql)?://[^[:space:]\"'\'']+#\[REDACTED\]#gi'
           }
 
-          # 1) assert pending migrations are within allowed set (retirement + lead_indexes + budget_label)
+          # 1) assert pending migrations are within allowed set (retirement + lead_indexes + budget_label + ops_crm_identity_link)
           set +e
           npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate status \
             >predeploy-status.out 2>predeploy-status.err
@@ -51,6 +51,7 @@ jobs:
             '20260826154500_production_legacy_schema_retirement' \
             '20260826170000_lead_indexes_alignment' \
             '20260901083000_project_budget_label' \
+            '20260902143000_ops_crm_identity_link' \
             | sort > pending.expected
 
           if [ ! -s pending.actual ]; then
