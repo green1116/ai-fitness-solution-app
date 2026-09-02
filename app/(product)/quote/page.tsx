@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   companyNameFromProject,
+  isProductContextCrmHandoff,
   parseProductContextSearch,
   pickOwnedProjectId,
   productHref,
@@ -185,6 +186,7 @@ function QuoteForm() {
     let cancelled = false;
     async function hydrate() {
       const urlCtx = parseProductContextSearch(searchParams);
+      const crmHandoff = isProductContextCrmHandoff(searchParams);
       const ctx = resolveClientProductContext(searchParams);
       const organizationId = await resolveOrganizationId();
       if (cancelled) return;
@@ -216,7 +218,9 @@ function QuoteForm() {
         const resolvedQuoteId =
           trimQuoteId(urlCtx.quoteId) ||
           trimQuoteId(ctx.quoteId) ||
-          readStoredQuoteIdForProject(ownedProjectId);
+          (!crmHandoff && ownedProjectId
+            ? readStoredQuoteIdForProject(ownedProjectId)
+            : "");
         if (resolvedQuoteId) {
           const storedProposal = readStoredQuoteProposal(resolvedQuoteId);
           setQuoteId(resolvedQuoteId);

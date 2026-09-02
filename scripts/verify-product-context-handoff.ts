@@ -10,8 +10,10 @@ import {
   mergeProductContext,
   PRODUCT_CONTEXT_HANDOFF_CRM,
   PRODUCT_CONTEXT_STORAGE_KEY,
+  QUOTE_BY_PROJECT_STORAGE_KEY,
   productHref,
   readStoredProductContext,
+  readStoredQuoteIdForProject,
   resolveClientProductContext,
   writeStoredProductContext,
 } from "../app/(product)/commercial-context";
@@ -157,6 +159,85 @@ function checkNormalNavigationMergeUnchanged() {
   console.log("✓ normal navigation merge unchanged");
 }
 
+function resolveQuoteIdForHydrate(input: {
+  urlQuoteId: string;
+  ctxQuoteId: string;
+  ownedProjectId: string;
+  crmHandoff: boolean;
+}): string {
+  return (
+    input.urlQuoteId ||
+    input.ctxQuoteId ||
+    (!input.crmHandoff && input.ownedProjectId
+      ? readStoredQuoteIdForProject(input.ownedProjectId)
+      : "")
+  );
+}
+
+function checkSecondaryHandoffIsolationWiring() {
+  const quote = read("app/(product)/quote/page.tsx");
+  const budget = read("app/(product)/budget/page.tsx");
+  assert(quote.includes("isProductContextCrmHandoff"), "quote detects CRM handoff");
+  assert(
+    quote.includes("!crmHandoff && ownedProjectId"),
+    "quote skips quote-by-project fallback on handoff",
+  );
+  assert(budget.includes("isProductContextCrmHandoff"), "budget detects CRM handoff");
+  assert(
+    budget.includes("!crmHandoff && ownedProjectId"),
+    "budget skips quote-by-project fallback on handoff",
+  );
+  assert(budget.includes("if (crmHandoff)"), "budget handoff branch");
+  assert(budget.includes("nextBudgetId && !crmHandoff"), "budget skips unbound summary on handoff");
+  console.log("✓ secondary handoff isolation wiring");
+}
+
+function checkHandoffSkipsQuoteByProjectFallback() {
+  withMockSessionStorage(() => {
+    window.sessionStorage.setItem(
+      QUOTE_BY_PROJECT_STORAGE_KEY,
+      JSON.stringify({ "p1": "q-stale" }),
+    );
+
+    const handoffSearch = buildProductContextSearch(
+      { organizationId: "org1", projectId: "p1", quoteId: "q-crm" },
+      { handoff: "crm" },
+    );
+    resolveClientProductContext(handoffSearch);
+
+    const handoffQuoteId = resolveQuoteIdForHydrate({
+      urlQuoteId: "q-crm",
+      ctxQuoteId: "q-crm",
+      ownedProjectId: "p1",
+      crmHandoff: true,
+    });
+    assert(handoffQuoteId === "q-crm", "handoff keeps URL quoteId");
+    assert(handoffQuoteId !== "q-stale", "handoff does not use quote-by-project fallback");
+
+    const normalQuoteId = resolveQuoteIdForHydrate({
+      urlQuoteId: "",
+      ctxQuoteId: "",
+      ownedProjectId: "p1",
+      crmHandoff: false,
+    });
+    assert(normalQuoteId === "q-stale", "normal journey still uses quote-by-project fallback");
+  });
+  console.log("✓ handoff skips quote-by-project fallback");
+}
+
+function checkHandoffSkipsBudgetSummaryFallback() {
+  const budget = read("app/(product)/budget/page.tsx");
+  assert(
+    budget.includes("acceptedBudgetId = urlBudgetId"),
+    "handoff accepts budgetId from URL only",
+  );
+  assert(
+    budget.includes("if (nextBudgetId && !crmHandoff)"),
+    "handoff skips unbound budget summary hydration",
+  );
+  console.log("✓ handoff skips budget summary fallback");
+}
+
 function checkFrozenLayersUntouched() {
   const eads = read("lib/commercial/action-delivery/action-delivery.ts");
   const eac = read("lib/commercial/action-consumption/action-consumption.ts");
@@ -172,8 +253,11 @@ function main() {
   checkNavNeverEmitsHandoff();
   checkCrmHandoffClearsStaleContext();
   checkNormalNavigationMergeUnchanged();
+  checkSecondaryHandoffIsolationWiring();
+  checkHandoffSkipsQuoteByProjectFallback();
+  checkHandoffSkipsBudgetSummaryFallback();
   checkFrozenLayersUntouched();
-  console.log("\n✓ WP-PRODUCT-CTX-HANDOFF-1 — ALL CHECKS PASSED");
+  console.log("\n✓ WP-PRODUCT-CTX-HANDOFF-1 + SECONDARY-HANDOFF-1 — ALL CHECKS PASSED");
 }
 
 main();

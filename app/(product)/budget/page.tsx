@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  isProductContextCrmHandoff,
   parseProductContextSearch,
   pickOwnedProjectId,
   productHref,
@@ -238,6 +239,7 @@ function BudgetForm() {
     setContextReady(false);
     async function hydrate() {
       const urlCtx = parseProductContextSearch(searchParams);
+      const crmHandoff = isProductContextCrmHandoff(searchParams);
       const ctx = resolveClientProductContext(searchParams);
       const urlQuoteId = urlCtx.quoteId?.trim() ?? "";
       const urlProjectId = urlCtx.projectId?.trim() ?? "";
@@ -256,7 +258,9 @@ function BudgetForm() {
       const resolvedQuoteId =
         urlQuoteId ||
         ctx.quoteId?.trim() ||
-        (ownedProjectId ? readStoredQuoteIdForProject(ownedProjectId) : "");
+        (!crmHandoff && ownedProjectId
+          ? readStoredQuoteIdForProject(ownedProjectId)
+          : "");
       setProjectId(ownedProjectId);
       setQuoteId(resolvedQuoteId);
       let entitlementBudgetId = "";
@@ -282,30 +286,34 @@ function BudgetForm() {
           }
         }
 
-        const budgetCandidates: string[] = [];
-        if (urlBudgetId) budgetCandidates.push(urlBudgetId);
-        const ctxBudgetId = ctx.budgetId?.trim() ?? "";
-        if (ctxBudgetId && ctxBudgetId !== urlBudgetId) {
-          if (resolveBoundBudgetSummary(ctxBudgetId, binding)) {
-            budgetCandidates.push(ctxBudgetId);
-          }
-        }
-
         let acceptedBudgetId = "";
         let acceptedSummary: BudgetSummaryState | null = null;
-        for (const candidateId of budgetCandidates) {
-          const stored = resolveBoundBudgetSummary(candidateId, binding);
-          if (!stored) continue;
-          const sizeMatches =
-            !projectDefaults?.companySize ||
-            stored.companySize === projectDefaults.companySize;
-          const tierMatches =
-            !projectDefaults?.budgetTier ||
-            stored.budgetTier === projectDefaults.budgetTier;
-          if (!sizeMatches || !tierMatches) continue;
-          acceptedBudgetId = candidateId;
-          acceptedSummary = stored;
-          break;
+        if (crmHandoff) {
+          acceptedBudgetId = urlBudgetId;
+        } else {
+          const budgetCandidates: string[] = [];
+          if (urlBudgetId) budgetCandidates.push(urlBudgetId);
+          const ctxBudgetId = ctx.budgetId?.trim() ?? "";
+          if (ctxBudgetId && ctxBudgetId !== urlBudgetId) {
+            if (resolveBoundBudgetSummary(ctxBudgetId, binding)) {
+              budgetCandidates.push(ctxBudgetId);
+            }
+          }
+
+          for (const candidateId of budgetCandidates) {
+            const stored = resolveBoundBudgetSummary(candidateId, binding);
+            if (!stored) continue;
+            const sizeMatches =
+              !projectDefaults?.companySize ||
+              stored.companySize === projectDefaults.companySize;
+            const tierMatches =
+              !projectDefaults?.budgetTier ||
+              stored.budgetTier === projectDefaults.budgetTier;
+            if (!sizeMatches || !tierMatches) continue;
+            acceptedBudgetId = candidateId;
+            acceptedSummary = stored;
+            break;
+          }
         }
 
         entitlementBudgetId = acceptedBudgetId;
@@ -327,7 +335,7 @@ function BudgetForm() {
         entitlementBudgetId = nextBudgetId;
         setBudgetId(nextBudgetId);
         let hydratedFromSummary = false;
-        if (nextBudgetId) {
+        if (nextBudgetId && !crmHandoff) {
           const stored = readStoredBudgetSummary(nextBudgetId);
           if (stored) {
             setBudgetSummary(stored);
