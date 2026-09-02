@@ -400,14 +400,16 @@ function QuoteForm() {
             onChange={(e) => setCompanyName(e.target.value)}
           />
         )}
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={loading || !contextReady}
-          className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
-        >
-          {loading ? "生成中…" : "生成方案"}
-        </button>
+        {!quoteId ? (
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={loading || !contextReady}
+            className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
+          >
+            {loading ? "生成中…" : "生成方案"}
+          </button>
+        ) : null}
       </section>
 
       {proposal ? (
