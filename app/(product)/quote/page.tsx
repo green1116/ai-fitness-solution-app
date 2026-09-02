@@ -35,7 +35,6 @@ type GenerateQuoteResponse = {
   message?: string;
 };
 
-const SECTION_PREVIEW_MAX = 120;
 const QUOTE_BY_PROJECT_KEY = "product-quote-by-project";
 const QUOTE_PROPOSAL_KEY = "product-quote-proposal";
 
@@ -99,13 +98,6 @@ function writeStoredQuoteForProject(
 function stubProposalForRestore(companyName: string): QuoteProposalView {
   const name = companyName.trim() || "您的企业";
   return { summary: `已为 ${name} 生成健身空间方案建议。` };
-}
-
-function truncateSectionPreview(body: string, max = SECTION_PREVIEW_MAX): string {
-  const trimmed = body.replace(/\s+/g, " ").trim();
-  if (!trimmed) return "";
-  if (trimmed.length <= max) return trimmed;
-  return `${trimmed.slice(0, max).trimEnd()}…`;
 }
 
 function buildCustomerSummary(
@@ -440,29 +432,6 @@ function QuoteForm() {
               >
                 下载 PDF
               </button>
-            </div>
-          ) : null}
-          {proposal.sections && proposal.sections.length > 0 ? (
-            <div className="space-y-3">
-              <p className="text-xs text-zinc-500">章节预览（完整内容见 PDF）</p>
-              {proposal.sections.map((section, index) => {
-                const preview = section.body
-                  ? truncateSectionPreview(section.body)
-                  : "";
-                return (
-                  <section
-                    key={`${section.title ?? "section"}-${index}`}
-                    className="rounded-lg border border-zinc-800 bg-black/40 px-4 py-3"
-                  >
-                    {section.title ? (
-                      <h3 className="text-sm font-medium text-zinc-200">{section.title}</h3>
-                    ) : null}
-                    {preview ? (
-                      <p className="mt-1 text-xs leading-relaxed text-zinc-400">{preview}</p>
-                    ) : null}
-                  </section>
-                );
-              })}
             </div>
           ) : null}
         </article>
