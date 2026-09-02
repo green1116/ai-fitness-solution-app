@@ -6,15 +6,17 @@
  */
 
 import type { ProductCommercialContext } from "@/app/(product)/commercial-context";
+import { getCustomerById } from "@/lib/crm/customer/customer.service";
 import { resolveValidatedProductContextForCustomer } from "@/lib/product/commercial-context-bridge";
+import { lookupOpsCrmIdentitySeed } from "@/lib/product/runtime-ops-crm-identity-registry";
 
 function trimId(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
 /**
- * v1: no Ops → CRM identity mapping registry; always returns null.
- * Future mappings must be explicit and tenant-scoped.
+ * Resolve CRM customer id from explicit Ops ↔ CRM identity registry only.
+ * Validates tenant ownership via getCustomerById before returning.
  */
 export async function resolveCrmCustomerIdForOpsCustomer(
   organizationId: string,
@@ -23,7 +25,14 @@ export async function resolveCrmCustomerIdForOpsCustomer(
   const orgId = trimId(organizationId);
   const opsId = trimId(opsCustomerId);
   if (!orgId || !opsId) return null;
-  return null;
+
+  const crmCustomerId = lookupOpsCrmIdentitySeed(orgId, opsId);
+  if (!crmCustomerId) return null;
+
+  const customer = await getCustomerById(crmCustomerId, orgId);
+  if (!customer) return null;
+
+  return customer.id;
 }
 
 export async function resolveValidatedProductContextForOpsCustomer(
