@@ -63,8 +63,8 @@ function checkFrozenSurfacesUntouched() {
   );
   const workspace = read("lib/crm/crm.workspace-surface.ts");
   assert(
-    !workspace.includes("commercial-context-bridge"),
-    "workspace surface not enriched",
+    !workspace.includes("productHref"),
+    "workspace surface has no deep-links",
   );
   const panel = read("app/(workspace)/WorkspaceCrmWorkSurfacePanel.tsx");
   assert(!panel.includes("product-context"), "workspace UI untouched");

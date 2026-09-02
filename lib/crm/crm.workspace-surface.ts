@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { resolveValidatedProductContextForCustomer } from "@/lib/product/commercial-context-bridge";
 import { listCustomers } from "./customer/customer.service";
 import { buildOrganizationTimeline, limitActivitiesPerCustomer } from "./activity/activity.timeline";
 import {
@@ -382,6 +383,52 @@ function toCrmWorkItem(item: SortableCrmWorkItem): CrmWorkItem {
   return publicItem;
 }
 
+type ProductContextIds = Pick<CrmWorkItem, "projectId" | "quoteId" | "budgetId">;
+
+function fillMissingProductContextIds(
+  item: ProductContextIds,
+  validated: ProductContextIds | null | undefined,
+): ProductContextIds {
+  if (!validated) return item;
+  return {
+    projectId: item.projectId ?? validated.projectId,
+    quoteId: item.quoteId ?? validated.quoteId,
+    budgetId: item.budgetId ?? validated.budgetId,
+  };
+}
+
+function itemNeedsProductContextFill(item: ProductContextIds): boolean {
+  return !item.projectId || !item.quoteId || !item.budgetId;
+}
+
+async function enrichWorkItemsWithValidatedProductContext(
+  organizationId: string,
+  items: SortableCrmWorkItem[],
+): Promise<void> {
+  const validatedContextByCustomerId = new Map<
+    string,
+    ProductContextIds | null
+  >();
+
+  for (const item of items) {
+    if (!itemNeedsProductContextFill(item)) continue;
+
+    let validated = validatedContextByCustomerId.get(item.customerId);
+    if (validated === undefined) {
+      validated = await resolveValidatedProductContextForCustomer(
+        organizationId,
+        item.customerId,
+      );
+      validatedContextByCustomerId.set(item.customerId, validated);
+    }
+
+    const filled = fillMissingProductContextIds(item, validated);
+    item.projectId = filled.projectId;
+    item.quoteId = filled.quoteId;
+    item.budgetId = filled.budgetId;
+  }
+}
+
 function groupRowsByKey<T extends { [key: string]: unknown }>(
   rows: readonly T[],
   key: keyof T & string,
@@ -574,6 +621,8 @@ export async function assembleCrmWorkSurface(
       }
     }
   }
+
+  await enrichWorkItemsWithValidatedProductContext(organizationId, items);
 
   items.sort(compareCrmWorkItems);
   const orderedItems = items.map(toCrmWorkItem);
