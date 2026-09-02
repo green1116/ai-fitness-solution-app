@@ -1,5 +1,7 @@
 export const PRODUCT_CONTEXT_STORAGE_KEY = "product-commercial-context";
 export const QUOTE_BY_PROJECT_STORAGE_KEY = "product-quote-by-project";
+export const PRODUCT_CONTEXT_HANDOFF_PARAM = "handoff";
+export const PRODUCT_CONTEXT_HANDOFF_CRM = "crm";
 
 export type ProductCommercialContext = {
   organizationId?: string;
@@ -8,16 +10,30 @@ export type ProductCommercialContext = {
   budgetId?: string;
 };
 
+export type ProductContextWriteMode = "merge" | "replace";
+
+export type ProductHrefOptions = {
+  handoff?: typeof PRODUCT_CONTEXT_HANDOFF_CRM;
+};
+
 const CONTEXT_KEYS = ["organizationId", "projectId", "quoteId", "budgetId"] as const;
 
 function trimId(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readSearchParams(search: string | URLSearchParams): URLSearchParams {
+  return typeof search === "string" ? new URLSearchParams(search) : search;
+}
+
+export function isProductContextCrmHandoff(search: string | URLSearchParams): boolean {
+  return trimId(readSearchParams(search).get(PRODUCT_CONTEXT_HANDOFF_PARAM)) === PRODUCT_CONTEXT_HANDOFF_CRM;
+}
+
 export function parseProductContextSearch(
   search: string | URLSearchParams,
 ): ProductCommercialContext {
-  const params = typeof search === "string" ? new URLSearchParams(search) : search;
+  const params = readSearchParams(search);
   const ctx: ProductCommercialContext = {};
   for (const key of CONTEXT_KEYS) {
     const value = trimId(params.get(key));
@@ -26,11 +42,17 @@ export function parseProductContextSearch(
   return ctx;
 }
 
-export function buildProductContextSearch(ctx: ProductCommercialContext): string {
+export function buildProductContextSearch(
+  ctx: ProductCommercialContext,
+  options?: ProductHrefOptions,
+): string {
   const params = new URLSearchParams();
   for (const key of CONTEXT_KEYS) {
     const value = trimId(ctx[key]);
     if (value) params.set(key, value);
+  }
+  if (options?.handoff === PRODUCT_CONTEXT_HANDOFF_CRM) {
+    params.set(PRODUCT_CONTEXT_HANDOFF_PARAM, PRODUCT_CONTEXT_HANDOFF_CRM);
   }
   return params.toString();
 }
@@ -38,8 +60,9 @@ export function buildProductContextSearch(ctx: ProductCommercialContext): string
 export function productHref(
   path: "/quote" | "/budget" | "/tender",
   ctx: ProductCommercialContext,
+  options?: ProductHrefOptions,
 ): string {
-  const query = buildProductContextSearch(ctx);
+  const query = buildProductContextSearch(ctx, options);
   return query ? `${path}?${query}` : path;
 }
 
@@ -96,9 +119,18 @@ export function readStoredQuoteIdForProject(projectId: string): string {
   }
 }
 
-export function writeStoredProductContext(ctx: ProductCommercialContext): void {
+export function writeStoredProductContext(
+  ctx: ProductCommercialContext,
+  options?: { mode?: ProductContextWriteMode },
+): void {
   if (typeof window === "undefined") return;
-  const merged = mergeProductContext(readStoredProductContext(), ctx);
+  const mode = options?.mode ?? "merge";
+  const normalized = parseProductContextSearch(buildProductContextSearch(ctx));
+  if (mode === "replace") {
+    window.sessionStorage.setItem(PRODUCT_CONTEXT_STORAGE_KEY, JSON.stringify(normalized));
+    return;
+  }
+  const merged = mergeProductContext(readStoredProductContext(), normalized);
   window.sessionStorage.setItem(
     PRODUCT_CONTEXT_STORAGE_KEY,
     JSON.stringify(parseProductContextSearch(buildProductContextSearch(merged))),
@@ -108,10 +140,12 @@ export function writeStoredProductContext(ctx: ProductCommercialContext): void {
 export function resolveClientProductContext(
   search: string | URLSearchParams,
 ): ProductCommercialContext {
-  const merged = mergeProductContext(
-    readStoredProductContext(),
-    parseProductContextSearch(search),
-  );
+  const urlCtx = parseProductContextSearch(search);
+  if (isProductContextCrmHandoff(search)) {
+    writeStoredProductContext(urlCtx, { mode: "replace" });
+    return urlCtx;
+  }
+  const merged = mergeProductContext(readStoredProductContext(), urlCtx);
   writeStoredProductContext(merged);
   return merged;
 }

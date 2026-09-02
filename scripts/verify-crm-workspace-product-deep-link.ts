@@ -47,7 +47,7 @@ function checkWorkspaceDeepLinkUi() {
   assert(panel.includes("CrmWorkItemProductLink"), "workspace product link component");
   assert(panel.includes("pickCrmWorkItemProductRoute"), "route chosen from validated IDs");
   assert(!panel.includes("writeStoredProductContext"), "panel does not write session");
-  assert(!panel.includes("resolveClientProductContext"), "panel does not merge client session");
+  assert(panel.includes("handoff: \"crm\""), "CRM workspace emits handoff");
   assert(!panel.includes('href={`/projects/'), "no projects-link expansion");
   console.log("✓ workspace CRM product deep-link UI");
 }

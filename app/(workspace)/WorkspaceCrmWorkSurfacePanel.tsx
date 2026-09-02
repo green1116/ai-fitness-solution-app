@@ -82,7 +82,9 @@ function CrmWorkItemProductLink({
   const route = pickCrmWorkItemProductRoute(item);
   if (!route) return null;
 
-  const href = productHref(route, crmWorkItemProductContext(item, organizationId));
+  const href = productHref(route, crmWorkItemProductContext(item, organizationId), {
+    handoff: "crm",
+  });
   return (
     <p className="mt-0.5 text-xs">
       <Link href={href} className="text-sky-500/90 hover:text-sky-400">

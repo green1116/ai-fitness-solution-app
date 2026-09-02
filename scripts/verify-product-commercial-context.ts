@@ -56,8 +56,8 @@ function checkCommercialContextMerge() {
   const src = read("app/(product)/commercial-context.ts");
   assert(src.includes("readStoredQuoteIdForProject"), "exported quote-by-project reader");
   assert(
-    src.includes("mergeProductContext(readStoredProductContext(), ctx)"),
-    "writeStoredProductContext merges with existing session",
+    src.includes("mergeProductContext(readStoredProductContext()"),
+    "writeStoredProductContext merges with existing session by default",
   );
   assert(src.includes("QUOTE_BY_PROJECT_STORAGE_KEY"), "quote-by-project storage key");
   console.log("✓ commercial context session merge");
