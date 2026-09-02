@@ -59,6 +59,7 @@ export function ProjectsPageClient() {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [form, setForm] = useState<ProjectIntakeForm>(DEFAULT_PROJECT_INTAKE);
   const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
   const [createError, setCreateError] = useState("");
 
   function updateField<K extends keyof ProjectIntakeForm>(key: K, value: ProjectIntakeForm[K]) {
@@ -66,16 +67,24 @@ export function ProjectsPageClient() {
   }
 
   async function loadProjects() {
-    const organizationId = await resolveOrganizationId();
-    if (!organizationId) {
+    setListLoading(true);
+    try {
+      const organizationId = await resolveOrganizationId();
+      if (!organizationId) {
+        setProjects([]);
+        return;
+      }
+      const res = await fetch("/api/project/list", {
+        headers: { "x-organization-id": organizationId },
+      });
+      const data = await res.json();
+      if (data.ok) setProjects(data.projects);
+      else setProjects([]);
+    } catch {
       setProjects([]);
-      return;
+    } finally {
+      setListLoading(false);
     }
-    const res = await fetch("/api/project/list", {
-      headers: { "x-organization-id": organizationId },
-    });
-    const data = await res.json();
-    if (data.ok) setProjects(data.projects);
   }
 
   useEffect(() => {
@@ -228,25 +237,33 @@ export function ProjectsPageClient() {
         </button>
       </section>
 
-      {visibleProjects.length > 0 ? (
-        <ul className="space-y-3">
-          {visibleProjects.map((project) => (
-            <ProjectRow key={project.id} project={project} />
-          ))}
-        </ul>
-      ) : null}
-      {tailProjects.length > 0 ? (
-        <details>
-          <summary className="cursor-pointer text-sm text-zinc-500">
-            + {tailProjects.length} more projects
-          </summary>
-          <ul className="mt-3 space-y-3">
-            {tailProjects.map((project) => (
-              <ProjectRow key={project.id} project={project} />
-            ))}
-          </ul>
-        </details>
-      ) : null}
+      {listLoading ? (
+        <p className="text-sm text-zinc-500">项目加载中...</p>
+      ) : projects.length === 0 ? (
+        <p className="text-sm text-zinc-500">暂无项目</p>
+      ) : (
+        <>
+          {visibleProjects.length > 0 ? (
+            <ul className="space-y-3">
+              {visibleProjects.map((project) => (
+                <ProjectRow key={project.id} project={project} />
+              ))}
+            </ul>
+          ) : null}
+          {tailProjects.length > 0 ? (
+            <details>
+              <summary className="cursor-pointer text-sm text-zinc-500">
+                + {tailProjects.length} more projects
+              </summary>
+              <ul className="mt-3 space-y-3">
+                {tailProjects.map((project) => (
+                  <ProjectRow key={project.id} project={project} />
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
