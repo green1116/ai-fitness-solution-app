@@ -26,6 +26,9 @@ function NavLinks({
 }) {
   return (
     <>
+      <Link href="/projects" className="text-zinc-400 hover:text-white">
+        项目 Workspace
+      </Link>
       <Link href={productHref("/quote", ctx)} className="text-zinc-400 hover:text-white">
         方案
       </Link>
