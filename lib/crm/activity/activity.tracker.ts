@@ -42,6 +42,9 @@ export async function logProductActivity(input: {
   resourceId?: string;
   userId?: string;
   organizationId?: string;
+  projectId?: string;
+  quoteId?: string;
+  budgetId?: string;
 }) {
   const typeMap = {
     quote: "quote.generated",
@@ -49,14 +52,19 @@ export async function logProductActivity(input: {
     tender: "tender.generated",
   } as const;
 
+  const meta: Record<string, unknown> = {
+    resourceId: input.resourceId,
+    userId: input.userId,
+    organizationId: input.organizationId,
+  };
+  if (input.projectId) meta.projectId = input.projectId;
+  if (input.quoteId) meta.quoteId = input.quoteId;
+  if (input.budgetId) meta.budgetId = input.budgetId;
+
   return logCRMActivity({
     customerId: input.customerId,
     type: typeMap[input.product],
-    meta: {
-      resourceId: input.resourceId,
-      userId: input.userId,
-      organizationId: input.organizationId,
-    },
+    meta,
   });
 }
 

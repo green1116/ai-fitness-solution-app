@@ -209,6 +209,8 @@ export async function recordQuoteAsLead(input: {
       resourceId: input.quoteId,
       userId: input.userId,
       organizationId: input.organizationId,
+      projectId: input.projectId,
+      quoteId: input.quoteId,
     });
 
     return { customer, lead };
@@ -269,12 +271,24 @@ export async function recordBudgetAsOpportunity(input: {
       });
     }
 
+    let projectId: string | undefined;
+    if (input.quoteId) {
+      const quote = await prisma.quote.findUnique({
+        where: { id: input.quoteId },
+        select: { projectId: true },
+      });
+      projectId = quote?.projectId ?? undefined;
+    }
+
     await logProductActivity({
       customerId: customer.id,
       product: "budget",
       resourceId: input.budgetId,
       userId: input.userId,
       organizationId: input.organizationId,
+      projectId,
+      quoteId: input.quoteId,
+      budgetId: input.budgetId,
     });
 
     return { customer, opportunity };
@@ -291,6 +305,7 @@ export async function recordTenderAsDeal(input: {
   tenderId?: string;
   quoteId?: string;
   projectId?: string;
+  budgetId?: string;
   estimatedValue?: number;
 }) {
   try {
@@ -325,12 +340,24 @@ export async function recordTenderAsDeal(input: {
       userId: input.userId,
     });
 
+    let budgetId = input.budgetId;
+    if (!budgetId && input.tenderId) {
+      const tender = await prisma.tender.findUnique({
+        where: { id: input.tenderId },
+        select: { budgetId: true },
+      });
+      budgetId = tender?.budgetId ?? undefined;
+    }
+
     await logProductActivity({
       customerId: customer.id,
       product: "tender",
       resourceId: input.tenderId,
       userId: input.userId,
       organizationId: input.organizationId,
+      projectId: input.projectId,
+      quoteId: input.quoteId,
+      budgetId,
     });
 
     return { customer, opportunity, deal };
