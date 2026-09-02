@@ -25,9 +25,6 @@ export default async function WorkspaceLayout({
     <div className="min-h-screen bg-zinc-950 text-white">
       <header className="border-b border-zinc-800 px-6 py-4">
         <nav className="mx-auto flex max-w-5xl items-center gap-6 text-sm">
-          <Link href="/dashboard" className="text-zinc-400 hover:text-white">
-            控制台
-          </Link>
           <Link href="/projects" className="font-semibold">
             项目 Workspace
           </Link>
