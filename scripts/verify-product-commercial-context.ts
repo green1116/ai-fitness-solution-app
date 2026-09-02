@@ -52,6 +52,17 @@ function checkHelper() {
   console.log("✓ commercial context helper");
 }
 
+function checkCommercialContextMerge() {
+  const src = read("app/(product)/commercial-context.ts");
+  assert(src.includes("readStoredQuoteIdForProject"), "exported quote-by-project reader");
+  assert(
+    src.includes("mergeProductContext(readStoredProductContext(), ctx)"),
+    "writeStoredProductContext merges with existing session",
+  );
+  assert(src.includes("QUOTE_BY_PROJECT_STORAGE_KEY"), "quote-by-project storage key");
+  console.log("✓ commercial context session merge");
+}
+
 function checkQuotePage() {
   const src = read("app/(product)/quote/page.tsx");
   assert(src.includes("useSearchParams"), "quote consumes search params");
@@ -59,6 +70,15 @@ function checkQuotePage() {
   assert(src.includes('productHref("/budget"'), "quote navigates to budget");
   assert(src.includes("quoteId: nextQuoteId"), "quote carries quoteId");
   assert(!src.includes("list.projects?.[0]"), "quote does not bind org first project");
+  assert(
+    src.includes("readStoredQuoteIdForProject"),
+    "quote uses shared quote-by-project helper",
+  );
+  assert(
+    !src.includes("function readStoredQuoteIdForProject"),
+    "quote does not duplicate quote-by-project helper",
+  );
+  assert(src.includes("!quoteId ?"), "quote hides generate when quoteId exists");
   console.log("✓ quote page context");
 }
 
@@ -91,6 +111,10 @@ function checkWorkspaceHandoff() {
   const list = read("app/(workspace)/projects/ProjectsPageClient.tsx");
   assert(list.includes("x-organization-id"), "projects list uses org header");
   assert(list.includes("/api/auth/me"), "projects list resolves org from session");
+  assert(list.includes("listLoading"), "projects list loading state");
+  assert(list.includes("searchQuery"), "projects list search state");
+  assert(list.includes("项目加载中..."), "projects list loading label");
+  assert(list.includes("搜索项目或企业名称"), "projects list search placeholder");
   console.log("✓ workspace handoff");
 }
 
@@ -117,6 +141,7 @@ function checkServerOwnership() {
 
 function main() {
   checkHelper();
+  checkCommercialContextMerge();
   checkQuotePage();
   checkBudgetPage();
   checkTenderPage();

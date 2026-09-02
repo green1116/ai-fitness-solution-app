@@ -8,6 +8,8 @@ import {
   parseProductContextSearch,
   pickOwnedProjectId,
   productHref,
+  QUOTE_BY_PROJECT_STORAGE_KEY,
+  readStoredQuoteIdForProject,
   resolveClientProductContext,
   writeStoredProductContext,
 } from "@/app/(product)/commercial-context";
@@ -35,25 +37,10 @@ type GenerateQuoteResponse = {
   message?: string;
 };
 
-const QUOTE_BY_PROJECT_KEY = "product-quote-by-project";
 const QUOTE_PROPOSAL_KEY = "product-quote-proposal";
 
 function trimQuoteId(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function readStoredQuoteIdForProject(projectId: string): string {
-  if (typeof window === "undefined") return "";
-  const id = projectId.trim();
-  if (!id) return "";
-  try {
-    const raw = window.sessionStorage.getItem(QUOTE_BY_PROJECT_KEY);
-    if (!raw) return "";
-    const map = JSON.parse(raw) as Record<string, string>;
-    return trimQuoteId(map[id]);
-  } catch {
-    return "";
-  }
 }
 
 function readStoredQuoteProposal(quoteId: string): QuoteProposalView | null {
@@ -81,10 +68,10 @@ function writeStoredQuoteForProject(
   const quote = trimQuoteId(quoteId);
   if (!project || !quote) return;
   try {
-    const raw = window.sessionStorage.getItem(QUOTE_BY_PROJECT_KEY);
+    const raw = window.sessionStorage.getItem(QUOTE_BY_PROJECT_STORAGE_KEY);
     const byProject = raw ? (JSON.parse(raw) as Record<string, string>) : {};
     byProject[project] = quote;
-    window.sessionStorage.setItem(QUOTE_BY_PROJECT_KEY, JSON.stringify(byProject));
+    window.sessionStorage.setItem(QUOTE_BY_PROJECT_STORAGE_KEY, JSON.stringify(byProject));
 
     const proposalRaw = window.sessionStorage.getItem(QUOTE_PROPOSAL_KEY);
     const byQuote = proposalRaw ? (JSON.parse(proposalRaw) as Record<string, QuoteProposalView>) : {};

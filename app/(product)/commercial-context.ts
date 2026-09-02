@@ -1,4 +1,5 @@
 export const PRODUCT_CONTEXT_STORAGE_KEY = "product-commercial-context";
+export const QUOTE_BY_PROJECT_STORAGE_KEY = "product-quote-by-project";
 
 export type ProductCommercialContext = {
   organizationId?: string;
@@ -81,11 +82,26 @@ export function readStoredProductContext(): ProductCommercialContext {
   }
 }
 
+export function readStoredQuoteIdForProject(projectId: string): string {
+  if (typeof window === "undefined") return "";
+  const id = trimId(projectId);
+  if (!id) return "";
+  try {
+    const raw = window.sessionStorage.getItem(QUOTE_BY_PROJECT_STORAGE_KEY);
+    if (!raw) return "";
+    const map = JSON.parse(raw) as Record<string, string>;
+    return trimId(map[id]);
+  } catch {
+    return "";
+  }
+}
+
 export function writeStoredProductContext(ctx: ProductCommercialContext): void {
   if (typeof window === "undefined") return;
+  const merged = mergeProductContext(readStoredProductContext(), ctx);
   window.sessionStorage.setItem(
     PRODUCT_CONTEXT_STORAGE_KEY,
-    JSON.stringify(parseProductContextSearch(buildProductContextSearch(ctx))),
+    JSON.stringify(parseProductContextSearch(buildProductContextSearch(merged))),
   );
 }
 
