@@ -410,7 +410,8 @@ async function enrichWorkItemsWithValidatedProductContext(
     ProductContextIds | null
   >();
 
-  for (const item of items) {
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index]!;
     if (!itemNeedsProductContextFill(item)) continue;
 
     let validated = validatedContextByCustomerId.get(item.customerId);
@@ -423,9 +424,12 @@ async function enrichWorkItemsWithValidatedProductContext(
     }
 
     const filled = fillMissingProductContextIds(item, validated);
-    item.projectId = filled.projectId;
-    item.quoteId = filled.quoteId;
-    item.budgetId = filled.budgetId;
+    items[index] = {
+      ...item,
+      projectId: filled.projectId,
+      quoteId: filled.quoteId,
+      budgetId: filled.budgetId,
+    };
   }
 }
 
