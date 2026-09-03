@@ -44,6 +44,8 @@ jobs:
           export DATABASE_URL="$DIRECT_URL"
           export DIRECT_URL="$DIRECT_URL"
 
+          npx prisma generate
+
           scrub() {
             sed -E 's#postgres(ql)?://[^[:space:]\"'\'']+#\[REDACTED\]#gi'
           }
