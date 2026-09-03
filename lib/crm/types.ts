@@ -125,7 +125,10 @@ type CrmPrismaDelegates = {
       data: { customerId: string; type: string; meta?: unknown };
     }) => Promise<CRMActivityRow>;
     findMany: (args: {
-      where: { customerId: string };
+      where: {
+        customerId: string;
+        type?: string | { in: readonly string[] | string[] };
+      };
       orderBy?: { timestamp: "desc" | "asc" };
       take?: number;
     }) => Promise<CRMActivityRow[]>;
