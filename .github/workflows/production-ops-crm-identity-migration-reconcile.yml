@@ -1,0 +1,277 @@
+name: Production Ops CRM Identity Migration Reconcile
+
+# One-time: mark 20260902143000_ops_crm_identity_link as applied when the
+# table already exists (verify bootstrap) but _prisma_migrations lacks the row.
+# Does NOT run migrate deploy. Does NOT auto-fix schema.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  production-ops-crm-identity-migration-reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      CI: "true"
+      # Direct Postgres only. Never use secrets.DATABASE_URL.
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      TARGET_MIGRATION: "20260902143000_ops_crm_identity_link"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Reconcile ops CRM identity migration (resolve --applied only)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DIRECT_URL:-}" ]; then
+            echo "DIRECT_URL secret is missing"
+            exit 1
+          fi
+
+          export DATABASE_URL="$DIRECT_URL"
+          export DIRECT_URL="$DIRECT_URL"
+
+          scrub() {
+            sed -E 's#postgres(ql)?://[^[:space:]\"'\'']+#\[REDACTED\]#gi'
+          }
+
+          assert_empty_migrate_diff() {
+            local label="$1"
+            local out="$2"
+            local err="$3"
+            set +e
+            npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate diff \
+              --from-url "$DIRECT_URL" \
+              --to-schema-datamodel prisma/schema.prisma \
+              --script >"$out" 2>"$err"
+            local code=$?
+            set -e
+            if [ -s "$err" ]; then scrub <"$err" >&2; fi
+            if [ "$code" -ne 0 ]; then
+              exit "$code"
+            fi
+            local bytes
+            bytes=$(wc -c <"$out" | tr -d ' ')
+            echo "${label}_diff_byte_size=${bytes}"
+            if grep -Eq '^[[:space:]]*-- This is an empty migration\.[[:space:]]*$' "$out" \
+              || [ ! -s "$out" ]; then
+              echo "${label}: schema diff empty"
+              return 0
+            fi
+            echo "unexpected_migration_state: ${label} residual schema drift"
+            scrub <"$out" | head -n 80
+            exit 1
+          }
+
+          # -------------------------------------------------------------------------
+          # BEFORE resolve
+          # -------------------------------------------------------------------------
+
+          # 1) status — pending must be exactly TARGET_MIGRATION
+          set +e
+          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate status \
+            >pre-status.out 2>pre-status.err
+          code=$?
+          set -e
+          if [ -s pre-status.err ]; then scrub <pre-status.err >&2; fi
+          scrub <pre-status.out
+          if [ "$code" -ne 0 ] && [ ! -s pre-status.out ]; then
+            exit "$code"
+          fi
+
+          grep -E '^[[:space:]]*[0-9]{14}_[A-Za-z0-9_]+[[:space:]]*$' pre-status.out \
+            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | sort > pending.actual
+          printf '%s\n' "$TARGET_MIGRATION" | sort > pending.expected
+
+          echo "pending.actual:"
+          cat pending.actual || true
+          echo "pending.expected:"
+          cat pending.expected
+
+          if [ ! -s pending.actual ]; then
+            echo "unexpected_migration_state: no pending migrations (expected exactly ${TARGET_MIGRATION})"
+            exit 1
+          fi
+          if ! cmp -s pending.actual pending.expected; then
+            echo "unexpected_migration_state: pending set must be exactly ${TARGET_MIGRATION}"
+            echo "actual:"
+            cat pending.actual
+            echo "expected:"
+            cat pending.expected
+            exit 1
+          fi
+
+          # 2) verify ops_crm_identity_link exists with expected columns, PK, FKs, unique
+          node <<'NODE'
+          const { PrismaClient } = require("@prisma/client");
+          const url = process.env.DIRECT_URL;
+          if (!url) {
+            console.error("DIRECT_URL missing for table verification");
+            process.exit(1);
+          }
+          const prisma = new PrismaClient({
+            datasources: { db: { url } },
+          });
+
+          function assert(cond, msg) {
+            if (!cond) throw new Error(`ASSERT: ${msg}`);
+          }
+
+          async function main() {
+            const tables = await prisma.$queryRaw`
+              SELECT table_name
+              FROM information_schema.tables
+              WHERE table_schema = 'public' AND table_name = 'ops_crm_identity_link'
+            `;
+            assert(Array.isArray(tables) && tables.length === 1, "ops_crm_identity_link table must exist");
+
+            const columns = await prisma.$queryRaw`
+              SELECT column_name, is_nullable, data_type
+              FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'ops_crm_identity_link'
+              ORDER BY ordinal_position
+            `;
+            const byName = new Map(columns.map((c) => [c.column_name, c]));
+            for (const name of [
+              "id",
+              "organizationId",
+              "opsCustomerId",
+              "crmCustomerId",
+              "createdAt",
+              "updatedAt",
+            ]) {
+              assert(byName.has(name), `column ${name} missing`);
+              assert(byName.get(name).is_nullable === "NO", `column ${name} must be NOT NULL`);
+            }
+
+            const constraints = await prisma.$queryRaw`
+              SELECT conname, contype, pg_get_constraintdef(c.oid) AS def
+              FROM pg_constraint c
+              JOIN pg_class t ON c.conrelid = t.oid
+              JOIN pg_namespace n ON t.relnamespace = n.oid
+              WHERE n.nspname = 'public' AND t.relname = 'ops_crm_identity_link'
+              ORDER BY conname
+            `;
+            const byCon = new Map(constraints.map((c) => [c.conname, c]));
+
+            assert(byCon.has("ops_crm_identity_link_pkey"), "PK ops_crm_identity_link_pkey missing");
+            assert(byCon.get("ops_crm_identity_link_pkey").contype === "p", "ops_crm_identity_link_pkey must be PRIMARY KEY");
+            assert(
+              String(byCon.get("ops_crm_identity_link_pkey").def).includes("PRIMARY KEY (id)"),
+              "PK must be on id",
+            );
+
+            assert(
+              byCon.has("ops_crm_identity_link_organizationId_fkey"),
+              "FK ops_crm_identity_link_organizationId_fkey missing",
+            );
+            assert(
+              /FOREIGN KEY \("organizationId"\) REFERENCES organization\(id\).*ON DELETE CASCADE/i.test(
+                String(byCon.get("ops_crm_identity_link_organizationId_fkey").def),
+              ),
+              "organizationId FK must reference organization(id) ON DELETE CASCADE",
+            );
+
+            assert(
+              byCon.has("ops_crm_identity_link_crmCustomerId_fkey"),
+              "FK ops_crm_identity_link_crmCustomerId_fkey missing",
+            );
+            assert(
+              /FOREIGN KEY \("crmCustomerId"\) REFERENCES crm_customer\(id\).*ON DELETE CASCADE/i.test(
+                String(byCon.get("ops_crm_identity_link_crmCustomerId_fkey").def),
+              ),
+              "crmCustomerId FK must reference crm_customer(id) ON DELETE CASCADE",
+            );
+
+            const indexes = await prisma.$queryRaw`
+              SELECT indexname, indexdef
+              FROM pg_indexes
+              WHERE schemaname = 'public' AND tablename = 'ops_crm_identity_link'
+              ORDER BY indexname
+            `;
+            const unique = indexes.find(
+              (i) => i.indexname === "ops_crm_identity_link_organizationId_opsCustomerId_key",
+            );
+            assert(unique, "unique index organizationId+opsCustomerId missing");
+            assert(
+              /UNIQUE INDEX.*"organizationId".*"opsCustomerId"/i.test(String(unique.indexdef)),
+              "unique index must be on (organizationId, opsCustomerId)",
+            );
+
+            console.log("✓ ops_crm_identity_link structure verified (columns, PK, FKs, unique)");
+          }
+
+          (async () => {
+            try {
+              await main();
+            } catch (e) {
+              console.error(e);
+              process.exitCode = 1;
+            } finally {
+              await prisma.$disconnect().catch(() => {});
+            }
+            process.exit(process.exitCode || 0);
+          })();
+          NODE
+
+          # 3) migrate diff before resolve — must already be empty (no auto-fix)
+          assert_empty_migrate_diff "pre_resolve" pre-reconcile-diff.sql pre-reconcile-diff.err
+
+          # -------------------------------------------------------------------------
+          # resolve --applied exact migration only (no migrate deploy)
+          # -------------------------------------------------------------------------
+          set +e
+          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate resolve \
+            --applied "$TARGET_MIGRATION" \
+            >resolve.out 2>resolve.err
+          code=$?
+          set -e
+          if [ -s resolve.err ]; then scrub <resolve.err >&2; fi
+          scrub <resolve.out
+          if [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+
+          # -------------------------------------------------------------------------
+          # AFTER resolve
+          # -------------------------------------------------------------------------
+
+          # 4) status — no pending
+          set +e
+          npx cross-env NODE_OPTIONS=--dns-result-order=ipv4first prisma migrate status \
+            >post-status.out 2>post-status.err
+          code=$?
+          set -e
+          if [ -s post-status.err ]; then scrub <post-status.err >&2; fi
+          scrub <post-status.out
+          if [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+
+          grep -E '^[[:space:]]*[0-9]{14}_[A-Za-z0-9_]+[[:space:]]*$' post-status.out \
+            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | sort > pending.after || true
+          if [ -s pending.after ]; then
+            echo "unexpected_migration_state: pending migrations remain after resolve"
+            cat pending.after
+            exit 1
+          fi
+
+          # 5) migrate diff after resolve — must be empty
+          assert_empty_migrate_diff "post_resolve" post-reconcile-diff.sql post-reconcile-diff.err
+
+          echo "reconcile_ok: ${TARGET_MIGRATION} marked applied; table verified; schema diffs empty"
