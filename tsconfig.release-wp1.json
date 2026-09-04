@@ -282,6 +282,7 @@
     "scripts/verify-ewas-1-workspace-action-surface.ts",
     "scripts/verify-ewas-v1-freeze.ts",
     "app/(workspace)/WorkspaceActionSurfacePanel.tsx",
+    "app/(workspace)/WorkspaceOpsCrmIdentityLinkControl.tsx",
     "app/(workspace)/WorkspaceReviewActionControl.tsx",
     "app/(workspace)/submit-workspace-review-action.ts",
     "scripts/verify-ewui-1-workspace-action-ui.ts",

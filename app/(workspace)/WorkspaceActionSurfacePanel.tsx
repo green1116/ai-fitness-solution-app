@@ -13,6 +13,7 @@ import {
   type WorkspaceActionSurfaceItem,
 } from "@/lib/workflow/experience/workspace-action-surface";
 import { WorkspaceReviewActionControl } from "./WorkspaceReviewActionControl";
+import { WorkspaceOpsCrmIdentityLinkControl } from "./WorkspaceOpsCrmIdentityLinkControl";
 import { submitWorkspaceReviewAction, submitWorkspaceReviewRecoveryAction } from "./submit-workspace-review-action";
 
 const STATE_LABEL: Readonly<Record<"ATTENTION" | "AVAILABLE" | "DEFERRED", string>> = {
@@ -99,7 +100,11 @@ function SurfaceItemRow({
         </span>
       </div>
       <p className="mt-1 text-xs text-zinc-500">{item.reason}</p>
-      {productContext ? <OpsActionSurfaceProductLink productContext={productContext} /> : null}
+      {productContext ? (
+        <OpsActionSurfaceProductLink productContext={productContext} />
+      ) : (
+        <WorkspaceOpsCrmIdentityLinkControl opsCustomerId={item.customerId} />
+      )}
       {reviewItemIds.has(item.id) ? (
         <WorkspaceReviewActionControl
           surfaceItemId={item.id}
