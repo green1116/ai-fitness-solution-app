@@ -39,6 +39,7 @@ function isStaleDevClient(client: PrismaClient): boolean {
   const c = client as {
     upgradeOrder?: unknown;
     workspaceReviewRecovery?: unknown;
+    opsCrmIdentityLink?: unknown;
   };
   return (
     typeof c.upgradeOrder !== "object" ||

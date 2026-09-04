@@ -124,7 +124,10 @@ import {
   listWorkspaceReviewSurfaceItemIds,
   runWorkspaceReviewAction,
 } from "../lib/commercial/action-execution";
-import { submitWorkspaceReviewAction } from "../app/(workspace)/submit-workspace-review-action";
+import {
+  submitWorkspaceReviewAction,
+  submitWorkspaceReviewRecoveryAction,
+} from "../app/(workspace)/submit-workspace-review-action";
 import {
   ENTERPRISE_SAAS_WORKSPACE_ACTION_INTENT_V1,
   buildActionIntents,
@@ -134,6 +137,7 @@ import {
   getActionIntents,
   getEwiFreeze,
 } from "../lib/commercial/action-intent";
+import { runWithTenantContext } from "../lib/tenancy/tenant.context";
 import {
   buildActionConsumptionItems,
   buildEacFreeze,
@@ -636,10 +640,30 @@ async function main() {
 
   assert(actionSrc.includes("use server"), "server action");
   assert(actionSrc.includes("runWorkspaceReviewAction"), "server action -> EWXR");
+  assert(actionSrc.includes("auth-required"), "tenant gate reason");
   assert(adapterSrc.includes("executeControlledAction"), "EWXR -> EWER");
   const fd = new FormData();
   fd.set("surfaceItemId", reviewIds[0]!);
-  const fromAction = await submitWorkspaceReviewAction(null, fd);
+  const unauthAction = await submitWorkspaceReviewAction(null, fd);
+  assert(unauthAction.result === "FAILED", "no-tenant FAILED");
+  assert(unauthAction.executed === false, "no-tenant not executed");
+  assert(unauthAction.reason === "auth-required", "no-tenant auth-required");
+  assert(unauthAction.outcome.outcome === "FAILED", "no-tenant outcome FAILED");
+  const unauthRecovery = await submitWorkspaceReviewRecoveryAction(null, fd);
+  assert(unauthRecovery.result === "FAILED", "no-tenant recovery FAILED");
+  assert(unauthRecovery.executed === false, "no-tenant recovery not executed");
+  assert(unauthRecovery.reason === "auth-required", "no-tenant recovery auth-required");
+  assert(unauthRecovery.outcome.outcome === "FAILED", "no-tenant recovery outcome FAILED");
+  console.log("PASS server action tenant gate");
+
+  const verifyTenant = {
+    organizationId: "verify-epv-1-org",
+    userId: "verify-epv-1-user",
+    traceId: "verify-epv-1-workspace-review",
+  };
+  const fromAction = await runWithTenantContext(verifyTenant, () =>
+    submitWorkspaceReviewAction(null, fd),
+  );
   assert(fromAction.result === "SUCCESS", "server action SUCCESS");
   const fromAdapter = runWorkspaceReviewAction(reviewIds[0]!);
   assert(fromAction.fingerprint === fromAdapter.fingerprint, "action matches adapter");
@@ -679,7 +703,9 @@ async function main() {
   assert(layoutSrc.includes('dynamic = "force-dynamic"'), "refresh re-reads");
   const again = runWorkspaceReviewAction(reviewIds[0]!);
   assert(again.fingerprint === fromAdapter.fingerprint, "repeat safe");
-  const againAction = await submitWorkspaceReviewAction(null, fd);
+  const againAction = await runWithTenantContext(verifyTenant, () =>
+    submitWorkspaceReviewAction(null, fd),
+  );
   assert(againAction.fingerprint === fromAction.fingerprint, "repeat action safe");
   console.log("PASS refresh safety");
 
@@ -692,8 +718,12 @@ async function main() {
     join(process.cwd(), "app/(workspace)/projects/page.tsx"),
     "utf8",
   );
-  assert(projectsSrc.includes("ProductIntelligenceExperience"), "WFX-2 list");
-  assert(projectsSrc.includes("/api/project/list"), "workspace list flow");
+  assert(projectsSrc.includes("ProjectsPageClient"), "WFX-2 list");
+  const projectsClientSrc = readFileSync(
+    join(process.cwd(), "app/(workspace)/projects/ProjectsPageClient.tsx"),
+    "utf8",
+  );
+  assert(projectsClientSrc.includes("/api/project/list"), "workspace list flow");
   const detailSrc = readFileSync(
     join(process.cwd(), "app/(workspace)/projects/[id]/page.tsx"),
     "utf8",
