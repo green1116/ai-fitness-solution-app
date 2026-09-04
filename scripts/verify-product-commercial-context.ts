@@ -97,6 +97,22 @@ function checkBudgetPage() {
     !src.includes("function readStoredQuoteIdForProject"),
     "budget does not duplicate quote-by-project helper",
   );
+  assert(src.includes("fromCtx"), "budget prefers ctx organizationId before /api/auth/me");
+  assert(
+    src.includes("fromCtx || (await resolveOrganizationId())"),
+    "budget orgId = fromCtx || me",
+  );
+  const hydrateStart = src.indexOf("async function hydrate()");
+  const calculateStart = src.indexOf("async function handleCalculate()");
+  assert(hydrateStart > 0 && calculateStart > hydrateStart, "budget hydrate + calculate present");
+  const hydrate = src.slice(hydrateStart, calculateStart);
+  const readyIdx = hydrate.indexOf("setContextReady(true)");
+  const entitleIdx = hydrate.indexOf("loadTenderClientEntitlement");
+  assert(readyIdx > 0 && entitleIdx > 0, "budget hydrate sets contextReady and loads entitlement");
+  assert(
+    readyIdx < entitleIdx,
+    "budget setContextReady before entitlement (hydrate readiness)",
+  );
   console.log("✓ budget page context");
 }
 

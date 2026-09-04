@@ -245,7 +245,9 @@ function BudgetForm() {
       const urlProjectId = urlCtx.projectId?.trim() ?? "";
       if (urlQuoteId) setQuoteId(urlQuoteId);
       if (urlProjectId) setProjectId(urlProjectId);
-      const organizationId = await resolveOrganizationId();
+      const fromCtx =
+        urlCtx.organizationId?.trim() || ctx.organizationId?.trim() || "";
+      const organizationId = fromCtx || (await resolveOrganizationId());
       if (cancelled) return;
       setOrganizationId(organizationId);
       const ownedIds = organizationId ? await listOwnedProjectIds(organizationId) : [];
@@ -357,17 +359,20 @@ function BudgetForm() {
           ...(ownedProjectId ? { projectId: ownedProjectId } : {}),
         });
       }
+      if (!cancelled) setContextReady(true);
       if (organizationId) {
-        setTenderEntitlement(
-          await loadTenderClientEntitlement(organizationId, {
+        const entitlement = await loadTenderClientEntitlement(
+          organizationId,
+          {
             organizationId,
             projectId: ownedProjectId,
             quoteId: resolvedQuoteId || ctx.quoteId,
             ...(entitlementBudgetId ? { budgetId: entitlementBudgetId } : {}),
-          }, { currentPath: "/budget" }),
+          },
+          { currentPath: "/budget" },
         );
+        if (!cancelled) setTenderEntitlement(entitlement);
       }
-      if (!cancelled) setContextReady(true);
     }
     void hydrate();
     return () => {
