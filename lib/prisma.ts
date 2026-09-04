@@ -42,7 +42,8 @@ function isStaleDevClient(client: PrismaClient): boolean {
   };
   return (
     typeof c.upgradeOrder !== "object" ||
-    typeof c.workspaceReviewRecovery !== "object"
+    typeof c.workspaceReviewRecovery !== "object" ||
+    typeof c.opsCrmIdentityLink !== "object"
   );
 }
 
