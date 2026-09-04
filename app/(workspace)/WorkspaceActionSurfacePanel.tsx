@@ -4,16 +4,20 @@ import {
   productHref,
   type ProductCommercialContext,
 } from "@/app/(product)/commercial-context";
-import { getCurrentUser } from "@/lib/auth/currentUser";
-import { listOrganizationsForUser } from "@/lib/organization/organization.service";
+import { listCustomers } from "@/lib/crm/customer/customer.service";
 import { listWorkspaceReviewSurfaceItemIds } from "@/lib/commercial/action-execution/workspace-review-action";
-import { resolveValidatedProductContextForOpsCustomer } from "@/lib/product/runtime-ops-product-context-adapter";
+import { resolveValidatedProductContextForCustomer } from "@/lib/product/commercial-context-bridge";
+import { lookupOpsCrmIdentitySeed } from "@/lib/product/runtime-ops-crm-identity-registry";
+import { listOpsCrmIdentityLinksByOpsCustomerIds } from "@/lib/product/runtime-ops-crm-identity-store";
 import {
   readWorkspaceActionSurface,
   type WorkspaceActionSurfaceItem,
 } from "@/lib/workflow/experience/workspace-action-surface";
 import { WorkspaceReviewActionControl } from "./WorkspaceReviewActionControl";
-import { WorkspaceOpsCrmIdentityLinkControl } from "./WorkspaceOpsCrmIdentityLinkControl";
+import {
+  WorkspaceOpsCrmIdentityLinkControl,
+  type CrmCustomerOption,
+} from "./WorkspaceOpsCrmIdentityLinkControl";
 import { submitWorkspaceReviewAction, submitWorkspaceReviewRecoveryAction } from "./submit-workspace-review-action";
 
 const STATE_LABEL: Readonly<Record<"ATTENTION" | "AVAILABLE" | "DEFERRED", string>> = {
@@ -37,26 +41,28 @@ function pickOpsProductRoute(ctx: ProductCommercialContext): ProductRoute | null
   return null;
 }
 
-async function loadWorkspaceOrganizationId(): Promise<string | null> {
-  try {
-    const user = await getCurrentUser();
-    if (!user) return null;
-    const orgs = await listOrganizationsForUser(user.id);
-    return orgs[0]?.organization.id ?? null;
-  } catch {
-    return null;
-  }
-}
-
 async function loadOpsProductContextByItemId(
   organizationId: string,
   items: readonly WorkspaceActionSurfaceItem[],
 ): Promise<Map<string, ProductCommercialContext | null>> {
+  const linkByOpsId = await listOpsCrmIdentityLinksByOpsCustomerIds(
+    organizationId,
+    items.map((item) => item.customerId),
+  );
+
   const entries = await Promise.all(
     items.map(async (item) => {
-      const productContext = await resolveValidatedProductContextForOpsCustomer(
+      const opsId = item.customerId.trim();
+      const crmCustomerId =
+        lookupOpsCrmIdentitySeed(organizationId, opsId) ??
+        linkByOpsId.get(opsId) ??
+        null;
+      if (!crmCustomerId) {
+        return [item.id, null] as const;
+      }
+      const productContext = await resolveValidatedProductContextForCustomer(
         organizationId,
-        item.customerId,
+        crmCustomerId,
       );
       return [item.id, productContext] as const;
     }),
@@ -86,10 +92,14 @@ function SurfaceItemRow({
   item,
   reviewItemIds,
   productContext,
+  organizationId,
+  crmCustomers,
 }: {
   item: WorkspaceActionSurfaceItem;
   reviewItemIds: ReadonlySet<string>;
   productContext: ProductCommercialContext | null;
+  organizationId: string;
+  crmCustomers: readonly CrmCustomerOption[];
 }) {
   return (
     <li className="rounded-md border border-zinc-800 px-3 py-2 text-sm">
@@ -103,7 +113,11 @@ function SurfaceItemRow({
       {productContext ? (
         <OpsActionSurfaceProductLink productContext={productContext} />
       ) : (
-        <WorkspaceOpsCrmIdentityLinkControl opsCustomerId={item.customerId} />
+        <WorkspaceOpsCrmIdentityLinkControl
+          opsCustomerId={item.customerId}
+          organizationId={organizationId}
+          customers={crmCustomers}
+        />
       )}
       {reviewItemIds.has(item.id) ? (
         <WorkspaceReviewActionControl
@@ -116,16 +130,40 @@ function SurfaceItemRow({
   );
 }
 
-export async function WorkspaceActionSurfacePanel() {
+export async function WorkspaceActionSurfacePanel({
+  organizationId,
+}: {
+  organizationId: string | null;
+}) {
   const surface = readWorkspaceActionSurface();
   const reviewItemIds = new Set(listWorkspaceReviewSurfaceItemIds());
-  const organizationId = await loadWorkspaceOrganizationId();
   const productContextByItemId =
     organizationId
       ? await loadOpsProductContextByItemId(organizationId, surface.items)
       : new Map<string, ProductCommercialContext | null>();
+
+  const needsIdentityLink =
+    Boolean(organizationId) &&
+    surface.items.some((item) => !(productContextByItemId.get(item.id) ?? null));
+
+  let crmCustomers: CrmCustomerOption[] = [];
+  if (organizationId && needsIdentityLink) {
+    try {
+      const rows = await listCustomers(organizationId);
+      crmCustomers = rows
+        .map((row) => ({
+          id: typeof row.id === "string" ? row.id.trim() : "",
+          name: typeof row.name === "string" ? row.name.trim() : "",
+        }))
+        .filter((row) => row.id.length > 0);
+    } catch {
+      crmCustomers = [];
+    }
+  }
+
   const attentionItems = surface.items.filter((item) => item.state === "ATTENTION");
   const tailItems = surface.items.filter((item) => item.state !== "ATTENTION");
+  const orgId = organizationId ?? "";
 
   return (
     <section className="mx-auto mt-4 max-w-5xl rounded-lg border border-zinc-800 bg-zinc-950 p-4">
@@ -156,6 +194,8 @@ export async function WorkspaceActionSurfacePanel() {
                   item={item}
                   reviewItemIds={reviewItemIds}
                   productContext={productContextByItemId.get(item.id) ?? null}
+                  organizationId={orgId}
+                  crmCustomers={crmCustomers}
                 />
               ))}
             </ul>
@@ -175,6 +215,8 @@ export async function WorkspaceActionSurfacePanel() {
                     item={item}
                     reviewItemIds={reviewItemIds}
                     productContext={productContextByItemId.get(item.id) ?? null}
+                    organizationId={orgId}
+                    crmCustomers={crmCustomers}
                   />
                 ))}
               </ul>

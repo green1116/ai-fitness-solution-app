@@ -31,8 +31,16 @@ function pickOpsProductRoute(ctx: ProductCommercialContext): ProductRoute | null
 function checkWorkspaceOpsDeepLinkUi() {
   const panel = read("app/(workspace)/WorkspaceActionSurfacePanel.tsx");
   assert(
-    panel.includes("resolveValidatedProductContextForOpsCustomer"),
-    "ops action panel resolves validated PCX",
+    panel.includes("resolveValidatedProductContextForCustomer"),
+    "ops action panel resolves validated PCX by CRM customer id",
+  );
+  assert(
+    panel.includes("listOpsCrmIdentityLinksByOpsCustomerIds"),
+    "ops action panel batch-resolves identity before PCX",
+  );
+  assert(
+    !panel.includes("resolveValidatedProductContextForOpsCustomer"),
+    "panel does not re-enter ops identity+PCX adapter path",
   );
   assert(panel.includes("productHref"), "ops action panel uses productHref");
   assert(panel.includes("OpsActionSurfaceProductLink"), "ops product link component");

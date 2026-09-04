@@ -62,8 +62,16 @@ function checkFrozenLayersUntouched() {
   assert(!eac.includes("runtime-ops-crm-identity-registry"), "EAC untouched by registry");
   assert(!ewas.includes("runtime-ops-product-context-adapter"), "EWAS untouched");
   assert(
-    workspace.includes("resolveValidatedProductContextForOpsCustomer"),
-    "workspace action panel consumes ops PCX adapter",
+    workspace.includes("resolveValidatedProductContextForCustomer"),
+    "workspace action panel resolves PCX by CRM customer id",
+  );
+  assert(
+    workspace.includes("listOpsCrmIdentityLinksByOpsCustomerIds"),
+    "workspace action panel batch-resolves ops↔CRM identity",
+  );
+  assert(
+    !workspace.includes("resolveValidatedProductContextForOpsCustomer"),
+    "workspace panel skips ops adapter (avoids duplicate identity lookup)",
   );
   console.log("✓ frozen runtime ops layers untouched");
 }

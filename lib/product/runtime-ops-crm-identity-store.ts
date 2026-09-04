@@ -40,6 +40,35 @@ export async function lookupOpsCrmIdentityLink(
   return link?.crmCustomerId ?? null;
 }
 
+/**
+ * Batch read-only identity lookup for workspace SSR.
+ * Returns Map of opsCustomerId → crmCustomerId. No schema change.
+ */
+export async function listOpsCrmIdentityLinksByOpsCustomerIds(
+  organizationId: string,
+  opsCustomerIds: readonly string[],
+): Promise<Map<string, string>> {
+  const orgId = trimId(organizationId);
+  const opsIds = [
+    ...new Set(
+      opsCustomerIds
+        .map((id) => trimId(id))
+        .filter((id) => id.length > 0),
+    ),
+  ];
+  if (!orgId || opsIds.length === 0) return new Map();
+
+  const links = await prisma.opsCrmIdentityLink.findMany({
+    where: {
+      organizationId: orgId,
+      opsCustomerId: { in: opsIds },
+    },
+    select: { opsCustomerId: true, crmCustomerId: true },
+  });
+
+  return new Map(links.map((link) => [link.opsCustomerId, link.crmCustomerId]));
+}
+
 export async function linkOpsCrmIdentity(input: {
   organizationId: string;
   opsCustomerId: string;

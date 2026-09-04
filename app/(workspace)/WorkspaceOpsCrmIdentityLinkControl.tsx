@@ -1,18 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-type CrmCustomerOption = {
+export type CrmCustomerOption = {
   id: string;
   name: string;
 };
-
-async function resolveOrganizationId(): Promise<string> {
-  const meRes = await fetch("/api/auth/me");
-  const me = (await meRes.json()) as { organizationId?: string | null };
-  return typeof me.organizationId === "string" ? me.organizationId.trim() : "";
-}
 
 function orgHeaders(organizationId: string): HeadersInit {
   return {
@@ -24,76 +18,30 @@ function orgHeaders(organizationId: string): HeadersInit {
 /**
  * Explicit Ops → CRM identity link control.
  * No name matching; tenant selects CRM customer id.
+ * Organization + CRM customer list are provided by the parent (single fetch).
  */
 export function WorkspaceOpsCrmIdentityLinkControl({
   opsCustomerId,
+  organizationId,
+  customers,
 }: {
   opsCustomerId: string;
+  organizationId: string;
+  customers: readonly CrmCustomerOption[];
 }) {
   const router = useRouter();
-  const [organizationId, setOrganizationId] = useState("");
-  const [customers, setCustomers] = useState<CrmCustomerOption[]>([]);
   const [crmCustomerId, setCrmCustomerId] = useState("");
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [result, setResult] = useState<"SUCCESS" | "FAILED" | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setMessage(null);
-      try {
-        const orgId = await resolveOrganizationId();
-        if (cancelled) return;
-        if (!orgId) {
-          setOrganizationId("");
-          setCustomers([]);
-          return;
-        }
-        setOrganizationId(orgId);
-        const res = await fetch("/api/crm/customers", {
-          headers: { "x-organization-id": orgId },
-        });
-        const data = (await res.json()) as {
-          ok?: boolean;
-          customers?: Array<{ id?: string; name?: string }>;
-        };
-        if (cancelled) return;
-        if (!data.ok || !Array.isArray(data.customers)) {
-          setCustomers([]);
-          return;
-        }
-        setCustomers(
-          data.customers
-            .map((row) => ({
-              id: typeof row.id === "string" ? row.id.trim() : "",
-              name: typeof row.name === "string" ? row.name.trim() : "",
-            }))
-            .filter((row) => row.id.length > 0),
-        );
-      } catch {
-        if (!cancelled) {
-          setCustomers([]);
-          setMessage("Failed to load CRM customers");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function handleLink() {
     setMessage(null);
     setResult(null);
     const opsId = opsCustomerId.trim();
     const crmId = crmCustomerId.trim();
-    if (!organizationId || !opsId || !crmId) {
+    const orgId = organizationId.trim();
+    if (!orgId || !opsId || !crmId) {
       setResult("FAILED");
       setMessage("Select a CRM customer to link");
       return;
@@ -102,7 +50,7 @@ export function WorkspaceOpsCrmIdentityLinkControl({
     try {
       const res = await fetch("/api/runtime-ops/crm-identity/link", {
         method: "POST",
-        headers: orgHeaders(organizationId),
+        headers: orgHeaders(orgId),
         body: JSON.stringify({
           opsCustomerId: opsId,
           crmCustomerId: crmId,
@@ -126,11 +74,7 @@ export function WorkspaceOpsCrmIdentityLinkControl({
     }
   }
 
-  if (loading) {
-    return <p className="mt-2 text-xs text-zinc-600">Loading CRM customers…</p>;
-  }
-
-  if (!organizationId) {
+  if (!organizationId.trim()) {
     return (
       <p className="mt-2 text-xs text-zinc-600">Sign in to link CRM identity</p>
     );

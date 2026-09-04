@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
+import { listOrganizationsForUser } from "@/lib/organization/organization.service";
 import { redirect } from "next/navigation";
 import {
   PEX_INTELLIGENCE_ENDPOINT,
@@ -17,6 +18,14 @@ export default async function WorkspaceLayout({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  let organizationId: string | null = null;
+  try {
+    const orgs = await listOrganizationsForUser(user.id);
+    organizationId = orgs[0]?.organization.id ?? null;
+  } catch {
+    organizationId = null;
+  }
 
   const isPlatformAdmin = isPlatformAdminEmail(user.email);
   const pex = isPlatformAdmin ? await readProductIntelligenceExperience() : null;
@@ -54,7 +63,7 @@ export default async function WorkspaceLayout({
             </div>
           </section>
         ) : null}
-        <WorkspaceActionSurfacePanel />
+        <WorkspaceActionSurfacePanel organizationId={organizationId} />
       </header>
       <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
     </div>
