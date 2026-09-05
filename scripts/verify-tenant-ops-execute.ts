@@ -79,6 +79,10 @@ function checkControlAndPanel() {
   assert(control.includes("RECOVER"), "RECOVER preserved");
   assert(control.includes("submitReviewAction"), "REVIEW submit prop preserved");
   assert(control.includes("showRecover = showReview && reviewState?.result === \"SUCCESS\""), "RECOVER after REVIEW SUCCESS");
+  assert(control.includes("router.refresh()"), "refreshes after SUCCESS");
+  assert(control.includes("disabled={executePending}"), "EXECUTE disabled while pending");
+  assert(control.includes("disabled={reviewPending}"), "REVIEW disabled while pending");
+  assert(control.includes("disabled={recoveryPending}"), "RECOVER disabled while pending");
   assert(!control.includes("submitWorkspaceReview"), "no frozen submit");
 
   const panel = read("app/(workspace)/WorkspaceActionSurfacePanel.tsx");

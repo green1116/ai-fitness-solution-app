@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect } from "react";
 
 import type { TenantOpsReviewActionResult } from "@/lib/runtime-ops/tenant-ops-action";
 import { submitTenantOpsRecoveryAction } from "./submit-tenant-ops-recovery-action";
@@ -22,15 +23,16 @@ export function TenantOpsReviewActionControl({
   executeEligible: boolean;
   submitReviewAction: SubmitTenantOpsReviewAction;
 }) {
-  const [reviewState, reviewFormAction] = useActionState(
+  const router = useRouter();
+  const [reviewState, reviewFormAction, reviewPending] = useActionState(
     submitReviewAction,
     null,
   );
-  const [recoveryState, recoveryFormAction] = useActionState(
+  const [recoveryState, recoveryFormAction, recoveryPending] = useActionState(
     submitTenantOpsRecoveryAction,
     null,
   );
-  const [executeState, executeFormAction] = useActionState(
+  const [executeState, executeFormAction, executePending] = useActionState(
     submitTenantOpsExecuteAction,
     null,
   );
@@ -64,6 +66,24 @@ export function TenantOpsReviewActionControl({
           ? "FAILED"
           : null;
 
+  useEffect(() => {
+    if (reviewState?.result === "SUCCESS") {
+      router.refresh();
+    }
+  }, [reviewState?.result, router]);
+
+  useEffect(() => {
+    if (recoveryState?.result === "SUCCESS") {
+      router.refresh();
+    }
+  }, [recoveryState?.result, router]);
+
+  useEffect(() => {
+    if (executeState?.result === "SUCCESS") {
+      router.refresh();
+    }
+  }, [executeState?.result, router]);
+
   return (
     <div className="mt-2 flex flex-col gap-1">
       {showExecute ? (
@@ -71,7 +91,8 @@ export function TenantOpsReviewActionControl({
           <input type="hidden" name="itemId" value={itemId} />
           <button
             type="submit"
-            className="rounded border border-sky-700 px-2 py-1 text-xs uppercase tracking-wide text-sky-300 hover:border-sky-500"
+            disabled={executePending}
+            className="rounded border border-sky-700 px-2 py-1 text-xs uppercase tracking-wide text-sky-300 hover:border-sky-500 disabled:opacity-40"
           >
             EXECUTE
           </button>
@@ -90,7 +111,8 @@ export function TenantOpsReviewActionControl({
           <input type="hidden" name="itemId" value={itemId} />
           <button
             type="submit"
-            className="rounded border border-zinc-700 px-2 py-1 text-xs uppercase tracking-wide text-zinc-200 hover:border-zinc-500"
+            disabled={reviewPending}
+            className="rounded border border-zinc-700 px-2 py-1 text-xs uppercase tracking-wide text-zinc-200 hover:border-zinc-500 disabled:opacity-40"
           >
             REVIEW
           </button>
@@ -109,7 +131,8 @@ export function TenantOpsReviewActionControl({
           <input type="hidden" name="itemId" value={itemId} />
           <button
             type="submit"
-            className="rounded border border-emerald-700 px-2 py-1 text-xs uppercase tracking-wide text-emerald-300 hover:border-emerald-500"
+            disabled={recoveryPending}
+            className="rounded border border-emerald-700 px-2 py-1 text-xs uppercase tracking-wide text-emerald-300 hover:border-emerald-500 disabled:opacity-40"
           >
             RECOVER
           </button>
