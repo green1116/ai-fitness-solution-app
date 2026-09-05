@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { handleApiError } from "@/lib/error/global-error.handler";
 import { isKnownApiError } from "@/lib/error/api-error.mapper";
-import { runSaasOrgGate, saasGateErrorResponse } from "@/lib/saas/api-gate";
+import { runApiProtection, saasGateErrorResponse } from "@/lib/saas/api-gate";
 import { listProjects } from "@/lib/services/project.service";
 
 export async function GET(req: NextRequest) {
@@ -10,7 +10,13 @@ export async function GET(req: NextRequest) {
   try {
     const organizationId = req.nextUrl.searchParams.get("organizationId") ?? undefined;
     const body = organizationId ? { organizationId } : undefined;
-    const gate = await runSaasOrgGate(req, "/api/project/list", body);
+    // Same auth/org/RBAC path as org-scoped SaaS gate; skip subscription plan lookup for list TTFB.
+    const gate = await runApiProtection(req, {
+      endpoint: "/api/project/list",
+      body,
+      permission: "use_product",
+      skipRateLimit: true,
+    });
     traceId = gate.traceId;
 
     const projects = await listProjects({ organizationId: gate.organizationId });

@@ -102,10 +102,15 @@ function checkApiGatePipeline() {
 }
 
 function checkProjectRoutesProtected() {
-  for (const route of ["app/api/project/create/route.ts", "app/api/project/list/route.ts"]) {
-    const content = fs.readFileSync(path.join(ROOT, route), "utf8");
-    assert(content.includes("runSaasOrgGate"), `${route} must use runSaasOrgGate`);
-  }
+  const create = fs.readFileSync(path.join(ROOT, "app/api/project/create/route.ts"), "utf8");
+  assert(create.includes("runSaasOrgGate"), "create must use runSaasOrgGate");
+
+  const list = fs.readFileSync(path.join(ROOT, "app/api/project/list/route.ts"), "utf8");
+  assert(list.includes("runApiProtection"), "list must use runApiProtection");
+  assert(list.includes("skipRateLimit: true"), "list skips rate-limit subscription lookup");
+  assert(list.includes('permission: "use_product"'), "list keeps use_product auth/org gate");
+  assert(list.includes("listProjects"), "list still returns project service shape");
+  assert(list.includes("ok: true, projects"), "list response shape preserved");
   console.log("✓ project routes tenant-scoped");
 }
 
