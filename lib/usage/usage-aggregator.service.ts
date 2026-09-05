@@ -35,10 +35,14 @@ export async function getUsageSummary(organizationId: string): Promise<UsageSumm
   const from = new Date(Date.now() - PERIOD_MS);
   const types: UsageType[] = ["QUOTE", "BUDGET", "TENDER", "PDF"];
 
+  const counts = await Promise.all(
+    types.map((type) => getUsageCountInPeriod(organizationId, type, from)),
+  );
+
   const totals = {} as Record<UsageType, number>;
-  for (const type of types) {
-    totals[type] = await getUsageCountInPeriod(organizationId, type, from);
-  }
+  types.forEach((type, index) => {
+    totals[type] = counts[index] ?? 0;
+  });
 
   return {
     organizationId,
