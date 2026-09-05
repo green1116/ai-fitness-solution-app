@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 
 import type { TenantOpsReviewActionResult } from "@/lib/runtime-ops/tenant-ops-action";
+import { useWorkspaceOrganizationId } from "./WorkspaceOrganizationProvider";
 import { submitTenantOpsRecoveryAction } from "./submit-tenant-ops-recovery-action";
 import { submitTenantOpsExecuteAction } from "./submit-tenant-ops-execute-action";
 
@@ -24,6 +25,7 @@ export function TenantOpsReviewActionControl({
   submitReviewAction: SubmitTenantOpsReviewAction;
 }) {
   const router = useRouter();
+  const organizationId = useWorkspaceOrganizationId();
   const [reviewState, reviewFormAction, reviewPending] = useActionState(
     submitReviewAction,
     null,
@@ -89,6 +91,7 @@ export function TenantOpsReviewActionControl({
       {showExecute ? (
         <form action={executeFormAction} className="flex items-center gap-2">
           <input type="hidden" name="itemId" value={itemId} />
+          <input type="hidden" name="organizationId" value={organizationId} />
           <button
             type="submit"
             disabled={executePending}
@@ -109,6 +112,7 @@ export function TenantOpsReviewActionControl({
       {showReview ? (
         <form action={reviewFormAction} className="flex items-center gap-2">
           <input type="hidden" name="itemId" value={itemId} />
+          <input type="hidden" name="organizationId" value={organizationId} />
           <button
             type="submit"
             disabled={reviewPending}
@@ -129,6 +133,7 @@ export function TenantOpsReviewActionControl({
       {showRecover ? (
         <form action={recoveryFormAction} className="flex items-center gap-2">
           <input type="hidden" name="itemId" value={itemId} />
+          <input type="hidden" name="organizationId" value={organizationId} />
           <button
             type="submit"
             disabled={recoveryPending}

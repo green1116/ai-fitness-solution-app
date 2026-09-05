@@ -2,64 +2,35 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getCurrentUser } from "@/lib/auth/currentUser";
-import {
-  ensureOrganizationForUser,
-  listOrganizationsForUser,
-} from "@/lib/organization/organization.service";
+import { resolveTenantOpsOrgContext } from "@/lib/runtime-ops/tenant-ops-org-gate";
 import {
   TENANT_OPS_RECOVERY_ID,
   TENANT_OPS_RECOVERY_VERSION,
   completeTenantOpsRecovery,
   type TenantOpsRecoveryResult,
 } from "@/lib/runtime-ops/tenant-ops-recovery";
-import {
-  getTenantContext,
-  runWithTenantContext,
-  type TenantContext,
-} from "@/lib/tenancy/tenant.context";
+import { runWithTenantContext } from "@/lib/tenancy/tenant.context";
 
 if (typeof window !== "undefined") {
   throw new Error("submitTenantOpsRecoveryAction is server-only");
 }
 
-async function tenantFromSession(): Promise<TenantContext | null> {
-  const bound = getTenantContext();
-  if (bound) return bound;
-
-  let user: Awaited<ReturnType<typeof getCurrentUser>> = null;
-  try {
-    user = await getCurrentUser();
-  } catch {
-    return null;
-  }
-  if (!user) return null;
-  const existing = await listOrganizationsForUser(user.id);
-  const organization =
-    existing[0]?.organization ??
-    (await ensureOrganizationForUser({
-      userId: user.id,
-      name: user.name ?? undefined,
-    }));
-  return {
-    organizationId: organization.id,
-    userId: user.id,
-    traceId: "tenant-ops-recovery-action",
-  };
-}
-
-function authFailed(itemId: string): TenantOpsRecoveryResult {
+function gateFailed(
+  itemId: string,
+  organizationId: string,
+  reason: string,
+): TenantOpsRecoveryResult {
   return {
     workPackageId: TENANT_OPS_RECOVERY_ID,
     version: TENANT_OPS_RECOVERY_VERSION,
     itemId: itemId.trim(),
-    organizationId: "",
+    organizationId,
     customerId: null,
     entityId: null,
     stage: null,
     recovered: false,
     result: "FAILED",
-    reason: "auth-required",
+    reason,
   };
 }
 
@@ -68,14 +39,18 @@ export async function submitTenantOpsRecoveryAction(
   formData: FormData,
 ): Promise<TenantOpsRecoveryResult> {
   const itemId = String(formData.get("itemId") ?? "");
-  const tenant = await tenantFromSession();
-  if (!tenant) {
-    return authFailed(itemId);
+  const organizationId = String(formData.get("organizationId") ?? "");
+  const gate = await resolveTenantOpsOrgContext({
+    organizationId,
+    traceId: "tenant-ops-recovery-action",
+  });
+  if (!gate.ok) {
+    return gateFailed(itemId, gate.organizationId, gate.reason);
   }
 
-  const result = await runWithTenantContext(tenant, async () =>
+  const result = await runWithTenantContext(gate.tenant, async () =>
     completeTenantOpsRecovery({
-      organizationId: tenant.organizationId,
+      organizationId: gate.tenant.organizationId,
       itemId,
     }),
   );

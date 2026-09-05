@@ -2,58 +2,29 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getCurrentUser } from "@/lib/auth/currentUser";
-import {
-  ensureOrganizationForUser,
-  listOrganizationsForUser,
-} from "@/lib/organization/organization.service";
 import {
   TENANT_OPS_EXECUTE_ID,
   TENANT_OPS_EXECUTE_VERSION,
   runTenantOpsExecuteAction,
   type TenantOpsExecuteActionResult,
 } from "@/lib/runtime-ops/tenant-ops-execute";
-import {
-  getTenantContext,
-  runWithTenantContext,
-  type TenantContext,
-} from "@/lib/tenancy/tenant.context";
+import { resolveTenantOpsOrgContext } from "@/lib/runtime-ops/tenant-ops-org-gate";
+import { runWithTenantContext } from "@/lib/tenancy/tenant.context";
 
 if (typeof window !== "undefined") {
   throw new Error("submitTenantOpsExecuteAction is server-only");
 }
 
-async function tenantFromSession(): Promise<TenantContext | null> {
-  const bound = getTenantContext();
-  if (bound) return bound;
-
-  let user: Awaited<ReturnType<typeof getCurrentUser>> = null;
-  try {
-    user = await getCurrentUser();
-  } catch {
-    return null;
-  }
-  if (!user) return null;
-  const existing = await listOrganizationsForUser(user.id);
-  const organization =
-    existing[0]?.organization ??
-    (await ensureOrganizationForUser({
-      userId: user.id,
-      name: user.name ?? undefined,
-    }));
-  return {
-    organizationId: organization.id,
-    userId: user.id,
-    traceId: "tenant-ops-execute-action",
-  };
-}
-
-function authFailed(itemId: string): TenantOpsExecuteActionResult {
+function gateFailed(
+  itemId: string,
+  organizationId: string,
+  reason: string,
+): TenantOpsExecuteActionResult {
   return {
     workPackageId: TENANT_OPS_EXECUTE_ID,
     version: TENANT_OPS_EXECUTE_VERSION,
     itemId: itemId.trim(),
-    organizationId: "",
+    organizationId,
     customerId: null,
     entityId: null,
     fromStage: null,
@@ -61,7 +32,7 @@ function authFailed(itemId: string): TenantOpsExecuteActionResult {
     action: null,
     result: "FAILED",
     executed: false,
-    reason: "auth-required",
+    reason,
   };
 }
 
@@ -70,16 +41,20 @@ export async function submitTenantOpsExecuteAction(
   formData: FormData,
 ): Promise<TenantOpsExecuteActionResult> {
   const itemId = String(formData.get("itemId") ?? "");
-  const tenant = await tenantFromSession();
-  if (!tenant) {
-    return authFailed(itemId);
+  const organizationId = String(formData.get("organizationId") ?? "");
+  const gate = await resolveTenantOpsOrgContext({
+    organizationId,
+    traceId: "tenant-ops-execute-action",
+  });
+  if (!gate.ok) {
+    return gateFailed(itemId, gate.organizationId, gate.reason);
   }
 
-  const result = await runWithTenantContext(tenant, async () =>
+  const result = await runWithTenantContext(gate.tenant, async () =>
     runTenantOpsExecuteAction({
-      organizationId: tenant.organizationId,
+      organizationId: gate.tenant.organizationId,
       itemId,
-      userId: tenant.userId,
+      userId: gate.tenant.userId,
     }),
   );
 
