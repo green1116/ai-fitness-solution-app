@@ -69,7 +69,8 @@ function checkControl() {
   assert(src.includes('"use client"'), "client control");
   assert(src.includes("itemId"), "passes itemId");
   assert(src.includes("REVIEW"), "REVIEW button");
-  assert(!src.includes("RECOVER"), "no recovery control");
+  assert(src.includes("RECOVER"), "RECOVER after tenant SUCCESS");
+  assert(src.includes("submitTenantOpsRecoveryAction"), "tenant recovery submit");
   assert(!src.includes("surfaceItemId"), "no frozen surfaceItemId");
   assert(!src.includes("submitWorkspaceReview"), "no frozen submit");
   console.log("✓ TenantOpsReviewActionControl");

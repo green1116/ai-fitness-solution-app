@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 
 import type { TenantOpsReviewActionResult } from "@/lib/runtime-ops/tenant-ops-action";
+import { submitTenantOpsRecoveryAction } from "./submit-tenant-ops-recovery-action";
 
 type SubmitTenantOpsReviewAction = (
   prev: TenantOpsReviewActionResult | null,
@@ -16,20 +17,35 @@ export function TenantOpsReviewActionControl({
   itemId: string;
   submitReviewAction: SubmitTenantOpsReviewAction;
 }) {
-  const [state, formAction] = useActionState(submitReviewAction, null);
+  const [reviewState, reviewFormAction] = useActionState(
+    submitReviewAction,
+    null,
+  );
+  const [recoveryState, recoveryFormAction] = useActionState(
+    submitTenantOpsRecoveryAction,
+    null,
+  );
 
-  const actionLabel =
-    state?.result === "SUCCESS"
+  const reviewLabel =
+    reviewState?.result === "SUCCESS"
       ? "SUCCESS"
-      : state?.result === "BLOCKED"
+      : reviewState?.result === "BLOCKED"
         ? "BLOCKED"
-        : state?.result === "FAILED"
+        : reviewState?.result === "FAILED"
           ? "FAILED"
           : null;
 
+  const showRecover = reviewState?.result === "SUCCESS";
+  const recoveryLabel =
+    recoveryState?.result === "SUCCESS"
+      ? "RECOVERED"
+      : recoveryState?.result === "FAILED"
+        ? "FAILED"
+        : null;
+
   return (
     <div className="mt-2 flex flex-col gap-1">
-      <form action={formAction} className="flex items-center gap-2">
+      <form action={reviewFormAction} className="flex items-center gap-2">
         <input type="hidden" name="itemId" value={itemId} />
         <button
           type="submit"
@@ -37,14 +53,33 @@ export function TenantOpsReviewActionControl({
         >
           REVIEW
         </button>
-        {actionLabel ? (
+        {reviewLabel ? (
           <span className="text-xs uppercase tracking-wide text-zinc-400">
-            {actionLabel}
+            {reviewLabel}
           </span>
         ) : null}
       </form>
-      {state?.reason ? (
-        <p className="text-xs text-zinc-500">{state.reason}</p>
+      {reviewState?.reason ? (
+        <p className="text-xs text-zinc-500">{reviewState.reason}</p>
+      ) : null}
+      {showRecover ? (
+        <form action={recoveryFormAction} className="flex items-center gap-2">
+          <input type="hidden" name="itemId" value={itemId} />
+          <button
+            type="submit"
+            className="rounded border border-emerald-700 px-2 py-1 text-xs uppercase tracking-wide text-emerald-300 hover:border-emerald-500"
+          >
+            RECOVER
+          </button>
+          {recoveryLabel ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-400">
+              {recoveryLabel}
+            </span>
+          ) : null}
+        </form>
+      ) : null}
+      {recoveryState?.reason ? (
+        <p className="text-xs text-zinc-500">{recoveryState.reason}</p>
       ) : null}
     </div>
   );
