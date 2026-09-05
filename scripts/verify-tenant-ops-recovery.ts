@@ -63,7 +63,7 @@ function checkControl() {
   assert(src.includes("submitReviewAction"), "REVIEW submit prop unchanged");
   assert(src.includes("RECOVER"), "RECOVER button");
   assert(src.includes("submitTenantOpsRecoveryAction"), "tenant recovery submit");
-  assert(src.includes("reviewState?.result === \"SUCCESS\""), "RECOVER after SUCCESS");
+  assert(src.includes("showRecover = showReview && reviewState?.result === \"SUCCESS\""), "RECOVER after REVIEW SUCCESS");
   assert(!src.includes("submitWorkspaceReviewRecoveryAction"), "no frozen recovery submit");
   assert(!src.includes("surfaceItemId"), "no frozen surfaceItemId");
   console.log("✓ TenantOpsReviewActionControl recovery wiring");

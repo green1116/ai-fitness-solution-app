@@ -14,6 +14,7 @@ import {
   type TenantOpsBacklog,
   type TenantOpsBacklogItem,
 } from "@/lib/runtime-ops/tenant-ops-backlog";
+import { isTenantOpsExecuteEligible } from "@/lib/runtime-ops/tenant-ops-execute";
 import {
   readWorkspaceActionSurface,
   type WorkspaceActionSurfaceItem,
@@ -177,9 +178,10 @@ function TenantBacklogItemRow({
       {productContext ? (
         <OpsActionSurfaceProductLink productContext={productContext} />
       ) : null}
-      {item.reviewEligible ? (
+      {item.reviewEligible || isTenantOpsExecuteEligible(item.stage) ? (
         <TenantOpsReviewActionControl
           itemId={item.id}
+          stage={item.stage}
           submitReviewAction={submitTenantOpsReviewAction}
         />
       ) : null}
