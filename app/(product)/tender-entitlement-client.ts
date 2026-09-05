@@ -23,9 +23,93 @@ export type TenderClientEntitlement = {
   upgradeCta: string;
 };
 
+type SubscriptionSnapshot = {
+  canGenerateTender: boolean;
+  currentPlan: string;
+};
+
+type SnapshotCacheEntry = {
+  snapshot: SubscriptionSnapshot;
+  expiresAt: number;
+};
+
+/** Short TTL so plan changes can refresh without sticky permanent failures. */
+const SUBSCRIPTION_SNAPSHOT_TTL_MS = 60_000;
+
+const subscriptionSnapshotCache = new Map<string, SnapshotCacheEntry>();
+const subscriptionSnapshotInflight = new Map<string, Promise<SubscriptionSnapshot>>();
+
+function readCachedSnapshot(organizationId: string): SubscriptionSnapshot | null {
+  const entry = subscriptionSnapshotCache.get(organizationId);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    subscriptionSnapshotCache.delete(organizationId);
+    return null;
+  }
+  return entry.snapshot;
+}
+
+function writeCachedSnapshot(organizationId: string, snapshot: SubscriptionSnapshot): void {
+  subscriptionSnapshotCache.set(organizationId, {
+    snapshot,
+    expiresAt: Date.now() + SUBSCRIPTION_SNAPSHOT_TTL_MS,
+  });
+}
+
+/**
+ * Org-scoped subscription snapshot with in-flight coalescing.
+ * Successful responses are cached briefly; network/HTTP failures are not cached.
+ */
+async function loadSubscriptionSnapshot(
+  organizationId: string,
+): Promise<SubscriptionSnapshot> {
+  const orgId = organizationId.trim();
+  if (!orgId) {
+    return { canGenerateTender: false, currentPlan: "BASIC" };
+  }
+
+  const cached = readCachedSnapshot(orgId);
+  if (cached) return cached;
+
+  const existing = subscriptionSnapshotInflight.get(orgId);
+  if (existing) return existing;
+
+  const pending = (async (): Promise<SubscriptionSnapshot> => {
+    try {
+      const res = await fetch("/api/billing/subscription", {
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": orgId,
+        },
+      });
+      if (!res.ok) {
+        // Transient HTTP failure — do not cache.
+        return { canGenerateTender: false, currentPlan: "BASIC" };
+      }
+      const sub = (await res.json().catch(() => ({}))) as SubscriptionResponse;
+      const snapshot: SubscriptionSnapshot = {
+        canGenerateTender:
+          sub.ok === true && sub.featureFlags?.canGenerateTender === true,
+        currentPlan: String(sub.subscription?.plan ?? "BASIC").toUpperCase(),
+      };
+      writeCachedSnapshot(orgId, snapshot);
+      return snapshot;
+    } catch {
+      // Network/parse throw — do not cache; next caller may retry.
+      return { canGenerateTender: false, currentPlan: "BASIC" };
+    } finally {
+      subscriptionSnapshotInflight.delete(orgId);
+    }
+  })();
+
+  subscriptionSnapshotInflight.set(orgId, pending);
+  return pending;
+}
+
 /**
  * Resolve tender entitlement from billing subscription only.
  * When canGenerateTender is false, reuse static locked CTA (no growth paywall request).
+ * Subscription snapshot is shared per org; upgradeHref stays ctx/path-local.
  */
 export async function loadTenderClientEntitlement(
   organizationId: string,
@@ -49,28 +133,19 @@ export async function loadTenderClientEntitlement(
   };
   if (!organizationId) return denied;
 
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    "x-organization-id": organizationId,
-  };
+  const snapshot = await loadSubscriptionSnapshot(organizationId);
 
-  const subRes = await fetch("/api/billing/subscription", { headers });
-  const sub = (await subRes.json().catch(() => ({}))) as SubscriptionResponse;
-  const canGenerateTender = sub.ok === true && sub.featureFlags?.canGenerateTender === true;
-  const currentPlan = String(sub.subscription?.plan ?? "BASIC").toUpperCase();
-
-  if (canGenerateTender) {
+  if (snapshot.canGenerateTender) {
     return {
       ...denied,
       canGenerateTender: true,
-      currentPlan,
-      recommendedPlan: currentPlan,
+      currentPlan: snapshot.currentPlan,
+      recommendedPlan: snapshot.currentPlan,
     };
   }
 
-  // Subscription already proved no tender entitlement — skip slow paywall API; keep locked CTA.
   return {
     ...denied,
-    currentPlan,
+    currentPlan: snapshot.currentPlan,
   };
 }

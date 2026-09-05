@@ -87,8 +87,18 @@ function checkPaywallReuse() {
   assert(client.includes("upgradeCta"), "client keeps locked upgrade CTA");
   assert(client.includes("buildTenderUpgradeHref"), "client keeps upgrade href builder");
   assert(
-    client.includes("canGenerateTender === true"),
+    client.includes("canGenerateTender === true") ||
+      client.includes("snapshot.canGenerateTender"),
     "client still gates on subscription canGenerateTender",
+  );
+  assert(
+    client.includes("subscriptionSnapshotCache") &&
+      client.includes("subscriptionSnapshotInflight"),
+    "client shares org-scoped subscription snapshot",
+  );
+  assert(
+    client.includes("writeCachedSnapshot") && client.includes("!res.ok"),
+    "client does not cache HTTP failures",
   );
   const engine = read("lib/growth/conversion/paywall.engine.ts");
   assert(engine.includes("canGenerateTender: \"ENTERPRISE\""), "engine recommends ENTERPRISE");
