@@ -13,18 +13,6 @@ type SubscriptionResponse = {
   featureFlags?: { canGenerateTender?: boolean };
 };
 
-type PaywallResponse = {
-  ok?: boolean;
-  paywall?: {
-    showPaywall?: boolean;
-    recommendedPlan?: string;
-    currentPlan?: string;
-    trigger?: string;
-    feature?: string;
-  };
-  pricing?: { cta?: string; plan?: string; headline?: string };
-};
-
 export type TenderClientEntitlement = {
   organizationId: string;
   canGenerateTender: boolean;
@@ -35,6 +23,10 @@ export type TenderClientEntitlement = {
   upgradeCta: string;
 };
 
+/**
+ * Resolve tender entitlement from billing subscription only.
+ * When canGenerateTender is false, reuse static locked CTA (no growth paywall request).
+ */
 export async function loadTenderClientEntitlement(
   organizationId: string,
   ctx: ProductCommercialContext = {},
@@ -76,23 +68,9 @@ export async function loadTenderClientEntitlement(
     };
   }
 
-  const paywallRes = await fetch("/api/growth/paywall", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      organizationId,
-      trigger: "tender_generation_click",
-    }),
-  });
-  const paywallBody = (await paywallRes.json().catch(() => ({}))) as PaywallResponse;
-  const recommendedPlan =
-    paywallBody.paywall?.recommendedPlan?.toUpperCase() || TENDER_RECOMMENDED_PLAN;
-
+  // Subscription already proved no tender entitlement — skip slow paywall API; keep locked CTA.
   return {
     ...denied,
-    currentPlan: paywallBody.paywall?.currentPlan?.toUpperCase() || currentPlan,
-    recommendedPlan,
-    trigger: paywallBody.paywall?.trigger ?? "tender_generation_click",
-    upgradeCta: paywallBody.pricing?.cta || denied.upgradeCta,
+    currentPlan,
   };
 }

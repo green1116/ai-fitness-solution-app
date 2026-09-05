@@ -61,7 +61,7 @@ function checkNav() {
   const src = read("app/(product)/ProductCommercialNav.tsx");
   assert(src.includes("canGenerateTender"), "nav checks tender flag");
   assert(src.includes("TenderEnterpriseUpgradeCta"), "nav shows upgrade CTA");
-  assert(src.includes("标书 Tender（锁定）"), "nav locks tender");
+  assert(src.includes("标书（锁定）"), "nav locks tender");
   assert(src.includes("productHref"), "nav preserves commercial context");
   assert(!src.includes('href="/dashboard"'), "nav console is not /dashboard");
   console.log("✓ product nav lock");
@@ -79,11 +79,20 @@ function checkProjectDetail() {
 function checkPaywallReuse() {
   const client = read("app/(product)/tender-entitlement-client.ts");
   assert(client.includes("/api/billing/subscription"), "client loads billing subscription");
-  assert(client.includes("/api/growth/paywall"), "client reuses growth paywall API");
-  assert(client.includes("tender_generation_click"), "client uses tender_generation_click");
+  assert(
+    !client.includes('"/api/growth/paywall"') && !client.includes("'/api/growth/paywall'"),
+    "client skips growth paywall when subscription denies tender",
+  );
+  assert(client.includes("tender_generation_click"), "client keeps tender_generation_click trigger");
+  assert(client.includes("upgradeCta"), "client keeps locked upgrade CTA");
+  assert(client.includes("buildTenderUpgradeHref"), "client keeps upgrade href builder");
+  assert(
+    client.includes("canGenerateTender === true"),
+    "client still gates on subscription canGenerateTender",
+  );
   const engine = read("lib/growth/conversion/paywall.engine.ts");
   assert(engine.includes("canGenerateTender: \"ENTERPRISE\""), "engine recommends ENTERPRISE");
-  console.log("✓ paywall engine reuse");
+  console.log("✓ paywall engine reuse (client skips paywall on deny)");
 }
 
 function checkApiUntouched() {
@@ -97,14 +106,14 @@ function checkBudgetUx() {
   assert(!src.includes("setResult(JSON.stringify"), "budget does not render raw JSON");
   assert(!src.includes("<pre"), "budget customer UI has no raw debug pre");
   assert(src.includes("预算已生成，可直接下载 PDF"), "budget shows customer summary");
-  assert(src.includes("继续到 Tender 需要 Enterprise"), "budget uses enterprise upgrade wording");
+  assert(src.includes("继续生成标书需要 Enterprise"), "budget uses enterprise upgrade wording");
   console.log("✓ budget customer UX");
 }
 
 function checkQuoteUx() {
   const src = read("app/(product)/quote/page.tsx");
   assert(src.includes("const [contextReady, setContextReady]"), "quote waits for context");
-  assert(src.includes("加载项目上下文"), "quote hides company input while resolving");
+  assert(src.includes("加载中…"), "quote hides company input while resolving");
   console.log("✓ quote context UX");
 }
 
