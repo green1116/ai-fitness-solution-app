@@ -10,6 +10,11 @@ import { resolveValidatedProductContextForCustomer } from "@/lib/product/commerc
 import { lookupOpsCrmIdentitySeed } from "@/lib/product/runtime-ops-crm-identity-registry";
 import { listOpsCrmIdentityLinksByOpsCustomerIds } from "@/lib/product/runtime-ops-crm-identity-store";
 import {
+  readTenantOpsBacklog,
+  type TenantOpsBacklog,
+  type TenantOpsBacklogItem,
+} from "@/lib/runtime-ops/tenant-ops-backlog";
+import {
   readWorkspaceActionSurface,
   type WorkspaceActionSurfaceItem,
 } from "@/lib/workflow/experience/workspace-action-surface";
@@ -63,6 +68,22 @@ async function loadOpsProductContextByItemId(
       const productContext = await resolveValidatedProductContextForCustomer(
         organizationId,
         crmCustomerId,
+      );
+      return [item.id, productContext] as const;
+    }),
+  );
+  return new Map(entries);
+}
+
+async function loadTenantProductContextByItemId(
+  organizationId: string,
+  items: readonly TenantOpsBacklogItem[],
+): Promise<Map<string, ProductCommercialContext | null>> {
+  const entries = await Promise.all(
+    items.map(async (item) => {
+      const productContext = await resolveValidatedProductContextForCustomer(
+        organizationId,
+        item.customerId,
       );
       return [item.id, productContext] as const;
     }),
@@ -130,11 +151,106 @@ function SurfaceItemRow({
   );
 }
 
-export async function WorkspaceActionSurfacePanel({
-  organizationId,
+function TenantBacklogItemRow({
+  item,
+  productContext,
 }: {
-  organizationId: string | null;
+  item: TenantOpsBacklogItem;
+  productContext: ProductCommercialContext | null;
 }) {
+  return (
+    <li className="rounded-md border border-zinc-800 px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium text-zinc-200">
+          {item.customerName || item.customerId}
+        </span>
+        <span className="text-xs uppercase tracking-wide text-zinc-400">
+          {STATE_LABEL[item.state]}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-zinc-500">{item.reason}</p>
+      <p className="mt-0.5 text-xs text-zinc-600">
+        {item.action} · {item.stage}
+      </p>
+      {productContext ? (
+        <OpsActionSurfaceProductLink productContext={productContext} />
+      ) : null}
+      {item.reviewEligible ? (
+        <p className="mt-1 text-xs text-amber-500/80">Review eligible</p>
+      ) : null}
+    </li>
+  );
+}
+
+async function renderTenantOpsBacklogPanel(organizationId: string) {
+  const backlog: TenantOpsBacklog = await readTenantOpsBacklog(organizationId);
+  const productContextByItemId = await loadTenantProductContextByItemId(
+    organizationId,
+    backlog.items,
+  );
+
+  const attentionItems = backlog.items.filter((item) => item.state === "ATTENTION");
+  const tailItems = backlog.items.filter((item) => item.state !== "ATTENTION");
+
+  return (
+    <section className="mx-auto mt-4 max-w-5xl rounded-lg border border-zinc-800 bg-zinc-950 p-4">
+      <p className="text-xs text-zinc-600">只读 · readTenantOpsBacklog()</p>
+      <div className="mt-3 grid gap-4 sm:grid-cols-3">
+        <div>
+          <p className="text-xs text-zinc-500">Attention</p>
+          <p className="mt-1 text-lg font-semibold">{backlog.attentionCount}</p>
+        </div>
+        <div>
+          <p className="text-xs text-zinc-500">Available</p>
+          <p className="mt-1 text-lg font-semibold">{backlog.availableCount}</p>
+        </div>
+        <div>
+          <p className="text-xs text-zinc-500">Deferred</p>
+          <p className="mt-1 text-lg font-semibold">{backlog.deferredCount}</p>
+        </div>
+      </div>
+      {backlog.items.length === 0 ? (
+        <p className="mt-4 text-sm text-zinc-500">No tenant ops backlog</p>
+      ) : (
+        <>
+          {attentionItems.length > 0 ? (
+            <ul className="mt-4 space-y-2">
+              {attentionItems.map((item) => (
+                <TenantBacklogItemRow
+                  key={item.id}
+                  item={item}
+                  productContext={productContextByItemId.get(item.id) ?? null}
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-4 text-sm text-zinc-500">No ATTENTION tenant ops items</p>
+          )}
+          {tailItems.length > 0 ? (
+            <details className="mt-4">
+              <summary className="cursor-pointer text-xs text-zinc-500">
+                + {tailItems.length} more tenant ops items · Available{" "}
+                {backlog.availableCount} · Deferred {backlog.deferredCount}
+              </summary>
+              <ul className="mt-2 space-y-2">
+                {tailItems.map((item) => (
+                  <TenantBacklogItemRow
+                    key={item.id}
+                    item={item}
+                    productContext={productContextByItemId.get(item.id) ?? null}
+                  />
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Frozen EWAS path — verify/fallback only when org prefers tenant backlog. */
+async function renderFrozenEwasPanel(organizationId: string | null) {
   const surface = readWorkspaceActionSurface();
   const reviewItemIds = new Set(listWorkspaceReviewSurfaceItemIds());
   const productContextByItemId =
@@ -226,4 +342,21 @@ export async function WorkspaceActionSurfacePanel({
       )}
     </section>
   );
+}
+
+export async function WorkspaceActionSurfacePanel({
+  organizationId,
+}: {
+  organizationId: string | null;
+}) {
+  if (organizationId) {
+    try {
+      return await renderTenantOpsBacklogPanel(organizationId);
+    } catch {
+      // Tenant read failed — fall back to frozen EWAS for verify/ops continuity.
+      return renderFrozenEwasPanel(organizationId);
+    }
+  }
+
+  return renderFrozenEwasPanel(null);
 }
