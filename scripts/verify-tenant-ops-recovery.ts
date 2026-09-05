@@ -55,6 +55,8 @@ function checkSubmit() {
   assert(src.includes('"use server"'), "server action");
   assert(src.includes("completeTenantOpsRecovery"), "calls tenant recovery");
   assert(src.includes("runWithTenantContext"), "tenant context");
+  assert(src.includes("userId: gate.tenant.userId"), "passes session userId");
+  assert(!src.includes('formData.get("userId")'), "never trusts client userId");
   assert(src.includes('formData.get("itemId")'), "reads itemId");
   assert(src.includes('revalidatePath("/projects", "layout")'), "revalidates workspace layout on SUCCESS");
   assert(src.includes('result.result === "SUCCESS"'), "revalidate only on SUCCESS");

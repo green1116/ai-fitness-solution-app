@@ -52,6 +52,7 @@ export async function submitTenantOpsRecoveryAction(
     completeTenantOpsRecovery({
       organizationId: gate.tenant.organizationId,
       itemId,
+      userId: gate.tenant.userId,
     }),
   );
 

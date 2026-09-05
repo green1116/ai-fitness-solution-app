@@ -9,6 +9,10 @@ import {
 } from "@/lib/crm/pipeline/crm.pipeline.engine";
 import { prisma } from "@/lib/prisma";
 import { parseTenantOpsOpportunityItemId } from "@/lib/runtime-ops/tenant-ops-action";
+import {
+  appendTenantOpsAudit,
+  toTenantOpsAuditResult,
+} from "@/lib/runtime-ops/tenant-ops-audit";
 
 export const TENANT_OPS_EXECUTE_ID = "tenant-ops-execute-1" as const;
 export const TENANT_OPS_EXECUTE_VERSION =
@@ -72,6 +76,22 @@ function failed(
   };
 }
 
+async function auditExecuteBoundary(
+  result: TenantOpsExecuteActionResult,
+  userId?: string,
+): Promise<void> {
+  await appendTenantOpsAudit({
+    kind: "execute",
+    organizationId: result.organizationId,
+    userId,
+    itemId: result.itemId,
+    customerId: result.customerId,
+    action: result.action ?? "execute",
+    result: toTenantOpsAuditResult(result.result),
+    reason: result.reason,
+  });
+}
+
 /**
  * Advance Opportunity stage via existing CRM pipeline helpers.
  * Does not open deals; does not call EWEB/EWER.
@@ -84,116 +104,118 @@ export async function runTenantOpsExecuteAction(input: {
   const organizationId = input.organizationId.trim();
   const itemId = input.itemId.trim();
 
+  let result: TenantOpsExecuteActionResult;
+
   if (!organizationId) {
-    return failed({
+    result = failed({
       itemId,
       organizationId: "",
       reason: "organization-missing",
     });
-  }
-  if (!itemId) {
-    return failed({
+  } else if (!itemId) {
+    result = failed({
       itemId,
       organizationId,
       reason: "item-id-missing",
     });
-  }
-
-  const entityId = parseTenantOpsOpportunityItemId(itemId);
-  if (!entityId) {
-    return failed({
-      itemId,
-      organizationId,
-      reason: "item-id-invalid",
-    });
-  }
-
-  const opportunity = await prisma.opportunity.findUnique({
-    where: { id: entityId },
-    select: {
-      id: true,
-      stage: true,
-      customerId: true,
-      customer: {
-        select: { organizationId: true },
-      },
-    },
-  });
-
-  if (!opportunity) {
-    return failed({
-      itemId,
-      organizationId,
-      entityId,
-      reason: "opportunity-not-found",
-    });
-  }
-
-  if (opportunity.customer.organizationId !== organizationId) {
-    return failed({
-      itemId,
-      organizationId,
-      entityId,
-      customerId: opportunity.customerId,
-      fromStage: opportunity.stage,
-      reason: "organization-mismatch",
-    });
-  }
-
-  const fromStage = opportunity.stage.trim().toUpperCase();
-  const toStage = deriveTenantOpsExecuteTarget(fromStage);
-
-  if (!toStage) {
-    return failed({
-      itemId,
-      organizationId,
-      entityId,
-      customerId: opportunity.customerId,
-      fromStage,
-      result: "BLOCKED",
-      executed: false,
-      reason:
-        fromStage === "NEGOTIATION"
-          ? "negotiation-review-only"
-          : "not-executable",
-    });
-  }
-
-  const action =
-    toStage === "PROPOSAL" ? "prepare-proposal" : "advance-proposal";
-
-  try {
-    if (toStage === "PROPOSAL") {
-      await advanceOpportunityToProposal(entityId, input.userId);
+  } else {
+    const entityId = parseTenantOpsOpportunityItemId(itemId);
+    if (!entityId) {
+      result = failed({
+        itemId,
+        organizationId,
+        reason: "item-id-invalid",
+      });
     } else {
-      await advanceOpportunityToNegotiation(entityId, input.userId);
+      const opportunity = await prisma.opportunity.findUnique({
+        where: { id: entityId },
+        select: {
+          id: true,
+          stage: true,
+          customerId: true,
+          customer: {
+            select: { organizationId: true },
+          },
+        },
+      });
+
+      if (!opportunity) {
+        result = failed({
+          itemId,
+          organizationId,
+          entityId,
+          reason: "opportunity-not-found",
+        });
+      } else if (opportunity.customer.organizationId !== organizationId) {
+        result = failed({
+          itemId,
+          organizationId,
+          entityId,
+          customerId: opportunity.customerId,
+          fromStage: opportunity.stage,
+          reason: "organization-mismatch",
+        });
+      } else {
+        const fromStage = opportunity.stage.trim().toUpperCase();
+        const toStage = deriveTenantOpsExecuteTarget(fromStage);
+
+        if (!toStage) {
+          result = failed({
+            itemId,
+            organizationId,
+            entityId,
+            customerId: opportunity.customerId,
+            fromStage,
+            result: "BLOCKED",
+            executed: false,
+            reason:
+              fromStage === "NEGOTIATION"
+                ? "negotiation-review-only"
+                : "not-executable",
+          });
+        } else {
+          const action =
+            toStage === "PROPOSAL" ? "prepare-proposal" : "advance-proposal";
+
+          try {
+            if (toStage === "PROPOSAL") {
+              await advanceOpportunityToProposal(entityId, input.userId);
+            } else {
+              await advanceOpportunityToNegotiation(entityId, input.userId);
+            }
+            result = {
+              workPackageId: TENANT_OPS_EXECUTE_ID,
+              version: TENANT_OPS_EXECUTE_VERSION,
+              itemId,
+              organizationId,
+              customerId: opportunity.customerId,
+              entityId: opportunity.id,
+              fromStage,
+              toStage,
+              action,
+              result: "SUCCESS",
+              executed: true,
+              reason: `advanced ${fromStage} → ${toStage}`,
+            };
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : "execute-failed";
+            result = failed({
+              itemId,
+              organizationId,
+              entityId,
+              customerId: opportunity.customerId,
+              fromStage,
+              toStage,
+              action,
+              reason: message,
+            });
+          }
+        }
+      }
     }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "execute-failed";
-    return failed({
-      itemId,
-      organizationId,
-      entityId,
-      customerId: opportunity.customerId,
-      fromStage,
-      toStage,
-      action,
-      reason: message,
-    });
   }
 
-  return {
-    workPackageId: TENANT_OPS_EXECUTE_ID,
-    version: TENANT_OPS_EXECUTE_VERSION,
-    itemId,
-    organizationId,
-    customerId: opportunity.customerId,
-    entityId: opportunity.id,
-    fromStage,
-    toStage,
-    action,
-    result: "SUCCESS",
-    executed: true,
-    reason: `advanced ${fromStage} → ${toStage}`,
-  };
+  await auditExecuteBoundary(result, input.userId);
+  return result;
 }

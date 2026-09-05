@@ -6,6 +6,10 @@
 
 import { prisma } from "@/lib/prisma";
 import { parseTenantOpsOpportunityItemId } from "@/lib/runtime-ops/tenant-ops-action";
+import {
+  appendTenantOpsAudit,
+  toTenantOpsAuditResult,
+} from "@/lib/runtime-ops/tenant-ops-audit";
 import { deriveTenantReviewEligible } from "@/lib/runtime-ops/tenant-ops-backlog";
 
 export const TENANT_OPS_RECOVERY_ID = "tenant-ops-recovery-1" as const;
@@ -48,6 +52,22 @@ function failed(
   };
 }
 
+async function auditRecoveryBoundary(
+  result: TenantOpsRecoveryResult,
+  userId?: string,
+): Promise<void> {
+  await appendTenantOpsAudit({
+    kind: "recover",
+    organizationId: result.organizationId,
+    userId,
+    itemId: result.itemId,
+    customerId: result.customerId,
+    action: "recover",
+    result: toTenantOpsAuditResult(result.result),
+    reason: result.reason,
+  });
+}
+
 /**
  * Persist tenant recovery for (organizationId, itemId).
  * Sidecar only — does not invoke frozen workspace recovery / intent / ESCS packs.
@@ -55,129 +75,132 @@ function failed(
 export async function completeTenantOpsRecovery(input: {
   organizationId: string;
   itemId: string;
+  userId?: string;
 }): Promise<TenantOpsRecoveryResult> {
   const organizationId = input.organizationId.trim();
   const itemId = input.itemId.trim();
 
+  let result: TenantOpsRecoveryResult;
+
   if (!organizationId) {
-    return failed({
+    result = failed({
       itemId,
       organizationId: "",
       reason: "organization-missing",
     });
-  }
-  if (!itemId) {
-    return failed({
+  } else if (!itemId) {
+    result = failed({
       itemId,
       organizationId,
       reason: "item-id-missing",
     });
-  }
-
-  const entityId = parseTenantOpsOpportunityItemId(itemId);
-  if (!entityId) {
-    return failed({
-      itemId,
-      organizationId,
-      reason: "item-id-invalid",
-    });
-  }
-
-  const opportunity = await prisma.opportunity.findUnique({
-    where: { id: entityId },
-    select: {
-      id: true,
-      stage: true,
-      customerId: true,
-      customer: {
-        select: { organizationId: true },
-      },
-    },
-  });
-
-  if (!opportunity) {
-    return failed({
-      itemId,
-      organizationId,
-      entityId,
-      reason: "opportunity-not-found",
-    });
-  }
-
-  if (opportunity.customer.organizationId !== organizationId) {
-    return failed({
-      itemId,
-      organizationId,
-      entityId,
-      customerId: opportunity.customerId,
-      stage: opportunity.stage,
-      reason: "organization-mismatch",
-    });
-  }
-
-  const stage = opportunity.stage.trim().toUpperCase();
-  if (!deriveTenantReviewEligible(stage)) {
-    return failed({
-      itemId,
-      organizationId,
-      entityId,
-      customerId: opportunity.customerId,
-      stage,
-      reason: "not-review-eligible",
-    });
-  }
-
-  const existing = await prisma.workspaceReviewRecovery.findUnique({
-    where: {
-      organizationId_surfaceItemId: {
+  } else {
+    const entityId = parseTenantOpsOpportunityItemId(itemId);
+    if (!entityId) {
+      result = failed({
+        itemId,
         organizationId,
-        surfaceItemId: itemId,
-      },
-    },
-    select: { id: true },
-  });
+        reason: "item-id-invalid",
+      });
+    } else {
+      const opportunity = await prisma.opportunity.findUnique({
+        where: { id: entityId },
+        select: {
+          id: true,
+          stage: true,
+          customerId: true,
+          customer: {
+            select: { organizationId: true },
+          },
+        },
+      });
 
-  if (existing) {
-    return {
-      workPackageId: TENANT_OPS_RECOVERY_ID,
-      version: TENANT_OPS_RECOVERY_VERSION,
-      itemId,
-      organizationId,
-      customerId: opportunity.customerId,
-      entityId: opportunity.id,
-      stage,
-      recovered: true,
-      result: "SUCCESS",
-      reason: "already-recovered",
-    };
+      if (!opportunity) {
+        result = failed({
+          itemId,
+          organizationId,
+          entityId,
+          reason: "opportunity-not-found",
+        });
+      } else if (opportunity.customer.organizationId !== organizationId) {
+        result = failed({
+          itemId,
+          organizationId,
+          entityId,
+          customerId: opportunity.customerId,
+          stage: opportunity.stage,
+          reason: "organization-mismatch",
+        });
+      } else {
+        const stage = opportunity.stage.trim().toUpperCase();
+        if (!deriveTenantReviewEligible(stage)) {
+          result = failed({
+            itemId,
+            organizationId,
+            entityId,
+            customerId: opportunity.customerId,
+            stage,
+            reason: "not-review-eligible",
+          });
+        } else {
+          const existing = await prisma.workspaceReviewRecovery.findUnique({
+            where: {
+              organizationId_surfaceItemId: {
+                organizationId,
+                surfaceItemId: itemId,
+              },
+            },
+            select: { id: true },
+          });
+
+          if (existing) {
+            result = {
+              workPackageId: TENANT_OPS_RECOVERY_ID,
+              version: TENANT_OPS_RECOVERY_VERSION,
+              itemId,
+              organizationId,
+              customerId: opportunity.customerId,
+              entityId: opportunity.id,
+              stage,
+              recovered: true,
+              result: "SUCCESS",
+              reason: "already-recovered",
+            };
+          } else {
+            await prisma.workspaceReviewRecovery.upsert({
+              where: {
+                organizationId_surfaceItemId: {
+                  organizationId,
+                  surfaceItemId: itemId,
+                },
+              },
+              create: {
+                organizationId,
+                surfaceItemId: itemId,
+              },
+              update: {},
+            });
+
+            result = {
+              workPackageId: TENANT_OPS_RECOVERY_ID,
+              version: TENANT_OPS_RECOVERY_VERSION,
+              itemId,
+              organizationId,
+              customerId: opportunity.customerId,
+              entityId: opportunity.id,
+              stage,
+              recovered: true,
+              result: "SUCCESS",
+              reason: "recovered",
+            };
+          }
+        }
+      }
+    }
   }
 
-  await prisma.workspaceReviewRecovery.upsert({
-    where: {
-      organizationId_surfaceItemId: {
-        organizationId,
-        surfaceItemId: itemId,
-      },
-    },
-    create: {
-      organizationId,
-      surfaceItemId: itemId,
-    },
-    update: {},
-  });
-
-  return {
-    workPackageId: TENANT_OPS_RECOVERY_ID,
-    version: TENANT_OPS_RECOVERY_VERSION,
-    itemId,
-    organizationId,
-    customerId: opportunity.customerId,
-    entityId: opportunity.id,
-    stage,
-    recovered: true,
-    result: "SUCCESS",
-    reason: "recovered",
-  };
+  await auditRecoveryBoundary(result, input.userId);
+  return result;
 }
 
 export async function isTenantOpsRecovered(input: {

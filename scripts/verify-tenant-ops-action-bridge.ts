@@ -56,6 +56,8 @@ function checkSubmit() {
   assert(src.includes('"use server"'), "server action");
   assert(src.includes("runTenantOpsReviewAction"), "calls tenant action");
   assert(src.includes("runWithTenantContext"), "tenant context");
+  assert(src.includes("userId: gate.tenant.userId"), "passes session userId");
+  assert(!src.includes('formData.get("userId")'), "never trusts client userId");
   assert(src.includes('formData.get("itemId")'), "reads itemId");
   assert(!src.includes("runWorkspaceReviewAction"), "submit skips EWXR");
   assert(!src.includes("getActionIntents"), "submit skips EWI");

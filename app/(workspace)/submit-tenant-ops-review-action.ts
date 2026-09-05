@@ -50,6 +50,7 @@ export async function submitTenantOpsReviewAction(
     runTenantOpsReviewAction({
       organizationId: gate.tenant.organizationId,
       itemId,
+      userId: gate.tenant.userId,
     }),
   );
 }

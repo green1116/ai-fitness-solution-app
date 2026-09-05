@@ -5,6 +5,10 @@
 
 import { prisma } from "@/lib/prisma";
 import {
+  appendTenantOpsAudit,
+  toTenantOpsAuditResult,
+} from "@/lib/runtime-ops/tenant-ops-audit";
+import {
   deriveTenantOpsReason,
   deriveTenantReviewEligible,
 } from "@/lib/runtime-ops/tenant-ops-backlog";
@@ -71,6 +75,22 @@ function failed(
   };
 }
 
+async function auditReviewBoundary(
+  result: TenantOpsReviewActionResult,
+  userId?: string,
+): Promise<void> {
+  await appendTenantOpsAudit({
+    kind: "review",
+    organizationId: result.organizationId,
+    userId,
+    itemId: result.itemId,
+    customerId: result.customerId,
+    action: "review",
+    result: toTenantOpsAuditResult(result.result),
+    reason: result.reason,
+  });
+}
+
 /**
  * Validate org ownership + reviewEligible; return local REVIEW result.
  * Sidecar only — does not invoke frozen workspace review / intent / execution packs.
@@ -78,93 +98,96 @@ function failed(
 export async function runTenantOpsReviewAction(input: {
   organizationId: string;
   itemId: string;
+  userId?: string;
 }): Promise<TenantOpsReviewActionResult> {
   const organizationId = input.organizationId.trim();
   const itemId = input.itemId.trim();
 
+  let result: TenantOpsReviewActionResult;
+
   if (!organizationId) {
-    return failed({
+    result = failed({
       itemId,
       organizationId: "",
       reason: "organization-missing",
     });
-  }
-  if (!itemId) {
-    return failed({
+  } else if (!itemId) {
+    result = failed({
       itemId,
       organizationId,
       reason: "item-id-missing",
     });
-  }
-
-  const entityId = parseTenantOpsOpportunityItemId(itemId);
-  if (!entityId) {
-    return failed({
-      itemId,
-      organizationId,
-      reason: "item-id-invalid",
-    });
-  }
-
-  const opportunity = await prisma.opportunity.findUnique({
-    where: { id: entityId },
-    select: {
-      id: true,
-      stage: true,
-      customerId: true,
-      customer: {
+  } else {
+    const entityId = parseTenantOpsOpportunityItemId(itemId);
+    if (!entityId) {
+      result = failed({
+        itemId,
+        organizationId,
+        reason: "item-id-invalid",
+      });
+    } else {
+      const opportunity = await prisma.opportunity.findUnique({
+        where: { id: entityId },
         select: {
-          organizationId: true,
-          name: true,
+          id: true,
+          stage: true,
+          customerId: true,
+          customer: {
+            select: {
+              organizationId: true,
+              name: true,
+            },
+          },
         },
-      },
-    },
-  });
+      });
 
-  if (!opportunity) {
-    return failed({
-      itemId,
-      organizationId,
-      entityId,
-      reason: "opportunity-not-found",
-    });
+      if (!opportunity) {
+        result = failed({
+          itemId,
+          organizationId,
+          entityId,
+          reason: "opportunity-not-found",
+        });
+      } else if (opportunity.customer.organizationId !== organizationId) {
+        result = failed({
+          itemId,
+          organizationId,
+          entityId,
+          customerId: opportunity.customerId,
+          stage: opportunity.stage,
+          reason: "organization-mismatch",
+        });
+      } else {
+        const stage = opportunity.stage.trim().toUpperCase();
+        if (!deriveTenantReviewEligible(stage)) {
+          result = failed({
+            itemId,
+            organizationId,
+            entityId,
+            customerId: opportunity.customerId,
+            stage,
+            result: "BLOCKED",
+            executed: false,
+            reason: "not-review-eligible",
+          });
+        } else {
+          result = {
+            workPackageId: TENANT_OPS_REVIEW_ACTION_ID,
+            version: TENANT_OPS_REVIEW_ACTION_VERSION,
+            itemId,
+            organizationId,
+            customerId: opportunity.customerId,
+            entityId: opportunity.id,
+            stage,
+            result: "SUCCESS",
+            executed: true,
+            reason: deriveTenantOpsReason(stage, opportunity.customer.name),
+          };
+        }
+      }
+    }
   }
 
-  if (opportunity.customer.organizationId !== organizationId) {
-    return failed({
-      itemId,
-      organizationId,
-      entityId,
-      customerId: opportunity.customerId,
-      stage: opportunity.stage,
-      reason: "organization-mismatch",
-    });
-  }
-
-  const stage = opportunity.stage.trim().toUpperCase();
-  if (!deriveTenantReviewEligible(stage)) {
-    return failed({
-      itemId,
-      organizationId,
-      entityId,
-      customerId: opportunity.customerId,
-      stage,
-      result: "BLOCKED",
-      executed: false,
-      reason: "not-review-eligible",
-    });
-  }
-
-  return {
-    workPackageId: TENANT_OPS_REVIEW_ACTION_ID,
-    version: TENANT_OPS_REVIEW_ACTION_VERSION,
-    itemId,
-    organizationId,
-    customerId: opportunity.customerId,
-    entityId: opportunity.id,
-    stage,
-    result: "SUCCESS",
-    executed: true,
-    reason: deriveTenantOpsReason(stage, opportunity.customer.name),
-  };
+  await auditReviewBoundary(result, input.userId);
+  return result;
 }
