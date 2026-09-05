@@ -82,7 +82,8 @@ function checkPanelWiring() {
   assert(panel.includes("submitTenantOpsReviewAction"), "tenant submit wired");
   assert(panel.includes("item.reviewEligible"), "gated by reviewEligible");
   assert(panel.includes("isTenantOpsExecuteEligible"), "also gated by execute eligibility");
-  assert(panel.includes("stage={item.stage}"), "passes stage to control");
+  assert(panel.includes("reviewEligible={item.reviewEligible}"), "passes reviewEligible");
+  assert(panel.includes("executeEligible={isTenantOpsExecuteEligible(item.stage)}"), "passes executeEligible");
   assert(panel.includes("WorkspaceReviewActionControl"), "frozen REVIEW control retained");
   assert(panel.includes("submitWorkspaceReviewAction"), "frozen submit retained");
   assert(panel.includes("renderFrozenEwasPanel"), "frozen EWAS path retained");

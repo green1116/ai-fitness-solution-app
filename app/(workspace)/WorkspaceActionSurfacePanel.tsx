@@ -181,7 +181,8 @@ function TenantBacklogItemRow({
       {item.reviewEligible || isTenantOpsExecuteEligible(item.stage) ? (
         <TenantOpsReviewActionControl
           itemId={item.id}
-          stage={item.stage}
+          reviewEligible={item.reviewEligible}
+          executeEligible={isTenantOpsExecuteEligible(item.stage)}
           submitReviewAction={submitTenantOpsReviewAction}
         />
       ) : null}

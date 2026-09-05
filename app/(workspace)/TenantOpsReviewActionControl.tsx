@@ -3,10 +3,6 @@
 import { useActionState } from "react";
 
 import type { TenantOpsReviewActionResult } from "@/lib/runtime-ops/tenant-ops-action";
-import {
-  isTenantOpsExecuteEligible,
-} from "@/lib/runtime-ops/tenant-ops-execute";
-import { deriveTenantReviewEligible } from "@/lib/runtime-ops/tenant-ops-backlog";
 import { submitTenantOpsRecoveryAction } from "./submit-tenant-ops-recovery-action";
 import { submitTenantOpsExecuteAction } from "./submit-tenant-ops-execute-action";
 
@@ -17,11 +13,13 @@ type SubmitTenantOpsReviewAction = (
 
 export function TenantOpsReviewActionControl({
   itemId,
-  stage,
+  reviewEligible,
+  executeEligible,
   submitReviewAction,
 }: {
   itemId: string;
-  stage: string;
+  reviewEligible: boolean;
+  executeEligible: boolean;
   submitReviewAction: SubmitTenantOpsReviewAction;
 }) {
   const [reviewState, reviewFormAction] = useActionState(
@@ -37,8 +35,8 @@ export function TenantOpsReviewActionControl({
     null,
   );
 
-  const showReview = deriveTenantReviewEligible(stage);
-  const showExecute = isTenantOpsExecuteEligible(stage);
+  const showReview = reviewEligible;
+  const showExecute = executeEligible;
 
   const reviewLabel =
     reviewState?.result === "SUCCESS"

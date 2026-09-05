@@ -65,7 +65,16 @@ function checkControlAndPanel() {
   const control = read("app/(workspace)/TenantOpsReviewActionControl.tsx");
   assert(control.includes("EXECUTE"), "EXECUTE in existing control");
   assert(control.includes("submitTenantOpsExecuteAction"), "execute submit wired");
-  assert(control.includes("isTenantOpsExecuteEligible"), "execute gate");
+  assert(control.includes("executeEligible"), "executeEligible prop");
+  assert(control.includes("reviewEligible"), "reviewEligible prop");
+  assert(
+    !control.includes('from "@/lib/runtime-ops/tenant-ops-execute"'),
+    "control does not value-import tenant-ops-execute",
+  );
+  assert(
+    !control.includes('from "@/lib/runtime-ops/tenant-ops-backlog"'),
+    "control does not value-import tenant-ops-backlog",
+  );
   assert(control.includes("REVIEW"), "REVIEW preserved");
   assert(control.includes("RECOVER"), "RECOVER preserved");
   assert(control.includes("submitReviewAction"), "REVIEW submit prop preserved");
@@ -74,7 +83,8 @@ function checkControlAndPanel() {
 
   const panel = read("app/(workspace)/WorkspaceActionSurfacePanel.tsx");
   assert(panel.includes("isTenantOpsExecuteEligible"), "panel mounts for execute stages");
-  assert(panel.includes("stage={item.stage}"), "panel passes stage");
+  assert(panel.includes("reviewEligible={item.reviewEligible}"), "panel passes reviewEligible");
+  assert(panel.includes("executeEligible={isTenantOpsExecuteEligible(item.stage)}"), "panel passes executeEligible");
   assert(panel.includes("item.reviewEligible"), "panel keeps reviewEligible path");
   console.log("✓ control + panel wiring");
 }
