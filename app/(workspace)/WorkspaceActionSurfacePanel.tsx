@@ -19,11 +19,13 @@ import {
   type WorkspaceActionSurfaceItem,
 } from "@/lib/workflow/experience/workspace-action-surface";
 import { WorkspaceReviewActionControl } from "./WorkspaceReviewActionControl";
+import { TenantOpsReviewActionControl } from "./TenantOpsReviewActionControl";
 import {
   WorkspaceOpsCrmIdentityLinkControl,
   type CrmCustomerOption,
 } from "./WorkspaceOpsCrmIdentityLinkControl";
 import { submitWorkspaceReviewAction, submitWorkspaceReviewRecoveryAction } from "./submit-workspace-review-action";
+import { submitTenantOpsReviewAction } from "./submit-tenant-ops-review-action";
 
 const STATE_LABEL: Readonly<Record<"ATTENTION" | "AVAILABLE" | "DEFERRED", string>> = {
   ATTENTION: "ATTENTION",
@@ -176,7 +178,10 @@ function TenantBacklogItemRow({
         <OpsActionSurfaceProductLink productContext={productContext} />
       ) : null}
       {item.reviewEligible ? (
-        <p className="mt-1 text-xs text-amber-500/80">Review eligible</p>
+        <TenantOpsReviewActionControl
+          itemId={item.id}
+          submitReviewAction={submitTenantOpsReviewAction}
+        />
       ) : null}
     </li>
   );
