@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import {
   ensureOrganizationForUser,
@@ -73,11 +75,17 @@ export async function submitTenantOpsExecuteAction(
     return authFailed(itemId);
   }
 
-  return runWithTenantContext(tenant, async () =>
+  const result = await runWithTenantContext(tenant, async () =>
     runTenantOpsExecuteAction({
       organizationId: tenant.organizationId,
       itemId,
       userId: tenant.userId,
     }),
   );
+
+  if (result.result === "SUCCESS") {
+    revalidatePath("/projects", "layout");
+  }
+
+  return result;
 }

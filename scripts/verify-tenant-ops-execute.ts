@@ -56,6 +56,8 @@ function checkSubmit() {
   assert(src.includes("runTenantOpsExecuteAction"), "calls execute");
   assert(src.includes("runWithTenantContext"), "tenant context");
   assert(src.includes('formData.get("itemId")'), "reads itemId");
+  assert(src.includes('revalidatePath("/projects", "layout")'), "revalidates workspace layout on SUCCESS");
+  assert(src.includes('result.result === "SUCCESS"'), "revalidate only on SUCCESS");
   assert(!/\bexecuteControlledAction\b/.test(src), "no EWER");
   assert(!/\bgetActionExecutionRequests\b/.test(src), "no EWEB");
   console.log("✓ submit-tenant-ops-execute-action");

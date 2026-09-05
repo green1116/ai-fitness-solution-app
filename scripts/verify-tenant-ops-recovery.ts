@@ -51,6 +51,8 @@ function checkSubmit() {
   assert(src.includes("completeTenantOpsRecovery"), "calls tenant recovery");
   assert(src.includes("runWithTenantContext"), "tenant context");
   assert(src.includes('formData.get("itemId")'), "reads itemId");
+  assert(src.includes('revalidatePath("/projects", "layout")'), "revalidates workspace layout on SUCCESS");
+  assert(src.includes('result.result === "SUCCESS"'), "revalidate only on SUCCESS");
   assert(!src.includes("completeWorkspaceReviewRecovery"), "no frozen recovery");
   assert(!src.includes("getActionIntents"), "no EWI");
   assert(!src.includes("getCustomerSuccessReview"), "no ESCS");
