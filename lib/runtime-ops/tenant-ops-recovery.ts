@@ -198,3 +198,34 @@ export async function isTenantOpsRecovered(input: {
   });
   return Boolean(row);
 }
+
+/**
+ * Batch read persisted recovery keys for tenant item ids (1 query).
+ * surfaceItemId slot stores tenant itemId.
+ */
+export async function listTenantOpsRecoveredItemIds(
+  organizationId: string,
+  itemIds: readonly string[],
+): Promise<ReadonlySet<string>> {
+  const orgId = organizationId.trim();
+  const ids = [
+    ...new Set(
+      itemIds
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0),
+    ),
+  ];
+  if (!orgId || ids.length === 0) {
+    return new Set();
+  }
+
+  const rows = await prisma.workspaceReviewRecovery.findMany({
+    where: {
+      organizationId: orgId,
+      surfaceItemId: { in: ids },
+    },
+    select: { surfaceItemId: true },
+  });
+
+  return new Set(rows.map((row) => row.surfaceItemId));
+}

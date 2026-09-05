@@ -25,6 +25,11 @@ function checkRecoveryModule() {
     src.includes("export async function completeTenantOpsRecovery"),
     "completeTenantOpsRecovery exported",
   );
+  assert(
+    src.includes("export async function listTenantOpsRecoveredItemIds"),
+    "listTenantOpsRecoveredItemIds exported",
+  );
+  assert(src.includes("surfaceItemId: { in: ids }"), "batch recovery query");
   assert(src.includes("prisma.workspaceReviewRecovery"), "persists via WorkspaceReviewRecovery");
   assert(src.includes("surfaceItemId: itemId"), "stores tenant itemId in surfaceItemId slot");
   assert(src.includes("organization-mismatch"), "org ownership check");
@@ -65,10 +70,23 @@ function checkControl() {
   assert(src.includes("submitReviewAction"), "REVIEW submit prop unchanged");
   assert(src.includes("RECOVER"), "RECOVER button");
   assert(src.includes("submitTenantOpsRecoveryAction"), "tenant recovery submit");
-  assert(src.includes("showRecover = showReview && reviewState?.result === \"SUCCESS\""), "RECOVER after REVIEW SUCCESS");
+  assert(src.includes("recovered"), "accepts persisted recovered prop");
+  assert(src.includes("isRecovered = recovered || recoveryState?.result === \"SUCCESS\""), "persisted + session recovered");
+  assert(
+    src.includes("showReview && reviewState?.result === \"SUCCESS\" && !isRecovered"),
+    "RECOVER after REVIEW SUCCESS when not recovered",
+  );
   assert(!src.includes("submitWorkspaceReviewRecoveryAction"), "no frozen recovery submit");
   assert(!src.includes("surfaceItemId"), "no frozen surfaceItemId");
   console.log("✓ TenantOpsReviewActionControl recovery wiring");
+}
+
+function checkPersistedViewPanel() {
+  const panel = read("app/(workspace)/WorkspaceActionSurfacePanel.tsx");
+  assert(panel.includes("listTenantOpsRecoveredItemIds"), "panel batch-reads recovery");
+  assert(panel.includes("recovered={recoveredItemIds.has(item.id)}"), "panel passes recovered");
+  assert(!/isTenantOpsRecovered\(/.test(panel), "panel avoids N+1 isTenantOpsRecovered");
+  console.log("✓ panel persisted recovery view");
 }
 
 function checkReviewPathUntouched() {
@@ -113,6 +131,7 @@ function main() {
   checkRecoveryModule();
   checkSubmit();
   checkControl();
+  checkPersistedViewPanel();
   checkReviewPathUntouched();
   checkFrozenUntouched();
   console.log("\nSTATUS: PASS");

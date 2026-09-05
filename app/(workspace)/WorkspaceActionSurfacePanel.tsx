@@ -15,6 +15,7 @@ import {
   type TenantOpsBacklogItem,
 } from "@/lib/runtime-ops/tenant-ops-backlog";
 import { isTenantOpsExecuteEligible } from "@/lib/runtime-ops/tenant-ops-execute";
+import { listTenantOpsRecoveredItemIds } from "@/lib/runtime-ops/tenant-ops-recovery";
 import {
   readWorkspaceActionSurface,
   type WorkspaceActionSurfaceItem,
@@ -157,9 +158,11 @@ function SurfaceItemRow({
 function TenantBacklogItemRow({
   item,
   productContext,
+  recovered,
 }: {
   item: TenantOpsBacklogItem;
   productContext: ProductCommercialContext | null;
+  recovered: boolean;
 }) {
   return (
     <li className="rounded-md border border-zinc-800 px-3 py-2 text-sm">
@@ -183,6 +186,7 @@ function TenantBacklogItemRow({
           itemId={item.id}
           reviewEligible={item.reviewEligible}
           executeEligible={isTenantOpsExecuteEligible(item.stage)}
+          recovered={recovered}
           submitReviewAction={submitTenantOpsReviewAction}
         />
       ) : null}
@@ -192,10 +196,13 @@ function TenantBacklogItemRow({
 
 async function renderTenantOpsBacklogPanel(organizationId: string) {
   const backlog: TenantOpsBacklog = await readTenantOpsBacklog(organizationId);
-  const productContextByItemId = await loadTenantProductContextByItemId(
-    organizationId,
-    backlog.items,
-  );
+  const [productContextByItemId, recoveredItemIds] = await Promise.all([
+    loadTenantProductContextByItemId(organizationId, backlog.items),
+    listTenantOpsRecoveredItemIds(
+      organizationId,
+      backlog.items.map((item) => item.id),
+    ),
+  ]);
 
   const attentionItems = backlog.items.filter((item) => item.state === "ATTENTION");
   const tailItems = backlog.items.filter((item) => item.state !== "ATTENTION");
@@ -228,6 +235,7 @@ async function renderTenantOpsBacklogPanel(organizationId: string) {
                   key={item.id}
                   item={item}
                   productContext={productContextByItemId.get(item.id) ?? null}
+                  recovered={recoveredItemIds.has(item.id)}
                 />
               ))}
             </ul>
@@ -246,6 +254,7 @@ async function renderTenantOpsBacklogPanel(organizationId: string) {
                     key={item.id}
                     item={item}
                     productContext={productContextByItemId.get(item.id) ?? null}
+                    recovered={recoveredItemIds.has(item.id)}
                   />
                 ))}
               </ul>

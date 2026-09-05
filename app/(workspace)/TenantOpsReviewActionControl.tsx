@@ -17,11 +17,13 @@ export function TenantOpsReviewActionControl({
   itemId,
   reviewEligible,
   executeEligible,
+  recovered = false,
   submitReviewAction,
 }: {
   itemId: string;
   reviewEligible: boolean;
   executeEligible: boolean;
+  recovered?: boolean;
   submitReviewAction: SubmitTenantOpsReviewAction;
 }) {
   const router = useRouter();
@@ -41,6 +43,7 @@ export function TenantOpsReviewActionControl({
 
   const showReview = reviewEligible;
   const showExecute = executeEligible;
+  const isRecovered = recovered || recoveryState?.result === "SUCCESS";
 
   const reviewLabel =
     reviewState?.result === "SUCCESS"
@@ -51,13 +54,13 @@ export function TenantOpsReviewActionControl({
           ? "FAILED"
           : null;
 
-  const showRecover = showReview && reviewState?.result === "SUCCESS";
-  const recoveryLabel =
-    recoveryState?.result === "SUCCESS"
-      ? "RECOVERED"
-      : recoveryState?.result === "FAILED"
-        ? "FAILED"
-        : null;
+  const showRecover =
+    showReview && reviewState?.result === "SUCCESS" && !isRecovered;
+  const recoveryLabel = isRecovered
+    ? "RECOVERED"
+    : recoveryState?.result === "FAILED"
+      ? "FAILED"
+      : null;
 
   const executeLabel =
     executeState?.result === "SUCCESS"
@@ -141,14 +144,14 @@ export function TenantOpsReviewActionControl({
           >
             RECOVER
           </button>
-          {recoveryLabel ? (
-            <span className="text-xs uppercase tracking-wide text-zinc-400">
-              {recoveryLabel}
-            </span>
-          ) : null}
         </form>
       ) : null}
-      {recoveryState?.reason ? (
+      {recoveryLabel ? (
+        <span className="text-xs uppercase tracking-wide text-zinc-400">
+          {recoveryLabel}
+        </span>
+      ) : null}
+      {recoveryState?.reason && recoveryState.result === "FAILED" ? (
         <p className="text-xs text-zinc-500">{recoveryState.reason}</p>
       ) : null}
     </div>
