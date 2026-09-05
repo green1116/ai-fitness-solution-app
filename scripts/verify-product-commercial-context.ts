@@ -134,11 +134,26 @@ function checkWorkspaceHandoff() {
 
   const list = read("app/(workspace)/projects/ProjectsPageClient.tsx");
   assert(list.includes("x-organization-id"), "projects list uses org header");
-  assert(list.includes("/api/auth/me"), "projects list resolves org from session");
+  assert(
+    list.includes("useWorkspaceOrganizationId"),
+    "projects list uses workspace org provider",
+  );
+  assert(!list.includes("/api/auth/me"), "projects list does not call /api/auth/me");
   assert(list.includes("listLoading"), "projects list loading state");
   assert(list.includes("searchQuery"), "projects list search state");
   assert(list.includes("项目加载中..."), "projects list loading label");
   assert(list.includes("搜索项目或企业名称"), "projects list search placeholder");
+
+  const layout = read("app/(workspace)/layout.tsx");
+  assert(
+    layout.includes("WorkspaceOrganizationProvider"),
+    "workspace layout wraps org provider",
+  );
+  assert(
+    layout.includes("organizationId={organizationId ?? \"\"}") ||
+      layout.includes('organizationId={organizationId ?? ""}'),
+    "layout passes SSR organizationId into provider",
+  );
   console.log("✓ workspace handoff");
 }
 

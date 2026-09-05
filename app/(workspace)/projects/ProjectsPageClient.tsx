@@ -10,6 +10,7 @@ import {
   type ProjectIntakeForm,
   projectIntakeToCreatePayload,
 } from "@/lib/project/project-intake";
+import { useWorkspaceOrganizationId } from "../WorkspaceOrganizationProvider";
 
 const VISIBLE_PROJECTS = 5;
 
@@ -24,12 +25,6 @@ type ProjectItem = {
 
 const INPUT_CLS =
   "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm";
-
-async function resolveOrganizationId(): Promise<string> {
-  const meRes = await fetch("/api/auth/me");
-  const me = (await meRes.json()) as { organizationId?: string | null };
-  return typeof me.organizationId === "string" ? me.organizationId.trim() : "";
-}
 
 function orgHeaders(organizationId: string): HeadersInit {
   return {
@@ -56,6 +51,7 @@ function ProjectRow({ project }: { project: ProjectItem }) {
 }
 
 export function ProjectsPageClient() {
+  const organizationId = useWorkspaceOrganizationId();
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [form, setForm] = useState<ProjectIntakeForm>(DEFAULT_PROJECT_INTAKE);
   const [loading, setLoading] = useState(false);
@@ -70,7 +66,6 @@ export function ProjectsPageClient() {
   async function loadProjects() {
     setListLoading(true);
     try {
-      const organizationId = await resolveOrganizationId();
       if (!organizationId) {
         setProjects([]);
         return;
@@ -90,7 +85,9 @@ export function ProjectsPageClient() {
 
   useEffect(() => {
     void loadProjects();
-  }, []);
+    // organizationId comes from workspace layout SSR provider
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when org id changes
+  }, [organizationId]);
 
   async function handleCreate() {
     setCreateError("");
@@ -109,7 +106,6 @@ export function ProjectsPageClient() {
 
     setLoading(true);
     try {
-      const organizationId = await resolveOrganizationId();
       if (!organizationId) {
         setCreateError("请先登录后再创建项目");
         return;
