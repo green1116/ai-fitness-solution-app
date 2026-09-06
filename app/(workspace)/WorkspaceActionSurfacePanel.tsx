@@ -22,6 +22,7 @@ import {
 } from "@/lib/workflow/experience/workspace-action-surface";
 import { WorkspaceReviewActionControl } from "./WorkspaceReviewActionControl";
 import { TenantOpsReviewActionControl } from "./TenantOpsReviewActionControl";
+import { TenantOpsHistoryControl } from "./TenantOpsHistoryControl";
 import {
   WorkspaceOpsCrmIdentityLinkControl,
   type CrmCustomerOption,
@@ -191,6 +192,10 @@ function TenantBacklogItemRow({
           submitReviewAction={submitTenantOpsReviewAction}
         />
       ) : null}
+      <TenantOpsHistoryControl
+        itemId={item.id}
+        customerId={item.customerId}
+      />
     </li>
   );
 }
