@@ -15,12 +15,15 @@ type SubmitTenantOpsReviewAction = (
 
 export function TenantOpsReviewActionControl({
   itemId,
+  stage = "",
   reviewEligible,
   executeEligible,
   recovered = false,
   submitReviewAction,
 }: {
   itemId: string;
+  /** Server stage — used to unlock EXECUTE after refresh past a local SUCCESS. */
+  stage?: string;
   reviewEligible: boolean;
   executeEligible: boolean;
   recovered?: boolean;
@@ -42,7 +45,13 @@ export function TenantOpsReviewActionControl({
   );
 
   const showReview = reviewEligible;
-  const showExecute = executeEligible;
+  const serverStage = stage.trim().toUpperCase();
+  const executeFromStage = executeState?.fromStage?.trim().toUpperCase() ?? "";
+  const executeLockedUntilRefresh =
+    executeState?.result === "SUCCESS" &&
+    executeFromStage.length > 0 &&
+    serverStage === executeFromStage;
+  const showExecute = executeEligible && !executeLockedUntilRefresh;
   const isRecovered = recovered || recoveryState?.result === "SUCCESS";
 
   const reviewLabel =
@@ -91,17 +100,19 @@ export function TenantOpsReviewActionControl({
 
   return (
     <div className="mt-2 flex flex-col gap-1">
-      {showExecute ? (
+      {showExecute || executeLabel ? (
         <form action={executeFormAction} className="flex items-center gap-2">
           <input type="hidden" name="itemId" value={itemId} />
           <input type="hidden" name="organizationId" value={organizationId} />
-          <button
-            type="submit"
-            disabled={executePending}
-            className="rounded border border-sky-700 px-2 py-1 text-xs uppercase tracking-wide text-sky-300 hover:border-sky-500 disabled:opacity-40"
-          >
-            EXECUTE
-          </button>
+          {showExecute ? (
+            <button
+              type="submit"
+              disabled={executePending || executeLockedUntilRefresh}
+              className="rounded border border-sky-700 px-2 py-1 text-xs uppercase tracking-wide text-sky-300 hover:border-sky-500 disabled:opacity-40"
+            >
+              EXECUTE
+            </button>
+          ) : null}
           {executeLabel ? (
             <span className="text-xs uppercase tracking-wide text-zinc-400">
               {executeLabel}

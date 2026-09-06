@@ -28,6 +28,11 @@ function checkExecuteModule() {
   assert(src.includes("advanceOpportunityToNegotiation"), "PROPOSAL→NEGOTIATION pipeline");
   assert(src.includes("organization-mismatch"), "org ownership");
   assert(src.includes("negotiation-review-only"), "NEGOTIATION blocked");
+  assert(src.includes('reason: "idempotent"'), "idempotent SUCCESS path");
+  assert(src.includes("liveStage === toStage"), "re-read already-at-target");
+  assert(src.includes('reason: "stage-changed"'), "stage-changed when live diverges");
+  assert(src.includes('fromStage === "INIT" && toStage === "PROPOSAL"'), "INIT→PROPOSAL only");
+  assert(src.includes('fromStage === "PROPOSAL" && toStage === "NEGOTIATION"'), "PROPOSAL→NEGOTIATION only");
   assert(!src.includes("openDealFromOpportunity"), "no deal open v1");
   assert(!src.includes("createDeal"), "no deal create");
   assert(!/\bgetActionExecutionRequests\b/.test(src), "no EWEB");
@@ -82,7 +87,9 @@ function checkControlAndPanel() {
   assert(control.includes("submitReviewAction"), "REVIEW submit prop preserved");
   assert(control.includes("showReview && reviewState?.result === \"SUCCESS\" && !isRecovered"), "RECOVER after REVIEW SUCCESS when not recovered");
   assert(control.includes("router.refresh()"), "refreshes after SUCCESS");
-  assert(control.includes("disabled={executePending}"), "EXECUTE disabled while pending");
+  assert(control.includes("executeLockedUntilRefresh"), "locks EXECUTE after SUCCESS until stage refresh");
+  assert(control.includes("executeEligible && !executeLockedUntilRefresh"), "hides EXECUTE while locked");
+  assert(control.includes("disabled={executePending || executeLockedUntilRefresh}"), "EXECUTE disabled while pending or locked");
   assert(control.includes("disabled={reviewPending}"), "REVIEW disabled while pending");
   assert(control.includes("disabled={recoveryPending}"), "RECOVER disabled while pending");
   assert(!control.includes("submitWorkspaceReview"), "no frozen submit");
@@ -91,6 +98,7 @@ function checkControlAndPanel() {
   assert(panel.includes("isTenantOpsExecuteEligible"), "panel mounts for execute stages");
   assert(panel.includes("reviewEligible={item.reviewEligible}"), "panel passes reviewEligible");
   assert(panel.includes("executeEligible={isTenantOpsExecuteEligible(item.stage)}"), "panel passes executeEligible");
+  assert(panel.includes("stage={item.stage}"), "panel passes stage for execute lock");
   assert(panel.includes("item.reviewEligible"), "panel keeps reviewEligible path");
   console.log("✓ control + panel wiring");
 }
