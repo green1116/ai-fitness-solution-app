@@ -13,6 +13,25 @@ type SubmitTenantOpsReviewAction = (
   formData: FormData,
 ) => Promise<TenantOpsReviewActionResult>;
 
+type FailureAwareState = {
+  result?: string;
+  failureClass?: string;
+  reason?: string;
+} | null;
+
+function failedFailureClass(state: FailureAwareState): string | null {
+  if (state?.result !== "FAILED") return null;
+  return state.failureClass ?? null;
+}
+
+function isRetryableFailed(state: FailureAwareState): boolean {
+  return state?.result === "FAILED" && state.failureClass === "RETRYABLE";
+}
+
+function isTerminalFailed(state: FailureAwareState): boolean {
+  return state?.result === "FAILED" && state.failureClass === "TERMINAL";
+}
+
 export function TenantOpsReviewActionControl({
   itemId,
   stage = "",
@@ -80,6 +99,18 @@ export function TenantOpsReviewActionControl({
           ? "FAILED"
           : null;
 
+  const executeFailureClass = failedFailureClass(executeState);
+  const reviewFailureClass = failedFailureClass(reviewState);
+  const recoveryFailureClass = failedFailureClass(recoveryState);
+
+  const executeRetryable = isRetryableFailed(executeState);
+  const reviewRetryable = isRetryableFailed(reviewState);
+  const recoveryRetryable = isRetryableFailed(recoveryState);
+
+  const executeTerminal = isTerminalFailed(executeState);
+  const reviewTerminal = isTerminalFailed(reviewState);
+  const recoveryTerminal = isTerminalFailed(recoveryState);
+
   useEffect(() => {
     if (reviewState?.result === "SUCCESS") {
       router.refresh();
@@ -101,21 +132,36 @@ export function TenantOpsReviewActionControl({
   return (
     <div className="mt-2 flex flex-col gap-1">
       {showExecute || executeLabel ? (
-        <form action={executeFormAction} className="flex items-center gap-2">
+        <form action={executeFormAction} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="itemId" value={itemId} />
           <input type="hidden" name="organizationId" value={organizationId} />
-          {showExecute ? (
-            <button
-              type="submit"
-              disabled={executePending || executeLockedUntilRefresh}
-              className="rounded border border-sky-700 px-2 py-1 text-xs uppercase tracking-wide text-sky-300 hover:border-sky-500 disabled:opacity-40"
-            >
-              EXECUTE
-            </button>
+          {showExecute && !executeTerminal ? (
+            executeRetryable ? (
+              <button
+                type="submit"
+                disabled={executePending}
+                className="rounded border border-amber-700 px-2 py-1 text-xs uppercase tracking-wide text-amber-300 hover:border-amber-500 disabled:opacity-40"
+              >
+                Retry
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={executePending || executeLockedUntilRefresh}
+                className="rounded border border-sky-700 px-2 py-1 text-xs uppercase tracking-wide text-sky-300 hover:border-sky-500 disabled:opacity-40"
+              >
+                EXECUTE
+              </button>
+            )
           ) : null}
           {executeLabel ? (
             <span className="text-xs uppercase tracking-wide text-zinc-400">
               {executeLabel}
+            </span>
+          ) : null}
+          {executeFailureClass ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-500">
+              {executeFailureClass}
             </span>
           ) : null}
         </form>
@@ -124,19 +170,36 @@ export function TenantOpsReviewActionControl({
         <p className="text-xs text-zinc-500">{executeState.reason}</p>
       ) : null}
       {showReview ? (
-        <form action={reviewFormAction} className="flex items-center gap-2">
+        <form action={reviewFormAction} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="itemId" value={itemId} />
           <input type="hidden" name="organizationId" value={organizationId} />
-          <button
-            type="submit"
-            disabled={reviewPending}
-            className="rounded border border-zinc-700 px-2 py-1 text-xs uppercase tracking-wide text-zinc-200 hover:border-zinc-500 disabled:opacity-40"
-          >
-            REVIEW
-          </button>
+          {!reviewTerminal ? (
+            reviewRetryable ? (
+              <button
+                type="submit"
+                disabled={reviewPending}
+                className="rounded border border-amber-700 px-2 py-1 text-xs uppercase tracking-wide text-amber-300 hover:border-amber-500 disabled:opacity-40"
+              >
+                Retry
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={reviewPending}
+                className="rounded border border-zinc-700 px-2 py-1 text-xs uppercase tracking-wide text-zinc-200 hover:border-zinc-500 disabled:opacity-40"
+              >
+                REVIEW
+              </button>
+            )
+          ) : null}
           {reviewLabel ? (
             <span className="text-xs uppercase tracking-wide text-zinc-400">
               {reviewLabel}
+            </span>
+          ) : null}
+          {reviewFailureClass ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-500">
+              {reviewFailureClass}
             </span>
           ) : null}
         </form>
@@ -144,23 +207,40 @@ export function TenantOpsReviewActionControl({
       {showReview && reviewState?.reason ? (
         <p className="text-xs text-zinc-500">{reviewState.reason}</p>
       ) : null}
-      {showRecover ? (
-        <form action={recoveryFormAction} className="flex items-center gap-2">
+      {showRecover || recoveryLabel || recoveryRetryable ? (
+        <form action={recoveryFormAction} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="itemId" value={itemId} />
           <input type="hidden" name="organizationId" value={organizationId} />
-          <button
-            type="submit"
-            disabled={recoveryPending}
-            className="rounded border border-emerald-700 px-2 py-1 text-xs uppercase tracking-wide text-emerald-300 hover:border-emerald-500 disabled:opacity-40"
-          >
-            RECOVER
-          </button>
+          {(showRecover || recoveryRetryable) && !recoveryTerminal ? (
+            recoveryRetryable ? (
+              <button
+                type="submit"
+                disabled={recoveryPending}
+                className="rounded border border-amber-700 px-2 py-1 text-xs uppercase tracking-wide text-amber-300 hover:border-amber-500 disabled:opacity-40"
+              >
+                Retry
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={recoveryPending}
+                className="rounded border border-emerald-700 px-2 py-1 text-xs uppercase tracking-wide text-emerald-300 hover:border-emerald-500 disabled:opacity-40"
+              >
+                RECOVER
+              </button>
+            )
+          ) : null}
+          {recoveryLabel ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-400">
+              {recoveryLabel}
+            </span>
+          ) : null}
+          {recoveryFailureClass ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-500">
+              {recoveryFailureClass}
+            </span>
+          ) : null}
         </form>
-      ) : null}
-      {recoveryLabel ? (
-        <span className="text-xs uppercase tracking-wide text-zinc-400">
-          {recoveryLabel}
-        </span>
       ) : null}
       {recoveryState?.reason && recoveryState.result === "FAILED" ? (
         <p className="text-xs text-zinc-500">{recoveryState.reason}</p>

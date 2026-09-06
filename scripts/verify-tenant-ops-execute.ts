@@ -92,6 +92,9 @@ function checkControlAndPanel() {
   assert(control.includes("executeLockedUntilRefresh"), "locks EXECUTE after SUCCESS until stage refresh");
   assert(control.includes("executeEligible && !executeLockedUntilRefresh"), "hides EXECUTE while locked");
   assert(control.includes("disabled={executePending || executeLockedUntilRefresh}"), "EXECUTE disabled while pending or locked");
+  assert(control.includes('failureClass === "RETRYABLE"'), "RETRYABLE Retry UX");
+  assert(control.includes('failureClass === "TERMINAL"'), "TERMINAL blocks retry");
+  assert(control.includes("Retry"), "Retry label present");
   assert(control.includes("disabled={reviewPending}"), "REVIEW disabled while pending");
   assert(control.includes("disabled={recoveryPending}"), "RECOVER disabled while pending");
   assert(!control.includes("submitWorkspaceReview"), "no frozen submit");
