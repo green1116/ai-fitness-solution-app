@@ -19,6 +19,7 @@ export const TENANT_OPS_ACTIVITY_TYPES = [
   TENANT_OPS_AUDIT_TYPES.review,
   TENANT_OPS_AUDIT_TYPES.recover,
   TENANT_OPS_AUDIT_TYPES.execute,
+  TENANT_OPS_AUDIT_TYPES.open_deal,
 ] as const;
 
 export type TenantOpsHistoryEntry = Readonly<{

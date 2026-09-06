@@ -7,6 +7,7 @@ import type { TenantOpsReviewActionResult } from "@/lib/runtime-ops/tenant-ops-a
 import { useWorkspaceOrganizationId } from "./WorkspaceOrganizationProvider";
 import { submitTenantOpsRecoveryAction } from "./submit-tenant-ops-recovery-action";
 import { submitTenantOpsExecuteAction } from "./submit-tenant-ops-execute-action";
+import { submitTenantOpsOpenDealAction } from "./submit-tenant-ops-open-deal-action";
 
 type SubmitTenantOpsReviewAction = (
   prev: TenantOpsReviewActionResult | null,
@@ -37,6 +38,7 @@ export function TenantOpsReviewActionControl({
   stage = "",
   reviewEligible,
   executeEligible,
+  openDealEligible = false,
   recovered = false,
   submitReviewAction,
 }: {
@@ -45,6 +47,7 @@ export function TenantOpsReviewActionControl({
   stage?: string;
   reviewEligible: boolean;
   executeEligible: boolean;
+  openDealEligible?: boolean;
   recovered?: boolean;
   submitReviewAction: SubmitTenantOpsReviewAction;
 }) {
@@ -62,6 +65,10 @@ export function TenantOpsReviewActionControl({
     submitTenantOpsExecuteAction,
     null,
   );
+  const [openDealState, openDealFormAction, openDealPending] = useActionState(
+    submitTenantOpsOpenDealAction,
+    null,
+  );
 
   const showReview = reviewEligible;
   const serverStage = stage.trim().toUpperCase();
@@ -71,6 +78,8 @@ export function TenantOpsReviewActionControl({
     executeFromStage.length > 0 &&
     serverStage === executeFromStage;
   const showExecute = executeEligible && !executeLockedUntilRefresh;
+  const showOpenDeal =
+    openDealEligible && openDealState?.result !== "SUCCESS";
   const isRecovered = recovered || recoveryState?.result === "SUCCESS";
 
   const reviewLabel =
@@ -99,17 +108,31 @@ export function TenantOpsReviewActionControl({
           ? "FAILED"
           : null;
 
+  const openDealLabel =
+    openDealState?.result === "SUCCESS"
+      ? openDealState.reused
+        ? "DEAL OPEN (REUSED)"
+        : "DEAL OPEN"
+      : openDealState?.result === "BLOCKED"
+        ? "BLOCKED"
+        : openDealState?.result === "FAILED"
+          ? "FAILED"
+          : null;
+
   const executeFailureClass = failedFailureClass(executeState);
   const reviewFailureClass = failedFailureClass(reviewState);
   const recoveryFailureClass = failedFailureClass(recoveryState);
+  const openDealFailureClass = failedFailureClass(openDealState);
 
   const executeRetryable = isRetryableFailed(executeState);
   const reviewRetryable = isRetryableFailed(reviewState);
   const recoveryRetryable = isRetryableFailed(recoveryState);
+  const openDealRetryable = isRetryableFailed(openDealState);
 
   const executeTerminal = isTerminalFailed(executeState);
   const reviewTerminal = isTerminalFailed(reviewState);
   const recoveryTerminal = isTerminalFailed(recoveryState);
+  const openDealTerminal = isTerminalFailed(openDealState);
 
   useEffect(() => {
     if (reviewState?.result === "SUCCESS") {
@@ -129,8 +152,52 @@ export function TenantOpsReviewActionControl({
     }
   }, [executeState?.result, router]);
 
+  useEffect(() => {
+    if (openDealState?.result === "SUCCESS") {
+      router.refresh();
+    }
+  }, [openDealState?.result, router]);
+
   return (
     <div className="mt-2 flex flex-col gap-1">
+      {showOpenDeal || openDealLabel ? (
+        <form action={openDealFormAction} className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="itemId" value={itemId} />
+          <input type="hidden" name="organizationId" value={organizationId} />
+          {showOpenDeal && !openDealTerminal ? (
+            openDealRetryable ? (
+              <button
+                type="submit"
+                disabled={openDealPending}
+                className="rounded border border-amber-700 px-2 py-1 text-xs uppercase tracking-wide text-amber-300 hover:border-amber-500 disabled:opacity-40"
+              >
+                Retry
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={openDealPending}
+                className="rounded border border-cyan-700 px-2 py-1 text-xs uppercase tracking-wide text-cyan-300 hover:border-cyan-500 disabled:opacity-40"
+              >
+                OPEN DEAL
+              </button>
+            )
+          ) : null}
+          {openDealLabel ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-400">
+              {openDealLabel}
+            </span>
+          ) : null}
+          {openDealFailureClass ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-500">
+              {openDealFailureClass}
+            </span>
+          ) : null}
+        </form>
+      ) : null}
+      {openDealState?.reason ? (
+        <p className="text-xs text-zinc-500">{openDealState.reason}</p>
+      ) : null}
       {showExecute || executeLabel ? (
         <form action={executeFormAction} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="itemId" value={itemId} />
