@@ -9,6 +9,10 @@ import {
   completeTenantOpsRecovery,
   type TenantOpsRecoveryResult,
 } from "@/lib/runtime-ops/tenant-ops-recovery";
+import {
+  isTenantOpsRoleAllowed,
+  TENANT_OPS_ROLE_FORBIDDEN_REASON,
+} from "@/lib/runtime-ops/tenant-ops-role-gate";
 import { runWithTenantContext } from "@/lib/tenancy/tenant.context";
 
 if (typeof window !== "undefined") {
@@ -46,6 +50,13 @@ export async function submitTenantOpsRecoveryAction(
   });
   if (!gate.ok) {
     return gateFailed(itemId, gate.organizationId, gate.reason);
+  }
+  if (!isTenantOpsRoleAllowed(gate.role)) {
+    return gateFailed(
+      itemId,
+      gate.tenant.organizationId,
+      TENANT_OPS_ROLE_FORBIDDEN_REASON,
+    );
   }
 
   const result = await runWithTenantContext(gate.tenant, async () =>

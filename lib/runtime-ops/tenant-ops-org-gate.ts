@@ -5,6 +5,7 @@
 
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { getMembership } from "@/lib/organization/membership.service";
+import type { OrgRole } from "@/lib/organization/role.service";
 import type { TenantContext } from "@/lib/tenancy/tenant.context";
 
 export type TenantOpsOrgGateFailureReason =
@@ -13,11 +14,12 @@ export type TenantOpsOrgGateFailureReason =
   | "organization-forbidden";
 
 export type TenantOpsOrgGateResult =
-  | { ok: true; tenant: TenantContext }
+  | { ok: true; tenant: TenantContext; role: OrgRole }
   | { ok: false; reason: TenantOpsOrgGateFailureReason; organizationId: string };
 
 /**
  * Do not trust client org alone — require authenticated membership.
+ * Role is returned for a separate mutate gate; membership rules unchanged.
  */
 export async function resolveTenantOpsOrgContext(input: {
   organizationId: string;
@@ -51,5 +53,6 @@ export async function resolveTenantOpsOrgContext(input: {
       userId: user.id,
       traceId: input.traceId,
     },
+    role: membership.role,
   };
 }

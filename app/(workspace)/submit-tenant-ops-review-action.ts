@@ -7,6 +7,10 @@ import {
   type TenantOpsReviewActionResult,
 } from "@/lib/runtime-ops/tenant-ops-action";
 import { resolveTenantOpsOrgContext } from "@/lib/runtime-ops/tenant-ops-org-gate";
+import {
+  isTenantOpsRoleAllowed,
+  TENANT_OPS_ROLE_FORBIDDEN_REASON,
+} from "@/lib/runtime-ops/tenant-ops-role-gate";
 import { runWithTenantContext } from "@/lib/tenancy/tenant.context";
 
 if (typeof window !== "undefined") {
@@ -44,6 +48,13 @@ export async function submitTenantOpsReviewAction(
   });
   if (!gate.ok) {
     return gateFailed(itemId, gate.organizationId, gate.reason);
+  }
+  if (!isTenantOpsRoleAllowed(gate.role)) {
+    return gateFailed(
+      itemId,
+      gate.tenant.organizationId,
+      TENANT_OPS_ROLE_FORBIDDEN_REASON,
+    );
   }
 
   return runWithTenantContext(gate.tenant, async () =>
