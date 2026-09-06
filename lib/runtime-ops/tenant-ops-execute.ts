@@ -13,6 +13,10 @@ import {
   appendTenantOpsAudit,
   toTenantOpsAuditResult,
 } from "@/lib/runtime-ops/tenant-ops-audit";
+import {
+  failureClassForOutcome,
+  type TenantOpsFailureClass,
+} from "@/lib/runtime-ops/tenant-ops-failure";
 
 export const TENANT_OPS_EXECUTE_ID = "tenant-ops-execute-1" as const;
 export const TENANT_OPS_EXECUTE_VERSION =
@@ -35,6 +39,7 @@ export type TenantOpsExecuteActionResult = Readonly<{
   result: TenantOpsExecuteResultKind;
   executed: boolean;
   reason: string;
+  failureClass?: TenantOpsFailureClass;
 }>;
 
 /**
@@ -64,6 +69,8 @@ function failed(
       Omit<TenantOpsExecuteActionResult, "workPackageId" | "version" | "itemId" | "organizationId">
     >,
 ): TenantOpsExecuteActionResult {
+  const result = partial.result ?? "FAILED";
+  const reason = partial.reason ?? "failed";
   return {
     workPackageId: TENANT_OPS_EXECUTE_ID,
     version: TENANT_OPS_EXECUTE_VERSION,
@@ -74,9 +81,10 @@ function failed(
     fromStage: partial.fromStage ?? null,
     toStage: partial.toStage ?? null,
     action: partial.action ?? null,
-    result: partial.result ?? "FAILED",
+    result,
     executed: partial.executed ?? false,
-    reason: partial.reason ?? "failed",
+    reason,
+    failureClass: failureClassForOutcome(result, reason),
   };
 }
 
@@ -93,6 +101,7 @@ async function auditExecuteBoundary(
     action: result.action ?? "execute",
     result: toTenantOpsAuditResult(result.result),
     reason: result.reason,
+    failureClass: result.failureClass,
   });
 }
 

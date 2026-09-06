@@ -11,6 +11,10 @@ import {
   toTenantOpsAuditResult,
 } from "@/lib/runtime-ops/tenant-ops-audit";
 import { deriveTenantReviewEligible } from "@/lib/runtime-ops/tenant-ops-backlog";
+import {
+  failureClassForOutcome,
+  type TenantOpsFailureClass,
+} from "@/lib/runtime-ops/tenant-ops-failure";
 
 export const TENANT_OPS_RECOVERY_ID = "tenant-ops-recovery-1" as const;
 export const TENANT_OPS_RECOVERY_VERSION =
@@ -27,6 +31,7 @@ export type TenantOpsRecoveryResult = Readonly<{
   recovered: boolean;
   result: "SUCCESS" | "FAILED";
   reason: string;
+  failureClass?: TenantOpsFailureClass;
 }>;
 
 function failed(
@@ -38,6 +43,7 @@ function failed(
       >
     >,
 ): TenantOpsRecoveryResult {
+  const reason = partial.reason ?? "failed";
   return {
     workPackageId: TENANT_OPS_RECOVERY_ID,
     version: TENANT_OPS_RECOVERY_VERSION,
@@ -48,7 +54,8 @@ function failed(
     stage: partial.stage ?? null,
     recovered: partial.recovered ?? false,
     result: "FAILED",
-    reason: partial.reason ?? "failed",
+    reason,
+    failureClass: failureClassForOutcome("FAILED", reason),
   };
 }
 
@@ -65,6 +72,7 @@ async function auditRecoveryBoundary(
     action: "recover",
     result: toTenantOpsAuditResult(result.result),
     reason: result.reason,
+    failureClass: result.failureClass,
   });
 }
 

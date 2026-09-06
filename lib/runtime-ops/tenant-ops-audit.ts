@@ -34,6 +34,7 @@ export type TenantOpsAuditMeta = Readonly<{
   result: TenantOpsAuditResult;
   reason: string;
   timestamp: string;
+  failureClass?: "RETRYABLE" | "TERMINAL";
 }>;
 
 /**
@@ -59,6 +60,7 @@ export async function appendTenantOpsAudit(input: {
   action: string;
   result: TenantOpsAuditResult;
   reason: string;
+  failureClass?: "RETRYABLE" | "TERMINAL";
 }): Promise<void> {
   const customerId = input.customerId?.trim() ?? "";
   if (!customerId) return;
@@ -74,6 +76,7 @@ export async function appendTenantOpsAudit(input: {
       result: input.result,
       reason: input.reason,
       timestamp,
+      ...(input.failureClass ? { failureClass: input.failureClass } : {}),
     };
     await logCRMActivity({
       customerId,
