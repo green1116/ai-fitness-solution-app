@@ -24,15 +24,17 @@ function read(rel: string) {
 function checkExecuteModule() {
   const src = read("lib/runtime-ops/tenant-ops-execute.ts");
   assert(src.includes("export async function runTenantOpsExecuteAction"), "runTenantOpsExecuteAction exported");
-  assert(src.includes("advanceOpportunityToProposal"), "INIT→PROPOSAL pipeline");
-  assert(src.includes("advanceOpportunityToNegotiation"), "PROPOSAL→NEGOTIATION pipeline");
+  assert(src.includes("opportunity.updateMany"), "conditional updateMany");
+  assert(src.includes("stage: fromStageRaw"), "CAS on fromStage");
+  assert(src.includes("updated.count === 1"), "1-row SUCCESS");
+  assert(src.includes('reason: "idempotent"'), "0-row target → idempotent");
+  assert(src.includes('reason: "stage-changed"'), "0-row otherwise → stage-changed");
   assert(src.includes("organization-mismatch"), "org ownership");
   assert(src.includes("negotiation-review-only"), "NEGOTIATION blocked");
-  assert(src.includes('reason: "idempotent"'), "idempotent SUCCESS path");
-  assert(src.includes("liveStage === toStage"), "re-read already-at-target");
-  assert(src.includes('reason: "stage-changed"'), "stage-changed when live diverges");
   assert(src.includes('fromStage === "INIT" && toStage === "PROPOSAL"'), "INIT→PROPOSAL only");
   assert(src.includes('fromStage === "PROPOSAL" && toStage === "NEGOTIATION"'), "PROPOSAL→NEGOTIATION only");
+  assert(!src.includes("advanceOpportunityToProposal"), "no unconditional pipeline proposal");
+  assert(!src.includes("advanceOpportunityToNegotiation"), "no unconditional pipeline negotiation");
   assert(!src.includes("openDealFromOpportunity"), "no deal open v1");
   assert(!src.includes("createDeal"), "no deal create");
   assert(!/\bgetActionExecutionRequests\b/.test(src), "no EWEB");
