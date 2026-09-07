@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 
+import { getCurrentUser } from "@/lib/auth/currentUser";
 import {
   TENANT_OPS_EXECUTE_ID,
   TENANT_OPS_EXECUTE_VERSION,
   runTenantOpsExecuteAction,
   type TenantOpsExecuteActionResult,
 } from "@/lib/runtime-ops/tenant-ops-execute";
+import { appendTenantOpsGateFailureAudit } from "@/lib/runtime-ops/tenant-ops-audit";
 import { resolveTenantOpsOrgContext } from "@/lib/runtime-ops/tenant-ops-org-gate";
 import {
   isTenantOpsRoleAllowed,
@@ -40,6 +42,15 @@ function gateFailed(
   };
 }
 
+async function sessionUserId(): Promise<string | null> {
+  try {
+    const user = await getCurrentUser();
+    return user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function submitTenantOpsExecuteAction(
   _prev: TenantOpsExecuteActionResult | null,
   formData: FormData,
@@ -51,14 +62,32 @@ export async function submitTenantOpsExecuteAction(
     traceId: "tenant-ops-execute-action",
   });
   if (!gate.ok) {
-    return gateFailed(itemId, gate.organizationId, gate.reason);
+    const failed = gateFailed(itemId, gate.organizationId, gate.reason);
+    await appendTenantOpsGateFailureAudit({
+      kind: "execute",
+      organizationId: gate.organizationId,
+      userId: await sessionUserId(),
+      itemId,
+      action: "execute",
+      reason: gate.reason,
+    });
+    return failed;
   }
   if (!isTenantOpsRoleAllowed(gate.role)) {
-    return gateFailed(
+    const failed = gateFailed(
       itemId,
       gate.tenant.organizationId,
       TENANT_OPS_ROLE_FORBIDDEN_REASON,
     );
+    await appendTenantOpsGateFailureAudit({
+      kind: "execute",
+      organizationId: gate.tenant.organizationId,
+      userId: gate.tenant.userId,
+      itemId,
+      action: "execute",
+      reason: TENANT_OPS_ROLE_FORBIDDEN_REASON,
+    });
+    return failed;
   }
 
   const result = await runWithTenantContext(gate.tenant, async () =>

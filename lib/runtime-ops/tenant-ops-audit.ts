@@ -5,6 +5,8 @@
  */
 
 import { logCRMActivity } from "@/lib/crm/activity/activity.tracker";
+import { prisma } from "@/lib/prisma";
+import { failureClassForOutcome } from "@/lib/runtime-ops/tenant-ops-failure";
 
 export const TENANT_OPS_AUDIT_ID = "tenant-ops-audit-1" as const;
 export const TENANT_OPS_AUDIT_VERSION =
@@ -91,5 +93,77 @@ export async function appendTenantOpsAudit(input: {
     });
   } catch {
     // Audit must not fail business action.
+  }
+}
+
+const OPPORTUNITY_ITEM_PREFIX = "crm:opportunity:";
+
+function parseOpportunityItemId(itemId: string): string | null {
+  const id = itemId.trim();
+  if (!id.startsWith(OPPORTUNITY_ITEM_PREFIX)) return null;
+  const entityId = id.slice(OPPORTUNITY_ITEM_PREFIX.length).trim();
+  return entityId.length > 0 ? entityId : null;
+}
+
+/**
+ * Resolve a customerId for gate-failure audit via item ownership.
+ * Returns null when item/org cannot be anchored — no CRMActivity without customer.
+ */
+async function resolveGateAuditCustomerId(
+  itemId: string,
+  organizationId: string,
+): Promise<string | null> {
+  const entityId = parseOpportunityItemId(itemId);
+  if (!entityId || !organizationId.trim()) return null;
+  const opportunity = await prisma.opportunity.findUnique({
+    where: { id: entityId },
+    select: {
+      customerId: true,
+      customer: { select: { organizationId: true } },
+    },
+  });
+  if (!opportunity) return null;
+  if (opportunity.customer.organizationId !== organizationId.trim()) {
+    return null;
+  }
+  return opportunity.customerId;
+}
+
+/**
+ * Audit submit org/role/auth gate failures when session userId + org + item
+ * customer anchor are available. Never throws; never mutates business state.
+ */
+export async function appendTenantOpsGateFailureAudit(input: {
+  kind: "review" | "recover" | "execute";
+  organizationId: string;
+  userId: string | null | undefined;
+  itemId: string;
+  action: "review" | "recover" | "execute";
+  reason: string;
+}): Promise<void> {
+  const userId = input.userId?.trim() ?? "";
+  const organizationId = input.organizationId.trim();
+  if (!userId || !organizationId) return;
+
+  try {
+    const customerId = await resolveGateAuditCustomerId(
+      input.itemId,
+      organizationId,
+    );
+    if (!customerId) return;
+
+    await appendTenantOpsAudit({
+      kind: input.kind,
+      organizationId,
+      userId,
+      itemId: input.itemId.trim(),
+      customerId,
+      action: input.action,
+      result: "FAILED",
+      reason: input.reason,
+      failureClass: failureClassForOutcome("FAILED", input.reason),
+    });
+  } catch {
+    // Gate audit must not alter the original gate failure result.
   }
 }
