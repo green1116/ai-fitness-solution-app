@@ -150,11 +150,27 @@ function checkFrozen() {
   console.log("✓ frozen / mutate paths untouched");
 }
 
+function checkLoadAction() {
+  const src = read("app/(workspace)/load-tenant-ops-operability.ts");
+  assert(src.includes('"use server"'), "server action");
+  assert(src.includes("readTenantOpsOperability"), "uses read projection");
+  assert(src.includes("resolveTenantOpsOrgContext"), "org/workspace gate");
+  assert(src.includes("runWithTenantContext"), "tenant context");
+  assert(src.includes("windowMs"), "optional timeWindow support");
+  assert(!src.includes("time-window-missing"), "timeWindow optional with default");
+  assert(!src.includes("appendTenantOpsAudit"), "no audit write");
+  assert(!src.includes("isTenantOpsRoleAllowed"), "no mutate role gate");
+  assert(!src.includes("opportunity.update"), "no mutation");
+  assert(!src.includes("WorkspaceActionSurfacePanel"), "no UI wiring");
+  console.log("✓ load-tenant-ops-operability");
+}
+
 function main() {
   console.log("=== WP-POST-GA-TENANT-OPS-OPERABILITY-1 ===\n");
   checkModuleShape();
   checkEmptyCase();
   checkAggregation();
+  checkLoadAction();
   checkFrozen();
   console.log("\nSTATUS: PASS");
 }
