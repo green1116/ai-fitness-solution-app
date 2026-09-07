@@ -25,6 +25,10 @@ const TERMINAL_REASONS = new Set<string>([
   "negotiation-review-only",
   "not-executable",
   "not-open-deal-eligible",
+  "not-close-won-eligible",
+  "no-open-deal",
+  "deal-closed-lost",
+  "deal-cross-terminal",
 ]);
 
 /** Known transient / refresh-then-retry reasons. */

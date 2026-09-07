@@ -15,6 +15,7 @@ export const TENANT_OPS_AUDIT_KINDS = [
   "recover",
   "execute",
   "open_deal",
+  "close_won",
 ] as const;
 export type TenantOpsAuditKind = (typeof TENANT_OPS_AUDIT_KINDS)[number];
 
@@ -23,6 +24,7 @@ export const TENANT_OPS_AUDIT_TYPES = {
   recover: "tenant_ops.recover",
   execute: "tenant_ops.execute",
   open_deal: "tenant_ops.open_deal",
+  close_won: "tenant_ops.close_won",
 } as const satisfies Record<TenantOpsAuditKind, string>;
 
 export type TenantOpsAuditResult = "SUCCESS" | "FAILED";

@@ -8,6 +8,7 @@ import { useWorkspaceOrganizationId } from "./WorkspaceOrganizationProvider";
 import { submitTenantOpsRecoveryAction } from "./submit-tenant-ops-recovery-action";
 import { submitTenantOpsExecuteAction } from "./submit-tenant-ops-execute-action";
 import { submitTenantOpsOpenDealAction } from "./submit-tenant-ops-open-deal-action";
+import { submitTenantOpsCloseWonAction } from "./submit-tenant-ops-close-won-action";
 
 type SubmitTenantOpsReviewAction = (
   prev: TenantOpsReviewActionResult | null,
@@ -39,6 +40,7 @@ export function TenantOpsReviewActionControl({
   reviewEligible,
   executeEligible,
   openDealEligible = false,
+  closeWonEligible = false,
   recovered = false,
   submitReviewAction,
 }: {
@@ -48,6 +50,7 @@ export function TenantOpsReviewActionControl({
   reviewEligible: boolean;
   executeEligible: boolean;
   openDealEligible?: boolean;
+  closeWonEligible?: boolean;
   recovered?: boolean;
   submitReviewAction: SubmitTenantOpsReviewAction;
 }) {
@@ -69,6 +72,10 @@ export function TenantOpsReviewActionControl({
     submitTenantOpsOpenDealAction,
     null,
   );
+  const [closeWonState, closeWonFormAction, closeWonPending] = useActionState(
+    submitTenantOpsCloseWonAction,
+    null,
+  );
 
   const showReview = reviewEligible;
   const serverStage = stage.trim().toUpperCase();
@@ -80,6 +87,8 @@ export function TenantOpsReviewActionControl({
   const showExecute = executeEligible && !executeLockedUntilRefresh;
   const showOpenDeal =
     openDealEligible && openDealState?.result !== "SUCCESS";
+  const showCloseWon =
+    closeWonEligible && closeWonState?.result !== "SUCCESS";
   const isRecovered = recovered || recoveryState?.result === "SUCCESS";
 
   const reviewLabel =
@@ -119,20 +128,34 @@ export function TenantOpsReviewActionControl({
           ? "FAILED"
           : null;
 
+  const closeWonLabel =
+    closeWonState?.result === "SUCCESS"
+      ? closeWonState.reused
+        ? "CLOSED WON (REUSED)"
+        : "CLOSED WON"
+      : closeWonState?.result === "BLOCKED"
+        ? "BLOCKED"
+        : closeWonState?.result === "FAILED"
+          ? "FAILED"
+          : null;
+
   const executeFailureClass = failedFailureClass(executeState);
   const reviewFailureClass = failedFailureClass(reviewState);
   const recoveryFailureClass = failedFailureClass(recoveryState);
   const openDealFailureClass = failedFailureClass(openDealState);
+  const closeWonFailureClass = failedFailureClass(closeWonState);
 
   const executeRetryable = isRetryableFailed(executeState);
   const reviewRetryable = isRetryableFailed(reviewState);
   const recoveryRetryable = isRetryableFailed(recoveryState);
   const openDealRetryable = isRetryableFailed(openDealState);
+  const closeWonRetryable = isRetryableFailed(closeWonState);
 
   const executeTerminal = isTerminalFailed(executeState);
   const reviewTerminal = isTerminalFailed(reviewState);
   const recoveryTerminal = isTerminalFailed(recoveryState);
   const openDealTerminal = isTerminalFailed(openDealState);
+  const closeWonTerminal = isTerminalFailed(closeWonState);
 
   useEffect(() => {
     if (reviewState?.result === "SUCCESS") {
@@ -157,6 +180,12 @@ export function TenantOpsReviewActionControl({
       router.refresh();
     }
   }, [openDealState?.result, router]);
+
+  useEffect(() => {
+    if (closeWonState?.result === "SUCCESS") {
+      router.refresh();
+    }
+  }, [closeWonState?.result, router]);
 
   return (
     <div className="mt-2 flex flex-col gap-1">
@@ -197,6 +226,44 @@ export function TenantOpsReviewActionControl({
       ) : null}
       {openDealState?.reason ? (
         <p className="text-xs text-zinc-500">{openDealState.reason}</p>
+      ) : null}
+      {showCloseWon || closeWonLabel ? (
+        <form action={closeWonFormAction} className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="itemId" value={itemId} />
+          <input type="hidden" name="organizationId" value={organizationId} />
+          {showCloseWon && !closeWonTerminal ? (
+            closeWonRetryable ? (
+              <button
+                type="submit"
+                disabled={closeWonPending}
+                className="rounded border border-amber-700 px-2 py-1 text-xs uppercase tracking-wide text-amber-300 hover:border-amber-500 disabled:opacity-40"
+              >
+                Retry
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={closeWonPending}
+                className="rounded border border-teal-700 px-2 py-1 text-xs uppercase tracking-wide text-teal-300 hover:border-teal-500 disabled:opacity-40"
+              >
+                CLOSE WON
+              </button>
+            )
+          ) : null}
+          {closeWonLabel ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-400">
+              {closeWonLabel}
+            </span>
+          ) : null}
+          {closeWonFailureClass ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-500">
+              {closeWonFailureClass}
+            </span>
+          ) : null}
+        </form>
+      ) : null}
+      {closeWonState?.reason ? (
+        <p className="text-xs text-zinc-500">{closeWonState.reason}</p>
       ) : null}
       {showExecute || executeLabel ? (
         <form action={executeFormAction} className="flex flex-wrap items-center gap-2">
