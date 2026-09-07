@@ -9,6 +9,7 @@ import { submitTenantOpsRecoveryAction } from "./submit-tenant-ops-recovery-acti
 import { submitTenantOpsExecuteAction } from "./submit-tenant-ops-execute-action";
 import { submitTenantOpsOpenDealAction } from "./submit-tenant-ops-open-deal-action";
 import { submitTenantOpsCloseWonAction } from "./submit-tenant-ops-close-won-action";
+import { submitTenantOpsCloseLostAction } from "./submit-tenant-ops-close-lost-action";
 
 type SubmitTenantOpsReviewAction = (
   prev: TenantOpsReviewActionResult | null,
@@ -41,6 +42,7 @@ export function TenantOpsReviewActionControl({
   executeEligible,
   openDealEligible = false,
   closeWonEligible = false,
+  closeLostEligible = false,
   recovered = false,
   submitReviewAction,
 }: {
@@ -51,6 +53,7 @@ export function TenantOpsReviewActionControl({
   executeEligible: boolean;
   openDealEligible?: boolean;
   closeWonEligible?: boolean;
+  closeLostEligible?: boolean;
   recovered?: boolean;
   submitReviewAction: SubmitTenantOpsReviewAction;
 }) {
@@ -76,6 +79,10 @@ export function TenantOpsReviewActionControl({
     submitTenantOpsCloseWonAction,
     null,
   );
+  const [closeLostState, closeLostFormAction, closeLostPending] = useActionState(
+    submitTenantOpsCloseLostAction,
+    null,
+  );
 
   const showReview = reviewEligible;
   const serverStage = stage.trim().toUpperCase();
@@ -89,6 +96,8 @@ export function TenantOpsReviewActionControl({
     openDealEligible && openDealState?.result !== "SUCCESS";
   const showCloseWon =
     closeWonEligible && closeWonState?.result !== "SUCCESS";
+  const showCloseLost =
+    closeLostEligible && closeLostState?.result !== "SUCCESS";
   const isRecovered = recovered || recoveryState?.result === "SUCCESS";
 
   const reviewLabel =
@@ -139,23 +148,37 @@ export function TenantOpsReviewActionControl({
           ? "FAILED"
           : null;
 
+  const closeLostLabel =
+    closeLostState?.result === "SUCCESS"
+      ? closeLostState.reused
+        ? "CLOSED LOST (REUSED)"
+        : "CLOSED LOST"
+      : closeLostState?.result === "BLOCKED"
+        ? "BLOCKED"
+        : closeLostState?.result === "FAILED"
+          ? "FAILED"
+          : null;
+
   const executeFailureClass = failedFailureClass(executeState);
   const reviewFailureClass = failedFailureClass(reviewState);
   const recoveryFailureClass = failedFailureClass(recoveryState);
   const openDealFailureClass = failedFailureClass(openDealState);
   const closeWonFailureClass = failedFailureClass(closeWonState);
+  const closeLostFailureClass = failedFailureClass(closeLostState);
 
   const executeRetryable = isRetryableFailed(executeState);
   const reviewRetryable = isRetryableFailed(reviewState);
   const recoveryRetryable = isRetryableFailed(recoveryState);
   const openDealRetryable = isRetryableFailed(openDealState);
   const closeWonRetryable = isRetryableFailed(closeWonState);
+  const closeLostRetryable = isRetryableFailed(closeLostState);
 
   const executeTerminal = isTerminalFailed(executeState);
   const reviewTerminal = isTerminalFailed(reviewState);
   const recoveryTerminal = isTerminalFailed(recoveryState);
   const openDealTerminal = isTerminalFailed(openDealState);
   const closeWonTerminal = isTerminalFailed(closeWonState);
+  const closeLostTerminal = isTerminalFailed(closeLostState);
 
   useEffect(() => {
     if (reviewState?.result === "SUCCESS") {
@@ -186,6 +209,12 @@ export function TenantOpsReviewActionControl({
       router.refresh();
     }
   }, [closeWonState?.result, router]);
+
+  useEffect(() => {
+    if (closeLostState?.result === "SUCCESS") {
+      router.refresh();
+    }
+  }, [closeLostState?.result, router]);
 
   return (
     <div className="mt-2 flex flex-col gap-1">
@@ -264,6 +293,44 @@ export function TenantOpsReviewActionControl({
       ) : null}
       {closeWonState?.reason ? (
         <p className="text-xs text-zinc-500">{closeWonState.reason}</p>
+      ) : null}
+      {showCloseLost || closeLostLabel ? (
+        <form action={closeLostFormAction} className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="itemId" value={itemId} />
+          <input type="hidden" name="organizationId" value={organizationId} />
+          {showCloseLost && !closeLostTerminal ? (
+            closeLostRetryable ? (
+              <button
+                type="submit"
+                disabled={closeLostPending}
+                className="rounded border border-amber-700 px-2 py-1 text-xs uppercase tracking-wide text-amber-300 hover:border-amber-500 disabled:opacity-40"
+              >
+                Retry
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={closeLostPending}
+                className="rounded border border-rose-800 px-2 py-1 text-xs uppercase tracking-wide text-rose-300 hover:border-rose-600 disabled:opacity-40"
+              >
+                CLOSE LOST
+              </button>
+            )
+          ) : null}
+          {closeLostLabel ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-400">
+              {closeLostLabel}
+            </span>
+          ) : null}
+          {closeLostFailureClass ? (
+            <span className="text-xs uppercase tracking-wide text-zinc-500">
+              {closeLostFailureClass}
+            </span>
+          ) : null}
+        </form>
+      ) : null}
+      {closeLostState?.reason ? (
+        <p className="text-xs text-zinc-500">{closeLostState.reason}</p>
       ) : null}
       {showExecute || executeLabel ? (
         <form action={executeFormAction} className="flex flex-wrap items-center gap-2">

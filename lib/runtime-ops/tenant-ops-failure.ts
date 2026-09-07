@@ -26,8 +26,10 @@ const TERMINAL_REASONS = new Set<string>([
   "not-executable",
   "not-open-deal-eligible",
   "not-close-won-eligible",
+  "not-close-lost-eligible",
   "no-open-deal",
   "deal-closed-lost",
+  "deal-closed-won",
   "deal-cross-terminal",
 ]);
 

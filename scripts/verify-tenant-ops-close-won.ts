@@ -74,7 +74,7 @@ function checkControlAndPanel() {
     "control does not value-import close-won module",
   );
   assert(!control.includes("@/lib/prisma"), "no prisma in control");
-  assert(!control.includes("CLOSE LOST"), "no close lost UI");
+  assert(control.includes("CLOSE LOST"), "CLOSE LOST coexists");
 
   const panel = read("app/(workspace)/WorkspaceActionSurfacePanel.tsx");
   assert(panel.includes("isTenantOpsCloseWonEligible"), "panel eligibility");

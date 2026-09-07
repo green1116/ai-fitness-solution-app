@@ -21,6 +21,7 @@ export const TENANT_OPS_ACTIVITY_TYPES = [
   TENANT_OPS_AUDIT_TYPES.execute,
   TENANT_OPS_AUDIT_TYPES.open_deal,
   TENANT_OPS_AUDIT_TYPES.close_won,
+  TENANT_OPS_AUDIT_TYPES.close_lost,
 ] as const;
 
 export type TenantOpsHistoryEntry = Readonly<{

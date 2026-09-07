@@ -17,6 +17,7 @@ import {
 import { isTenantOpsExecuteEligible } from "@/lib/runtime-ops/tenant-ops-execute";
 import { isTenantOpsOpenDealEligible } from "@/lib/runtime-ops/tenant-ops-open-deal";
 import { isTenantOpsCloseWonEligible } from "@/lib/runtime-ops/tenant-ops-close-won";
+import { isTenantOpsCloseLostEligible } from "@/lib/runtime-ops/tenant-ops-close-lost";
 import { listTenantOpsRecoveredItemIds } from "@/lib/runtime-ops/tenant-ops-recovery";
 import {
   readWorkspaceActionSurface,
@@ -187,7 +188,8 @@ function TenantBacklogItemRow({
       {item.reviewEligible ||
       isTenantOpsExecuteEligible(item.stage) ||
       isTenantOpsOpenDealEligible(item.stage) ||
-      isTenantOpsCloseWonEligible(item.stage) ? (
+      isTenantOpsCloseWonEligible(item.stage) ||
+      isTenantOpsCloseLostEligible(item.stage) ? (
         <TenantOpsReviewActionControl
           itemId={item.id}
           stage={item.stage}
@@ -195,6 +197,7 @@ function TenantBacklogItemRow({
           executeEligible={isTenantOpsExecuteEligible(item.stage)}
           openDealEligible={isTenantOpsOpenDealEligible(item.stage)}
           closeWonEligible={isTenantOpsCloseWonEligible(item.stage)}
+          closeLostEligible={isTenantOpsCloseLostEligible(item.stage)}
           recovered={recovered}
           submitReviewAction={submitTenantOpsReviewAction}
         />

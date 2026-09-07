@@ -59,7 +59,11 @@ function checkHistoryModule() {
     TENANT_OPS_ACTIVITY_TYPES.includes(TENANT_OPS_AUDIT_TYPES.close_won),
     "includes close_won",
   );
-  assert(TENANT_OPS_ACTIVITY_TYPES.length === 5, "five ops types");
+  assert(
+    TENANT_OPS_ACTIVITY_TYPES.includes(TENANT_OPS_AUDIT_TYPES.close_lost),
+    "includes close_lost",
+  );
+  assert(TENANT_OPS_ACTIVITY_TYPES.length === 6, "six ops types");
   console.log("✓ tenant-ops-history module");
 }
 
