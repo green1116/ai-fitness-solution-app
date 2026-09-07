@@ -18,7 +18,10 @@ import { isTenantOpsExecuteEligible } from "@/lib/runtime-ops/tenant-ops-execute
 import { isTenantOpsOpenDealEligible } from "@/lib/runtime-ops/tenant-ops-open-deal";
 import { isTenantOpsCloseWonEligible } from "@/lib/runtime-ops/tenant-ops-close-won";
 import { isTenantOpsCloseLostEligible } from "@/lib/runtime-ops/tenant-ops-close-lost";
+import { resolveTenantOpsOrgContext } from "@/lib/runtime-ops/tenant-ops-org-gate";
 import { listTenantOpsRecoveredItemIds } from "@/lib/runtime-ops/tenant-ops-recovery";
+import { isTenantOpsRoleAllowed } from "@/lib/runtime-ops/tenant-ops-role-gate";
+import type { TenantOpsOperabilityProjection } from "@/lib/runtime-ops/tenant-ops-operability";
 import {
   readWorkspaceActionSurface,
   type WorkspaceActionSurfaceItem,
@@ -30,6 +33,7 @@ import {
   WorkspaceOpsCrmIdentityLinkControl,
   type CrmCustomerOption,
 } from "./WorkspaceOpsCrmIdentityLinkControl";
+import { loadTenantOpsOperability } from "./load-tenant-ops-operability";
 import { submitWorkspaceReviewAction, submitWorkspaceReviewRecoveryAction } from "./submit-workspace-review-action";
 import { submitTenantOpsReviewAction } from "./submit-tenant-ops-review-action";
 
@@ -210,15 +214,62 @@ function TenantBacklogItemRow({
   );
 }
 
+function TenantOpsOperabilitySummary({
+  projection,
+}: {
+  projection: TenantOpsOperabilityProjection;
+}) {
+  return (
+    <div className="mt-3 grid gap-4 sm:grid-cols-4">
+      <div>
+        <p className="text-xs text-zinc-500">Ops total</p>
+        <p className="mt-1 text-lg font-semibold">{projection.total}</p>
+      </div>
+      <div>
+        <p className="text-xs text-zinc-500">Failed</p>
+        <p className="mt-1 text-lg font-semibold">{projection.failed}</p>
+      </div>
+      <div>
+        <p className="text-xs text-zinc-500">Retryable</p>
+        <p className="mt-1 text-lg font-semibold">{projection.retryable}</p>
+      </div>
+      <div>
+        <p className="text-xs text-zinc-500">Terminal</p>
+        <p className="mt-1 text-lg font-semibold">{projection.terminal}</p>
+      </div>
+    </div>
+  );
+}
+
+async function loadOwnerAdminOperabilityProjection(
+  organizationId: string,
+): Promise<TenantOpsOperabilityProjection | null> {
+  const gate = await resolveTenantOpsOrgContext({
+    organizationId,
+    traceId: "tenant-ops-operability-workspace",
+  });
+  if (!gate.ok || !isTenantOpsRoleAllowed(gate.role)) {
+    return null;
+  }
+
+  const result = await loadTenantOpsOperability({ organizationId });
+  if (!result.ok || !result.projection) {
+    return null;
+  }
+  return result.projection;
+}
+
 async function renderTenantOpsBacklogPanel(organizationId: string) {
   const backlog: TenantOpsBacklog = await readTenantOpsBacklog(organizationId);
-  const [productContextByItemId, recoveredItemIds] = await Promise.all([
-    loadTenantProductContextByItemId(organizationId, backlog.items),
-    listTenantOpsRecoveredItemIds(
-      organizationId,
-      backlog.items.map((item) => item.id),
-    ),
-  ]);
+  const [productContextByItemId, recoveredItemIds, operability] =
+    await Promise.all([
+      loadTenantProductContextByItemId(organizationId, backlog.items),
+      listTenantOpsRecoveredItemIds(
+        organizationId,
+        backlog.items.map((item) => item.id),
+      ),
+      loadOwnerAdminOperabilityProjection(organizationId),
+    ]);
 
   const attentionItems = backlog.items.filter((item) => item.state === "ATTENTION");
   const tailItems = backlog.items.filter((item) => item.state !== "ATTENTION");
@@ -226,6 +277,9 @@ async function renderTenantOpsBacklogPanel(organizationId: string) {
   return (
     <section className="mx-auto mt-4 max-w-5xl rounded-lg border border-zinc-800 bg-zinc-950 p-4">
       <p className="text-xs text-zinc-600">只读 · readTenantOpsBacklog()</p>
+      {operability ? (
+        <TenantOpsOperabilitySummary projection={operability} />
+      ) : null}
       <div className="mt-3 grid gap-4 sm:grid-cols-3">
         <div>
           <p className="text-xs text-zinc-500">Attention</p>

@@ -161,8 +161,33 @@ function checkLoadAction() {
   assert(!src.includes("appendTenantOpsAudit"), "no audit write");
   assert(!src.includes("isTenantOpsRoleAllowed"), "no mutate role gate");
   assert(!src.includes("opportunity.update"), "no mutation");
-  assert(!src.includes("WorkspaceActionSurfacePanel"), "no UI wiring");
+  assert(!src.includes("WorkspaceActionSurfacePanel"), "load stays UI-free");
   console.log("✓ load-tenant-ops-operability");
+}
+
+function checkWorkspaceWiring() {
+  const panel = read("app/(workspace)/WorkspaceActionSurfacePanel.tsx");
+  assert(panel.includes("loadTenantOpsOperability"), "uses load action");
+  assert(panel.includes("TenantOpsOperabilitySummary"), "summary component");
+  assert(panel.includes("isTenantOpsRoleAllowed"), "OWNER/ADMIN gate");
+  assert(panel.includes("resolveTenantOpsOrgContext"), "org membership before load");
+  assert(panel.includes("projection.total"), "shows total");
+  assert(panel.includes("projection.failed"), "shows failed");
+  assert(panel.includes("projection.retryable"), "shows retryable");
+  assert(panel.includes("projection.terminal"), "shows terminal");
+  assert(!panel.includes("appendTenantOpsAudit"), "no audit write");
+  assert(!panel.includes("opportunity.update"), "no mutation");
+  assert(!panel.includes("NextResponse"), "no new API");
+  assert(!panel.includes("workPackageId"), "no pack id leakage");
+  assert(
+    !panel.includes("readTenantOpsOperability("),
+    "panel does not bypass load action",
+  );
+
+  const core = read("lib/runtime-ops/tenant-ops-operability.ts");
+  assert(!core.includes("WorkspaceActionSurfacePanel"), "core stays UI-free");
+  assert(!core.includes("isTenantOpsRoleAllowed"), "core semantics unchanged");
+  console.log("✓ workspace operability summary wiring");
 }
 
 function main() {
@@ -171,6 +196,7 @@ function main() {
   checkEmptyCase();
   checkAggregation();
   checkLoadAction();
+  checkWorkspaceWiring();
   checkFrozen();
   console.log("\nSTATUS: PASS");
 }
