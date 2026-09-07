@@ -5,7 +5,7 @@ import {
   type ProductCommercialContext,
 } from "@/app/(product)/commercial-context";
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { listOrganizationsForUser } from "@/lib/organization/organization.service";
+import { resolveExactSingleOrganizationIdForUser } from "@/lib/organization/single-org-context";
 import {
   assembleCrmWorkSurface,
   type ConsultInitQueueItem,
@@ -33,8 +33,9 @@ async function loadCrmWorkSurface() {
   try {
     const user = await getCurrentUser();
     if (!user) return null;
-    const orgs = await listOrganizationsForUser(user.id);
-    const organizationId = orgs[0]?.organization.id;
+    const organizationId = await resolveExactSingleOrganizationIdForUser(
+      user.id,
+    );
     if (!organizationId) return null;
     return {
       organizationId,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { recordEnterpriseConsultationAsLead } from "@/lib/crm/crm.product-bridge";
-import { listOrganizationsForUser } from "@/lib/organization/organization.service";
+import { resolveExactSingleOrganizationIdForUser } from "@/lib/organization/single-org-context";
 import { prisma } from "@/lib/prisma";
 
 function isValidEmail(email: string): boolean {
@@ -24,8 +24,7 @@ async function resolveTrustedTenantPayload(planId: string): Promise<{
   const user = await getCurrentUser();
   if (!user) return {};
 
-  const organizationId = (await listOrganizationsForUser(user.id))[0]?.organization
-    .id;
+  const organizationId = await resolveExactSingleOrganizationIdForUser(user.id);
   if (!organizationId) return {};
 
   const pid = planId.trim();

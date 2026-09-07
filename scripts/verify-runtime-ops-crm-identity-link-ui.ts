@@ -62,9 +62,11 @@ function main() {
     "layout passes organizationId to panel",
   );
   assert(
-    layout.includes("listOrganizationsForUser"),
+    layout.includes("resolveExactSingleOrganizationIdForUser") ||
+      layout.includes("listOrganizationsForUser"),
     "layout resolves org once",
   );
+  assert(!layout.includes("orgs[0]"), "layout no silent orgs[0]");
   console.log("✓ workspace layout org pass-through");
 
   const eads = read("lib/commercial/action-delivery/action-delivery.ts");

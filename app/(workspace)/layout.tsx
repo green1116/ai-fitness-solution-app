@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
-import { listOrganizationsForUser } from "@/lib/organization/organization.service";
+import { resolveExactSingleOrganizationIdForUser } from "@/lib/organization/single-org-context";
 import { redirect } from "next/navigation";
 import {
   PEX_INTELLIGENCE_ENDPOINT,
@@ -22,8 +22,7 @@ export default async function WorkspaceLayout({
 
   let organizationId: string | null = null;
   try {
-    const orgs = await listOrganizationsForUser(user.id);
-    organizationId = orgs[0]?.organization.id ?? null;
+    organizationId = await resolveExactSingleOrganizationIdForUser(user.id);
   } catch {
     organizationId = null;
   }

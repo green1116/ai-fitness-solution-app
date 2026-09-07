@@ -18,7 +18,12 @@ function main() {
   console.log("=== WP-RUNTIME-OPS-WORKSPACE-NAVIGATION-PERFORMANCE-1 P0/P1 ===\n");
 
   const layout = read("app/(workspace)/layout.tsx");
-  assert(layout.includes("listOrganizationsForUser"), "layout resolves org");
+  assert(
+    layout.includes("resolveExactSingleOrganizationIdForUser") ||
+      layout.includes("listOrganizationsForUser"),
+    "layout resolves org",
+  );
+  assert(!layout.includes("orgs[0]"), "layout no silent orgs[0]");
   assert(
     layout.includes("organizationId={organizationId}"),
     "layout passes organizationId",

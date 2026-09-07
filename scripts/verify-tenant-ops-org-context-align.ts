@@ -60,10 +60,15 @@ function checkSubmits() {
 
 function checkLayoutUntouched() {
   const layout = read("app/(workspace)/layout.tsx");
-  assert(layout.includes("listOrganizationsForUser"), "layout org resolution unchanged");
+  assert(
+    layout.includes("resolveExactSingleOrganizationIdForUser") ||
+      layout.includes("listOrganizationsForUser"),
+    "layout still resolves org once",
+  );
   assert(layout.includes("WorkspaceOrganizationProvider"), "provider retained");
   assert(!layout.includes("resolveTenantOpsOrgContext"), "layout not coupled to gate");
-  console.log("✓ layout org resolution unchanged");
+  assert(!layout.includes("orgs[0]"), "layout no silent orgs[0]");
+  console.log("✓ layout org resolution retained (single-org safe)");
 }
 
 function checkFrozenUntouched() {

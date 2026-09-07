@@ -26,7 +26,12 @@ function main() {
 
   const layout = read("app/(workspace)/layout.tsx");
   assert(layout.includes("WorkspaceOrganizationProvider"), "layout mounts provider");
-  assert(layout.includes("listOrganizationsForUser"), "layout still resolves org once");
+  assert(
+    layout.includes("resolveExactSingleOrganizationIdForUser") ||
+      layout.includes("listOrganizationsForUser"),
+    "layout still resolves org once",
+  );
+  assert(!layout.includes("orgs[0]"), "layout no silent orgs[0]");
   assert(layout.includes("organizationId={organizationId ?? \"\"}") || layout.includes('organizationId={organizationId ?? ""}'), "SSR org passed");
   console.log("✓ workspace layout");
 
