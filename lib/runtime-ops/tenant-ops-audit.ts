@@ -134,11 +134,11 @@ async function resolveGateAuditCustomerId(
  * customer anchor are available. Never throws; never mutates business state.
  */
 export async function appendTenantOpsGateFailureAudit(input: {
-  kind: "review" | "recover" | "execute";
+  kind: TenantOpsAuditKind;
   organizationId: string;
   userId: string | null | undefined;
   itemId: string;
-  action: "review" | "recover" | "execute";
+  action: string;
   reason: string;
 }): Promise<void> {
   const userId = input.userId?.trim() ?? "";

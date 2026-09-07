@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 
+import { getCurrentUser } from "@/lib/auth/currentUser";
 import {
   TENANT_OPS_OPEN_DEAL_ID,
   TENANT_OPS_OPEN_DEAL_VERSION,
   runTenantOpsOpenDealAction,
   type TenantOpsOpenDealResult,
 } from "@/lib/runtime-ops/tenant-ops-open-deal";
+import { appendTenantOpsGateFailureAudit } from "@/lib/runtime-ops/tenant-ops-audit";
 import { resolveTenantOpsOrgContext } from "@/lib/runtime-ops/tenant-ops-org-gate";
 import {
   isTenantOpsRoleAllowed,
@@ -41,6 +43,15 @@ function gateFailed(
   };
 }
 
+async function sessionUserId(): Promise<string | null> {
+  try {
+    const user = await getCurrentUser();
+    return user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function submitTenantOpsOpenDealAction(
   _prev: TenantOpsOpenDealResult | null,
   formData: FormData,
@@ -52,14 +63,32 @@ export async function submitTenantOpsOpenDealAction(
     traceId: "tenant-ops-open-deal-action",
   });
   if (!gate.ok) {
-    return gateFailed(itemId, gate.organizationId, gate.reason);
+    const failed = gateFailed(itemId, gate.organizationId, gate.reason);
+    await appendTenantOpsGateFailureAudit({
+      kind: "open_deal",
+      organizationId: gate.organizationId,
+      userId: await sessionUserId(),
+      itemId,
+      action: "open-deal",
+      reason: gate.reason,
+    });
+    return failed;
   }
   if (!isTenantOpsRoleAllowed(gate.role)) {
-    return gateFailed(
+    const failed = gateFailed(
       itemId,
       gate.tenant.organizationId,
       TENANT_OPS_ROLE_FORBIDDEN_REASON,
     );
+    await appendTenantOpsGateFailureAudit({
+      kind: "open_deal",
+      organizationId: gate.tenant.organizationId,
+      userId: gate.tenant.userId,
+      itemId,
+      action: "open-deal",
+      reason: TENANT_OPS_ROLE_FORBIDDEN_REASON,
+    });
+    return failed;
   }
 
   const result = await runWithTenantContext(gate.tenant, async () =>
