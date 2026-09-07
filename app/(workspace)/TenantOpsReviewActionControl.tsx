@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useRef } from "react";
 
 import type { TenantOpsReviewActionResult } from "@/lib/runtime-ops/tenant-ops-action";
 import { useWorkspaceOrganizationId } from "./WorkspaceOrganizationProvider";
@@ -45,6 +45,7 @@ export function TenantOpsReviewActionControl({
   closeLostEligible = false,
   recovered = false,
   submitReviewAction,
+  onMutationSuccess,
 }: {
   itemId: string;
   /** Server stage — used to unlock EXECUTE after refresh past a local SUCCESS. */
@@ -56,9 +57,13 @@ export function TenantOpsReviewActionControl({
   closeLostEligible?: boolean;
   recovered?: boolean;
   submitReviewAction: SubmitTenantOpsReviewAction;
+  /** UI-only: mark sibling History stale after successful mutation. */
+  onMutationSuccess?: () => void;
 }) {
   const router = useRouter();
   const organizationId = useWorkspaceOrganizationId();
+  const onMutationSuccessRef = useRef(onMutationSuccess);
+  onMutationSuccessRef.current = onMutationSuccess;
   const [reviewState, reviewFormAction, reviewPending] = useActionState(
     submitReviewAction,
     null,
@@ -182,36 +187,42 @@ export function TenantOpsReviewActionControl({
 
   useEffect(() => {
     if (reviewState?.result === "SUCCESS") {
+      onMutationSuccessRef.current?.();
       router.refresh();
     }
   }, [reviewState?.result, router]);
 
   useEffect(() => {
     if (recoveryState?.result === "SUCCESS") {
+      onMutationSuccessRef.current?.();
       router.refresh();
     }
   }, [recoveryState?.result, router]);
 
   useEffect(() => {
     if (executeState?.result === "SUCCESS") {
+      onMutationSuccessRef.current?.();
       router.refresh();
     }
   }, [executeState?.result, router]);
 
   useEffect(() => {
     if (openDealState?.result === "SUCCESS") {
+      onMutationSuccessRef.current?.();
       router.refresh();
     }
   }, [openDealState?.result, router]);
 
   useEffect(() => {
     if (closeWonState?.result === "SUCCESS") {
+      onMutationSuccessRef.current?.();
       router.refresh();
     }
   }, [closeWonState?.result, router]);
 
   useEffect(() => {
     if (closeLostState?.result === "SUCCESS") {
+      onMutationSuccessRef.current?.();
       router.refresh();
     }
   }, [closeLostState?.result, router]);

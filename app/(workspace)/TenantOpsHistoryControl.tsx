@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { useWorkspaceOrganizationId } from "./WorkspaceOrganizationProvider";
 import {
@@ -11,9 +11,12 @@ import {
 export function TenantOpsHistoryControl({
   itemId,
   customerId,
+  refreshEpoch = 0,
 }: {
   itemId: string;
   customerId: string;
+  /** Bumped after successful Tenant Ops mutation — marks history stale / reloads if open. */
+  refreshEpoch?: number;
 }) {
   const organizationId = useWorkspaceOrganizationId();
   const [open, setOpen] = useState(false);
@@ -23,12 +26,10 @@ export function TenantOpsHistoryControl({
   );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const openRef = useRef(open);
+  openRef.current = open;
 
-  function onToggle() {
-    const next = !open;
-    setOpen(next);
-    if (!next || loaded || pending) return;
-
+  function loadHistory() {
     startTransition(async () => {
       setError(null);
       const result = await loadTenantOpsHistory({
@@ -46,6 +47,27 @@ export function TenantOpsHistoryControl({
       setLoaded(true);
     });
   }
+
+  function onToggle() {
+    const next = !open;
+    setOpen(next);
+    if (!next) {
+      // Close marks cache stale so the next reopen always re-fetches.
+      setLoaded(false);
+      return;
+    }
+    if (pending) return;
+    loadHistory();
+  }
+
+  useEffect(() => {
+    if (refreshEpoch <= 0) return;
+    setLoaded(false);
+    setEntries([]);
+    setError(null);
+    if (!openRef.current || pending) return;
+    loadHistory();
+  }, [refreshEpoch]);
 
   return (
     <div className="mt-2">

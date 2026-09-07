@@ -27,15 +27,13 @@ import {
   type WorkspaceActionSurfaceItem,
 } from "@/lib/workflow/experience/workspace-action-surface";
 import { WorkspaceReviewActionControl } from "./WorkspaceReviewActionControl";
-import { TenantOpsReviewActionControl } from "./TenantOpsReviewActionControl";
-import { TenantOpsHistoryControl } from "./TenantOpsHistoryControl";
+import { TenantOpsItemSideControls } from "./TenantOpsItemSideControls";
 import {
   WorkspaceOpsCrmIdentityLinkControl,
   type CrmCustomerOption,
 } from "./WorkspaceOpsCrmIdentityLinkControl";
 import { loadTenantOpsOperability } from "./load-tenant-ops-operability";
 import { submitWorkspaceReviewAction, submitWorkspaceReviewRecoveryAction } from "./submit-workspace-review-action";
-import { submitTenantOpsReviewAction } from "./submit-tenant-ops-review-action";
 
 const STATE_LABEL: Readonly<Record<"ATTENTION" | "AVAILABLE" | "DEFERRED", string>> = {
   ATTENTION: "ATTENTION",
@@ -189,26 +187,23 @@ function TenantBacklogItemRow({
       {productContext ? (
         <OpsActionSurfaceProductLink productContext={productContext} />
       ) : null}
-      {item.reviewEligible ||
-      isTenantOpsExecuteEligible(item.stage) ||
-      isTenantOpsOpenDealEligible(item.stage) ||
-      isTenantOpsCloseWonEligible(item.stage) ||
-      isTenantOpsCloseLostEligible(item.stage) ? (
-        <TenantOpsReviewActionControl
-          itemId={item.id}
-          stage={item.stage}
-          reviewEligible={item.reviewEligible}
-          executeEligible={isTenantOpsExecuteEligible(item.stage)}
-          openDealEligible={isTenantOpsOpenDealEligible(item.stage)}
-          closeWonEligible={isTenantOpsCloseWonEligible(item.stage)}
-          closeLostEligible={isTenantOpsCloseLostEligible(item.stage)}
-          recovered={recovered}
-          submitReviewAction={submitTenantOpsReviewAction}
-        />
-      ) : null}
-      <TenantOpsHistoryControl
+      <TenantOpsItemSideControls
         itemId={item.id}
         customerId={item.customerId}
+        stage={item.stage}
+        reviewEligible={item.reviewEligible}
+        executeEligible={isTenantOpsExecuteEligible(item.stage)}
+        openDealEligible={isTenantOpsOpenDealEligible(item.stage)}
+        closeWonEligible={isTenantOpsCloseWonEligible(item.stage)}
+        closeLostEligible={isTenantOpsCloseLostEligible(item.stage)}
+        recovered={recovered}
+        showActions={
+          item.reviewEligible ||
+          isTenantOpsExecuteEligible(item.stage) ||
+          isTenantOpsOpenDealEligible(item.stage) ||
+          isTenantOpsCloseWonEligible(item.stage) ||
+          isTenantOpsCloseLostEligible(item.stage)
+        }
       />
     </li>
   );

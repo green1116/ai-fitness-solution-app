@@ -80,8 +80,16 @@ function checkControl() {
 
 function checkPanelWiring() {
   const panel = read("app/(workspace)/WorkspaceActionSurfacePanel.tsx");
-  assert(panel.includes("TenantOpsReviewActionControl"), "tenant control mounted");
-  assert(panel.includes("submitTenantOpsReviewAction"), "tenant submit wired");
+  assert(
+    panel.includes("TenantOpsReviewActionControl") ||
+      panel.includes("TenantOpsItemSideControls"),
+    "tenant control mounted",
+  );
+  assert(
+    panel.includes("submitTenantOpsReviewAction") ||
+      panel.includes("TenantOpsItemSideControls"),
+    "tenant submit wired",
+  );
   assert(panel.includes("item.reviewEligible"), "gated by reviewEligible");
   assert(panel.includes("isTenantOpsExecuteEligible"), "also gated by execute eligibility");
   assert(panel.includes("reviewEligible={item.reviewEligible}"), "passes reviewEligible");
@@ -94,11 +102,19 @@ function checkPanelWiring() {
   const tenantRowEnd = panel.indexOf("async function renderTenantOpsBacklogPanel");
   assert(tenantRowStart > 0 && tenantRowEnd > tenantRowStart, "tenant row bounds");
   const tenantRow = panel.slice(tenantRowStart, tenantRowEnd);
-  assert(tenantRow.includes("TenantOpsReviewActionControl"), "tenant row mounts tenant control");
+  assert(
+    tenantRow.includes("TenantOpsReviewActionControl") ||
+      tenantRow.includes("TenantOpsItemSideControls"),
+    "tenant row mounts tenant control",
+  );
   assert(
     !tenantRow.includes("WorkspaceReviewActionControl"),
     "tenant rows do not use frozen REVIEW control",
   );
+
+  const bridge = read("app/(workspace)/TenantOpsItemSideControls.tsx");
+  assert(bridge.includes("TenantOpsReviewActionControl"), "bridge mounts review control");
+  assert(bridge.includes("submitTenantOpsReviewAction"), "bridge wires review submit");
   console.log("✓ panel wiring");
 }
 

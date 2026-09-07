@@ -35,7 +35,11 @@ function checkControl() {
   assert(src.includes("useWorkspaceOrganizationId"), "org from provider");
   assert(src.includes("customerId"), "customerId prop");
   assert(src.includes("itemId"), "itemId prop");
-  assert(src.includes("loaded"), "loads once after expand");
+  assert(src.includes("loaded"), "tracks loaded state");
+  assert(
+    src.includes("refreshEpoch") || src.includes("loadHistory"),
+    "supports reload after expand/mutation",
+  );
   assert(!src.includes("@/lib/prisma"), "no prisma import");
   assert(!src.includes("listTenantOpsHistory"), "no direct history reader import");
   assert(
@@ -47,11 +51,23 @@ function checkControl() {
 
 function checkPanel() {
   const src = read("app/(workspace)/WorkspaceActionSurfacePanel.tsx");
-  assert(src.includes("TenantOpsHistoryControl"), "panel mounts history");
+  assert(
+    src.includes("TenantOpsHistoryControl") ||
+      src.includes("TenantOpsItemSideControls"),
+    "panel mounts history",
+  );
   assert(src.includes("customerId={item.customerId}"), "passes customerId");
   assert(src.includes("itemId={item.id}"), "passes itemId");
-  assert(src.includes("TenantOpsReviewActionControl"), "REVIEW control retained");
-  assert(src.includes("submitTenantOpsReviewAction"), "REVIEW submit retained");
+  assert(
+    src.includes("TenantOpsReviewActionControl") ||
+      src.includes("TenantOpsItemSideControls"),
+    "REVIEW control retained",
+  );
+  assert(
+    src.includes("submitTenantOpsReviewAction") ||
+      src.includes("TenantOpsItemSideControls"),
+    "REVIEW submit retained",
+  );
   assert(!src.includes("listTenantOpsHistory"), "panel does not eager-load history");
   console.log("✓ panel wiring");
 }
