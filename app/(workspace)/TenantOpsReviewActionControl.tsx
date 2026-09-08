@@ -277,6 +277,9 @@ export function TenantOpsReviewActionControl({
                 type="submit"
                 disabled={closeWonPending}
                 className="rounded border border-amber-700 px-2 py-1 text-xs uppercase tracking-wide text-amber-300 hover:border-amber-500 disabled:opacity-40"
+                onClick={(e) => {
+                  if (!window.confirm("Confirm CLOSE WON?")) e.preventDefault();
+                }}
               >
                 Retry
               </button>
@@ -285,6 +288,9 @@ export function TenantOpsReviewActionControl({
                 type="submit"
                 disabled={closeWonPending}
                 className="rounded border border-teal-700 px-2 py-1 text-xs uppercase tracking-wide text-teal-300 hover:border-teal-500 disabled:opacity-40"
+                onClick={(e) => {
+                  if (!window.confirm("Confirm CLOSE WON?")) e.preventDefault();
+                }}
               >
                 CLOSE WON
               </button>
@@ -315,6 +321,9 @@ export function TenantOpsReviewActionControl({
                 type="submit"
                 disabled={closeLostPending}
                 className="rounded border border-amber-700 px-2 py-1 text-xs uppercase tracking-wide text-amber-300 hover:border-amber-500 disabled:opacity-40"
+                onClick={(e) => {
+                  if (!window.confirm("Confirm CLOSE LOST?")) e.preventDefault();
+                }}
               >
                 Retry
               </button>
@@ -323,6 +332,9 @@ export function TenantOpsReviewActionControl({
                 type="submit"
                 disabled={closeLostPending}
                 className="rounded border border-rose-800 px-2 py-1 text-xs uppercase tracking-wide text-rose-300 hover:border-rose-600 disabled:opacity-40"
+                onClick={(e) => {
+                  if (!window.confirm("Confirm CLOSE LOST?")) e.preventDefault();
+                }}
               >
                 CLOSE LOST
               </button>
