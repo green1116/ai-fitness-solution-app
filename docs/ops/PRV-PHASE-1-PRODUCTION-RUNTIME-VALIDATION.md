@@ -40,13 +40,16 @@ No correctness / security / data-loss / tenant-isolation blocker exposed by Phas
 
 ## Remaining (not Phase 1 blockers)
 
+Superseded detail: `docs/ops/POST-GA-STABILIZATION-CLOSURE.md` (HEAD `cc76024d`).
+
 ### NON-BLOCKER
 
 | Item | Note |
 | --- | --- |
-| Terminal close UX | NEGOTIATION still surfaces both CLOSE WON and CLOSE LOST |
-| Count presentation / reconciliation | Backlog count deltas vs multi-click perception |
-| Terminal label semantics | Operability **Terminal** = failure-class TERMINAL, not pipeline WON/LOST |
+| Count presentation | Ops vs backlog; presentation-only |
+| Terminal label semantics | Operability **Terminal** ≠ pipeline WON/LOST |
+| Terminal close UX evidence gap | Mechanical PASS; runtime cancel INCONCLUSIVE |
+| CRM CLOSE WON lacks confirmation | Workspace CRM deal surface |
 
 ### LAUNCH-GATE
 
@@ -54,9 +57,7 @@ No correctness / security / data-loss / tenant-isolation blocker exposed by Phas
 | --- | --- |
 | Multi-org selector | Required before multi-org production launch; CONDITIONAL SINGLE-ORG remains fail-closed |
 
-Residual first-org paths closed later: `docs/ops/WP-ORG-CONTEXT-SAFETY-2-CLOSURE.md`.
-
-RESEND `result.error` OTP delivery debt closed later: `docs/ops/WP-OTP-DELIVERY-ERROR-1-CLOSURE.md` (`post-ga-otp-delivery-error-1-v1` @ `c83b8e56`).
+Later closures: `docs/ops/WP-ORG-CONTEXT-SAFETY-2-CLOSURE.md`, `docs/ops/WP-OTP-DELIVERY-ERROR-1-CLOSURE.md`, `docs/ops/POST-GA-STABILIZATION-CLOSURE.md`.
 
 ## Scope lock
 
