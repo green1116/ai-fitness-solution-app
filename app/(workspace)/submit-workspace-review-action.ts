@@ -15,10 +15,7 @@ import {
   runWorkspaceReviewAction,
   type WorkspaceReviewActionResult,
 } from "@/lib/commercial/action-execution/workspace-review-action";
-import {
-  ensureOrganizationForUser,
-  listOrganizationsForUser,
-} from "@/lib/organization/organization.service";
+import { resolveExactSingleOrganizationIdForUser } from "@/lib/organization/single-org-context";
 import {
   getTenantContext,
   runWithTenantContext,
@@ -41,15 +38,10 @@ async function tenantFromSession(): Promise<TenantContext | null> {
     return null;
   }
   if (!user) return null;
-  const existing = await listOrganizationsForUser(user.id);
-  const organization =
-    existing[0]?.organization ??
-    (await ensureOrganizationForUser({
-      userId: user.id,
-      name: user.name ?? undefined,
-    }));
+  const organizationId = await resolveExactSingleOrganizationIdForUser(user.id);
+  if (!organizationId) return null;
   return {
-    organizationId: organization.id,
+    organizationId,
     userId: user.id,
     traceId: "workspace-review-recovery",
   };

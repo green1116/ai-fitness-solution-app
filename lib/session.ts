@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { normalizeEmail, sha256 } from "@/lib/auth";
-import { ensureOrganizationForUser } from "@/lib/organization/organization.service";
+import { resolveExactSingleOrganizationForUser } from "@/lib/organization/single-org-context";
 import { prisma } from "@/lib/prisma";
 
 // 生成 session token（明文）+ hash 入库
@@ -23,6 +23,7 @@ export async function createSessionCookie(
   days = 30,
   options?: { organizationName?: string },
 ) {
+  void options;
   const normalizedEmail = normalizeEmail(email);
   const user = await prisma.user.upsert({
     where: { email: normalizedEmail },
@@ -30,10 +31,12 @@ export async function createSessionCookie(
     update: {},
     select: { id: true },
   });
-  await ensureOrganizationForUser({
-    userId: user.id,
-    name: options?.organizationName,
-  });
+
+  const resolved = await resolveExactSingleOrganizationForUser(user.id);
+  if (!resolved.ok) {
+    // 0 / >1 → fail closed; never create or silently pick first org here.
+    throw new Error(resolved.reason);
+  }
 
   const token = genSessionToken();
   const tokenHash = computeSessionTokenHash(token);

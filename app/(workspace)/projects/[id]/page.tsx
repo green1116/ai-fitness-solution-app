@@ -6,10 +6,7 @@ import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
 import { evaluatePaywall } from "@/lib/growth/conversion/paywall.engine";
-import {
-  ensureOrganizationForUser,
-  listOrganizationsForUser,
-} from "@/lib/organization/organization.service";
+import { resolveExactSingleOrganizationIdForUser } from "@/lib/organization/single-org-context";
 import {
   PEX_INTELLIGENCE_ENDPOINT,
   readProductIntelligenceExperience,
@@ -24,20 +21,17 @@ export default async function ProjectDetailPage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const existing = await listOrganizationsForUser(user.id);
-  const organization =
-    existing[0]?.organization ??
-    (await ensureOrganizationForUser({
-      userId: user.id,
-      name: user.name ?? undefined,
-    }));
+  const organizationId = await resolveExactSingleOrganizationIdForUser(user.id);
+  if (!organizationId) {
+    notFound();
+  }
 
   const { id } = await params;
   const project = await getProjectById(id);
   if (
     !project ||
     !project.organizationId ||
-    project.organizationId !== organization.id
+    project.organizationId !== organizationId
   ) {
     notFound();
   }
@@ -46,7 +40,7 @@ export default async function ProjectDetailPage({
     ? await readProductIntelligenceExperience()
     : null;
   const tenderPaywall = await evaluatePaywall({
-    organizationId: organization.id,
+    organizationId,
     userId: user.id,
     trigger: "tender_generation_click",
   });
@@ -125,15 +119,15 @@ export default async function ProjectDetailPage({
               <TenderEnterpriseUpgradeCta
                 href={buildTenderUpgradeHref(
                   {
-                    organizationId: organization?.id,
+                    organizationId,
                     projectId: project.id,
                     quoteId: project.quotes[0]?.id,
                     budgetId: project.budgets[0]?.id,
                   },
-                  { authenticated: Boolean(organization?.id), currentPath: "/tender" },
+                  { authenticated: Boolean(organizationId), currentPath: "/tender" },
                 )}
                 context={{
-                  organizationId: organization?.id,
+                  organizationId,
                   projectId: project.id,
                   quoteId: project.quotes[0]?.id,
                   budgetId: project.budgets[0]?.id,

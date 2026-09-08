@@ -11,10 +11,7 @@ import { promoteLeadToOpportunity } from "@/lib/crm/lead/lead.service";
 import { updateOpportunityStage } from "@/lib/crm/opportunity/opportunity.service";
 import type { OpportunityStageName } from "@/lib/crm/opportunity/opportunity.stage";
 import { crmDb } from "@/lib/crm/types";
-import {
-  ensureOrganizationForUser,
-  listOrganizationsForUser,
-} from "@/lib/organization/organization.service";
+import { resolveExactSingleOrganizationIdForUser } from "@/lib/organization/single-org-context";
 import {
   runWithTenantContext,
   type TenantContext,
@@ -105,25 +102,18 @@ function parseCrmItemId(raw: string): { entity: string; id: string } | null {
 async function resolveUserId(): Promise<string | null> {
   const user = await getCurrentUser();
   if (!user) return null;
-  const existing = await listOrganizationsForUser(user.id);
-  if (!existing[0]) {
-    await ensureOrganizationForUser({ userId: user.id, name: user.name ?? undefined });
-  }
+  const organizationId = await resolveExactSingleOrganizationIdForUser(user.id);
+  if (!organizationId) return null;
   return user.id;
 }
 
 async function tenantFromSession(): Promise<TenantContext | null> {
   const user = await getCurrentUser();
   if (!user) return null;
-  const existing = await listOrganizationsForUser(user.id);
-  const organization =
-    existing[0]?.organization ??
-    (await ensureOrganizationForUser({
-      userId: user.id,
-      name: user.name ?? undefined,
-    }));
+  const organizationId = await resolveExactSingleOrganizationIdForUser(user.id);
+  if (!organizationId) return null;
   return {
-    organizationId: organization.id,
+    organizationId,
     userId: user.id,
     traceId: "workspace-crm-action",
   };

@@ -2,10 +2,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
-import {
-  ensureOrganizationForUser,
-  listOrganizationsForUser,
-} from "@/lib/organization/organization.service";
+import { resolveExactSingleOrganizationForUser } from "@/lib/organization/single-org-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,19 +19,23 @@ export async function GET() {
     });
   }
 
-  const existing = await listOrganizationsForUser(user.id);
-  const organization =
-    existing[0]?.organization ??
-    (await ensureOrganizationForUser({
-      userId: user.id,
-      name: user.name ?? undefined,
-    }));
+  const resolved = await resolveExactSingleOrganizationForUser(user.id);
+  if (!resolved.ok) {
+    return NextResponse.json({
+      ok: true,
+      user,
+      authenticated: true,
+      organizationId: null,
+      reason: resolved.reason,
+      isPlatformAdmin: isPlatformAdminEmail(user.email),
+    });
+  }
 
   return NextResponse.json({
     ok: true,
     user,
     authenticated: true,
-    organizationId: organization.id,
+    organizationId: resolved.organizationId,
     isPlatformAdmin: isPlatformAdminEmail(user.email),
   });
 }

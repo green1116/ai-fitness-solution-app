@@ -6,10 +6,7 @@
 
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { prisma } from "@/lib/prisma";
-import {
-  ensureOrganizationForUser,
-  listOrganizationsForUser,
-} from "@/lib/organization/organization.service";
+import { resolveExactSingleOrganizationIdForUser } from "@/lib/organization/single-org-context";
 import { findOrCreateCustomer } from "./customer/customer.service";
 import {
   createLead,
@@ -76,19 +73,14 @@ async function resolveCrmBridgeContext(planId?: string) {
 
   if (user) {
     userId = user.id;
-    const existing = await listOrganizationsForUser(user.id);
-    organizationId =
-      existing[0]?.organization.id ??
-      (
-        await ensureOrganizationForUser({
-          userId: user.id,
-          name: user.name ?? undefined,
-        })
-      ).id;
+    const exactOrgId = await resolveExactSingleOrganizationIdForUser(user.id);
+    // 0 / >1 memberships → fail closed (no ensure, no silent first-org, no CRM write).
+    organizationId = exactOrgId ?? undefined;
   }
 
   const pid = (planId || "").trim();
-  if (!organizationId && pid) {
+  // Preserve unauthenticated planId → project.organizationId fallback only.
+  if (!organizationId && !user && pid) {
     const project = await prisma.project.findUnique({
       where: { id: pid },
       select: { organizationId: true },
