@@ -4,8 +4,13 @@
 
 **GA = FROZEN / CONDITIONAL SINGLE-ORG**
 
-Recorded: 2026-09-07  
-Closure ref (gate-failure audit): `0e9d7147`  
+**Production GO (PRV Phase 1) = CONDITIONAL SINGLE-ORG** — see `docs/ops/PRV-PHASE-1-PRODUCTION-RUNTIME-VALIDATION.md`
+
+Recorded: 2026-09-07
+PRV Phase 1 closed: 2026-09-08
+Closure ref (gate-failure audit): `0e9d7147`
+PRV baseline commit: `72b62ce9e498d29daf7ef2e0f31745d59a426454`
+PRV tag: `post-ga-tenant-ops-history-refresh-v1`
 Branch baseline: `release/ga-production`
 
 ## Freeze posture
@@ -13,8 +18,9 @@ Branch baseline: `release/ga-production`
 | Field | Value |
 | --- | --- |
 | GA status | **FROZEN / CONDITIONAL SINGLE-ORG** |
+| Production decision | **GO — CONDITIONAL SINGLE-ORG** (PRV Phase 1 PASS) |
 | Allowed mutate roles | **OWNER / ADMIN** only (`manage_members` / role gate) |
-| Org binding | Single-org assumption for GA; Workspace still resolves via `orgs[0]` |
+| Org binding | Exact single-org via `resolveExactSingleOrganizationIdForUser` (0 / >1 fail-closed) |
 | Multi-org | **Org selector required before multi-org launch** |
 
 ## In scope (frozen)
@@ -27,8 +33,9 @@ Tenant Runtime Ops sidecar over CRM Customer + Opportunity:
 - Org + role gates; Customer/Opportunity ownership
 - Deal close concurrency (advisory lock + OPEN conditional write)
 - Failure classification + Retry UX
-- `tenant_ops.*` audit + history read/UI
-- Gate-failure audit for REVIEW / RECOVER / EXECUTE submits
+- `tenant_ops.*` audit + history read/UI (+ history refresh after mutation SUCCESS)
+- Gate-failure audit for REVIEW / RECOVER / EXECUTE / OPEN DEAL / CLOSE WON / CLOSE LOST submits
+- Post-GA operability projection (OWNER/ADMIN Workspace summary)
 
 Frozen commercial packs (EADS / EAC / EWAS / EWI / EWEB / EWER) remain untouched.
 
@@ -36,15 +43,25 @@ Frozen commercial packs (EADS / EAC / EWAS / EWI / EWEB / EWER) remain untouched
 
 1. **Single-org only** for this GA freeze. Do not treat multi-membership as supported.
 2. **OWNER/ADMIN only** for mutate actions. MEMBER → `role-forbidden`.
-3. Before any multi-org production launch: ship an explicit **organization selector** (replace Workspace `orgs[0]` binding).
+3. Before any multi-org production launch: ship an explicit **organization selector** (Workspace remains fail-closed for 0 / >1 memberships).
 
-## Post-GA P2 (not blockers)
+## Remaining after PRV Phase 1
+
+### NON-BLOCKER
 
 | Item | Note |
 | --- | --- |
 | Terminal action UX | NEGOTIATION currently surfaces both CLOSE WON and CLOSE LOST |
-| History auto-refresh | History panel does not auto-reload after mutations |
-| Operational count observability | Multi-click terminal actions can look like one backlog count delta |
+| Count presentation / reconciliation | Multi-click terminal actions can look like one backlog count delta |
+| Terminal label semantics | Operability **Terminal** counts failure-class TERMINAL, not pipeline WON/LOST |
+| Residual `existing[0]` | Non-Workspace paths (e.g. `/api/auth/me`) may still pick first org |
+| RESEND `result.error` handling | OTP request path correctness debt; not a PRV Phase 1 blocker |
+
+### LAUNCH-GATE
+
+| Item | Note |
+| --- | --- |
+| Multi-org selector | Pre-requisite for multi-org launch; not required for CONDITIONAL SINGLE-ORG GO |
 
 ## Explicit non-goals (this freeze)
 
