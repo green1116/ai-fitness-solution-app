@@ -47,7 +47,6 @@ No correctness / security / data-loss / tenant-isolation blocker exposed by Phas
 | Terminal close UX | NEGOTIATION still surfaces both CLOSE WON and CLOSE LOST |
 | Count presentation / reconciliation | Backlog count deltas vs multi-click perception |
 | Terminal label semantics | Operability **Terminal** = failure-class TERMINAL, not pipeline WON/LOST |
-| Residual `existing[0]` | Still present on non-Workspace paths (e.g. `/api/auth/me`, some CRM/project helpers) |
 | RESEND `result.error` handling | `/api/auth/otp/request` may return HTTP 200 + `{ok:true}` when Resend returns `error` without throw — **correctness debt**, not a current production blocker for this PRV scope |
 
 ### LAUNCH-GATE
@@ -55,6 +54,8 @@ No correctness / security / data-loss / tenant-isolation blocker exposed by Phas
 | Item | Note |
 | --- | --- |
 | Multi-org selector | Required before multi-org production launch; CONDITIONAL SINGLE-ORG remains fail-closed |
+
+Residual first-org paths closed later: `docs/ops/WP-ORG-CONTEXT-SAFETY-2-CLOSURE.md`.
 
 ## Scope lock
 

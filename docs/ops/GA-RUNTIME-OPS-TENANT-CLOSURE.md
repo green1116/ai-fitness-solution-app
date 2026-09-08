@@ -8,9 +8,12 @@
 
 Recorded: 2026-09-07
 PRV Phase 1 closed: 2026-09-08
+Org-context safety-2 closed: 2026-09-08 — `docs/ops/WP-ORG-CONTEXT-SAFETY-2-CLOSURE.md`
 Closure ref (gate-failure audit): `0e9d7147`
 PRV baseline commit: `72b62ce9e498d29daf7ef2e0f31745d59a426454`
 PRV tag: `post-ga-tenant-ops-history-refresh-v1`
+Org-context safety-2 commit: `b2e29bdb318fbd6d7d26bc94ca6055421a4bb67f`
+Org-context safety-2 tag: `post-ga-org-context-safety-2-v1`
 Branch baseline: `release/ga-production`
 
 ## Freeze posture
@@ -54,7 +57,6 @@ Frozen commercial packs (EADS / EAC / EWAS / EWI / EWEB / EWER) remain untouched
 | Terminal action UX | NEGOTIATION currently surfaces both CLOSE WON and CLOSE LOST |
 | Count presentation / reconciliation | Multi-click terminal actions can look like one backlog count delta |
 | Terminal label semantics | Operability **Terminal** counts failure-class TERMINAL, not pipeline WON/LOST |
-| Residual `existing[0]` | Non-Workspace paths (e.g. `/api/auth/me`) may still pick first org |
 | RESEND `result.error` handling | OTP request path correctness debt; not a PRV Phase 1 blocker |
 
 ### LAUNCH-GATE
@@ -62,6 +64,8 @@ Frozen commercial packs (EADS / EAC / EWAS / EWI / EWEB / EWER) remain untouched
 | Item | Note |
 | --- | --- |
 | Multi-org selector | Pre-requisite for multi-org launch; not required for CONDITIONAL SINGLE-ORG GO |
+
+Residual first-org runtime paths (projects detail, CRM submit, product-bridge, EWAS review, `auth/me`, session, `ensureOrganizationForUser`) were closed in **WP-ORG-CONTEXT-SAFETY-2** — see `docs/ops/WP-ORG-CONTEXT-SAFETY-2-CLOSURE.md`.
 
 ## Explicit non-goals (this freeze)
 
