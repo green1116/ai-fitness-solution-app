@@ -58,6 +58,18 @@ export async function POST(req: NextRequest) {
       `,
     });
 
+    if (result.error) {
+      const message =
+        typeof result.error.message === "string" && result.error.message.trim()
+          ? result.error.message.trim()
+          : "Failed to deliver OTP email";
+      return json(500, {
+        ok: false,
+        code: "OTP_DELIVERY_FAILED",
+        message,
+      });
+    }
+
     await prisma.emailOtp.upsert({
       where: { email },
       update: {
