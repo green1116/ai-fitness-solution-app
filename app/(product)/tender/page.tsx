@@ -45,6 +45,7 @@ function TenderForm() {
   const [message, setMessage] = useState("");
   const [downloadReady, setDownloadReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [packDownloaded, setPackDownloaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +81,7 @@ function TenderForm() {
 
   async function handleGenerate() {
     if (!entitlement?.canGenerateTender) {
-      setMessage("当前套餐无法生成标书");
+      setMessage("当前套餐无法生成投标文件");
       setDownloadReady(false);
       return;
     }
@@ -92,6 +93,7 @@ function TenderForm() {
     setLoading(true);
     setMessage("");
     setDownloadReady(false);
+    setPackDownloaded(false);
 
     try {
       const organizationId = await resolveOrganizationId();
@@ -107,7 +109,7 @@ function TenderForm() {
       ]);
       setEntitlement(latest);
       if (!latest.canGenerateTender) {
-        setMessage("当前套餐无法生成标书");
+        setMessage("当前套餐无法生成投标文件");
         return;
       }
       const ownedProjectId = pickOwnedProjectId(projectId, ownedIds);
@@ -133,14 +135,14 @@ function TenderForm() {
         ok?: boolean;
       } | null;
       if (!res.ok || data?.ok !== true) {
-        setMessage("标书生成失败，请稍后重试");
+        setMessage("投标文件生成失败，请稍后重试");
         return;
       }
       setProjectId(ownedProjectId);
-      setMessage("标书已生成");
+      setMessage("投标文件已生成");
       setDownloadReady(true);
     } catch {
-      setMessage("标书生成失败，请稍后重试");
+      setMessage("投标文件生成失败，请稍后重试");
     } finally {
       setLoading(false);
     }
@@ -149,11 +151,12 @@ function TenderForm() {
   async function handleDownloadPack() {
     if (!projectId || downloading) return;
     setDownloading(true);
-    setMessage("标书已生成");
+    setMessage("投标文件已生成");
     try {
       await downloadTenderPack(projectId);
+      setPackDownloaded(true);
     } catch {
-      setMessage("标书下载失败，请稍后重试");
+      setMessage("交付文件下载失败，请稍后重试");
     } finally {
       setDownloading(false);
     }
@@ -165,13 +168,20 @@ function TenderForm() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">标书生成</h1>
-      <p className="text-sm text-zinc-400">根据方案与预算生成招标文件</p>
+      <div>
+        <p className="text-xs text-emerald-400">交付路径：项目 → 方案 → 预算 → 投标 → 下载</p>
+        <h1 className="mt-1 text-2xl font-bold">当前：投标</h1>
+        <p className="text-sm text-zinc-400">
+          {downloadReady
+            ? "投标文件已就绪。主要下一步：下载交付文件。"
+            : "根据方案与预算生成投标交付文件。"}
+        </p>
+      </div>
 
       {tenderLocked ? (
         <section className="space-y-3 rounded-2xl border border-amber-700/60 bg-zinc-950 p-6 text-sm text-zinc-300">
-          <p>标书生成为 Enterprise 功能。当前套餐：{entitlement.currentPlan}。</p>
-          <p>升级到 {entitlement.recommendedPlan} 后即可生成标书，当前项目进度会保留。</p>
+          <p>投标文件生成为 Enterprise 功能。当前套餐：{entitlement.currentPlan}。</p>
+          <p>升级到 {entitlement.recommendedPlan} 后即可生成投标文件，当前项目进度会保留。</p>
           <TenderEnterpriseUpgradeCta
             href={
               entitlement.upgradeHref ||
@@ -194,9 +204,9 @@ function TenderForm() {
               quoteId,
               budgetId,
             })}
-            className="inline-block text-emerald-400 hover:underline"
+            className="inline-block rounded-xl bg-white px-6 py-3 font-semibold text-black"
           >
-            {quoteId ? "前往计算预算" : "前往生成方案"}
+            {quoteId ? "下一步：前往计算预算" : "下一步：前往生成方案"}
           </Link>
         </section>
       ) : (
@@ -207,7 +217,7 @@ function TenderForm() {
             disabled={loading || entitlementPending || !entitlement?.canGenerateTender}
             className="rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black disabled:opacity-50"
           >
-            {loading ? "生成中…" : entitlementPending ? "准备中…" : "生成标书 PDF"}
+            {loading ? "生成中…" : entitlementPending ? "准备中…" : "生成投标文件"}
           </button>
         </section>
       )}
@@ -216,12 +226,12 @@ function TenderForm() {
         <div className="space-y-3">
           <p
             className={
-              message === "标书已生成"
+              message === "投标文件已生成" || message === "标书已生成"
                 ? "rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4 text-sm text-emerald-300"
                 : "rounded-xl border border-rose-900/50 bg-rose-950/20 p-4 text-sm text-rose-300"
             }
           >
-            {message}
+            {message === "标书已生成" ? "投标文件已生成" : message}
           </p>
           {downloadReady && projectId ? (
             <button
@@ -232,10 +242,21 @@ function TenderForm() {
               disabled={downloading}
               className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
             >
-              {downloading ? "下载中…" : "下载标书"}
+              {downloading ? "下载中…" : "下载交付文件"}
             </button>
           ) : null}
-          {message === "当前套餐无法生成标书" ? (
+          {packDownloaded ? (
+            <div className="space-y-2 rounded-xl border border-emerald-900/40 bg-emerald-950/10 p-4 text-sm text-emerald-200">
+              <p>交付文件已下载。正式项目交付路径已完成。</p>
+              <Link
+                href={projectId ? `/projects/${encodeURIComponent(projectId)}` : "/projects"}
+                className="inline-block underline hover:text-emerald-100"
+              >
+                返回项目
+              </Link>
+            </div>
+          ) : null}
+          {message === "当前套餐无法生成标书" || message === "当前套餐无法生成投标文件" ? (
             <TenderEnterpriseUpgradeCta
               href={
                 entitlement?.upgradeHref ||

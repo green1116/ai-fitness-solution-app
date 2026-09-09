@@ -220,6 +220,7 @@ function BudgetForm() {
   const [loading, setLoading] = useState(false);
   const [budgetId, setBudgetId] = useState("");
   const [error, setError] = useState("");
+  const [pdfDownloaded, setPdfDownloaded] = useState(false);
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummaryState | null>(null);
   const [projectBudgetLabel, setProjectBudgetLabel] = useState("");
   const [tenderEntitlement, setTenderEntitlement] =
@@ -494,15 +495,23 @@ function BudgetForm() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "budget.pdf";
+    link.download = "预算.pdf";
     link.click();
     URL.revokeObjectURL(url);
+    setPdfDownloaded(true);
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">预算计算</h1>
-      <p className="text-sm text-zinc-400">根据方案估算投资区间</p>
+      <div>
+        <p className="text-xs text-emerald-400">交付路径：项目 → 方案 → 预算 → 投标 → 下载</p>
+        <h1 className="mt-1 text-2xl font-bold">当前：预算</h1>
+        <p className="text-sm text-zinc-400">
+          {budgetId
+            ? "预算已就绪。主要下一步：生成投标文件并下载交付包。"
+            : "根据方案估算投资区间。"}
+        </p>
+      </div>
 
       {!contextReady ? (
         <p className="text-sm text-zinc-500">加载项目上下文…</p>
@@ -511,9 +520,9 @@ function BudgetForm() {
           <p>当前没有可用方案。请先生成方案，系统会自动带入后续步骤。</p>
           <Link
             href={productHref("/quote", { organizationId, projectId })}
-            className="inline-block text-emerald-400 hover:underline"
+            className="inline-block rounded-xl bg-white px-6 py-3 font-semibold text-black"
           >
-            前往生成方案
+            下一步：前往生成方案
           </Link>
         </section>
       ) : (
@@ -543,7 +552,11 @@ function BudgetForm() {
                 : "rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
             }
           >
-            {loading ? "计算中…" : budgetId ? "重新计算" : "计算预算"}
+            {loading
+              ? "计算中…"
+              : budgetId
+                ? "按当前参数重新计算预算"
+                : "计算预算"}
           </button>
           {projectId && budgetId ? (
             <button
@@ -552,11 +565,11 @@ function BudgetForm() {
               disabled={!canDownloadPdf}
               className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              下载 PDF
+              下载预算 PDF
             </button>
           ) : null}
           {budgetId && budgetDraftDirty ? (
-            <p className="text-sm text-amber-300">参数已修改，请重新计算预算</p>
+            <p className="text-sm text-amber-300">参数已修改，请按当前参数重新计算预算</p>
           ) : null}
           {budgetOverLabel ? (
             <p className="text-sm text-amber-300">
@@ -565,7 +578,7 @@ function BudgetForm() {
           ) : null}
           {budgetId ? (
             <section className="rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
-              <p>预算已生成，可直接下载 PDF。</p>
+              <p>预算已生成。可下载预算 PDF，然后继续生成投标文件。</p>
               {budgetSummary ? (
                 <p className="mt-2 text-zinc-400">
                   企业规模 {budgetSummary.companySize} 人 · 配置{" "}
@@ -582,6 +595,14 @@ function BudgetForm() {
               ) : null}
             </section>
           ) : null}
+          {pdfDownloaded ? (
+            <p className="text-sm text-emerald-300">
+              预算 PDF 已下载。
+              {tenderEntitlement?.canGenerateTender
+                ? " 请继续下一步生成投标文件。"
+                : " 若需投标交付，请先升级套餐。"}
+            </p>
+          ) : null}
           {budgetId && tenderEntitlement?.canGenerateTender ? (
             <Link
               href={productHref("/tender", {
@@ -592,16 +613,16 @@ function BudgetForm() {
               })}
               className="inline-flex rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black"
             >
-              前往生成标书
+              下一步：生成投标文件
             </Link>
           ) : null}
           {budgetId && tenderEntitlement && !tenderEntitlement.canGenerateTender ? (
             <section className="rounded-xl border border-amber-700/50 bg-black p-4 text-sm text-zinc-300">
               <p>
-                继续生成标书需要 Enterprise。当前套餐：{tenderEntitlement.currentPlan}。
+                继续生成投标文件需要 Enterprise。当前套餐：{tenderEntitlement.currentPlan}。
               </p>
               <p className="mt-1 text-zinc-500">
-                升级后可继续生成完整标书，当前进度会保留。
+                升级后可继续生成投标交付文件，当前进度会保留。
               </p>
               <div className="mt-3">
                 <TenderEnterpriseUpgradeCta

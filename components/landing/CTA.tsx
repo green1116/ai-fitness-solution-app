@@ -1,36 +1,36 @@
 import Link from "next/link";
 
-const CTAS = [
-  { href: "/demo", label: "Start Free Demo", primary: true },
-  { href: "/quote-demo", label: "Generate Your First Quote", primary: false },
-  { href: "/tender-demo", label: "Build Your Tender Now", primary: false },
-];
-
 export function CTA() {
   return (
     <section className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-600 to-emerald-800 px-8 py-14 text-center text-white">
-      <h2 className="text-2xl font-bold md:text-3xl">准备好用 AI 生成企业方案？</h2>
+      <h2 className="text-2xl font-bold md:text-3xl">从这里开始</h2>
       <p className="mt-3 text-emerald-100">
-        免费 Demo · 无需信用卡 · 3 分钟出方案
+        先免费体验结果，或直接创建正式客户项目。
       </p>
-      <div className="mt-8 flex flex-wrap justify-center gap-3">
-        {CTAS.map((c) => (
+      <div className="mt-8 flex flex-col items-center justify-center gap-6 sm:flex-row sm:items-start">
+        <div className="flex max-w-xs flex-col items-center gap-2">
           <Link
-            key={c.href}
-            href={c.href}
-            className={
-              c.primary
-                ? "rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
-                : "rounded-lg border border-emerald-300/60 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700/50"
-            }
+            href="/demo"
+            className="rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
           >
-            {c.label}
+            免费体验
           </Link>
-        ))}
+          <p className="text-sm text-emerald-100">
+            无需注册，先体验方案、预算和投标结果。
+          </p>
+        </div>
+        <div className="flex max-w-xs flex-col items-center gap-2">
+          <Link
+            href="/projects"
+            className="rounded-lg border border-emerald-300/60 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700/50"
+          >
+            创建正式项目
+          </Link>
+          <p className="text-sm text-emerald-100">
+            创建完整客户项目，并继续生成方案、预算和投标交付文件。
+          </p>
+        </div>
       </div>
-      <p className="mt-6 text-sm text-emerald-200">
-        Landing Page = AI 自动生成企业方案的「入口销售员」
-      </p>
     </section>
   );
 }

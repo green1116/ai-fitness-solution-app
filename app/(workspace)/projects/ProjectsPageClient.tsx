@@ -42,7 +42,7 @@ function ProjectRow({ project }: { project: ProjectItem }) {
       >
         <div className="font-semibold text-white hover:underline">{project.name}</div>
         <div className="mt-1 text-xs text-zinc-400">
-          {project.clientName ?? "—"} · Quote {project.quoteCount} · Tender{" "}
+          {project.clientName ?? "—"} · 方案 {project.quoteCount} · 投标{" "}
           {project.tenderCount}
         </div>
       </Link>
@@ -141,7 +141,7 @@ export function ProjectsPageClient() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">项目 Workspace</h1>
+      <h1 className="text-2xl font-bold">项目</h1>
 
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-black p-4">
         <div>

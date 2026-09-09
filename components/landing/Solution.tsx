@@ -1,8 +1,8 @@
 const SOLUTIONS = [
-  { title: "3 分钟生成方案", desc: "输入企业信息，AI 即时输出专业健身空间规划" },
-  { title: "自动预算", desc: "设备、安装、运维分项预算一键生成，透明可控" },
-  { title: "自动标书", desc: "招采场景标书结构与技术响应框架即时预览" },
-  { title: "企业级输出 PDF", desc: "注册后解锁完整 PDF，直接用于汇报与投标" },
+  { title: "专业方案", desc: "将企业健身空间需求快速整理为可交付的专业规划方案" },
+  { title: "设备配置", desc: "按场景输出设备与空间配置建议，便于选型与落地" },
+  { title: "项目预算", desc: "设备、安装、运维分项预算一键生成，透明可控" },
+  { title: "投标交付文件", desc: "招采场景下快速形成投标交付结构与技术响应预览" },
 ];
 
 export function Solution() {
@@ -10,9 +10,11 @@ export function Solution() {
     <section>
       <div className="text-center">
         <h2 className="text-2xl font-bold text-zinc-900 md:text-3xl">
-          AI Fitness Solution 解决
+          从需求到交付，一条路径完成
         </h2>
-        <p className="mt-2 text-zinc-600">不卖功能，只卖结果 — 节省时间、直接可用</p>
+        <p className="mt-2 text-zinc-600">
+          专业方案 → 设备配置 → 项目预算 → 投标交付文件
+        </p>
       </div>
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {SOLUTIONS.map((s) => (

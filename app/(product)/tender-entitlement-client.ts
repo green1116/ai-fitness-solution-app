@@ -129,7 +129,7 @@ export async function loadTenderClientEntitlement(
       },
       { authenticated: Boolean(organizationId), currentPath: options?.currentPath },
     ),
-    upgradeCta: "升级到 Enterprise 解锁标书",
+    upgradeCta: "升级到 Enterprise 解锁投标",
   };
   if (!organizationId) return denied;
 

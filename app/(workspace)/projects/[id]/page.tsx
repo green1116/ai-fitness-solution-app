@@ -72,13 +72,24 @@ export default async function ProjectDetailPage({
         </section>
       ) : null}
 
+      <p className="text-sm text-zinc-400">
+        交付路径：项目 → 方案 → 预算 → 投标 → 下载
+      </p>
+
       <section className="grid gap-4 md:grid-cols-3">
         <Link
           href={`/quote?projectId=${encodeURIComponent(project.id)}`}
-          className="rounded-xl border border-zinc-800 bg-black p-4 hover:border-zinc-600"
+          className={`rounded-xl border bg-black p-4 hover:border-zinc-600 ${
+            project.quotes.length === 0
+              ? "border-emerald-600 ring-1 ring-emerald-600/40"
+              : "border-zinc-800"
+          }`}
         >
-          <div className="font-semibold">生成方案</div>
-          <div className="text-xs text-zinc-400">Quote · {project.quotes.length} 条</div>
+          <div className="text-xs text-emerald-400">第 1 步</div>
+          <div className="font-semibold">
+            {project.quotes.length === 0 ? "下一步：生成方案" : "方案"}
+          </div>
+          <div className="text-xs text-zinc-400">已有 {project.quotes.length} 份方案</div>
         </Link>
         <Link
           href={`/budget?projectId=${encodeURIComponent(project.id)}${
@@ -86,10 +97,19 @@ export default async function ProjectDetailPage({
               ? `&quoteId=${encodeURIComponent(project.quotes[0].id)}`
               : ""
           }`}
-          className="rounded-xl border border-zinc-800 bg-black p-4 hover:border-zinc-600"
+          className={`rounded-xl border bg-black p-4 hover:border-zinc-600 ${
+            project.quotes.length > 0 && project.budgets.length === 0
+              ? "border-emerald-600 ring-1 ring-emerald-600/40"
+              : "border-zinc-800"
+          }`}
         >
-          <div className="font-semibold">计算预算</div>
-          <div className="text-xs text-zinc-400">Budget · {project.budgets.length} 条</div>
+          <div className="text-xs text-emerald-400">第 2 步</div>
+          <div className="font-semibold">
+            {project.quotes.length > 0 && project.budgets.length === 0
+              ? "下一步：计算预算"
+              : "预算"}
+          </div>
+          <div className="text-xs text-zinc-400">已有 {project.budgets.length} 份预算</div>
         </Link>
         {canGenerateTender ? (
           <Link
@@ -102,14 +122,22 @@ export default async function ProjectDetailPage({
                 ? `&budgetId=${encodeURIComponent(project.budgets[0].id)}`
                 : ""
             }`}
-            className="rounded-xl border border-zinc-800 bg-black p-4 hover:border-zinc-600"
+            className={`rounded-xl border bg-black p-4 hover:border-zinc-600 ${
+              project.budgets.length > 0
+                ? "border-emerald-600 ring-1 ring-emerald-600/40"
+                : "border-zinc-800"
+            }`}
           >
-            <div className="font-semibold">生成标书</div>
-            <div className="text-xs text-zinc-400">Tender · {project.tenders.length} 条</div>
+            <div className="text-xs text-emerald-400">第 3 步</div>
+            <div className="font-semibold">
+              {project.budgets.length > 0 ? "下一步：生成投标文件" : "投标"}
+            </div>
+            <div className="text-xs text-zinc-400">已有 {project.tenders.length} 份投标文件</div>
           </Link>
         ) : (
           <div className="rounded-xl border border-amber-700/50 bg-black p-4">
-            <div className="font-semibold text-zinc-300">生成标书（锁定）</div>
+            <div className="text-xs text-amber-400">第 3 步</div>
+            <div className="font-semibold text-zinc-300">投标（锁定）</div>
             <div className="mt-1 text-xs text-zinc-500">
               Enterprise 功能 · 当前{" "}
               {tenderPaywall?.currentPlan ?? "BASIC"} · 升级{" "}

@@ -79,13 +79,15 @@ function checkCapabilities() {
 
   const checks: Record<string, boolean> = {
     HAS_LANDING_PAGE: fs.existsSync(path.join(ROOT, "app/(marketing)/page.tsx")),
-    HAS_HERO_SECTION: hero.includes("AI 自动生成企业健身方案"),
+    HAS_HERO_SECTION: hero.includes("AI 企业健身项目解决方案平台"),
     HAS_PAIN_SECTION: landingPage.includes("Pain"),
     HAS_SOLUTION_SECTION: landingPage.includes("Solution"),
     HAS_DEMO_PREVIEW: landingPage.includes("Demo"),
     HAS_USE_CASES: landingPage.includes("UseCases"),
     HAS_PRICING_SECTION: landingPage.includes("Pricing"),
-    HAS_CTA_FLOW: cta.includes("Try Demo") || cta.includes("/demo") || cta.includes("Start Free Demo"),
+    HAS_CTA_FLOW:
+      cta.includes("/demo") &&
+      (cta.includes("免费体验") || cta.includes("Try Demo") || cta.includes("Start Free Demo")),
     HAS_DEMO_ENGINE: typeof generateDemoQuote === "function",
     HAS_DEMO_ORCHESTRATOR: typeof runDemoOrchestrator === "function",
     HAS_CONVERSION_FUNNEL: describeFunnel().length > 0,

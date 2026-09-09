@@ -27,7 +27,7 @@ function NavLinks({
   return (
     <>
       <Link href="/projects" className="text-zinc-400 hover:text-white">
-        项目 Workspace
+        项目
       </Link>
       <Link href={productHref("/quote", ctx)} className="text-zinc-400 hover:text-white">
         方案
@@ -37,11 +37,11 @@ function NavLinks({
       </Link>
       {canGenerateTender ? (
         <Link href={productHref("/tender", ctx)} className="text-zinc-400 hover:text-white">
-          标书
+          投标
         </Link>
       ) : (
         <span className="inline-flex items-center gap-2 text-zinc-500">
-          <span title="Enterprise 功能">标书（锁定）</span>
+          <span title="Enterprise 功能">投标（锁定）</span>
           <TenderEnterpriseUpgradeCta href={upgradeHref} label={upgradeCta} context={ctx} />
         </span>
       )}
@@ -57,7 +57,7 @@ function ProductCommercialNavInner() {
     [pathname, searchParams],
   );
   const [canGenerateTender, setCanGenerateTender] = useState(false);
-  const [upgradeCta, setUpgradeCta] = useState("升级到 Enterprise 解锁标书");
+  const [upgradeCta, setUpgradeCta] = useState("升级到 Enterprise 解锁投标");
   const [upgradeHref, setUpgradeHref] = useState(
     buildTenderUpgradeHref(ctx, { authenticated: false, currentPath: pathname }),
   );

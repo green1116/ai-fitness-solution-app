@@ -97,9 +97,9 @@ function buildCustomerSummary(
     proposal.summary?.trim() ||
     `已为 ${companyName.trim() || "您的企业"} 生成健身空间方案建议。`;
   if (sectionCount > 0) {
-    return `${base} 共 ${sectionCount} 个章节，完整正文请下载 Plan PDF 查看。`;
+    return `${base} 共 ${sectionCount} 个章节，完整正文请下载方案 PDF 查看。`;
   }
-  return `${base} 完整正文请下载 Plan PDF 查看。`;
+  return `${base} 完整正文请下载方案 PDF 查看。`;
 }
 
 function orgHeaders(organizationId: string): HeadersInit {
@@ -180,6 +180,7 @@ function QuoteForm() {
   const [error, setError] = useState("");
   const [proposal, setProposal] = useState<QuoteProposalView | null>(null);
   const [quoteId, setQuoteId] = useState("");
+  const [pdfDownloaded, setPdfDownloaded] = useState(false);
   const [projectIntake, setProjectIntake] = useState<StoredProjectIntake | null>(null);
 
   useEffect(() => {
@@ -310,6 +311,7 @@ function QuoteForm() {
       const boundProjectId = data.projectId?.trim() || nextProjectId;
       setProposal(readyProposal);
       setQuoteId(nextQuoteId);
+      setPdfDownloaded(false);
       setProjectId(boundProjectId);
 
       if (readyProposal && nextQuoteId) {
@@ -325,6 +327,7 @@ function QuoteForm() {
     } catch {
       setProposal(null);
       setQuoteId("");
+      setPdfDownloaded(false);
       setError("方案生成失败，请稍后重试");
     } finally {
       setLoading(false);
@@ -344,15 +347,23 @@ function QuoteForm() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "quote.pdf";
+    link.download = "方案.pdf";
     link.click();
     URL.revokeObjectURL(url);
+    setPdfDownloaded(true);
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">方案生成</h1>
-      <p className="text-sm text-zinc-400">填写企业信息，生成专业健身空间方案</p>
+      <div>
+        <p className="text-xs text-emerald-400">交付路径：项目 → 方案 → 预算 → 投标 → 下载</p>
+        <h1 className="mt-1 text-2xl font-bold">当前：方案</h1>
+        <p className="text-sm text-zinc-400">
+          {quoteId
+            ? "方案已就绪。主要下一步：继续生成预算。"
+            : "填写企业信息，生成专业健身空间方案。"}
+        </p>
+      </div>
 
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
         {!contextReady ? (
@@ -405,24 +416,41 @@ function QuoteForm() {
             {buildCustomerSummary(proposal, companyName)}
           </p>
           {quoteId ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href={productHref("/budget", {
-                  organizationId,
-                  projectId,
-                  quoteId,
-                })}
-                className="rounded-xl bg-white px-6 py-3 font-semibold text-black"
-              >
-                继续预算
-              </Link>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400"
-              >
-                下载 PDF
-              </button>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href={productHref("/budget", {
+                    organizationId,
+                    projectId,
+                    quoteId,
+                  })}
+                  className="rounded-xl bg-white px-6 py-3 font-semibold text-black"
+                >
+                  下一步：继续生成预算
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400"
+                >
+                  下载方案 PDF
+                </button>
+              </div>
+              {pdfDownloaded ? (
+                <p className="text-sm text-emerald-300">
+                  方案 PDF 已下载。请继续下一步生成预算。{" "}
+                  <Link
+                    href={productHref("/budget", {
+                      organizationId,
+                      projectId,
+                      quoteId,
+                    })}
+                    className="underline hover:text-emerald-200"
+                  >
+                    前往预算
+                  </Link>
+                </p>
+              ) : null}
             </div>
           ) : null}
         </article>
