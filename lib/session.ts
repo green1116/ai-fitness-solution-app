@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { normalizeEmail, sha256 } from "@/lib/auth";
+import { ensureOrganizationForUser } from "@/lib/organization/organization.service";
 import { resolveExactSingleOrganizationForUser } from "@/lib/organization/single-org-context";
 import { prisma } from "@/lib/prisma";
 
@@ -23,13 +24,17 @@ export async function createSessionCookie(
   days = 30,
   options?: { organizationName?: string },
 ) {
-  void options;
   const normalizedEmail = normalizeEmail(email);
   const user = await prisma.user.upsert({
     where: { email: normalizedEmail },
     create: { email: normalizedEmail },
     update: {},
     select: { id: true },
+  });
+
+  await ensureOrganizationForUser({
+    userId: user.id,
+    name: options?.organizationName,
   });
 
   const resolved = await resolveExactSingleOrganizationForUser(user.id);
