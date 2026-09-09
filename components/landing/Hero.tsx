@@ -6,7 +6,7 @@ export function Hero() {
       <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
       <div className="relative z-10 mx-auto max-w-4xl text-center md:text-left">
         <p className="text-sm font-medium tracking-wide text-emerald-400">
-          面向企业健身空间方案服务商与专业交付团队（Pre-Pilot 工作定位）
+          面向企业健身空间方案服务商与专业交付团队（试点前工作定位）
         </p>
         <h1 className="mt-4 text-4xl font-bold leading-tight md:text-5xl lg:text-6xl">
           AI 企业健身项目解决方案平台

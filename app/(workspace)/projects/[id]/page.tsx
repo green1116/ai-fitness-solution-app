@@ -167,8 +167,10 @@ export default async function ProjectDetailPage({
       </section>
 
       <section className="rounded-xl border border-zinc-800 bg-black p-4 text-xs text-zinc-400">
-        <div>Project ID: {project.id}</div>
-        <div>Site: {project.siteType} · Budget Level: {project.budgetLevel}</div>
+        <div>项目编号：{project.id}</div>
+        <div>
+          场地：{project.siteType} · 预算档位：{project.budgetLevel}
+        </div>
       </section>
     </div>
   );

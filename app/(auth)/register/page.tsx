@@ -78,7 +78,7 @@ function RegisterForm() {
       className="mx-auto max-w-md space-y-4 rounded-2xl border border-zinc-200 p-8"
     >
       <h1 className="text-2xl font-bold">创建账号</h1>
-      <p className="text-sm text-zinc-600">来源：{source} · 注册后生成首个 Quote</p>
+      <p className="text-sm text-zinc-600">来源：{source} · 注册后生成首个方案</p>
       <label className="block text-sm">
         工作邮箱
         <input

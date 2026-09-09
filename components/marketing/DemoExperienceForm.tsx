@@ -67,16 +67,16 @@ export function DemoExperienceForm() {
           disabled={loading}
           className="md:col-span-2 rounded-lg bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
         >
-          {loading ? "生成中…" : "生成 Demo 方案"}
+          {loading ? "生成中…" : "生成体验方案"}
         </button>
       </form>
 
       {result ? (
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-3">
-            <PreviewCard title="Quote 方案" body={result.quote.summary} extra={result.quote.estimatedArea} />
-            <PreviewCard title="Budget 预算" body={`总计 ¥${result.budget.total.toLocaleString()}`} />
-            <PreviewCard title="Tender 标书" body={result.tender.preview} extra={`合规 ${result.tender.complianceScore}`} />
+            <PreviewCard title="方案" body={result.quote.summary} extra={result.quote.estimatedArea} />
+            <PreviewCard title="预算" body={`总计 ¥${result.budget.total.toLocaleString()}`} />
+            <PreviewCard title="投标" body={result.tender.preview} extra={`合规 ${result.tender.complianceScore}`} />
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm font-medium text-amber-900">注册解锁完整能力</p>

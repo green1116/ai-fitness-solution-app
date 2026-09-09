@@ -26,7 +26,7 @@ export async function downloadTenderPack(projectId: string): Promise<void> {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "enterprise-package.zip";
+  link.download = "投标交付包.zip";
   link.click();
   URL.revokeObjectURL(url);
 }
