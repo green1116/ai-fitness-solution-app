@@ -78,6 +78,43 @@ export function DemoExperienceForm() {
             <PreviewCard title="预算" body={`总计 ¥${result.budget.total.toLocaleString()}`} />
             <PreviewCard title="投标" body={result.tender.preview} extra={`合规 ${result.tender.complianceScore}`} />
           </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-xl border border-zinc-200 p-4">
+              <p className="text-xs font-medium uppercase text-emerald-600">设备清单预览</p>
+              <ul className="mt-3 space-y-2 text-sm text-zinc-700">
+                {result.quote.equipment.map((item) => (
+                  <li key={`${item.zone}-${item.name}`} className="flex justify-between gap-3">
+                    <span>
+                      {item.name}
+                      <span className="ml-1 text-xs text-zinc-500">· {item.zone}</span>
+                    </span>
+                    <span className="shrink-0 text-zinc-500">×{item.qty}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-xl border border-zinc-200 p-4">
+              <p className="text-xs font-medium uppercase text-emerald-600">预算分项预览</p>
+              <ul className="mt-3 space-y-2 text-sm text-zinc-700">
+                {result.budget.breakdown.map((row) => (
+                  <li key={row.category} className="flex justify-between gap-3">
+                    <span>{row.category}</span>
+                    <span className="shrink-0">¥{row.amount.toLocaleString()}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-xl border border-zinc-200 p-4">
+              <p className="text-xs font-medium uppercase text-emerald-600">标书结构预览</p>
+              <ol className="mt-3 list-decimal space-y-2 pl-4 text-sm text-zinc-700">
+                {result.tender.sections.map((section) => (
+                  <li key={section}>{section}</li>
+                ))}
+              </ol>
+            </div>
+          </div>
+
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm font-medium text-amber-900">注册解锁完整能力</p>
             <ul className="mt-2 space-y-1 text-sm text-amber-800">
