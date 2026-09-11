@@ -1,12 +1,19 @@
 /**
- * V64 P1 — Quote demo engine (equipment from canonical gym-budget items)
+ * V64 P1 — Quote demo engine (equipment from canonical gym-budget items;
+ * solution preview from formal pure buildPlan — no DB/auth).
  */
 
 import { buildBudgetSummary } from "@/lib/gym-budget";
+import { buildPlan } from "@/lib/plan/builder";
 import type { CompanySize } from "@/lib/types/gym-budget";
 
-import type { DemoCompanyInput, DemoQuoteOutput } from "./demo.types";
+import type {
+  DemoCompanyInput,
+  DemoQuoteOutput,
+  DemoSolutionPreview,
+} from "./demo.types";
 import { fallbackDemoQuote } from "./demo.fallback";
+import { solutionPreviewFromPlan } from "./demo.solution-preview";
 import { getDemoRuntimeStubLabel } from "./demo.v58-stub";
 import {
   demoEstimatedAreaForSize,
@@ -15,6 +22,32 @@ import {
 } from "./demo.size-map";
 
 const DEMO_BUDGET_TIER = "mid" as const;
+
+function demoAreaM2(companySizeBand?: string): number {
+  const n = mapDemoSizeBandToCompanySize(companySizeBand);
+  if (n >= 300) return 450;
+  if (n >= 200) return 350;
+  return 280;
+}
+
+function buildDemoSolutionPreview(input: {
+  companyName: string;
+  companySizeBand: string;
+  industry?: string;
+}): DemoSolutionPreview {
+  const headcount = mapDemoSizeBandToCompanySize(input.companySizeBand);
+  const plan = buildPlan(
+    {
+      planId: `demo-${input.companyName}`,
+      industry: input.industry?.trim() || "企业",
+      companySize: headcount,
+      areaSize: demoAreaM2(input.companySizeBand),
+      budgetRange: "10-20万",
+    },
+    "standard",
+  );
+  return solutionPreviewFromPlan(plan);
+}
 
 export function generateDemoQuote(input: DemoCompanyInput): DemoQuoteOutput {
   const name = input.companyName?.trim();
@@ -35,6 +68,11 @@ export function generateDemoQuote(input: DemoCompanyInput): DemoQuoteOutput {
       zone: zoneFromBudgetCategory(item.category),
     })),
     estimatedArea: demoEstimatedAreaForSize(size),
+    solutionPreview: buildDemoSolutionPreview({
+      companyName: name,
+      companySizeBand: size,
+      industry: input.industry,
+    }),
     mode: "demo-stub",
   };
 }

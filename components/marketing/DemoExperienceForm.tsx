@@ -74,10 +74,72 @@ export function DemoExperienceForm() {
       {result ? (
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-3">
-            <PreviewCard title="方案" body={result.quote.summary} extra={result.quote.estimatedArea} />
+            <PreviewCard
+              title="方案"
+              body={result.quote.title}
+              extra={`${result.quote.summary} · ${result.quote.estimatedArea}`}
+            />
             <PreviewCard title="预算" body={`总计 ¥${result.budget.total.toLocaleString()}`} />
             <PreviewCard title="投标" body={result.tender.preview} extra={`合规 ${result.tender.complianceScore}`} />
           </div>
+
+          {result.quote.solutionPreview ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-zinc-200 p-4">
+                <p className="text-xs font-medium uppercase text-emerald-600">规划依据</p>
+                <ul className="mt-3 list-disc space-y-2 pl-4 text-sm text-zinc-700">
+                  {result.quote.solutionPreview.rationale.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-xl border border-zinc-200 p-4">
+                <p className="text-xs font-medium uppercase text-emerald-600">功能分区</p>
+                <ul className="mt-3 flex flex-wrap gap-2 text-sm text-zinc-700">
+                  {result.quote.solutionPreview.zones.map((zone) => (
+                    <li
+                      key={zone}
+                      className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1"
+                    >
+                      {zone}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-xl border border-zinc-200 p-4">
+                <p className="text-xs font-medium uppercase text-emerald-600">配置逻辑</p>
+                <ul className="mt-3 space-y-3 text-sm text-zinc-700">
+                  {result.quote.solutionPreview.equipmentRationale.map((item) => (
+                    <li key={`${item.zone}-${item.name}`}>
+                      <p className="font-medium text-zinc-900">
+                        {item.name}
+                        <span className="ml-1 text-xs font-normal text-zinc-500">
+                          · {item.zone} ×{item.qty}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-zinc-600">{item.rationale}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-xl border border-zinc-200 p-4">
+                <p className="text-xs font-medium uppercase text-emerald-600">实施建议</p>
+                <ol className="mt-3 list-decimal space-y-3 pl-4 text-sm text-zinc-700">
+                  {result.quote.solutionPreview.implementation.map((step) => (
+                    <li key={step.name}>
+                      <p className="font-medium text-zinc-900">
+                        {step.name}
+                        <span className="ml-1 text-xs font-normal text-zinc-500">
+                          · {step.duration}
+                        </span>
+                      </p>
+                      <p className="mt-1 text-zinc-600">{step.desc}</p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          ) : null}
 
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-zinc-200 p-4">

@@ -9,11 +9,25 @@ export type DemoCompanyInput = {
   industry?: string;
 };
 
+/** Formal buildPlan preview slice for /demo (no sales/risk dump). */
+export type DemoSolutionPreview = {
+  rationale: string[];
+  zones: string[];
+  equipmentRationale: {
+    zone: string;
+    name: string;
+    qty: number;
+    rationale: string;
+  }[];
+  implementation: { name: string; duration: string; desc: string }[];
+};
+
 export type DemoQuoteOutput = {
   title: string;
   summary: string;
   equipment: { name: string; qty: number; zone: string }[];
   estimatedArea: string;
+  solutionPreview: DemoSolutionPreview;
   mode: "demo-stub";
 };
 

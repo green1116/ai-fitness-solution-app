@@ -2,7 +2,15 @@
  * V64 P1 — Demo fallback responses
  */
 
-import type { DemoBudgetOutput, DemoCompanyInput, DemoQuoteOutput, DemoTenderOutput } from "./demo.types";
+import { buildPlan } from "@/lib/plan/builder";
+
+import type {
+  DemoBudgetOutput,
+  DemoCompanyInput,
+  DemoQuoteOutput,
+  DemoTenderOutput,
+} from "./demo.types";
+import { solutionPreviewFromPlan } from "./demo.solution-preview";
 
 export function fallbackDemoResponse(input?: Partial<DemoCompanyInput>) {
   const companyName = input?.companyName?.trim() || "示例企业";
@@ -14,6 +22,17 @@ export function fallbackDemoResponse(input?: Partial<DemoCompanyInput>) {
 }
 
 export function fallbackDemoQuote(companyName: string): DemoQuoteOutput {
+  const plan = buildPlan(
+    {
+      planId: `demo-fallback-${companyName}`,
+      industry: "企业",
+      companySize: 100,
+      areaSize: 280,
+      budgetRange: "10-20万",
+    },
+    "standard",
+  );
+
   return {
     title: `${companyName} · 企业健身空间方案（Demo）`,
     summary: "AI 生成的企业健身房规划预览：有氧区 + 力量区 + 功能训练区。",
@@ -23,6 +42,7 @@ export function fallbackDemoQuote(companyName: string): DemoQuoteOutput {
       { name: "多功能训练器", qty: 4, zone: "功能训练区" },
     ],
     estimatedArea: "280㎡",
+    solutionPreview: solutionPreviewFromPlan(plan),
     mode: "demo-stub",
   };
 }
