@@ -40,6 +40,17 @@ export async function createCheckoutSession(
   const useLive = isStripeConfigured() && isPriceConfigured(input.plan, input.interval);
 
   if (!useLive) {
+    if (process.env.NODE_ENV === "production") {
+      const missing: string[] = [];
+      if (!isStripeConfigured()) missing.push("STRIPE_SECRET_KEY");
+      if (!isPriceConfigured(input.plan, input.interval)) {
+        missing.push(`Stripe price for plan=${input.plan} interval=${input.interval}`);
+      }
+      throw new Error(
+        `Stripe checkout is not configured in production (${missing.join("; ")}). Mock checkout is disabled.`,
+      );
+    }
+
     return {
       sessionId: `mock_cs_${input.organizationId.slice(0, 8)}_${Date.now()}`,
       url: `${input.successUrl}${input.successUrl.includes("?") ? "&" : "?"}mock_checkout=1&plan=${input.plan}&organizationId=${input.organizationId}`,
