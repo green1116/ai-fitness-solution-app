@@ -6,6 +6,7 @@ import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
 import { evaluatePaywall } from "@/lib/growth/conversion/paywall.engine";
+import { getPricingTier } from "@/lib/growth/conversion/pricing.strategy";
 import { resolveExactSingleOrganizationIdForUser } from "@/lib/organization/single-org-context";
 import {
   PEX_INTELLIGENCE_ENDPOINT,
@@ -45,6 +46,13 @@ export default async function ProjectDetailPage({
     trigger: "tender_generation_click",
   });
   const canGenerateTender = !tenderPaywall.showPaywall;
+  const budgetPaywall = await evaluatePaywall({
+    organizationId,
+    userId: user.id,
+    trigger: "budget_feature_blocked",
+  });
+  const canGenerateBudget = !budgetPaywall.showPaywall;
+  const proTier = getPricingTier("PRO");
 
   return (
     <div className="space-y-6">
@@ -91,26 +99,48 @@ export default async function ProjectDetailPage({
           </div>
           <div className="text-xs text-zinc-400">已有 {project.quotes.length} 份方案</div>
         </Link>
-        <Link
-          href={`/budget?projectId=${encodeURIComponent(project.id)}${
-            project.quotes[0]
-              ? `&quoteId=${encodeURIComponent(project.quotes[0].id)}`
-              : ""
-          }`}
-          className={`rounded-xl border bg-black p-4 hover:border-zinc-600 ${
-            project.quotes.length > 0 && project.budgets.length === 0
-              ? "border-emerald-600 ring-1 ring-emerald-600/40"
-              : "border-zinc-800"
-          }`}
-        >
-          <div className="text-xs text-emerald-400">第 2 步</div>
-          <div className="font-semibold">
-            {project.quotes.length > 0 && project.budgets.length === 0
-              ? "下一步：计算预算"
-              : "预算"}
+        {canGenerateBudget ? (
+          <Link
+            href={`/budget?projectId=${encodeURIComponent(project.id)}${
+              project.quotes[0]
+                ? `&quoteId=${encodeURIComponent(project.quotes[0].id)}`
+                : ""
+            }`}
+            className={`rounded-xl border bg-black p-4 hover:border-zinc-600 ${
+              project.quotes.length > 0 && project.budgets.length === 0
+                ? "border-emerald-600 ring-1 ring-emerald-600/40"
+                : "border-zinc-800"
+            }`}
+          >
+            <div className="text-xs text-emerald-400">第 2 步</div>
+            <div className="font-semibold">
+              {project.quotes.length > 0 && project.budgets.length === 0
+                ? "下一步：计算预算"
+                : "预算"}
+            </div>
+            <div className="text-xs text-zinc-400">已有 {project.budgets.length} 份预算</div>
+          </Link>
+        ) : (
+          <div
+            className={`rounded-xl border bg-black p-4 ${
+              project.quotes.length > 0 && project.budgets.length === 0
+                ? "border-amber-700/50"
+                : "border-zinc-800"
+            }`}
+          >
+            <div className="text-xs text-amber-400">第 2 步</div>
+            <div className="font-semibold text-zinc-300">预算（{proTier.label}）</div>
+            <div className="mt-1 text-xs text-zinc-500">
+              预算测算为专业版能力 · 当前 {budgetPaywall.currentPlan} · 升级 {proTier.plan}
+            </div>
+            <Link
+              href="/pricing"
+              className="mt-3 inline-block rounded-lg bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-black"
+            >
+              {proTier.cta}
+            </Link>
           </div>
-          <div className="text-xs text-zinc-400">已有 {project.budgets.length} 份预算</div>
-        </Link>
+        )}
         {canGenerateTender ? (
           <Link
             href={`/tender?projectId=${encodeURIComponent(project.id)}${

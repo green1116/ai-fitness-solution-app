@@ -19,8 +19,13 @@ import {
   quotePayloadFromProjectIntake,
   type StoredProjectIntake,
 } from "@/lib/project/project-intake";
+import { getPricingTier } from "@/lib/growth/conversion/pricing.strategy";
 
 type OrgMe = { organizationId?: string | null };
+type SubscriptionResponse = {
+  ok?: boolean;
+  featureFlags?: { canGenerateBudget?: boolean };
+};
 type ProjectListItem = { id: string; name?: string; clientName?: string | null };
 type ProjectList = { ok?: boolean; projects?: ProjectListItem[] };
 type ProjectCreate = { ok?: boolean; project?: { id: string }; message?: string };
@@ -115,6 +120,25 @@ async function resolveOrganizationId(): Promise<string> {
   return typeof me.organizationId === "string" ? me.organizationId.trim() : "";
 }
 
+/** Fail closed: only true when billing subscription confirms the flag. */
+async function loadCanGenerateBudget(organizationId: string): Promise<boolean> {
+  const orgId = organizationId.trim();
+  if (!orgId) return false;
+  try {
+    const res = await fetch("/api/billing/subscription", {
+      headers: {
+        "Content-Type": "application/json",
+        "x-organization-id": orgId,
+      },
+    });
+    if (!res.ok) return false;
+    const body = (await res.json().catch(() => ({}))) as SubscriptionResponse;
+    return body.ok === true && body.featureFlags?.canGenerateBudget === true;
+  } catch {
+    return false;
+  }
+}
+
 async function listOwnedProjects(organizationId: string): Promise<ProjectListItem[]> {
   const listRes = await fetch("/api/project/list", {
     headers: { "x-organization-id": organizationId },
@@ -182,6 +206,8 @@ function QuoteForm() {
   const [quoteId, setQuoteId] = useState("");
   const [pdfDownloaded, setPdfDownloaded] = useState(false);
   const [projectIntake, setProjectIntake] = useState<StoredProjectIntake | null>(null);
+  const [canGenerateBudget, setCanGenerateBudget] = useState(false);
+  const proTier = getPricingTier("PRO");
 
   useEffect(() => {
     let cancelled = false;
@@ -193,9 +219,14 @@ function QuoteForm() {
       if (cancelled) return;
       setOrganizationId(organizationId);
       if (!organizationId) {
+        setCanGenerateBudget(false);
         setContextReady(true);
         return;
       }
+
+      const budgetAllowed = await loadCanGenerateBudget(organizationId);
+      if (cancelled) return;
+      setCanGenerateBudget(budgetAllowed);
 
       const owned = await listOwnedProjects(organizationId);
       if (cancelled) return;
@@ -360,7 +391,9 @@ function QuoteForm() {
         <h1 className="mt-1 text-2xl font-bold">当前：方案</h1>
         <p className="text-sm text-zinc-400">
           {quoteId
-            ? "方案已就绪。主要下一步：继续生成预算。"
+            ? canGenerateBudget
+              ? "方案已就绪。主要下一步：继续生成预算。"
+              : "方案已就绪。预算测算为专业版能力，升级后可继续。"
             : "填写企业信息，生成专业健身空间方案。"}
         </p>
       </div>
@@ -418,16 +451,30 @@ function QuoteForm() {
           {quoteId ? (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
-                <Link
-                  href={productHref("/budget", {
-                    organizationId,
-                    projectId,
-                    quoteId,
-                  })}
-                  className="rounded-xl bg-white px-6 py-3 font-semibold text-black"
-                >
-                  下一步：继续生成预算
-                </Link>
+                {canGenerateBudget ? (
+                  <Link
+                    href={productHref("/budget", {
+                      organizationId,
+                      projectId,
+                      quoteId,
+                    })}
+                    className="rounded-xl bg-white px-6 py-3 font-semibold text-black"
+                  >
+                    下一步：继续生成预算
+                  </Link>
+                ) : (
+                  <div className="w-full space-y-2 rounded-xl border border-amber-700/50 bg-black p-4">
+                    <p className="text-sm text-zinc-300">
+                      预算测算属于{proTier.label}能力（{proTier.headline}），当前套餐无法直接进入预算计算。
+                    </p>
+                    <Link
+                      href="/pricing"
+                      className="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black"
+                    >
+                      {proTier.cta}
+                    </Link>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={handleDownloadPdf}
@@ -438,17 +485,28 @@ function QuoteForm() {
               </div>
               {pdfDownloaded ? (
                 <p className="text-sm text-emerald-300">
-                  方案 PDF 已下载。请继续下一步生成预算。{" "}
-                  <Link
-                    href={productHref("/budget", {
-                      organizationId,
-                      projectId,
-                      quoteId,
-                    })}
-                    className="underline hover:text-emerald-200"
-                  >
-                    前往预算
-                  </Link>
+                  {canGenerateBudget ? (
+                    <>
+                      方案 PDF 已下载。请继续下一步生成预算。{" "}
+                      <Link
+                        href={productHref("/budget", {
+                          organizationId,
+                          projectId,
+                          quoteId,
+                        })}
+                        className="underline hover:text-emerald-200"
+                      >
+                        前往预算
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      方案 PDF 已下载。升级{proTier.label}后可继续预算测算。{" "}
+                      <Link href="/pricing" className="underline hover:text-emerald-200">
+                        {proTier.cta}
+                      </Link>
+                    </>
+                  )}
                 </p>
               ) : null}
             </div>
