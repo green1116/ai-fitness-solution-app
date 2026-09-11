@@ -19,6 +19,7 @@ import {
   quotePayloadFromProjectIntake,
   type StoredProjectIntake,
 } from "@/lib/project/project-intake";
+import { ProUpgradeContactCta } from "@/app/(product)/ProUpgradeContactCta";
 import { getPricingTier } from "@/lib/growth/conversion/pricing.strategy";
 
 type OrgMe = { organizationId?: string | null };
@@ -465,14 +466,12 @@ function QuoteForm() {
                 ) : (
                   <div className="w-full space-y-2 rounded-xl border border-amber-700/50 bg-black p-4">
                     <p className="text-sm text-zinc-300">
-                      预算测算属于{proTier.label}能力（{proTier.headline}），当前套餐无法直接进入预算计算。
+                      预算测算属于{proTier.label}能力（¥{proTier.monthlyPriceCny}/月 · {proTier.headline}），当前套餐无法直接进入预算计算。提交后由团队联系完成升级。
                     </p>
-                    <Link
-                      href="/pricing"
-                      className="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black"
-                    >
-                      {proTier.cta}
-                    </Link>
+                    <ProUpgradeContactCta
+                      context={{ organizationId, projectId, quoteId }}
+                      buttonClassName="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
+                    />
                   </div>
                 )}
                 <button
@@ -501,10 +500,11 @@ function QuoteForm() {
                     </>
                   ) : (
                     <>
-                      方案 PDF 已下载。升级{proTier.label}后可继续预算测算。{" "}
-                      <Link href="/pricing" className="underline hover:text-emerald-200">
-                        {proTier.cta}
-                      </Link>
+                      方案 PDF 已下载。升级{proTier.label}（¥{proTier.monthlyPriceCny}/月 · {proTier.headline}）后可继续预算测算，提交后由团队联系完成升级。{" "}
+                      <ProUpgradeContactCta
+                        context={{ organizationId, projectId, quoteId }}
+                        buttonClassName="underline hover:text-emerald-200 text-sm font-normal bg-transparent p-0 text-emerald-300"
+                      />
                     </>
                   )}
                 </p>

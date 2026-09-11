@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { ProUpgradeContactCta } from "@/app/(product)/ProUpgradeContactCta";
 import { TenderEnterpriseUpgradeCta } from "@/app/(product)/TenderEnterpriseUpgradeCta";
 import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
 import { getCurrentUser } from "@/lib/auth/currentUser";
@@ -131,14 +132,19 @@ export default async function ProjectDetailPage({
             <div className="text-xs text-amber-400">第 2 步</div>
             <div className="font-semibold text-zinc-300">预算（{proTier.label}）</div>
             <div className="mt-1 text-xs text-zinc-500">
-              预算测算为专业版能力 · 当前 {budgetPaywall.currentPlan} · 升级 {proTier.plan}
+              {proTier.label} · ¥{proTier.monthlyPriceCny}/月 · {proTier.headline} · 当前{" "}
+              {budgetPaywall.currentPlan} · 提交后由团队联系完成升级
             </div>
-            <Link
-              href="/pricing"
-              className="mt-3 inline-block rounded-lg bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-black"
-            >
-              {proTier.cta}
-            </Link>
+            <div className="mt-3">
+              <ProUpgradeContactCta
+                context={{
+                  organizationId,
+                  projectId: project.id,
+                  quoteId: project.quotes[0]?.id,
+                }}
+                buttonClassName="inline-flex rounded-lg bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-black hover:bg-emerald-300"
+              />
+            </div>
           </div>
         )}
         {canGenerateTender ? (
