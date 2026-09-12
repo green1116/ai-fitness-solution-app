@@ -450,8 +450,23 @@ function QuoteForm() {
             {buildCustomerSummary(proposal, companyName)}
           </p>
           {quoteId ? (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm text-zinc-300">完整方案详情请下载方案 PDF 查看</p>
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  className="rounded-xl bg-white px-6 py-3 font-semibold text-black hover:bg-zinc-100"
+                >
+                  下载方案 PDF
+                </button>
+                {pdfDownloaded ? (
+                  <p className="text-sm text-emerald-300">方案 PDF 已下载。</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-zinc-200">下一步：预算</p>
                 {canGenerateBudget ? (
                   <Link
                     href={productHref("/budget", {
@@ -459,14 +474,14 @@ function QuoteForm() {
                       projectId,
                       quoteId,
                     })}
-                    className="rounded-xl bg-white px-6 py-3 font-semibold text-black"
+                    className="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
                   >
-                    下一步：继续生成预算
+                    继续生成预算
                   </Link>
                 ) : (
-                  <div className="w-full space-y-2 rounded-xl border border-amber-700/50 bg-black p-4">
+                  <div className="space-y-2 rounded-xl border border-amber-700/50 bg-black p-4">
                     <p className="text-sm text-zinc-300">
-                      预算测算属于{proTier.label}能力（¥{proTier.monthlyPriceCny}/月 · {proTier.headline}），当前套餐无法直接进入预算计算。提交后由团队联系完成升级。
+                      预算（{proTier.label}）· ¥{proTier.monthlyPriceCny}/月 · {proTier.headline}。当前套餐无法直接进入预算计算，提交后由团队联系完成升级。
                     </p>
                     <ProUpgradeContactCta
                       context={{ organizationId, projectId, quoteId }}
@@ -474,40 +489,39 @@ function QuoteForm() {
                     />
                   </div>
                 )}
-                <button
-                  type="button"
-                  onClick={handleDownloadPdf}
-                  className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400"
-                >
-                  下载方案 PDF
-                </button>
+                {pdfDownloaded && canGenerateBudget ? (
+                  <p className="text-sm text-emerald-300">
+                    请继续下一步生成预算。{" "}
+                    <Link
+                      href={productHref("/budget", {
+                        organizationId,
+                        projectId,
+                        quoteId,
+                      })}
+                      className="underline hover:text-emerald-200"
+                    >
+                      前往预算
+                    </Link>
+                  </p>
+                ) : null}
+                {pdfDownloaded && !canGenerateBudget ? (
+                  <p className="text-sm text-emerald-300">
+                    升级{proTier.label}后可继续预算测算。{" "}
+                    <ProUpgradeContactCta
+                      context={{ organizationId, projectId, quoteId }}
+                      buttonClassName="underline hover:text-emerald-200 text-sm font-normal bg-transparent p-0 text-emerald-300"
+                    />
+                  </p>
+                ) : null}
               </div>
-              {pdfDownloaded ? (
-                <p className="text-sm text-emerald-300">
-                  {canGenerateBudget ? (
-                    <>
-                      方案 PDF 已下载。请继续下一步生成预算。{" "}
-                      <Link
-                        href={productHref("/budget", {
-                          organizationId,
-                          projectId,
-                          quoteId,
-                        })}
-                        className="underline hover:text-emerald-200"
-                      >
-                        前往预算
-                      </Link>
-                    </>
-                  ) : (
-                    <>
-                      方案 PDF 已下载。升级{proTier.label}（¥{proTier.monthlyPriceCny}/月 · {proTier.headline}）后可继续预算测算，提交后由团队联系完成升级。{" "}
-                      <ProUpgradeContactCta
-                        context={{ organizationId, projectId, quoteId }}
-                        buttonClassName="underline hover:text-emerald-200 text-sm font-normal bg-transparent p-0 text-emerald-300"
-                      />
-                    </>
-                  )}
-                </p>
+
+              {projectId ? (
+                <Link
+                  href={`/projects/${encodeURIComponent(projectId)}`}
+                  className="inline-block text-sm text-zinc-400 underline hover:text-zinc-200"
+                >
+                  ← 返回项目
+                </Link>
               ) : null}
             </div>
           ) : null}
