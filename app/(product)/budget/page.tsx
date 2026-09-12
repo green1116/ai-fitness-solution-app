@@ -639,6 +639,14 @@ function BudgetForm() {
               </div>
             </section>
           ) : null}
+          {projectId ? (
+            <Link
+              href={`/projects/${encodeURIComponent(projectId)}`}
+              className="inline-block text-sm text-zinc-400 underline hover:text-zinc-200"
+            >
+              ← 返回项目
+            </Link>
+          ) : null}
         </section>
       )}
 
