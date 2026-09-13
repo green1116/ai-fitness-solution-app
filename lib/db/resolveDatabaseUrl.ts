@@ -44,9 +44,8 @@ function ensurePoolerParams(url: string): string {
   if (!u.searchParams.has("pgbouncer")) {
     u.searchParams.set("pgbouncer", "true");
   }
-  if (!u.searchParams.has("connection_limit")) {
-    u.searchParams.set("connection_limit", "1");
-  }
+  // Do not inject connection_limit — a hardcoded 1 causes Prisma P2024 pool exhaustion
+  // under concurrent serverless/production load. Leave limit to the env URL / Prisma defaults.
   return u.toString();
 }
 
