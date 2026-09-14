@@ -385,6 +385,16 @@ function QuoteForm() {
     setPdfDownloaded(true);
   }
 
+  const hasProjectId = Boolean(projectId.trim());
+  /** BASIC pay gate: visible on arrival from「升级专业版」, no quoteId/proposal required. */
+  const showImmediateProPayGate =
+    contextReady && !canGenerateBudget && hasProjectId;
+
+  const refreshBudgetEntitlement = async () => {
+    const allowed = await loadCanGenerateBudget(organizationId);
+    setCanGenerateBudget(allowed);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -398,6 +408,20 @@ function QuoteForm() {
             : "填写企业信息，生成专业健身空间方案。"}
         </p>
       </div>
+
+      {showImmediateProPayGate ? (
+        <div className="space-y-3 rounded-xl border border-amber-700/50 bg-black p-4">
+          <p className="text-sm font-medium text-zinc-100">
+            {proTier.label} ¥{proTier.monthlyPriceCny}/月
+          </p>
+          <p className="text-sm text-zinc-300">{proTier.headline}</p>
+          <ProUpgradePaymentCta
+            context={{ organizationId, projectId, quoteId }}
+            buttonClassName="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
+            onPaidSuccess={refreshBudgetEntitlement}
+          />
+        </div>
+      ) : null}
 
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
         {!contextReady ? (
@@ -478,6 +502,10 @@ function QuoteForm() {
                   >
                     继续生成预算
                   </Link>
+                ) : showImmediateProPayGate ? (
+                  <p className="text-sm text-zinc-300">
+                    升级{proTier.label}后可继续预算测算，请使用上方微信支付完成开通。
+                  </p>
                 ) : (
                   <div className="space-y-2 rounded-xl border border-amber-700/50 bg-black p-4">
                     <p className="text-sm text-zinc-300">
@@ -486,10 +514,7 @@ function QuoteForm() {
                     <ProUpgradePaymentCta
                       context={{ organizationId, projectId, quoteId }}
                       buttonClassName="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
-                      onPaidSuccess={async () => {
-                        const allowed = await loadCanGenerateBudget(organizationId);
-                        setCanGenerateBudget(allowed);
-                      }}
+                      onPaidSuccess={refreshBudgetEntitlement}
                     />
                   </div>
                 )}
@@ -509,17 +534,20 @@ function QuoteForm() {
                   </p>
                 ) : null}
                 {pdfDownloaded && !canGenerateBudget ? (
-                  <p className="text-sm text-emerald-300">
-                    升级{proTier.label}后可继续预算测算。{" "}
-                    <ProUpgradePaymentCta
-                      context={{ organizationId, projectId, quoteId }}
-                      buttonClassName="underline hover:text-emerald-200 text-sm font-normal bg-transparent p-0 text-emerald-300"
-                      onPaidSuccess={async () => {
-                        const allowed = await loadCanGenerateBudget(organizationId);
-                        setCanGenerateBudget(allowed);
-                      }}
-                    />
-                  </p>
+                  showImmediateProPayGate ? (
+                    <p className="text-sm text-emerald-300">
+                      升级{proTier.label}后可继续预算测算。
+                    </p>
+                  ) : (
+                    <p className="text-sm text-emerald-300">
+                      升级{proTier.label}后可继续预算测算。{" "}
+                      <ProUpgradePaymentCta
+                        context={{ organizationId, projectId, quoteId }}
+                        buttonClassName="underline hover:text-emerald-200 text-sm font-normal bg-transparent p-0 text-emerald-300"
+                        onPaidSuccess={refreshBudgetEntitlement}
+                      />
+                    </p>
+                  )
                 ) : null}
               </div>
 
