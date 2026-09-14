@@ -13,17 +13,29 @@ import { loadTenderClientEntitlement } from "./tender-entitlement-client";
 import { TenderEnterpriseUpgradeCta } from "./TenderEnterpriseUpgradeCta";
 import { buildTenderUpgradeHref } from "./tender-entitlement";
 
+function resolveProUpgradeHref(ctx: ProductCommercialContext): string {
+  if (ctx.projectId?.trim()) {
+    return productHref("/quote", ctx);
+  }
+  return "/projects";
+}
+
 function NavLinks({
   ctx,
   canGenerateTender,
+  currentPlan,
   upgradeCta,
   upgradeHref,
 }: {
   ctx: ProductCommercialContext;
   canGenerateTender: boolean;
+  /** Empty until entitlement resolves — avoid flashing BASIC→PRO for PRO/ENTERPRISE. */
+  currentPlan: string;
   upgradeCta?: string;
   upgradeHref: string;
 }) {
+  const showBasicToProCta = currentPlan === "BASIC";
+
   return (
     <>
       <Link href="/projects" className="text-zinc-400 hover:text-white">
@@ -45,6 +57,14 @@ function NavLinks({
           <TenderEnterpriseUpgradeCta href={upgradeHref} label={upgradeCta} context={ctx} />
         </span>
       )}
+      {showBasicToProCta ? (
+        <Link
+          href={resolveProUpgradeHref(ctx)}
+          className="font-medium text-emerald-400 hover:text-emerald-300"
+        >
+          升级专业版
+        </Link>
+      ) : null}
     </>
   );
 }
@@ -57,6 +77,7 @@ function ProductCommercialNavInner() {
     [pathname, searchParams],
   );
   const [canGenerateTender, setCanGenerateTender] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState("");
   const [upgradeCta, setUpgradeCta] = useState("升级到 Enterprise 解锁投标");
   const [upgradeHref, setUpgradeHref] = useState(
     buildTenderUpgradeHref(ctx, { authenticated: false, currentPath: pathname }),
@@ -78,6 +99,7 @@ function ProductCommercialNavInner() {
       }, { currentPath: pathname });
       if (cancelled) return;
       setCanGenerateTender(entitlement.canGenerateTender);
+      setCurrentPlan(String(entitlement.currentPlan || "").trim().toUpperCase());
       setUpgradeCta(entitlement.upgradeCta);
       setUpgradeHref(entitlement.upgradeHref);
     }
@@ -91,6 +113,7 @@ function ProductCommercialNavInner() {
     <NavLinks
       ctx={ctx}
       canGenerateTender={canGenerateTender}
+      currentPlan={currentPlan}
       upgradeCta={upgradeCta}
       upgradeHref={upgradeHref}
     />
@@ -105,6 +128,7 @@ export function ProductCommercialNav() {
           <NavLinks
             ctx={{}}
             canGenerateTender={false}
+            currentPlan=""
             upgradeHref={buildTenderUpgradeHref({}, { authenticated: false, currentPath: "/tender" })}
           />
         }
