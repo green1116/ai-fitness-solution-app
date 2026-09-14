@@ -19,7 +19,7 @@ import {
   quotePayloadFromProjectIntake,
   type StoredProjectIntake,
 } from "@/lib/project/project-intake";
-import { ProUpgradeContactCta } from "@/app/(product)/ProUpgradeContactCta";
+import { ProUpgradePaymentCta } from "@/app/(product)/ProUpgradePaymentCta";
 import { getPricingTier } from "@/lib/growth/conversion/pricing.strategy";
 
 type OrgMe = { organizationId?: string | null };
@@ -481,11 +481,15 @@ function QuoteForm() {
                 ) : (
                   <div className="space-y-2 rounded-xl border border-amber-700/50 bg-black p-4">
                     <p className="text-sm text-zinc-300">
-                      预算（{proTier.label}）· ¥{proTier.monthlyPriceCny}/月 · {proTier.headline}。当前套餐无法直接进入预算计算，提交后由团队联系完成升级。
+                      预算（{proTier.label}）· ¥{proTier.monthlyPriceCny}/月 · {proTier.headline}。当前套餐无法直接进入预算计算，请使用微信扫码自助升级。
                     </p>
-                    <ProUpgradeContactCta
+                    <ProUpgradePaymentCta
                       context={{ organizationId, projectId, quoteId }}
                       buttonClassName="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
+                      onPaidSuccess={async () => {
+                        const allowed = await loadCanGenerateBudget(organizationId);
+                        setCanGenerateBudget(allowed);
+                      }}
                     />
                   </div>
                 )}
@@ -507,9 +511,13 @@ function QuoteForm() {
                 {pdfDownloaded && !canGenerateBudget ? (
                   <p className="text-sm text-emerald-300">
                     升级{proTier.label}后可继续预算测算。{" "}
-                    <ProUpgradeContactCta
+                    <ProUpgradePaymentCta
                       context={{ organizationId, projectId, quoteId }}
                       buttonClassName="underline hover:text-emerald-200 text-sm font-normal bg-transparent p-0 text-emerald-300"
+                      onPaidSuccess={async () => {
+                        const allowed = await loadCanGenerateBudget(organizationId);
+                        setCanGenerateBudget(allowed);
+                      }}
                     />
                   </p>
                 ) : null}
