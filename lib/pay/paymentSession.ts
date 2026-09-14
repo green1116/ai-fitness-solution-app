@@ -22,4 +22,13 @@ export type PaymentSession =
       statusUrl: string;
       pollIntervalMs?: number;
       message?: string;
+    }
+  | {
+      /** WeChat Native / QR：展示 codeUrl，并轮询支付结果 */
+      kind: "wechat_native";
+      /** WeChat Pay code_url（二维码内容） */
+      codeUrl: string;
+      statusUrl: string;
+      pollIntervalMs?: number;
+      message?: string;
     };

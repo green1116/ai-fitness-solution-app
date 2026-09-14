@@ -66,7 +66,7 @@ export async function runPaymentSessionOnClient(
     return { kind: "license", licenseKey };
   }
 
-  if (session.kind === "provider_pending") {
+  if (session.kind === "provider_pending" || session.kind === "wechat_native") {
     const raw = session.statusUrl;
     const statusUrl =
       raw.startsWith("http://") || raw.startsWith("https://")
@@ -93,6 +93,7 @@ export async function runPaymentSessionOnClient(
           ok: true,
           paymentStatus: j.paymentStatus,
           licenseIssued: j.licenseIssued,
+          sessionKind: session.kind,
         });
         console.info(pf("license-issued"), {
           orderId: meta?.orderId,

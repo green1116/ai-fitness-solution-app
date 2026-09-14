@@ -269,11 +269,13 @@ model UpgradeOrder {
   userId            String?
   clientFingerprint String?
   paymentProvider   String?
+  providerOrderId   String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   @@index([planId, createdAt])
   @@index([status])
+  @@index([providerOrderId])
   @@map("upgrade_order")
 }
 

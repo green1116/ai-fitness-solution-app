@@ -84,6 +84,7 @@ export function mockPaymentProvider(name: ProviderName): PaymentProvider {
             userId,
             clientFingerprint: input.clientFingerprint ?? null,
             paymentProvider: name,
+            providerOrderId: null,
           },
         });
       } catch (e) {
