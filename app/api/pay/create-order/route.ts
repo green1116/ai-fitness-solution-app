@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPaymentProvider } from "@/lib/payments/provider";
+import { upgradeAmountForLevel } from "@/lib/upgradeUnlock";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export async function POST(req: Request) {
     const planId = String(body?.planId || "").trim();
     const projectId = String(body?.projectId || "").trim();
     const targetLevelRaw = String(body?.targetLevel || "").trim().toLowerCase();
-    const amount = Number(body?.amount);
+    const clientAmount = Number(body?.amount);
 
     if (!planId) {
       return NextResponse.json(
@@ -30,11 +31,30 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) {
-      return NextResponse.json(
-        { ok: false, code: "INVALID_AMOUNT", message: "amount 须为正整数（分）" },
-        { status: 400 },
-      );
+
+    // PRO: server-authoritative — never persist client body.amount.
+    // Enterprise: unchanged — still requires a valid client amount.
+    let amount: number;
+    if (targetLevelRaw === "pro") {
+      amount = upgradeAmountForLevel("pro");
+      if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            code: "INVALID_SERVER_AMOUNT",
+            message: "服务端 PRO 价格未正确配置",
+          },
+          { status: 503 },
+        );
+      }
+    } else {
+      amount = clientAmount;
+      if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) {
+        return NextResponse.json(
+          { ok: false, code: "INVALID_AMOUNT", message: "amount 须为正整数（分）" },
+          { status: 400 },
+        );
+      }
     }
 
     const provider = getPaymentProvider();
