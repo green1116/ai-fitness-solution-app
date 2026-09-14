@@ -15,8 +15,24 @@ export const dynamic = "force-dynamic";
 
 const isDev = () => process.env.NODE_ENV !== "production";
 
+function isWechatPaymentProviderEnv(): boolean {
+  return (process.env.PAYMENT_PROVIDER || "").trim().toLowerCase() === "wechat";
+}
+
 function json(status: number, payload: Record<string, unknown>) {
   return NextResponse.json(payload, { status });
+}
+
+function wechatFailStatus(message: string): number {
+  if (
+    message.includes("SIGNATURE_INVALID") ||
+    message.includes("HEADERS_OR_BODY_MISSING") ||
+    message.includes("SERIAL_MISSING")
+  ) {
+    return 401;
+  }
+  if (message.includes("NOT_CONFIGURED")) return 503;
+  return 400;
 }
 
 /** 从 webhook JSON 提取与 create-order 一致的 planId / targetLevel，供履约与 DB 纠正 */
@@ -57,16 +73,13 @@ async function writeEntitlementAndLog(opts: {
     fallbackTargetLevel: opts.fallbackTargetLevel ?? null,
   });
 
-  /** 写入侧：来自 ensureEntitlementForOrder 的结果（含 binding） */
   const entitlement =
     ensured.planLevel && ensured.planId
       ? snapshotFromPlanLevel(ensured.planLevel, ensured.planId)
       : null;
 
-  /** ★ 对账日志 1/4：webhook 最终写入的 entitlement 原始对象 */
   console.log("[webhook] writing entitlement raw", entitlement);
 
-  /** ★ DEBUG 2/5：webhook 即将写入的 entitlement 完整 JSON */
   console.log(
     "[DEBUG][WEBHOOK][WRITE]",
     JSON.stringify(
@@ -92,7 +105,6 @@ async function writeEntitlementAndLog(opts: {
     entitlement,
   });
 
-  /** 读取侧：从 DB 实读派生（路由实际会读到的 entitlement） */
   let postBindEntitlement: Record<string, unknown> | null = null;
   if (sessionUserId && ensured.planId) {
     try {
@@ -121,7 +133,6 @@ async function writeEntitlementAndLog(opts: {
     });
   }
 
-  /** ★ 对账日志 5/5：webhook 这一段能看到的全链路字段汇总 */
   console.log("[entitlement-debug]", {
     stage: "webhook",
     planId: ensured.planId,
@@ -140,7 +151,93 @@ async function writeEntitlementAndLog(opts: {
   return { ensured, sessionUserId };
 }
 
+async function handleWechatNotify(req: Request): Promise<NextResponse> {
+  // Exact raw body — do not parse/re-stringify before signature verification.
+  const rawBody = await req.text();
+  const timestamp = req.headers.get("wechatpay-timestamp") || "";
+  const nonce = req.headers.get("wechatpay-nonce") || "";
+  const serial = req.headers.get("wechatpay-serial") || "";
+  const signature = req.headers.get("wechatpay-signature") || "";
+
+  console.info("[pay] wechat webhook received", {
+    hasBody: Boolean(rawBody),
+    hasTimestamp: Boolean(timestamp),
+    hasNonce: Boolean(nonce),
+    hasSerial: Boolean(serial),
+    hasSignature: Boolean(signature),
+  });
+
+  const provider = getPaymentProvider();
+  const event = await provider.handleWebhook({
+    rawBody,
+    timestamp,
+    nonce,
+    serial,
+    signature,
+  });
+
+  if (event.kind === "payment_failed" || event.kind === "payment_canceled") {
+    const targetStatus = event.kind === "payment_failed" ? "failed" : "canceled";
+    await prisma.upgradeOrder.updateMany({
+      where: { id: event.orderId, status: "pending" },
+      data: { status: targetStatus },
+    });
+    return json(200, { ok: true, orderId: event.orderId, paymentStatus: targetStatus });
+  }
+
+  const confirmed = await provider.confirmPaid(event.orderId);
+  if (!confirmed.ok) {
+    // Fail closed — never invent paid/license for invalid/partial WeChat notify.
+    return json(400, {
+      ok: false,
+      code: "WECHAT_CONFIRM_FAILED",
+      ...(confirmed.payload || {}),
+    });
+  }
+
+  const { ensured } = await writeEntitlementAndLog({
+    orderId: event.orderId,
+    source: "wechat-confirm-ok",
+    fallbackPlanId: null,
+    fallbackTargetLevel: "pro",
+  });
+
+  const issuedPlainKey =
+    (confirmed.ok && confirmed.licenseKey ? confirmed.licenseKey : null) ||
+    ensured.licenseKeyPlain ||
+    null;
+
+  console.info("[pay] wechat webhook ok", { orderId: event.orderId });
+
+  const finalPayload: Record<string, unknown> = { ...confirmed.payload };
+  if (issuedPlainKey && !finalPayload.licenseKey) {
+    finalPayload.licenseKey = issuedPlainKey;
+  }
+
+  return json(200, {
+    ...finalPayload,
+    status: "paid",
+    orderId: event.orderId,
+  });
+}
+
 export async function POST(req: Request) {
+  if (isWechatPaymentProviderEnv()) {
+    try {
+      return await handleWechatNotify(req);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "WECHAT_WEBHOOK_ERROR";
+      console.error("[/api/pay/webhook] wechat", {
+        code: message.split(":")[0] || "WECHAT_WEBHOOK_ERROR",
+      });
+      return json(wechatFailStatus(message), {
+        ok: false,
+        code: message.split(":")[0] || "WECHAT_WEBHOOK_ERROR",
+        message,
+      });
+    }
+  }
+
   let orderIdForFallback = "";
   let webhookHints: PayConfirmPaidHints = {};
   try {
@@ -168,7 +265,6 @@ export async function POST(req: Request) {
     console.log("[pay] webhook received", body);
     console.info("[DEBUG][WEBHOOK][hints]", webhookHints);
 
-    /** ★ DEBUG 1/5：webhook 入口原始 payload */
     console.log(
       "[DEBUG][WEBHOOK][INPUT]",
       JSON.stringify(
@@ -207,7 +303,6 @@ export async function POST(req: Request) {
 
     const confirmed = await provider.confirmPaid(event.orderId, webhookHints);
 
-    /** 不论 confirmPaid 是否走 fallback，统一在 webhook 层强制写入 entitlement */
     const { ensured } = await writeEntitlementAndLog({
       orderId: event.orderId,
       source: confirmed.ok ? "confirm-ok" : "confirm-fallback",
@@ -215,7 +310,6 @@ export async function POST(req: Request) {
       fallbackTargetLevel: webhookHints.fallbackTargetLevel ?? null,
     });
 
-    /** 优先用 confirmPaid 返回的明文 key（真实路径），其次用 ensureEntitlement 首发的 plain key */
     const issuedPlainKey =
       (confirmed.ok && confirmed.licenseKey ? confirmed.licenseKey : null) ||
       ensured.licenseKeyPlain ||
@@ -251,7 +345,6 @@ export async function POST(req: Request) {
       orderId: event.orderId,
     });
 
-    /** 把 ensure 出来的 plain key（如有）合并到 payload，前端继续 persist 同一字段 */
     const finalPayload: Record<string, unknown> = { ...confirmed.payload };
     if (issuedPlainKey && !finalPayload.licenseKey) {
       finalPayload.licenseKey = issuedPlainKey;
@@ -266,7 +359,6 @@ export async function POST(req: Request) {
     console.error("[/api/pay/webhook]", e);
     if (isDev()) {
       const orderId = orderIdForFallback || `order_${Date.now()}`;
-      /** panic 路径也尝试写入 entitlement，避免前端拿到的 license-key 在 DB 没记录 */
       let issuedPlainKey: string | null = null;
       try {
         const { ensured } = await writeEntitlementAndLog({

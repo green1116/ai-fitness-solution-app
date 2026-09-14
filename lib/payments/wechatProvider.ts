@@ -1,7 +1,15 @@
 import { getCurrentUser } from "@/lib/auth/currentUser";
+import { fulfillPaidOrder } from "@/lib/pay/fulfill";
 import { prisma } from "@/lib/prisma";
 import type { PaymentProvider } from "@/lib/payments/provider";
 import { createWechatNativePrepay } from "@/lib/payments/wechatNativeClient";
+import {
+  assertWechatNotifySerialMatch,
+  decryptWechatPayResource,
+  loadWechatPlatformPublicKey,
+  verifyWechatPayNotifySignature,
+  type WechatTransactionNotify,
+} from "@/lib/payments/wechatWebhookCrypto";
 import type {
   CreateOrderInput,
   CreateOrderResult,
@@ -37,12 +45,6 @@ function notConfiguredError(): Error {
   const missing = missingWechatEnv();
   return new Error(
     `NOT_CONFIGURED: WeChat Pay is not configured (missing ${missing.join(", ")})`,
-  );
-}
-
-function notImplementedError(action: string): Error {
-  return new Error(
-    `NOT_IMPLEMENTED: WeChat Pay ${action} is not implemented yet`,
   );
 }
 
@@ -87,9 +89,32 @@ function buildNotifyUrl(baseUrl: string): string {
   return `${origin}/api/pay/webhook`;
 }
 
+function readWechatNotifyEnvelope(input: WebhookInput): {
+  rawBody: string;
+  timestamp: string;
+  nonce: string;
+  serial: string;
+  signature: string;
+} {
+  const rawBody = typeof input.rawBody === "string" ? input.rawBody : "";
+  const timestamp =
+    typeof input.timestamp === "string" ? input.timestamp.trim() : "";
+  const nonce = typeof input.nonce === "string" ? input.nonce.trim() : "";
+  const serial = typeof input.serial === "string" ? input.serial.trim() : "";
+  const signature =
+    typeof input.signature === "string" ? input.signature.trim() : "";
+  if (!rawBody || !timestamp || !nonce || !signature) {
+    throw new Error("WECHAT_NOTIFY_HEADERS_OR_BODY_MISSING");
+  }
+  if (!serial) {
+    throw new Error("WECHAT_NOTIFY_SERIAL_MISSING");
+  }
+  return { rawBody, timestamp, nonce, serial, signature };
+}
+
 /**
  * WeChat Pay provider for /api/pay/* chain.
- * Native start-payment v1: creates QR via API v3; webhook/entitlement still NOT_IMPLEMENTED.
+ * Native start-payment + notify verify/decrypt v1.
  */
 export const wechatPaymentProvider: PaymentProvider = {
   name: PROVIDER,
@@ -183,7 +208,6 @@ export const wechatPaymentProvider: PaymentProvider = {
     }
 
     const targetLevel = parseStrictTargetLevel(row.targetLevel);
-    // Domestic self-service WeChat Native: BASIC → PRO only.
     if (targetLevel === "enterprise") {
       throw new Error("SELF_SERVICE_ENTERPRISE_NOT_ALLOWED");
     }
@@ -227,17 +251,187 @@ export const wechatPaymentProvider: PaymentProvider = {
     };
   },
 
-  async handleWebhook(_input: WebhookInput): Promise<WebhookEvent> {
+  async handleWebhook(input: WebhookInput): Promise<WebhookEvent> {
     if (!isWechatPayConfigured()) {
       throw notConfiguredError();
     }
-    throw notImplementedError("handleWebhook");
+
+    const { rawBody, timestamp, nonce, serial, signature } =
+      readWechatNotifyEnvelope(input);
+
+    // Bind Wechatpay-Serial to configured platform cert/key before verify.
+    assertWechatNotifySerialMatch(serial);
+
+    const platformPublicKeyPem = loadWechatPlatformPublicKey();
+    const okSig = verifyWechatPayNotifySignature({
+      timestamp,
+      nonce,
+      rawBody,
+      signature,
+      platformPublicKeyPem,
+    });
+    if (!okSig) {
+      throw new Error("WECHAT_NOTIFY_SIGNATURE_INVALID");
+    }
+
+    let envelope: {
+      resource?: {
+        ciphertext?: string;
+        nonce?: string;
+        associated_data?: string;
+        algorithm?: string;
+      };
+    };
+    try {
+      envelope = JSON.parse(rawBody) as typeof envelope;
+    } catch {
+      throw new Error("WECHAT_NOTIFY_JSON_INVALID");
+    }
+
+    const resource = envelope.resource;
+    if (
+      !resource ||
+      typeof resource.ciphertext !== "string" ||
+      typeof resource.nonce !== "string"
+    ) {
+      throw new Error("WECHAT_NOTIFY_RESOURCE_MISSING");
+    }
+
+    const apiV3Key = process.env.WECHAT_PAY_API_V3_KEY?.trim() || "";
+    const decrypted = decryptWechatPayResource({
+      apiV3Key,
+      resource: {
+        ciphertext: resource.ciphertext,
+        nonce: resource.nonce,
+        associated_data:
+          typeof resource.associated_data === "string"
+            ? resource.associated_data
+            : "",
+        algorithm: resource.algorithm,
+      },
+    });
+
+    let tx: WechatTransactionNotify;
+    try {
+      tx = JSON.parse(decrypted) as WechatTransactionNotify;
+    } catch {
+      throw new Error("WECHAT_NOTIFY_DECRYPTED_JSON_INVALID");
+    }
+
+    const outTradeNo =
+      typeof tx.out_trade_no === "string" ? tx.out_trade_no.trim() : "";
+    const transactionId =
+      typeof tx.transaction_id === "string" ? tx.transaction_id.trim() : "";
+    const tradeState =
+      typeof tx.trade_state === "string"
+        ? tx.trade_state.trim().toUpperCase()
+        : "";
+
+    if (!outTradeNo) {
+      throw new Error("WECHAT_NOTIFY_OUT_TRADE_NO_MISSING");
+    }
+    if (!transactionId) {
+      throw new Error("WECHAT_NOTIFY_TRANSACTION_ID_MISSING");
+    }
+    if (tradeState !== "SUCCESS") {
+      throw new Error(
+        `WECHAT_TRADE_STATE_NOT_SUCCESS: ${tradeState || "EMPTY"}`,
+      );
+    }
+
+    const order = await prisma.upgradeOrder.findUnique({
+      where: { id: outTradeNo },
+    });
+    if (!order) {
+      throw new Error("WECHAT_ORDER_NOT_FOUND");
+    }
+
+    const paymentProvider = String(order.paymentProvider ?? "")
+      .trim()
+      .toLowerCase();
+    if (paymentProvider !== PROVIDER) {
+      throw new Error("WECHAT_ORDER_PROVIDER_MISMATCH");
+    }
+
+    const targetLevel = String(order.targetLevel ?? "").trim().toLowerCase();
+    if (targetLevel !== "pro") {
+      throw new Error("WECHAT_ORDER_TARGET_NOT_PRO");
+    }
+
+    const amountTotal =
+      typeof tx.amount?.total === "number" ? tx.amount.total : NaN;
+    if (!Number.isInteger(amountTotal) || amountTotal !== order.amount) {
+      throw new Error("WECHAT_AMOUNT_MISMATCH");
+    }
+
+    const cfgMch = process.env.WECHAT_PAY_MCH_ID?.trim() || "";
+    const cfgApp = process.env.WECHAT_PAY_APP_ID?.trim() || "";
+    if (
+      typeof tx.mchid === "string" &&
+      tx.mchid.trim() &&
+      tx.mchid.trim() !== cfgMch
+    ) {
+      throw new Error("WECHAT_MCHID_MISMATCH");
+    }
+    if (
+      typeof tx.appid === "string" &&
+      tx.appid.trim() &&
+      tx.appid.trim() !== cfgApp
+    ) {
+      throw new Error("WECHAT_APPID_MISMATCH");
+    }
+
+    const existingTxn = order.providerOrderId?.trim() || "";
+    if (existingTxn && existingTxn !== transactionId) {
+      throw new Error("WECHAT_TRANSACTION_ID_CONFLICT");
+    }
+
+    if (!existingTxn) {
+      await prisma.upgradeOrder.update({
+        where: { id: order.id },
+        data: { providerOrderId: transactionId },
+      });
+    }
+
+    console.info("[payment-provider] webhook", {
+      provider: PROVIDER,
+      orderId: order.id,
+      tradeState,
+      hasTransactionId: Boolean(transactionId),
+    });
+
+    return { kind: "payment_succeeded", orderId: order.id };
   },
 
-  async confirmPaid(_orderId: string, _hints?: PayConfirmPaidHints) {
+  async confirmPaid(orderId: string, _hints?: PayConfirmPaidHints) {
     if (!isWechatPayConfigured()) {
       throw notConfiguredError();
     }
-    throw notImplementedError("confirmPaid");
+
+    const id = orderId.trim();
+    if (!id) {
+      throw new Error("缺少 orderId");
+    }
+
+    // Formal fulfill only — never DevFallback mock paid for WeChat.
+    const result = await fulfillPaidOrder(id);
+    if (!result.ok) {
+      return {
+        ok: false,
+        payload: result as unknown as Record<string, unknown>,
+      };
+    }
+
+    return {
+      ok: true,
+      licenseKey: result.licenseKeyPlain,
+      payload: {
+        ok: true,
+        order: result.order,
+        license: result.license,
+        licenseKey: result.licenseKeyPlain,
+        note: result.note,
+      },
+    };
   },
 };
