@@ -8,6 +8,13 @@ function json(status: number, payload: Record<string, unknown>) {
   return NextResponse.json(payload, { status });
 }
 
+/** Public origin for WeChat notify_url — prefer configured app URL over internal req.url. */
+function resolvePaymentBaseUrl(req: Request): string {
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/+$/, "");
+  return new URL(req.url).origin.replace(/\/+$/, "");
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
@@ -26,7 +33,6 @@ export async function POST(req: Request) {
     }
 
     const provider = getPaymentProvider();
-    const origin = new URL(req.url).origin;
     const result = await provider.startPayment({
       orderId,
       planId: planId || undefined,
@@ -34,7 +40,7 @@ export async function POST(req: Request) {
         targetLevelRaw === "enterprise" || targetLevelRaw === "pro"
           ? targetLevelRaw
           : undefined,
-      baseUrl: origin,
+      baseUrl: resolvePaymentBaseUrl(req),
     });
 
     console.info(`[pay] start-payment found order=true orderId=${orderId}`);
