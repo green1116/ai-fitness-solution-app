@@ -10,9 +10,13 @@
  */
 import { Prisma } from "@prisma/client";
 import { normalizeEmail } from "@/lib/auth";
+import { getActiveSubscriptionForOrganization } from "@/lib/billing/subscription/subscription.resolver";
+import { updateSubscriptionStatus } from "@/lib/billing/subscription/subscription.updater";
 import { issueLicenseKeyInTransaction } from "@/lib/license/issue";
+import { resolveExactSingleOrganizationIdForUser } from "@/lib/organization/single-org-context";
 import { prisma } from "@/lib/prisma";
 import type { UpgradeTargetLevel } from "@/lib/upgradeUnlock";
+import type { SaasPlan } from "@/lib/saas/types";
 
 /**
  * planLevel → entitlement 权限位（与 lib/entitlements/planEntitlement 一致）。
@@ -120,6 +124,120 @@ async function syncLicenseBindingForPaidOrder(
 }
 
 /**
+ * Resolve org for Subscription sync. Fail closed on conflict/unresolved.
+ * Prefer Project.organizationId; fallback exact single-org for userId.
+ */
+async function resolveOrganizationIdForUpgradeOrder(order: {
+  projectId: string | null | undefined;
+  userId: string | null | undefined;
+}): Promise<string | null> {
+  const projectId = typeof order.projectId === "string" ? order.projectId.trim() : "";
+  let fromProject: string | null = null;
+  if (projectId) {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { organizationId: true },
+    });
+    const oid =
+      typeof project?.organizationId === "string"
+        ? project.organizationId.trim()
+        : "";
+    fromProject = oid || null;
+  }
+
+  const userId = typeof order.userId === "string" ? order.userId.trim() : "";
+  let fromUser: string | null = null;
+  if (userId) {
+    fromUser = await resolveExactSingleOrganizationIdForUser(userId);
+  }
+
+  if (fromProject && fromUser && fromProject !== fromUser) {
+    console.warn("[fulfill] subscription-sync skipped", {
+      reason: "organization-mismatch",
+    });
+    return null;
+  }
+
+  return fromProject || fromUser || null;
+}
+
+/**
+ * After paid PRO UpgradeOrder + License commit: BASIC → PRO Subscription.
+ * Never throws to caller — must not roll back paid/License. Idempotent.
+ */
+async function syncProSubscriptionAfterPaidUpgrade(input: {
+  orderId: string;
+  targetLevel: string;
+  projectId: string | null | undefined;
+  userId: string | null | undefined;
+}): Promise<void> {
+  const level = String(input.targetLevel || "").trim().toLowerCase();
+  if (level !== "pro") return;
+
+  try {
+    const organizationId = await resolveOrganizationIdForUpgradeOrder({
+      projectId: input.projectId,
+      userId: input.userId,
+    });
+    if (!organizationId) {
+      console.warn("[fulfill] subscription-sync skipped", {
+        orderId: input.orderId,
+        reason: "organization-unresolved",
+      });
+      return;
+    }
+
+    const active = await getActiveSubscriptionForOrganization(organizationId);
+    const currentPlan = String(active?.plan ?? "BASIC").toUpperCase() as SaasPlan | string;
+
+    if (currentPlan === "PRO") {
+      console.info("[fulfill] subscription-sync noop", {
+        orderId: input.orderId,
+        plan: "PRO",
+      });
+      return;
+    }
+    if (currentPlan === "ENTERPRISE") {
+      console.info("[fulfill] subscription-sync noop", {
+        orderId: input.orderId,
+        plan: "ENTERPRISE",
+      });
+      return;
+    }
+    if (currentPlan !== "BASIC") {
+      console.warn("[fulfill] subscription-sync skipped", {
+        orderId: input.orderId,
+        reason: "unexpected-plan",
+        plan: currentPlan,
+      });
+      return;
+    }
+
+    const periodEnd = new Date();
+    periodEnd.setUTCDate(periodEnd.getUTCDate() + 30);
+
+    await updateSubscriptionStatus({
+      organizationId,
+      plan: "PRO",
+      status: "ACTIVE",
+      stripeCustomerId: active?.stripeCustomerId ?? undefined,
+      stripeSubscriptionId: active?.stripeSubscriptionId ?? undefined,
+      currentPeriodEnd: periodEnd,
+    });
+
+    console.info("[fulfill] subscription-sync ok", {
+      orderId: input.orderId,
+      plan: "PRO",
+    });
+  } catch (e) {
+    console.error("[fulfill] subscription-sync failed", {
+      orderId: input.orderId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
+/**
  * 幂等：LicenseKey.note === `order:${orderId}`
  */
 export async function fulfillPaidOrder(orderId: string) {
@@ -136,7 +254,7 @@ export async function fulfillPaidOrder(orderId: string) {
   const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000);
   const note = `order:${orderId}`;
 
-  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const upgradeOrder = await tx.upgradeOrder.findUnique({
       where: { id: orderId },
       select: {
@@ -363,4 +481,28 @@ export async function fulfillPaidOrder(orderId: string) {
       note: "首次发放 license（Order 兼容路径），仅本次返回明文 key",
     };
   });
+
+  // Subscription sync AFTER paid/License commit — never roll back fulfillment.
+  if (result.ok) {
+    const uo = await prisma.upgradeOrder.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        targetLevel: true,
+        projectId: true,
+        userId: true,
+      },
+    });
+    if (uo && String(uo.status || "").toLowerCase() === "paid") {
+      await syncProSubscriptionAfterPaidUpgrade({
+        orderId: uo.id,
+        targetLevel: uo.targetLevel,
+        projectId: uo.projectId,
+        userId: uo.userId,
+      });
+    }
+  }
+
+  return result;
 }
