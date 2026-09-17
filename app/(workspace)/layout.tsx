@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
 import { resolveExactSingleOrganizationIdForUser } from "@/lib/organization/single-org-context";
@@ -64,7 +65,9 @@ export default async function WorkspaceLayout({
               </div>
             </section>
           ) : null}
-          <WorkspaceActionSurfacePanel organizationId={organizationId} />
+          <Suspense fallback={null}>
+            <WorkspaceActionSurfacePanel organizationId={organizationId} />
+          </Suspense>
         </header>
         <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
       </div>
