@@ -27,6 +27,9 @@ export async function GET(req: NextRequest) {
       subscription: {
         plan: features.plan,
         status: features.status,
+        currentPeriodEnd: features.currentPeriodEnd
+          ? features.currentPeriodEnd.toISOString()
+          : null,
       },
       featureFlags: features.flags,
       usage,

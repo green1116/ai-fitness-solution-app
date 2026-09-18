@@ -34,11 +34,21 @@ export async function findSubscriptionByStripeSubscriptionId(stripeSubscriptionI
 
 export async function resolveOrganizationFeatures(
   organizationId: string,
-): Promise<{ plan: SaasPlan; status: SaasSubStatus; flags: FeatureFlags }> {
+): Promise<{
+  plan: SaasPlan;
+  status: SaasSubStatus;
+  flags: FeatureFlags;
+  currentPeriodEnd: Date | null;
+}> {
   const sub = await getActiveSubscriptionForOrganization(organizationId);
   const plan = sub?.plan ?? "BASIC";
   const status = sub?.status ?? "ACTIVE";
-  return { plan, status, flags: mapStripePlanToFeatureFlags(plan) };
+  return {
+    plan,
+    status,
+    flags: mapStripePlanToFeatureFlags(plan),
+    currentPeriodEnd: sub?.currentPeriodEnd ?? null,
+  };
 }
 
 export type { SubscriptionRecord };
