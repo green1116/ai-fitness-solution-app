@@ -246,9 +246,9 @@ function BudgetForm() {
       const urlProjectId = urlCtx.projectId?.trim() ?? "";
       if (urlQuoteId) setQuoteId(urlQuoteId);
       if (urlProjectId) setProjectId(urlProjectId);
-      const fromCtx =
-        urlCtx.organizationId?.trim() || ctx.organizationId?.trim() || "";
-      const organizationId = fromCtx || (await resolveOrganizationId());
+      // API/subscription identity: membership org from /api/auth/me only.
+      // Sticky/URL product-context org stays on ctx for project/quote/budget navigation.
+      const organizationId = await resolveOrganizationId();
       if (cancelled) return;
       setOrganizationId(organizationId);
       const ownedIds = organizationId ? await listOwnedProjectIds(organizationId) : [];
