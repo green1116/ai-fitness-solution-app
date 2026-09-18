@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { isPlatformAdminEmail } from "@/lib/dashboard/platform-admin";
 import { WorkspaceCrmWorkSurfacePanel } from "../WorkspaceCrmWorkSurfacePanel";
@@ -11,7 +12,11 @@ export default async function ProjectsPage() {
 
   return (
     <>
-      {isPlatformAdmin ? <WorkspaceCrmWorkSurfacePanel /> : null}
+      {isPlatformAdmin ? (
+        <Suspense fallback={null}>
+          <WorkspaceCrmWorkSurfacePanel />
+        </Suspense>
+      ) : null}
       <ProjectsPageClient />
     </>
   );
