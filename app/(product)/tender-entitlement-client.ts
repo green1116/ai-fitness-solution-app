@@ -8,10 +8,25 @@ import {
 
 type SubscriptionResponse = {
   ok?: boolean;
+  code?: string;
+  message?: string;
   organizationId?: string;
   subscription?: { plan?: string; status?: string };
   featureFlags?: { canGenerateTender?: boolean };
 };
+
+function isAuthOrMembershipFailure(
+  status: number,
+  body: SubscriptionResponse,
+): boolean {
+  if (status === 401 || body.code === "AUTH_REQUIRED") return true;
+  const message = String(body.message ?? "").toLowerCase();
+  return (
+    message.includes("not a member") ||
+    message.includes("organization context required") ||
+    message.includes("authentication required")
+  );
+}
 
 export type TenderClientEntitlement = {
   organizationId: string;
@@ -83,13 +98,19 @@ async function loadSubscriptionSnapshot(
         },
       });
       if (!res.ok) {
-        // Transient HTTP failure — do not cache.
+        const body = (await res.json().catch(() => ({}))) as SubscriptionResponse;
+        // Auth/membership failure — unresolved plan (do not fake BASIC).
+        if (isAuthOrMembershipFailure(res.status, body)) {
+          return { canGenerateTender: false, currentPlan: "" };
+        }
+        // Other HTTP failure — do not cache.
         return { canGenerateTender: false, currentPlan: "BASIC" };
       }
       const sub = (await res.json().catch(() => ({}))) as SubscriptionResponse;
       const snapshot: SubscriptionSnapshot = {
         canGenerateTender:
           sub.ok === true && sub.featureFlags?.canGenerateTender === true,
+        // Successful body only: missing plan still means BASIC.
         currentPlan: String(sub.subscription?.plan ?? "BASIC").toUpperCase(),
       };
       writeCachedSnapshot(orgId, snapshot);

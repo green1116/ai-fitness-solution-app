@@ -119,9 +119,10 @@ function ProductCommercialNavInner() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const organizationId = ctx.organizationId?.trim() || "";
-      let orgId = organizationId;
       let email = "";
+      // Subscription/plan identity: membership org from /api/auth/me only.
+      // Sticky product-context org stays on `ctx` for quote/budget/tender links.
+      let membershipOrgId = "";
 
       const meRes = await fetch("/api/auth/me");
       const me = (await meRes.json().catch(() => ({}))) as {
@@ -132,14 +133,15 @@ function ProductCommercialNavInner() {
       if (typeof me.user?.email === "string") {
         email = me.user.email.trim();
       }
-      if (!orgId && typeof me.organizationId === "string") {
-        orgId = me.organizationId.trim();
+      if (typeof me.organizationId === "string") {
+        membershipOrgId = me.organizationId.trim();
       }
 
-      const entitlement = await loadTenderClientEntitlement(orgId, {
-        ...ctx,
-        organizationId: orgId || ctx.organizationId,
-      }, { currentPath: pathname });
+      const entitlement = await loadTenderClientEntitlement(
+        membershipOrgId,
+        ctx,
+        { currentPath: pathname },
+      );
       if (cancelled) return;
       setUserEmail(email);
       setCanGenerateTender(entitlement.canGenerateTender);
@@ -151,7 +153,7 @@ function ProductCommercialNavInner() {
     return () => {
       cancelled = true;
     };
-  }, [ctx.organizationId, pathname]);
+  }, [ctx, pathname]);
 
   return (
     <NavLinks
