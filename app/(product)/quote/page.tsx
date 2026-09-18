@@ -225,9 +225,11 @@ function QuoteForm() {
         return;
       }
 
-      const budgetAllowed = await loadCanGenerateBudget(organizationId);
-      if (cancelled) return;
-      setCanGenerateBudget(budgetAllowed);
+      // Budget flag: background only — must not block first paint.
+      void loadCanGenerateBudget(organizationId).then((budgetAllowed) => {
+        if (cancelled) return;
+        setCanGenerateBudget(budgetAllowed);
+      });
 
       const owned = await listOwnedProjects(organizationId);
       if (cancelled) return;
@@ -237,16 +239,8 @@ function QuoteForm() {
         owned.map((p) => p.id),
       );
       const ownedProject = owned.find((p) => p.id === ownedProjectId);
-      const storedIntake =
-        ownedProjectId && organizationId
-          ? await fetchProjectIntake(ownedProjectId, organizationId)
-          : null;
-      if (cancelled) return;
-      const resolvedName =
-        companyNameFromProject(storedIntake ?? ownedProject) ||
-        companyNameFromProject(ownedProject);
+      const resolvedName = companyNameFromProject(ownedProject);
       setProjectId(ownedProjectId);
-      setProjectIntake(storedIntake);
       if (ownedProjectId) {
         const resolvedQuoteId =
           trimQuoteId(urlCtx.quoteId) ||
@@ -277,6 +271,25 @@ function QuoteForm() {
         setCompanyLocked(true);
       }
       setContextReady(true);
+
+      // Intake enrichment: background only — must not block contextReady.
+      if (ownedProjectId) {
+        void fetchProjectIntake(ownedProjectId, organizationId)
+          .then((storedIntake) => {
+            if (cancelled || !storedIntake) return;
+            setProjectIntake(storedIntake);
+            const intakeName =
+              companyNameFromProject(storedIntake) ||
+              companyNameFromProject(ownedProject);
+            if (intakeName) {
+              setCompanyName(intakeName);
+              setCompanyLocked(true);
+            }
+          })
+          .catch(() => {
+            // Same fail-soft as before for missing project payload; UI already ready.
+          });
+      }
     }
     void hydrate();
     return () => {
