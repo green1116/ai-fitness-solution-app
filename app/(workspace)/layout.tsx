@@ -22,6 +22,34 @@ function planIdentityLabel(plan: string): string {
   return "";
 }
 
+/** Plan label only — must not block workspace primary content. */
+async function WorkspacePlanIdentity({
+  organizationId,
+}: {
+  organizationId: string;
+}) {
+  let currentPlan = "";
+  try {
+    const features = await resolveOrganizationFeatures(organizationId);
+    currentPlan = String(features.plan || "").trim().toUpperCase();
+  } catch {
+    currentPlan = "";
+  }
+  const planLabel = planIdentityLabel(currentPlan);
+  if (!planLabel) return null;
+  return (
+    <span
+      className={
+        currentPlan === "BASIC"
+          ? "text-zinc-400"
+          : "font-medium text-emerald-400"
+      }
+    >
+      {planLabel}
+    </span>
+  );
+}
+
 export default async function WorkspaceLayout({
   children,
 }: {
@@ -40,18 +68,6 @@ export default async function WorkspaceLayout({
   const isPlatformAdmin = isPlatformAdminEmail(user.email);
   const pex = isPlatformAdmin ? await readProductIntelligenceExperience() : null;
 
-  // Same subscription source as ProductCommercialNav (7e2ca30e) / billing API.
-  let currentPlan = "";
-  if (organizationId) {
-    try {
-      const features = await resolveOrganizationFeatures(organizationId);
-      currentPlan = String(features.plan || "").trim().toUpperCase();
-    } catch {
-      currentPlan = "";
-    }
-  }
-  const planLabel = planIdentityLabel(currentPlan);
-
   return (
     <WorkspaceOrganizationProvider organizationId={organizationId ?? ""}>
       <div className="min-h-screen bg-zinc-950 text-white">
@@ -66,16 +82,10 @@ export default async function WorkspaceLayout({
                   {user.email}
                 </span>
               ) : null}
-              {planLabel ? (
-                <span
-                  className={
-                    currentPlan === "BASIC"
-                      ? "text-zinc-400"
-                      : "font-medium text-emerald-400"
-                  }
-                >
-                  {planLabel}
-                </span>
+              {organizationId ? (
+                <Suspense fallback={null}>
+                  <WorkspacePlanIdentity organizationId={organizationId} />
+                </Suspense>
               ) : null}
               <Link
                 href="/account"

@@ -87,7 +87,11 @@ export default async function ProjectDetailPage({
 
       <section className="grid gap-4 md:grid-cols-3">
         <Link
-          href={`/quote?projectId=${encodeURIComponent(project.id)}`}
+          href={`/quote?projectId=${encodeURIComponent(project.id)}${
+            project.quotes[0]
+              ? `&quoteId=${encodeURIComponent(project.quotes[0].id)}`
+              : ""
+          }`}
           className={`rounded-xl border bg-black p-4 hover:border-zinc-600 ${
             project.quotes.length === 0
               ? "border-emerald-600 ring-1 ring-emerald-600/40"

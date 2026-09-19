@@ -59,9 +59,13 @@ export default function LoginPage() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j?.message || "登录失败");
-      const meRes = await fetch("/api/auth/me");
-      const me = await meRes.json().catch(() => ({}));
-      router.push(me?.isPlatformAdmin ? "/overview" : "/projects");
+      // Do not block entry on /api/auth/me; correct admin route after push if needed.
+      router.push("/projects");
+      void fetch("/api/auth/me")
+        .then((meRes) => meRes.json().catch(() => ({})))
+        .then((me: { isPlatformAdmin?: boolean }) => {
+          if (me?.isPlatformAdmin) router.replace("/overview");
+        });
       return;
     } catch (err: unknown) {
       submitLockRef.current = false;
