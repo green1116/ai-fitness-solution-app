@@ -32,28 +32,39 @@ function buildProposalFromOrchestration(
 ): QuoteProposal {
   const company = input.companyInfo.companyName;
   const industry = input.companyInfo.industry?.trim() || "互联网";
-  const companySize =
+  const knownCompanySize =
     typeof input.companyInfo.targetUsers === "number" &&
     Number.isFinite(input.companyInfo.targetUsers) &&
     input.companyInfo.targetUsers > 0
       ? input.companyInfo.targetUsers
-      : 200;
+      : null;
   const areaSize =
     typeof input.companyInfo.areaM2 === "number" &&
     Number.isFinite(input.companyInfo.areaM2) &&
     input.companyInfo.areaM2 > 0
       ? input.companyInfo.areaM2
       : 120;
+  // buildPlan requires a numeric companySize; when unknown, overwrite size copy below.
   const plan = buildPlan(
     {
       planId: input.quoteId,
       industry,
-      companySize,
+      companySize: knownCompanySize ?? 0,
       areaSize,
       budgetRange: "10-20万",
     },
     "standard",
   );
+
+  if (knownCompanySize == null) {
+    plan.positioning = `面向${industry}企业的办公健身空间建设方案`;
+    if (plan.executiveSummary.length > 0) {
+      plan.executiveSummary = [
+        "适用于企业办公健身与员工健康支持场景（服务人数待确认）",
+        ...plan.executiveSummary.slice(1),
+      ];
+    }
+  }
 
   const lifecycleStep = runtime.steps.find((s) => s.step === "lifecycle");
   const jobStep = runtime.steps.find((s) => s.step === "job");
@@ -74,7 +85,9 @@ function buildProposalFromOrchestration(
           `企业：${company}`,
           `行业：${industry}`,
           input.companyInfo.city ? `城市：${input.companyInfo.city}` : null,
-          `目标用户：${companySize} 人`,
+          knownCompanySize != null
+            ? `目标用户：${knownCompanySize} 人`
+            : "目标用户：人数待确认",
           `面积：${areaSize}㎡`,
         ]),
       },

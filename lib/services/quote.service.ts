@@ -125,7 +125,7 @@ function projectInputFromQuote(input: {
       ? Math.floor(input.companyInfo.targetUsers)
       : input.project.targetUsers && input.project.targetUsers > 0
         ? input.project.targetUsers
-        : 200;
+        : undefined;
   const areaM2 =
     input.companyInfo.areaM2 && input.companyInfo.areaM2 > 0
       ? input.companyInfo.areaM2
@@ -138,7 +138,7 @@ function projectInputFromQuote(input: {
     industry,
     siteType: input.project.siteType,
     areaM2,
-    targetUsers,
+    ...(targetUsers != null ? { targetUsers } : {}),
     city: input.companyInfo.city || input.project.city?.trim() || "上海市",
     budgetLevel: input.project.budgetLevel,
     deliveryMode: input.project.deliveryMode,
