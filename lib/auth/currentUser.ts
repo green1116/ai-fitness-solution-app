@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { normalizeEmail } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -11,8 +12,9 @@ export type CurrentUser = {
 
 /**
  * 从 HttpOnly session cookie 解析当前登录用户（服务端）。
+ * Request-scoped cache — layout + page share one resolution per RSC request.
  */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+export const getCurrentUser = cache(async function getCurrentUser(): Promise<CurrentUser | null> {
   const cookieStore = await cookies();
   const raw = cookieStore.get("session")?.value;
   if (!raw) return null;
@@ -30,7 +32,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     return { id: user.id, email: user.email, name: user.name ?? null };
   }
   return { id: email, email, name: null };
-}
+});
 
 export async function getCurrentUserId(): Promise<string | null> {
   const u = await getCurrentUser();

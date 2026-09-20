@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DEFAULT_PROJECT_INTAKE,
   PROJECT_BUDGET_OPTIONS,
@@ -14,7 +14,7 @@ import { useWorkspaceOrganizationId } from "../WorkspaceOrganizationProvider";
 
 const VISIBLE_PROJECTS = 5;
 
-type ProjectItem = {
+export type ProjectsPageProjectItem = {
   id: string;
   name: string;
   clientName: string | null;
@@ -22,6 +22,8 @@ type ProjectItem = {
   quoteCount: number;
   tenderCount: number;
 };
+
+type ProjectItem = ProjectsPageProjectItem;
 
 const INPUT_CLS =
   "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm";
@@ -50,14 +52,23 @@ function ProjectRow({ project }: { project: ProjectItem }) {
   );
 }
 
-export function ProjectsPageClient() {
+export function ProjectsPageClient({
+  initialProjects,
+}: {
+  /** When provided (including []), skip the first /api/project/list mount fetch. */
+  initialProjects?: ProjectItem[];
+}) {
   const organizationId = useWorkspaceOrganizationId();
-  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const initialProvided = initialProjects !== undefined;
+  const [projects, setProjects] = useState<ProjectItem[]>(
+    () => initialProjects ?? [],
+  );
   const [form, setForm] = useState<ProjectIntakeForm>(DEFAULT_PROJECT_INTAKE);
   const [loading, setLoading] = useState(false);
-  const [listLoading, setListLoading] = useState(true);
+  const [listLoading, setListLoading] = useState(() => !initialProvided);
   const [searchQuery, setSearchQuery] = useState("");
   const [createError, setCreateError] = useState("");
+  const skipInitialListFetchRef = useRef(initialProvided);
 
   function updateField<K extends keyof ProjectIntakeForm>(key: K, value: ProjectIntakeForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -84,6 +95,10 @@ export function ProjectsPageClient() {
   }
 
   useEffect(() => {
+    if (skipInitialListFetchRef.current) {
+      skipInitialListFetchRef.current = false;
+      return;
+    }
     void loadProjects();
     // organizationId comes from workspace layout SSR provider
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when org id changes
