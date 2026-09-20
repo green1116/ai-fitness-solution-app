@@ -208,6 +208,7 @@ function QuoteForm() {
   const [pdfDownloaded, setPdfDownloaded] = useState(false);
   const [projectIntake, setProjectIntake] = useState<StoredProjectIntake | null>(null);
   const [canGenerateBudget, setCanGenerateBudget] = useState(false);
+  const [revisionNotes, setRevisionNotes] = useState("");
   const proTier = getPricingTier("PRO");
 
   useEffect(() => {
@@ -297,19 +298,27 @@ function QuoteForm() {
     };
   }, [searchParams]);
 
-  async function handleGenerate() {
+  async function handleGenerate(options?: { revision?: boolean }) {
     if (!companyName.trim()) {
       alert("请填写企业名称");
       return;
     }
-    if (quoteId.trim()) {
+    const isRevision = options?.revision === true;
+    if (quoteId.trim() && !isRevision) {
+      return;
+    }
+    const requirementNotes = revisionNotes.trim();
+    if (isRevision && !requirementNotes) {
+      alert("请填写补充要求后再重新生成");
       return;
     }
 
     setLoading(true);
     setError("");
-    setProposal(null);
-    setQuoteId("");
+    if (!isRevision) {
+      setProposal(null);
+      setQuoteId("");
+    }
 
     try {
       const organizationId = await resolveOrganizationId();
@@ -335,17 +344,20 @@ function QuoteForm() {
         setProjectIntake(intake);
       }
 
+      const payload = quotePayloadFromProjectIntake({
+        projectId: nextProjectId,
+        organizationId,
+        companyName: companyName.trim(),
+        project: intake,
+      });
+      if (requirementNotes) {
+        payload.notes = requirementNotes;
+      }
+
       const res = await fetch("/api/quote/generate", {
         method: "POST",
         headers: orgHeaders(organizationId),
-        body: JSON.stringify(
-          quotePayloadFromProjectIntake({
-            projectId: nextProjectId,
-            organizationId,
-            companyName: companyName.trim(),
-            project: intake,
-          }),
-        ),
+        body: JSON.stringify(payload),
       });
       const data = (await res.json()) as GenerateQuoteResponse;
       const readyProposal =
@@ -366,12 +378,17 @@ function QuoteForm() {
           projectId: boundProjectId,
           quoteId: nextQuoteId,
         });
+        if (isRevision) {
+          setRevisionNotes("");
+        }
       } else {
         setError("方案生成失败，请稍后重试");
       }
     } catch {
-      setProposal(null);
-      setQuoteId("");
+      if (!isRevision) {
+        setProposal(null);
+        setQuoteId("");
+      }
       setPdfDownloaded(false);
       setError("方案生成失败，请稍后重试");
     } finally {
@@ -468,13 +485,34 @@ function QuoteForm() {
         {!quoteId ? (
           <button
             type="button"
-            onClick={handleGenerate}
+            onClick={() => void handleGenerate()}
             disabled={loading || !contextReady}
             className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
           >
             {loading ? "生成中…" : "生成方案"}
           </button>
-        ) : null}
+        ) : (
+          <div className="space-y-3">
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-zinc-200">补充要求</span>
+              <textarea
+                className="min-h-[6rem] w-full rounded-lg border border-zinc-700 bg-black px-4 py-3 text-sm text-zinc-100"
+                placeholder="用自然语言补充约束或修订要求，例如：偏重有氧、控制在 15 万内、需考虑无窗地下室通风…"
+                value={revisionNotes}
+                onChange={(e) => setRevisionNotes(e.target.value)}
+                disabled={loading}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void handleGenerate({ revision: true })}
+              disabled={loading || !contextReady || !revisionNotes.trim()}
+              className="rounded-xl border border-zinc-600 px-6 py-3 text-sm font-semibold text-zinc-100 hover:border-zinc-400 disabled:opacity-50"
+            >
+              {loading ? "重新生成中…" : "按新要求重新生成"}
+            </button>
+          </div>
+        )}
       </section>
 
       {proposal ? (

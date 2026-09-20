@@ -76,83 +76,97 @@ function buildProposalFromOrchestration(
     )
     .join(" ");
 
+  const customerRequirements = input.companyInfo.notes?.trim() || "";
+
+  const sections: QuoteProposal["sections"] = [
+    {
+      title: "企业概况",
+      body: joinLines([
+        `企业：${company}`,
+        `行业：${industry}`,
+        input.companyInfo.city ? `城市：${input.companyInfo.city}` : null,
+        knownCompanySize != null
+          ? `目标用户：${knownCompanySize} 人`
+          : "目标用户：人数待确认",
+        `面积：${areaSize}㎡`,
+      ]),
+    },
+  ];
+
+  if (customerRequirements) {
+    sections.push({
+      title: "客户与项目要求",
+      body: customerRequirements,
+    });
+  }
+
+  sections.push(
+    {
+      title: "方案定位",
+      body: `${plan.title}。${plan.positioning}`,
+    },
+    {
+      title: "执行摘要",
+      body: plan.executiveSummary.join(" "),
+    },
+    {
+      title: "推荐说明",
+      body: plan.recommendation,
+    },
+    {
+      title: "使用模型",
+      body: joinLines([
+        `同时使用：${plan.usage.concurrentUsers}`,
+        `参与率：${plan.usage.participationRate}`,
+        `高峰：${plan.usage.peakHours}`,
+        `人群：${plan.usage.mainUsers}`,
+      ]),
+    },
+    {
+      title: "器材配置",
+      body: equipmentBody,
+    },
+    {
+      title: "实施路径",
+      body: plan.implementation
+        .map((step) => `${step.name}（${step.duration}）：${step.desc}`)
+        .join(" "),
+    },
+    {
+      title: "增值模块",
+      body: plan.addOnModules
+        .map(
+          (mod) =>
+            `${mod.name}${mod.enabled ? "（启用）" : "（未启用）"}：${mod.value}`,
+        )
+        .join(" "),
+    },
+    {
+      title: "方案卖点",
+      body: `${plan.salesCopy.oneLine} ${plan.salesCopy.hrPitch} ${plan.salesCopy.objectionHandling.join(" ")}`,
+    },
+    {
+      title: "风险与前提",
+      body: [
+        `前提：${plan.risks.prerequisites.join(" ")}`,
+        `不适用：${plan.risks.notSuitable.join(" ")}`,
+        `缓解：${plan.risks.mitigations.join(" ")}`,
+        plan.risks.disclaimer,
+      ].join(" "),
+    },
+    {
+      title: "方案生成状态",
+      body: `Lifecycle=${lifecycleStep?.status ?? "unknown"}, Job=${jobStep?.status ?? "unknown"}`,
+    },
+    {
+      title: "编排轨迹",
+      body: runtime.steps.map((s) => `${s.step}:${s.status}`).join(" → "),
+    },
+  );
+
   return {
     summary: `${company} ${plan.positioning}`,
-    sections: [
-      {
-        title: "企业概况",
-        body: joinLines([
-          `企业：${company}`,
-          `行业：${industry}`,
-          input.companyInfo.city ? `城市：${input.companyInfo.city}` : null,
-          knownCompanySize != null
-            ? `目标用户：${knownCompanySize} 人`
-            : "目标用户：人数待确认",
-          `面积：${areaSize}㎡`,
-        ]),
-      },
-      {
-        title: "方案定位",
-        body: `${plan.title}。${plan.positioning}`,
-      },
-      {
-        title: "执行摘要",
-        body: plan.executiveSummary.join(" "),
-      },
-      {
-        title: "推荐说明",
-        body: plan.recommendation,
-      },
-      {
-        title: "使用模型",
-        body: joinLines([
-          `同时使用：${plan.usage.concurrentUsers}`,
-          `参与率：${plan.usage.participationRate}`,
-          `高峰：${plan.usage.peakHours}`,
-          `人群：${plan.usage.mainUsers}`,
-        ]),
-      },
-      {
-        title: "器材配置",
-        body: equipmentBody,
-      },
-      {
-        title: "实施路径",
-        body: plan.implementation
-          .map((step) => `${step.name}（${step.duration}）：${step.desc}`)
-          .join(" "),
-      },
-      {
-        title: "增值模块",
-        body: plan.addOnModules
-          .map(
-            (mod) =>
-              `${mod.name}${mod.enabled ? "（启用）" : "（未启用）"}：${mod.value}`,
-          )
-          .join(" "),
-      },
-      {
-        title: "方案卖点",
-        body: `${plan.salesCopy.oneLine} ${plan.salesCopy.hrPitch} ${plan.salesCopy.objectionHandling.join(" ")}`,
-      },
-      {
-        title: "风险与前提",
-        body: [
-          `前提：${plan.risks.prerequisites.join(" ")}`,
-          `不适用：${plan.risks.notSuitable.join(" ")}`,
-          `缓解：${plan.risks.mitigations.join(" ")}`,
-          plan.risks.disclaimer,
-        ].join(" "),
-      },
-      {
-        title: "方案生成状态",
-        body: `Lifecycle=${lifecycleStep?.status ?? "unknown"}, Job=${jobStep?.status ?? "unknown"}`,
-      },
-      {
-        title: "编排轨迹",
-        body: runtime.steps.map((s) => `${s.step}:${s.status}`).join(" → "),
-      },
-    ],
+    sections,
     generatedAt: runtime.completedAt,
   };
 }
