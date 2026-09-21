@@ -22,6 +22,56 @@ export type QuoteEngineResult = {
   runtime: QuoteOrchestrationResult;
 };
 
+/** Explicit area only — e.g. "100平米" / "100㎡". No invented defaults. */
+export function parseExplicitAreaM2FromNotes(
+  notes: string | null | undefined,
+): number | undefined {
+  const text = notes?.trim() || "";
+  if (!text) return undefined;
+  const match = text.match(/(\d+(?:\.\d+)?)\s*(?:平方米|平米|㎡|m²|m2)/i);
+  if (!match) return undefined;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  return Math.round(value);
+}
+
+export function hasStrengthEquipmentEmphasis(
+  notes: string | null | undefined,
+): boolean {
+  const text = notes?.trim() || "";
+  return /偏重力量|力量为主/.test(text);
+}
+
+export function hasBasementNoVentilationConstraint(
+  notes: string | null | undefined,
+): boolean {
+  const text = notes?.trim() || "";
+  if (!text) return false;
+  if (/地下室无通风/.test(text)) return true;
+  return /地下室/.test(text) && /无通风/.test(text);
+}
+
+/** Preserve notes; fill/override areaM2 only when notes contain an explicit area. */
+export function applyQuoteRevisionOverrides(
+  companyInfo: CompanyInfoInput,
+): CompanyInfoInput {
+  const notes = companyInfo.notes?.trim() || undefined;
+  const fromNotes = parseExplicitAreaM2FromNotes(notes);
+  const fromField =
+    typeof companyInfo.areaM2 === "number" &&
+    Number.isFinite(companyInfo.areaM2) &&
+    companyInfo.areaM2 > 0
+      ? companyInfo.areaM2
+      : undefined;
+  // Explicit area in notes overrides stale project/default areaM2.
+  const areaM2 = fromNotes ?? fromField;
+  return {
+    ...companyInfo,
+    ...(notes ? { notes } : {}),
+    ...(areaM2 != null ? { areaM2 } : {}),
+  };
+}
+
 function joinLines(lines: Array<string | null | undefined>): string {
   return lines.filter((line): line is string => Boolean(line && line.trim())).join(" · ");
 }
@@ -30,20 +80,22 @@ function buildProposalFromOrchestration(
   input: QuoteEngineInput,
   runtime: QuoteOrchestrationResult,
 ): QuoteProposal {
-  const company = input.companyInfo.companyName;
-  const industry = input.companyInfo.industry?.trim() || "互联网";
+  const companyInfo = applyQuoteRevisionOverrides(input.companyInfo);
+  const company = companyInfo.companyName;
+  const industry = companyInfo.industry?.trim() || "互联网";
   const knownCompanySize =
-    typeof input.companyInfo.targetUsers === "number" &&
-    Number.isFinite(input.companyInfo.targetUsers) &&
-    input.companyInfo.targetUsers > 0
-      ? input.companyInfo.targetUsers
+    typeof companyInfo.targetUsers === "number" &&
+    Number.isFinite(companyInfo.targetUsers) &&
+    companyInfo.targetUsers > 0
+      ? companyInfo.targetUsers
       : null;
   const areaSize =
-    typeof input.companyInfo.areaM2 === "number" &&
-    Number.isFinite(input.companyInfo.areaM2) &&
-    input.companyInfo.areaM2 > 0
-      ? input.companyInfo.areaM2
+    typeof companyInfo.areaM2 === "number" &&
+    Number.isFinite(companyInfo.areaM2) &&
+    companyInfo.areaM2 > 0
+      ? companyInfo.areaM2
       : 120;
+  const strengthEmphasis = hasStrengthEquipmentEmphasis(companyInfo.notes);
   // buildPlan requires a numeric companySize; when unknown, overwrite size copy below.
   const plan = buildPlan(
     {
@@ -66,6 +118,18 @@ function buildProposalFromOrchestration(
     }
   }
 
+  if (strengthEmphasis) {
+    for (const [zone, items] of Object.entries(plan.equipments)) {
+      for (const item of items) {
+        if (zone === "有氧") {
+          item.qty = Math.max(1, Math.round(item.qty * 0.65));
+        } else if (zone === "力量" || zone === "自由力量") {
+          item.qty = Math.max(1, Math.round(item.qty * 1.5));
+        }
+      }
+    }
+  }
+
   const lifecycleStep = runtime.steps.find((s) => s.step === "lifecycle");
   const jobStep = runtime.steps.find((s) => s.step === "job");
   const equipmentBody = Object.entries(plan.equipments)
@@ -76,7 +140,12 @@ function buildProposalFromOrchestration(
     )
     .join(" ");
 
-  const customerRequirements = input.companyInfo.notes?.trim() || "";
+  const customerRequirements = companyInfo.notes?.trim() || "";
+  const siteConstraintGuidance = hasBasementNoVentilationConstraint(
+    companyInfo.notes,
+  )
+    ? "场地条件提示：客户注明地下室且无通风，方案需将通风换气与空气质量复核列入现场踏勘与实施前确认项（具体工程参数以现场与专业设计为准）。"
+    : null;
 
   const sections: QuoteProposal["sections"] = [
     {
@@ -84,11 +153,12 @@ function buildProposalFromOrchestration(
       body: joinLines([
         `企业：${company}`,
         `行业：${industry}`,
-        input.companyInfo.city ? `城市：${input.companyInfo.city}` : null,
+        companyInfo.city ? `城市：${companyInfo.city}` : null,
         knownCompanySize != null
           ? `目标用户：${knownCompanySize} 人`
           : "目标用户：人数待确认",
         `面积：${areaSize}㎡`,
+        strengthEmphasis ? "配置侧重：力量器械优先" : null,
       ]),
     },
   ];
@@ -152,7 +222,10 @@ function buildProposalFromOrchestration(
         `不适用：${plan.risks.notSuitable.join(" ")}`,
         `缓解：${plan.risks.mitigations.join(" ")}`,
         plan.risks.disclaimer,
-      ].join(" "),
+        siteConstraintGuidance,
+      ]
+        .filter(Boolean)
+        .join(" "),
     },
     {
       title: "方案生成状态",
@@ -172,6 +245,7 @@ function buildProposalFromOrchestration(
 }
 
 export function runQuoteEngine(input: QuoteEngineInput): QuoteEngineResult {
+  const companyInfo = applyQuoteRevisionOverrides(input.companyInfo);
   const orchestrator = createQuoteOrchestrator();
   const runtime = orchestrator.run({
     context: {
@@ -179,12 +253,15 @@ export function runQuoteEngine(input: QuoteEngineInput): QuoteEngineResult {
       workspaceId: input.workspaceId,
     },
     action: input.action ?? "generate",
-    payload: input.companyInfo,
+    payload: companyInfo,
     observedAt: new Date().toISOString(),
   });
 
   return {
-    proposal: buildProposalFromOrchestration(input, runtime),
+    proposal: buildProposalFromOrchestration(
+      { ...input, companyInfo },
+      runtime,
+    ),
     runtime,
   };
 }

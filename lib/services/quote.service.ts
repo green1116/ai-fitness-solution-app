@@ -2,10 +2,14 @@
  * V59 — Quote Service
  */
 
-import { QuoteStatus, type Prisma, PriceBand } from "@prisma/client";
+import { QuoteStatus, type Prisma } from "@prisma/client";
 
 import type { ProjectInput } from "@/lib/domain/tender";
-import { runQuoteEngine, type CompanyInfoInput } from "@/lib/product-engine";
+import {
+  applyQuoteRevisionOverrides,
+  runQuoteEngine,
+  type CompanyInfoInput,
+} from "@/lib/product-engine";
 import { prisma } from "@/lib/prisma";
 import { generatePlaceholders } from "@/lib/services/tender/generatePlaceholders";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
@@ -31,13 +35,15 @@ export async function generateQuote(input: GenerateQuoteInput) {
     assertResourceBelongsToTenant(project.organizationId, input.organizationId);
   }
 
+  const companyInfo = applyQuoteRevisionOverrides(input.companyInfo);
+
   const draft = await prisma.quote.create({
     data: {
       projectId: input.projectId,
       workspaceId: input.workspaceId,
       organizationId: input.organizationId,
       status: QuoteStatus.GENERATING,
-      companyInfo: input.companyInfo as unknown as Prisma.JsonObject,
+      companyInfo: companyInfo as unknown as Prisma.JsonObject,
     },
   });
 
@@ -45,7 +51,7 @@ export async function generateQuote(input: GenerateQuoteInput) {
     const engine = runQuoteEngine({
       quoteId: draft.id,
       workspaceId: input.workspaceId,
-      companyInfo: input.companyInfo,
+      companyInfo,
     });
 
     const updated = await prisma.quote.update({
@@ -83,7 +89,7 @@ export async function getQuoteById(quoteId: string) {
 
 function readCompanyInfo(value: unknown): CompanyInfoInput {
   const row = (value ?? {}) as CompanyInfoInput;
-  return {
+  return applyQuoteRevisionOverrides({
     companyName: String(row.companyName ?? "").trim(),
     industry: row.industry?.trim(),
     city: row.city?.trim(),
@@ -96,7 +102,7 @@ function readCompanyInfo(value: unknown): CompanyInfoInput {
         ? row.areaM2
         : undefined,
     notes: row.notes?.trim(),
-  };
+  });
 }
 
 function projectInputFromQuote(input: {
@@ -114,21 +120,22 @@ function projectInputFromQuote(input: {
   };
   companyInfo: CompanyInfoInput;
 }): ProjectInput {
+  const companyInfo = applyQuoteRevisionOverrides(input.companyInfo);
   const company =
-    input.companyInfo.companyName ||
+    companyInfo.companyName ||
     input.project.clientName?.trim() ||
     "示例企业";
   const industry =
-    input.companyInfo.industry || input.project.industry?.trim() || "enterprise";
+    companyInfo.industry || input.project.industry?.trim() || "enterprise";
   const targetUsers =
-    input.companyInfo.targetUsers && input.companyInfo.targetUsers > 0
-      ? Math.floor(input.companyInfo.targetUsers)
+    companyInfo.targetUsers && companyInfo.targetUsers > 0
+      ? Math.floor(companyInfo.targetUsers)
       : input.project.targetUsers && input.project.targetUsers > 0
         ? input.project.targetUsers
         : undefined;
   const areaM2 =
-    input.companyInfo.areaM2 && input.companyInfo.areaM2 > 0
-      ? input.companyInfo.areaM2
+    companyInfo.areaM2 && companyInfo.areaM2 > 0
+      ? companyInfo.areaM2
       : input.project.areaM2 && input.project.areaM2 > 0
         ? input.project.areaM2
         : 120;
@@ -139,10 +146,10 @@ function projectInputFromQuote(input: {
     siteType: input.project.siteType,
     areaM2,
     ...(targetUsers != null ? { targetUsers } : {}),
-    city: input.companyInfo.city || input.project.city?.trim() || "上海市",
+    city: companyInfo.city || input.project.city?.trim() || "上海市",
     budgetLevel: input.project.budgetLevel,
     deliveryMode: input.project.deliveryMode,
-    notes: input.companyInfo.notes || input.project.notes || undefined,
+    notes: companyInfo.notes || input.project.notes || undefined,
   };
 }
 
@@ -150,7 +157,7 @@ export async function ensureQuotePlanPdfSource(quoteId: string) {
   const quote = await prisma.quote.findUnique({
     where: { id: quoteId },
     include: {
-      project: { include: { solution: true, placeholders: true } },
+      project: true,
     },
   });
   if (!quote?.project) {
@@ -162,68 +169,57 @@ export async function ensureQuotePlanPdfSource(quoteId: string) {
     companyInfo: readCompanyInfo(quote.companyInfo),
   });
 
-  await prisma.project.update({
-    where: { id: quote.project.id },
-    data: {
-      name: projectInput.name,
-      clientName: projectInput.clientName,
-      industry: projectInput.industry,
-      areaM2: projectInput.areaM2,
-      targetUsers: projectInput.targetUsers,
-      city: projectInput.city,
-      notes: projectInput.notes,
-    },
-  });
+  // Build PDF source in memory from this quote's inputs.
+  // Do not delete/overwrite project-level Solution or ProductPlaceholder rows.
+  const now = new Date();
+  const solutionData = generateSolution(projectInput);
+  const placeholdersData = generatePlaceholders(quote.project.id, projectInput);
 
-  if (!quote.project.solution) {
-    const solutionData = generateSolution(projectInput);
-    await prisma.solution.create({
-      data: {
-        projectId: quote.project.id,
-        summary: solutionData.summary,
-        background: solutionData.background,
-        requirements: solutionData.requirements as unknown as Prisma.JsonArray,
-        objectives: solutionData.objectives as unknown as Prisma.JsonArray,
-        zoning: solutionData.zoning as unknown as Prisma.JsonArray,
-        implementationPlan:
-          solutionData.implementationPlan as unknown as Prisma.JsonArray,
-        operationsPlan: solutionData.operationsPlan as unknown as Prisma.JsonArray,
-        riskControl: solutionData.riskControl as unknown as Prisma.JsonArray,
-        acceptanceCriteria:
-          solutionData.acceptanceCriteria as unknown as Prisma.JsonArray,
-      },
-    });
-  }
+  const solution = {
+    id: `quote-pdf-solution-${quote.id}`,
+    projectId: quote.project.id,
+    summary: solutionData.summary,
+    background: solutionData.background,
+    requirements: solutionData.requirements,
+    objectives: solutionData.objectives,
+    zoning: solutionData.zoning,
+    implementationPlan: solutionData.implementationPlan,
+    operationsPlan: solutionData.operationsPlan,
+    riskControl: solutionData.riskControl,
+    acceptanceCriteria: solutionData.acceptanceCriteria,
+    createdAt: now,
+    updatedAt: now,
+  };
 
-  if (quote.project.placeholders.length === 0) {
-    const placeholdersData = generatePlaceholders(quote.project.id, projectInput);
-    for (const item of placeholdersData) {
-      await prisma.productPlaceholder.create({
-        data: {
-          projectId: quote.project.id,
-          category: item.category,
-          subCategory: item.subCategory,
-          specTags: item.specTags as unknown as Prisma.JsonArray,
-          quantity: item.quantity,
-          priceBand: item.priceBand as PriceBand,
-          recommendationReason: item.recommendationReason,
-          replaceable: item.replaceable,
-          skuId: item.skuId,
-          skuName: item.skuName,
-          brand: item.brand,
-          model: item.model,
-          imageUrl: item.imageUrl,
-        },
-      });
-    }
-  }
+  const placeholders = placeholdersData.map((item, index) => ({
+    id: item.id || `quote-pdf-ph-${quote.id}-${index + 1}`,
+    projectId: quote.project.id,
+    category: item.category,
+    subCategory: item.subCategory ?? null,
+    specTags: item.specTags,
+    quantity: item.quantity,
+    priceBand: item.priceBand,
+    recommendationReason: item.recommendationReason,
+    replaceable: item.replaceable,
+    skuId: item.skuId ?? null,
+    skuName: item.skuName ?? null,
+    brand: item.brand ?? null,
+    model: item.model ?? null,
+    imageUrl: item.imageUrl ?? null,
+    createdAt: now,
+    updatedAt: now,
+  }));
 
-  const project = await prisma.project.findUnique({
-    where: { id: quote.project.id },
-    include: { solution: true, placeholders: true },
-  });
-  if (!project?.solution) {
-    throw new Error("Solution not found");
-  }
-  return project;
+  return {
+    ...quote.project,
+    name: projectInput.name,
+    clientName: projectInput.clientName ?? null,
+    industry: projectInput.industry ?? null,
+    areaM2: projectInput.areaM2 ?? null,
+    targetUsers: projectInput.targetUsers ?? null,
+    city: projectInput.city ?? null,
+    notes: projectInput.notes ?? null,
+    solution,
+    placeholders,
+  };
 }

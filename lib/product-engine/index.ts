@@ -13,6 +13,10 @@ export type {
 
 export {
   runQuoteEngine,
+  applyQuoteRevisionOverrides,
+  parseExplicitAreaM2FromNotes,
+  hasStrengthEquipmentEmphasis,
+  hasBasementNoVentilationConstraint,
   type QuoteEngineInput,
   type QuoteEngineResult,
 } from "./quote.engine";

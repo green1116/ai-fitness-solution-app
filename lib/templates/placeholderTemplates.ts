@@ -117,14 +117,25 @@ function clampQuantity(quantity: number, min?: number, max?: number): number {
 
 function estimateQuantity(template: Template, input: ProjectInput): number {
   const targetUsers = input.targetUsers ?? 30;
-  const areaFactor = input.areaM2
-    ? Math.max(1, Math.round(input.areaM2 / 120))
-    : 1;
+  const areaScale =
+    typeof input.areaM2 === "number" && input.areaM2 > 0
+      ? input.areaM2 / 120
+      : 1;
   const userFactor = template.perUserDivisor
-    ? Math.ceil(targetUsers / template.perUserDivisor)
+    ? Math.ceil((targetUsers / template.perUserDivisor) * areaScale)
     : template.baseQuantity;
 
-  const raw = Math.max(template.baseQuantity, userFactor, areaFactor);
+  let raw = Math.max(template.baseQuantity, userFactor);
+
+  const strengthEmphasis = /偏重力量|力量为主/.test(input.notes?.trim() || "");
+  if (strengthEmphasis) {
+    if (template.category === "有氧设备") {
+      raw = Math.max(1, Math.round(raw * 0.65));
+    } else if (template.category === "力量设备") {
+      raw = Math.max(template.baseQuantity, Math.round(raw * 1.45));
+    }
+  }
+
   return clampQuantity(raw, template.minQuantity, template.maxQuantity);
 }
 
@@ -133,11 +144,18 @@ export function buildPlaceholders(
   input: ProjectInput,
 ): ProductPlaceholder[] {
   const now = new Date().toISOString();
+  const strengthEmphasis = /偏重力量|力量为主/.test(input.notes?.trim() || "");
 
   return TEMPLATE_POOL.filter(
     (tpl) => !tpl.siteTypes || tpl.siteTypes.includes(input.siteType),
   ).map((tpl, idx) => {
     const quantity = estimateQuantity(tpl, input);
+    const recommendationReason =
+      strengthEmphasis && tpl.category === "力量设备"
+        ? `${tpl.recommendationReason} 按客户偏重力量器械要求提高配置占比。`
+        : strengthEmphasis && tpl.category === "有氧设备"
+          ? `${tpl.recommendationReason} 按力量优先配置相应压缩有氧规模。`
+          : tpl.recommendationReason;
 
     return {
       id: `${projectId}-ph-${idx + 1}`,
@@ -147,7 +165,7 @@ export function buildPlaceholders(
       specTags: tpl.specTags,
       quantity,
       priceBand: tpl.priceBand,
-      recommendationReason: tpl.recommendationReason,
+      recommendationReason,
       replaceable: true,
       createdAt: now,
       updatedAt: now,

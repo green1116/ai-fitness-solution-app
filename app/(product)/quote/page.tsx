@@ -50,6 +50,15 @@ function trimQuoteId(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/** Explicit area from revision notes only (e.g. 100平米 / 100㎡). */
+function parseExplicitAreaM2FromNotes(notes: string): number | undefined {
+  const match = notes.match(/(\d+(?:\.\d+)?)\s*(?:平方米|平米|㎡|m²|m2)/i);
+  if (!match) return undefined;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  return Math.round(value);
+}
+
 function readStoredQuoteProposal(quoteId: string): QuoteProposalView | null {
   if (typeof window === "undefined") return null;
   const id = trimQuoteId(quoteId);
@@ -352,6 +361,10 @@ function QuoteForm() {
       });
       if (requirementNotes) {
         payload.notes = requirementNotes;
+        const revisedArea = parseExplicitAreaM2FromNotes(requirementNotes);
+        if (revisedArea != null) {
+          payload.areaM2 = revisedArea;
+        }
       }
 
       const res = await fetch("/api/quote/generate", {

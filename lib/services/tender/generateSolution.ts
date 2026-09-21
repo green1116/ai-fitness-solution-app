@@ -13,21 +13,26 @@ export type GeneratedSolution = {
 };
 
 function buildZones(input: ProjectInput): Zone[] {
+  const strengthEmphasis = /偏重力量|力量为主/.test(input.notes?.trim() || "");
   const zones: Zone[] = [
     {
       name: "有氧训练区",
-      purpose: "提升心肺功能与日常训练覆盖率",
-      areaRatio: 0.28,
+      purpose: strengthEmphasis
+        ? "保留基础心肺训练，服务力量优先配置下的有氧补充需求"
+        : "提升心肺功能与日常训练覆盖率",
+      areaRatio: strengthEmphasis ? 0.18 : 0.28,
       capacity: input.targetUsers
-        ? Math.ceil(input.targetUsers * 0.35)
+        ? Math.ceil(input.targetUsers * (strengthEmphasis ? 0.2 : 0.35))
         : undefined,
     },
     {
       name: "力量训练区",
-      purpose: "满足基础力量与综合训练需求",
-      areaRatio: 0.3,
+      purpose: strengthEmphasis
+        ? "按客户偏重力量器械要求扩大力量训练与综合训练占比"
+        : "满足基础力量与综合训练需求",
+      areaRatio: strengthEmphasis ? 0.4 : 0.3,
       capacity: input.targetUsers
-        ? Math.ceil(input.targetUsers * 0.25)
+        ? Math.ceil(input.targetUsers * (strengthEmphasis ? 0.4 : 0.25))
         : undefined,
     },
     {
@@ -162,6 +167,11 @@ export function generateSolution(input: ProjectInput): GeneratedSolution {
     input.targetUsers != null
       ? `约 ${input.targetUsers} 人`
       : "服务人数以招标文件及现场复核为准";
+  const notes = input.notes?.trim() || "";
+  const strengthEmphasis = /偏重力量|力量为主/.test(notes);
+  const basementNoVentilation =
+    /地下室无通风/.test(notes) ||
+    (/地下室/.test(notes) && /无通风/.test(notes));
 
   const requirements = [
     "严格对照招标文件技术条款与评分细则，形成可验证、可追溯的技术响应与证明材料索引。",
@@ -173,6 +183,16 @@ export function generateSolution(input: ProjectInput): GeneratedSolution {
     "对培训、验收、质保与售后服务给出可量化指标（响应时效、到场时限、备件策略等）。",
     "对变更管理、文档版本控制与会议纪要归档给出统一机制，确保投标承诺与合同履约一致。",
   ];
+  if (strengthEmphasis) {
+    requirements.push(
+      "客户明确偏重力量器械：空间与设备配置应提高力量训练占比，并相应压缩有氧设备规模。",
+    );
+  }
+  if (basementNoVentilation) {
+    requirements.push(
+      "客户与项目要求注明地下室且无通风：须将通风换气与空气质量复核列入现场踏勘与实施前确认项；具体工程参数以现场条件与专业设计为准，本方案不臆造通风量或设备规格。",
+    );
+  }
 
   const objectives = [
     "以“可评审、可交付、可运维”为目标，形成适用于企业投标场景的标准化方案文件体系（AI Fitness Solution）。",
@@ -190,12 +210,33 @@ export function generateSolution(input: ProjectInput): GeneratedSolution {
   const background = [
     `本项目面向企业级员工健身场景，场地类型为 ${input.siteType}，规划面积约 ${area}，服务规模 ${users}。`,
     `项目所在地：${city}；行业与使用特征将用于分区规划、设备组合与运维策略的适配。`,
-    input.notes
-      ? `招标补充与现场约束摘要：${input.notes}`
+    notes
+      ? `招标补充与现场约束摘要：${notes}`
       : "现场约束与招标补充说明：以招标文件、答疑纪要及现场踏勘记录为准。",
+    strengthEmphasis
+      ? "配置导向：按客户要求偏重力量器械，有氧区保留为基础补充。"
+      : null,
     "建设目标：在满足安全与合规前提下，提升员工健康参与度与空间使用效率，并形成可持续运营的健身服务载体。",
     "编制原则：以招标文件为最高优先级，以可交付实施为底线，以评分项对齐为方法，以风险控制与责任边界清晰为约束。",
-  ].join("");
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const riskControl = [
+    "供货与交期风险：建立同等级备选品牌/型号清单，关键设备双供应商策略与到货里程碑跟踪。",
+    "现场条件风险：对配电、荷载、净高、排风等进行前置复核，形成整改清单与责任分工。",
+    "施工交叉与成品保护风险：明确施工窗口、工序衔接与保护措施，减少二次损伤与返工。",
+    "联调与兼容性风险：制定联调测试用例与回退策略，确保系统稳定上线。",
+    "验收口径风险：提前对齐验收标准、抽样方法与证据留存格式，避免争议。",
+    "运维移交风险：培训覆盖管理员与关键用户，移交资料齐全并进行签字确认。",
+    "预算与变更风险：对范围变更实行书面确认与影响评估，控制成本外溢。",
+    "合规与安全风险：遵守消防、职业健康、数据安全等相关要求，形成检查清单。",
+  ];
+  if (basementNoVentilation) {
+    riskControl.push(
+      "场地条件风险（地下室无通风）：客户已提示地下室且无通风，实施前须复核通风换气与空气质量可行性；未完成确认前不得假定可满足高强度连续训练场景，工程规格以专业设计与现场条件为准。",
+    );
+  }
 
   return {
     summary,
@@ -214,16 +255,7 @@ export function generateSolution(input: ProjectInput): GeneratedSolution {
       "建立供应商协同机制：安装、维保、升级与版本变更的统一接口人制度。",
       "建立年度复盘机制：对设备健康度、维保成本与用户体验进行复盘并形成改进计划。",
     ],
-    riskControl: [
-      "供货与交期风险：建立同等级备选品牌/型号清单，关键设备双供应商策略与到货里程碑跟踪。",
-      "现场条件风险：对配电、荷载、净高、排风等进行前置复核，形成整改清单与责任分工。",
-      "施工交叉与成品保护风险：明确施工窗口、工序衔接与保护措施，减少二次损伤与返工。",
-      "联调与兼容性风险：制定联调测试用例与回退策略，确保系统稳定上线。",
-      "验收口径风险：提前对齐验收标准、抽样方法与证据留存格式，避免争议。",
-      "运维移交风险：培训覆盖管理员与关键用户，移交资料齐全并进行签字确认。",
-      "预算与变更风险：对范围变更实行书面确认与影响评估，控制成本外溢。",
-      "合规与安全风险：遵守消防、职业健康、数据安全等相关要求，形成检查清单。",
-    ],
+    riskControl,
     acceptanceCriteria: [
       "技术响应完整性：对招标技术条款形成逐项响应矩阵，关键指标无遗漏、无矛盾。",
       "方案可实施性：空间、设备、施工、联调、培训、验收路径清晰且可执行。",
