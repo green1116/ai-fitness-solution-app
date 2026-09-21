@@ -4,6 +4,7 @@ import type {
   ProjectInput,
   SiteType,
 } from "@/lib/domain/tender";
+import { hasStrengthEquipmentEmphasis } from "@/lib/product-engine/quote-revision";
 
 type Template = {
   category: string;
@@ -127,7 +128,7 @@ function estimateQuantity(template: Template, input: ProjectInput): number {
 
   let raw = Math.max(template.baseQuantity, userFactor);
 
-  const strengthEmphasis = /偏重力量|力量为主/.test(input.notes?.trim() || "");
+  const strengthEmphasis = hasStrengthEquipmentEmphasis(input.notes);
   if (strengthEmphasis) {
     if (template.category === "有氧设备") {
       raw = Math.max(1, Math.round(raw * 0.65));
@@ -144,7 +145,7 @@ export function buildPlaceholders(
   input: ProjectInput,
 ): ProductPlaceholder[] {
   const now = new Date().toISOString();
-  const strengthEmphasis = /偏重力量|力量为主/.test(input.notes?.trim() || "");
+  const strengthEmphasis = hasStrengthEquipmentEmphasis(input.notes);
 
   return TEMPLATE_POOL.filter(
     (tpl) => !tpl.siteTypes || tpl.siteTypes.includes(input.siteType),

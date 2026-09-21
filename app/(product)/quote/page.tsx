@@ -44,6 +44,15 @@ type GenerateQuoteResponse = {
   message?: string;
 };
 
+type QuoteHistoryItem = {
+  id: string;
+  createdAt: string;
+  isLatest: boolean;
+  areaM2?: number;
+  notes?: string;
+  summary: string;
+};
+
 const QUOTE_PROPOSAL_KEY = "product-quote-proposal";
 
 function trimQuoteId(value: unknown): string {
@@ -203,6 +212,34 @@ async function createOrgProject(
   return createdId;
 }
 
+async function fetchQuoteHistory(
+  projectId: string,
+  organizationId: string,
+): Promise<QuoteHistoryItem[]> {
+  const pid = projectId.trim();
+  const oid = organizationId.trim();
+  if (!pid || !oid) return [];
+  try {
+    const res = await fetch(
+      `/api/quote/list?projectId=${encodeURIComponent(pid)}&organizationId=${encodeURIComponent(oid)}`,
+      { headers: { "x-organization-id": oid } },
+    );
+    const data = (await res.json()) as {
+      ok?: boolean;
+      quotes?: QuoteHistoryItem[];
+    };
+    return data.ok === true && Array.isArray(data.quotes) ? data.quotes : [];
+  } catch {
+    return [];
+  }
+}
+
+function formatQuoteGeneratedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("zh-CN", { hour12: false });
+}
+
 function QuoteForm() {
   const searchParams = useSearchParams();
   const [companyName, setCompanyName] = useState("");
@@ -218,7 +255,17 @@ function QuoteForm() {
   const [projectIntake, setProjectIntake] = useState<StoredProjectIntake | null>(null);
   const [canGenerateBudget, setCanGenerateBudget] = useState(false);
   const [revisionNotes, setRevisionNotes] = useState("");
+  const [quoteHistory, setQuoteHistory] = useState<QuoteHistoryItem[]>([]);
+  const [historyPdfDownloadingId, setHistoryPdfDownloadingId] = useState("");
   const proTier = getPricingTier("PRO");
+
+  async function refreshQuoteHistory(
+    nextProjectId: string,
+    nextOrganizationId: string,
+  ) {
+    const items = await fetchQuoteHistory(nextProjectId, nextOrganizationId);
+    setQuoteHistory(items);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -270,6 +317,7 @@ function QuoteForm() {
           projectId: ownedProjectId,
           ...(resolvedQuoteId ? { quoteId: resolvedQuoteId } : {}),
         });
+        void refreshQuoteHistory(ownedProjectId, organizationId);
       } else {
         writeStoredProductContext({
           ...ctx,
@@ -394,6 +442,7 @@ function QuoteForm() {
         if (isRevision) {
           setRevisionNotes("");
         }
+        await refreshQuoteHistory(boundProjectId, organizationId);
       } else {
         setError("方案生成失败，请稍后重试");
       }
@@ -409,23 +458,30 @@ function QuoteForm() {
     }
   }
 
-  async function handleDownloadPdf() {
-    if (!quoteId) return;
-    const res = await fetch(`/api/quote/pdf?quoteId=${encodeURIComponent(quoteId)}`, {
-      headers: organizationId ? { "x-organization-id": organizationId } : {},
-    });
-    if (!res.ok) {
-      alert("PDF 下载失败");
-      return;
+  async function handleDownloadPdf(targetQuoteId?: string) {
+    const id = trimQuoteId(targetQuoteId ?? quoteId);
+    if (!id) return;
+    const isCurrent = id === trimQuoteId(quoteId);
+    if (!isCurrent) setHistoryPdfDownloadingId(id);
+    try {
+      const res = await fetch(`/api/quote/pdf?quoteId=${encodeURIComponent(id)}`, {
+        headers: organizationId ? { "x-organization-id": organizationId } : {},
+      });
+      if (!res.ok) {
+        alert("PDF 下载失败");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = isCurrent ? "方案.pdf" : `方案-${id.slice(-6)}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      if (isCurrent) setPdfDownloaded(true);
+    } finally {
+      if (!isCurrent) setHistoryPdfDownloadingId("");
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "方案.pdf";
-    link.click();
-    URL.revokeObjectURL(url);
-    setPdfDownloaded(true);
   }
 
   const hasProjectId = Boolean(projectId.trim());
@@ -543,7 +599,7 @@ function QuoteForm() {
                 <p className="text-sm text-zinc-300">完整方案详情请下载方案 PDF 查看</p>
                 <button
                   type="button"
-                  onClick={handleDownloadPdf}
+                  onClick={() => void handleDownloadPdf()}
                   className="rounded-xl bg-white px-6 py-3 font-semibold text-black hover:bg-zinc-100"
                 >
                   下载方案 PDF
@@ -626,6 +682,54 @@ function QuoteForm() {
             </div>
           ) : null}
         </article>
+      ) : null}
+
+      {quoteHistory.length > 0 ? (
+        <section className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+          <h2 className="text-lg font-semibold text-zinc-100">方案版本历史</h2>
+          <p className="text-xs text-zinc-500">
+            每次重新生成都会保留历史方案；可分别下载对应 PDF 进行对比。
+          </p>
+          <ul className="space-y-3">
+            {quoteHistory.map((item) => {
+              const isLatest = item.isLatest === true;
+              const isCurrent = item.id === trimQuoteId(quoteId);
+              return (
+                <li
+                  key={item.id}
+                  className="flex flex-col gap-2 rounded-lg border border-zinc-800 bg-black px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-zinc-100">
+                      {isLatest
+                        ? "最新方案"
+                        : formatQuoteGeneratedAt(item.createdAt)}
+                      {isCurrent ? (
+                        <span className="ml-2 text-xs font-normal text-emerald-400">
+                          当前
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      生成时间：{formatQuoteGeneratedAt(item.createdAt)}
+                    </p>
+                    <p className="text-xs text-zinc-400">{item.summary}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleDownloadPdf(item.id)}
+                    disabled={historyPdfDownloadingId === item.id}
+                    className="shrink-0 rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400 disabled:opacity-50"
+                  >
+                    {historyPdfDownloadingId === item.id
+                      ? "下载中…"
+                      : "下载此版 PDF"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       ) : null}
 
       {error ? (

@@ -223,3 +223,80 @@ export async function ensureQuotePlanPdfSource(quoteId: string) {
     placeholders,
   };
 }
+
+export type QuoteHistoryItem = {
+  id: string;
+  createdAt: string;
+  status: QuoteStatus;
+  isLatest: boolean;
+  areaM2?: number;
+  notes?: string;
+  summary: string;
+};
+
+function summarizeQuoteCompanyInfo(value: unknown): {
+  areaM2?: number;
+  notes?: string;
+  summary: string;
+} {
+  const companyInfo = readCompanyInfo(value);
+  const parts: string[] = [];
+  if (companyInfo.areaM2 != null && companyInfo.areaM2 > 0) {
+    parts.push(`${companyInfo.areaM2}㎡`);
+  }
+  if (companyInfo.notes) {
+    const notes =
+      companyInfo.notes.length > 48
+        ? `${companyInfo.notes.slice(0, 48)}…`
+        : companyInfo.notes;
+    parts.push(notes);
+  }
+  return {
+    ...(companyInfo.areaM2 != null && companyInfo.areaM2 > 0
+      ? { areaM2: companyInfo.areaM2 }
+      : {}),
+    ...(companyInfo.notes ? { notes: companyInfo.notes } : {}),
+    summary: parts.join(" · ") || "无补充要求",
+  };
+}
+
+export async function listQuotesForProject(input: {
+  projectId: string;
+  organizationId: string;
+}): Promise<QuoteHistoryItem[]> {
+  const project = await prisma.project.findUnique({
+    where: { id: input.projectId },
+    select: { id: true, organizationId: true },
+  });
+  if (!project) {
+    throw new Error("Project not found");
+  }
+  assertResourceBelongsToTenant(project.organizationId, input.organizationId);
+
+  const quotes = await prisma.quote.findMany({
+    where: {
+      projectId: input.projectId,
+      status: QuoteStatus.READY,
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      createdAt: true,
+      status: true,
+      companyInfo: true,
+    },
+  });
+
+  return quotes.map((quote, index) => {
+    const snap = summarizeQuoteCompanyInfo(quote.companyInfo);
+    return {
+      id: quote.id,
+      createdAt: quote.createdAt.toISOString(),
+      status: quote.status,
+      isLatest: index === 0,
+      ...(snap.areaM2 != null ? { areaM2: snap.areaM2 } : {}),
+      ...(snap.notes ? { notes: snap.notes } : {}),
+      summary: snap.summary,
+    };
+  });
+}

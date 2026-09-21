@@ -1,4 +1,5 @@
 import type { Phase, ProjectInput, Zone } from "@/lib/domain/tender";
+import { hasStrengthEquipmentEmphasis } from "@/lib/product-engine/quote-revision";
 
 export type GeneratedSolution = {
   summary: string;
@@ -13,7 +14,7 @@ export type GeneratedSolution = {
 };
 
 function buildZones(input: ProjectInput): Zone[] {
-  const strengthEmphasis = /偏重力量|力量为主/.test(input.notes?.trim() || "");
+  const strengthEmphasis = hasStrengthEquipmentEmphasis(input.notes);
   const zones: Zone[] = [
     {
       name: "有氧训练区",
@@ -168,7 +169,7 @@ export function generateSolution(input: ProjectInput): GeneratedSolution {
       ? `约 ${input.targetUsers} 人`
       : "服务人数以招标文件及现场复核为准";
   const notes = input.notes?.trim() || "";
-  const strengthEmphasis = /偏重力量|力量为主/.test(notes);
+  const strengthEmphasis = hasStrengthEquipmentEmphasis(notes);
   const basementNoVentilation =
     /地下室无通风/.test(notes) ||
     (/地下室/.test(notes) && /无通风/.test(notes));

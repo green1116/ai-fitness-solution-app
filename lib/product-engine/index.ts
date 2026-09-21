@@ -12,11 +12,14 @@ export type {
 } from "./types";
 
 export {
-  runQuoteEngine,
   applyQuoteRevisionOverrides,
   parseExplicitAreaM2FromNotes,
   hasStrengthEquipmentEmphasis,
   hasBasementNoVentilationConstraint,
+} from "./quote-revision";
+
+export {
+  runQuoteEngine,
   type QuoteEngineInput,
   type QuoteEngineResult,
 } from "./quote.engine";
