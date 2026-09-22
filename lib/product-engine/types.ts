@@ -21,6 +21,9 @@ export type BudgetStructure = {
   currency: string;
   totalMin: number;
   totalMax: number;
+  /** Alias for API / UI consumers that expect DB field names. */
+  totalEstimateMin?: number;
+  totalEstimateMax?: number;
   items: Array<{ category: string; min: number; max: number }>;
   assumptions: string[];
 };

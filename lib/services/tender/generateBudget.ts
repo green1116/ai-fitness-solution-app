@@ -40,14 +40,22 @@ function getUnitPriceRange(
   return table[category]?.[priceBand] ?? [1000, 3000];
 }
 
-function buildBudgetItem(placeholder: ProductPlaceholder): BudgetItem {
+function buildBudgetItem(
+  placeholder: ProductPlaceholder,
+  priceBand: PriceBand,
+): BudgetItem {
   const [unitPriceMin, unitPriceMax] = getUnitPriceRange(
     placeholder.category,
-    placeholder.priceBand,
+    priceBand,
   );
+  const name =
+    placeholder.subCategory?.trim() ||
+    placeholder.category.trim() ||
+    "设备分项";
 
   return {
     category: placeholder.category,
+    name,
     specLevel: placeholder.specTags.join(" / "),
     quantity: placeholder.quantity,
     unitPriceMin,
@@ -59,12 +67,23 @@ function buildBudgetItem(placeholder: ProductPlaceholder): BudgetItem {
   };
 }
 
+export type GenerateBudgetOptions = {
+  /** When set, overrides each placeholder priceBand for unit price lookup. */
+  priceBand?: PriceBand;
+};
+
 export function generateBudget(
   projectId: string,
   placeholders: ProductPlaceholder[],
+  options?: GenerateBudgetOptions,
 ): BudgetRecord {
   const now = new Date().toISOString();
-  const items = placeholders.map(buildBudgetItem);
+  const items = placeholders.map((placeholder) =>
+    buildBudgetItem(
+      placeholder,
+      options?.priceBand ?? placeholder.priceBand,
+    ),
+  );
 
   const totalEstimateMin = items.reduce((sum, item) => sum + item.subtotalMin, 0);
   const totalEstimateMax = items.reduce((sum, item) => sum + item.subtotalMax, 0);
@@ -80,6 +99,9 @@ export function generateBudget(
       "当前预算为投标阶段建议区间，不代表最终成交价。",
       "未接入真实 SKU 时，采用品类 + 规格等级 + 数量的方式估算。",
       "后续接入商品系统后，可将占位预算自动替换为明细报价。",
+      ...(options?.priceBand
+        ? [`设备单价按预算档位 ${options.priceBand.toUpperCase()} 取值。`]
+        : []),
     ],
     createdAt: now,
     updatedAt: now,

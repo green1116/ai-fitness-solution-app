@@ -30,7 +30,21 @@ type CalculateBudgetResponse = {
   budgetId?: string;
   projectId?: string;
   quoteId?: string;
-  structure?: { totalEstimateMin?: number; totalEstimateMax?: number; currency?: string };
+  structure?: {
+    totalEstimateMin?: number;
+    totalEstimateMax?: number;
+    totalMin?: number;
+    totalMax?: number;
+    currency?: string;
+  };
+  basis?: {
+    quoteId?: string;
+    targetUsers?: number;
+    areaM2?: number;
+    notes?: string;
+    budgetTier?: "low" | "mid" | "high";
+    headcountSource?: "quote" | "fallback";
+  };
   message?: string;
 };
 
@@ -40,6 +54,15 @@ type BudgetSummaryState = {
   totalEstimateMin?: number;
   totalEstimateMax?: number;
   currency?: string;
+  areaM2?: number;
+  notes?: string;
+  headcountSource?: "quote" | "fallback";
+};
+
+type QuoteBasisState = {
+  targetUsers?: number;
+  areaM2?: number;
+  notes?: string;
 };
 
 type BudgetSummaryBinding = {
@@ -98,6 +121,9 @@ function readStoredBudgetSummary(
         ? { totalEstimateMax: parsed.totalEstimateMax }
         : {}),
       ...(parsed.currency ? { currency: parsed.currency } : {}),
+      ...(typeof parsed.areaM2 === "number" ? { areaM2: parsed.areaM2 } : {}),
+      ...(parsed.notes ? { notes: parsed.notes } : {}),
+      ...(parsed.headcountSource ? { headcountSource: parsed.headcountSource } : {}),
     };
   } catch {
     return null;
@@ -193,6 +219,48 @@ async function fetchProjectBudgetDefaults(
   };
 }
 
+async function fetchQuoteBasis(
+  projectId: string,
+  quoteId: string,
+  organizationId: string,
+): Promise<QuoteBasisState | null> {
+  const pid = projectId.trim();
+  const qid = quoteId.trim();
+  const oid = organizationId.trim();
+  if (!pid || !qid || !oid) return null;
+  try {
+    const res = await fetch(
+      `/api/quote/list?projectId=${encodeURIComponent(pid)}&organizationId=${encodeURIComponent(oid)}`,
+      { headers: { "x-organization-id": oid } },
+    );
+    const data = (await res.json()) as {
+      ok?: boolean;
+      quotes?: Array<{
+        id: string;
+        areaM2?: number;
+        notes?: string;
+      }>;
+    };
+    if (data.ok !== true || !Array.isArray(data.quotes)) return null;
+    const hit = data.quotes.find((q) => q.id === qid);
+    if (!hit) return null;
+    return {
+      ...(typeof hit.areaM2 === "number" && hit.areaM2 > 0
+        ? { areaM2: hit.areaM2 }
+        : {}),
+      ...(hit.notes?.trim() ? { notes: hit.notes.trim() } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function tierLabel(tier: "low" | "mid" | "high"): string {
+  if (tier === "low") return "基础（单价偏低）";
+  if (tier === "high") return "高端（单价偏高）";
+  return "标准（单价适中）";
+}
+
 function isBudgetDraftDirty(
   companySize: string,
   budgetTier: "low" | "mid" | "high",
@@ -222,6 +290,7 @@ function BudgetForm() {
   const [error, setError] = useState("");
   const [pdfDownloaded, setPdfDownloaded] = useState(false);
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummaryState | null>(null);
+  const [quoteBasis, setQuoteBasis] = useState<QuoteBasisState | null>(null);
   const [projectBudgetLabel, setProjectBudgetLabel] = useState("");
   const [tenderEntitlement, setTenderEntitlement] =
     useState<TenderClientEntitlement | null>(null);
@@ -287,6 +356,18 @@ function BudgetForm() {
           if (projectDefaults?.budgetLabel) {
             setProjectBudgetLabel(projectDefaults.budgetLabel);
           }
+        }
+
+        if (organizationId && resolvedQuoteId) {
+          const basis = await fetchQuoteBasis(
+            ownedProjectId,
+            resolvedQuoteId,
+            organizationId,
+          );
+          if (cancelled) return;
+          setQuoteBasis(basis);
+        } else {
+          setQuoteBasis(null);
         }
 
         let acceptedBudgetId = "";
@@ -417,14 +498,42 @@ function BudgetForm() {
         const quoteProjectId = data.projectId?.trim() || "";
         const boundProjectId =
           pickOwnedProjectId(quoteProjectId, ownedIds) || ownedProjectId;
+        const totalMin =
+          data.structure?.totalEstimateMin ?? data.structure?.totalMin;
+        const totalMax =
+          data.structure?.totalEstimateMax ?? data.structure?.totalMax;
+        const basisUsers = data.basis?.targetUsers;
+        const displaySize =
+          typeof basisUsers === "number" && basisUsers > 0
+            ? basisUsers
+            : Number(companySize);
+        if (typeof basisUsers === "number" && basisUsers > 0) {
+          setCompanySize(String(basisUsers));
+        }
+        setQuoteBasis({
+          ...(typeof data.basis?.targetUsers === "number"
+            ? { targetUsers: data.basis.targetUsers }
+            : {}),
+          ...(typeof data.basis?.areaM2 === "number"
+            ? { areaM2: data.basis.areaM2 }
+            : {}),
+          ...(data.basis?.notes ? { notes: data.basis.notes } : {}),
+        });
         setBudgetId(data.budgetId);
         setProjectId(boundProjectId);
         setBudgetSummary({
-          companySize: Number(companySize),
-          budgetTier,
-          totalEstimateMin: data.structure?.totalEstimateMin,
-          totalEstimateMax: data.structure?.totalEstimateMax,
+          companySize: displaySize,
+          budgetTier: data.basis?.budgetTier ?? budgetTier,
+          totalEstimateMin: totalMin,
+          totalEstimateMax: totalMax,
           currency: data.structure?.currency,
+          ...(typeof data.basis?.areaM2 === "number"
+            ? { areaM2: data.basis.areaM2 }
+            : {}),
+          ...(data.basis?.notes ? { notes: data.basis.notes } : {}),
+          ...(data.basis?.headcountSource
+            ? { headcountSource: data.basis.headcountSource }
+            : {}),
         });
         if (boundProjectId && organizationId) {
           const defaults = await fetchProjectBudgetDefaults(boundProjectId, organizationId);
@@ -433,11 +542,18 @@ function BudgetForm() {
         writeStoredBudgetSummary(
           data.budgetId,
           {
-            companySize: Number(companySize),
-            budgetTier,
-            totalEstimateMin: data.structure?.totalEstimateMin,
-            totalEstimateMax: data.structure?.totalEstimateMax,
+            companySize: displaySize,
+            budgetTier: data.basis?.budgetTier ?? budgetTier,
+            totalEstimateMin: totalMin,
+            totalEstimateMax: totalMax,
             currency: data.structure?.currency,
+            ...(typeof data.basis?.areaM2 === "number"
+              ? { areaM2: data.basis.areaM2 }
+              : {}),
+            ...(data.basis?.notes ? { notes: data.basis.notes } : {}),
+            ...(data.basis?.headcountSource
+              ? { headcountSource: data.basis.headcountSource }
+              : {}),
           },
           {
             projectId: boundProjectId,
@@ -527,21 +643,59 @@ function BudgetForm() {
         </section>
       ) : (
         <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
-          <input
-            className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-3"
-            placeholder="企业规模 (人数)"
-            value={companySize}
-            onChange={(e) => setCompanySize(e.target.value)}
-          />
-          <select
-            className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-3"
-            value={budgetTier}
-            onChange={(e) => setBudgetTier(e.target.value as "low" | "mid" | "high")}
-          >
-            <option value="low">基础</option>
-            <option value="mid">标准</option>
-            <option value="high">高端</option>
-          </select>
+          <div className="space-y-2 rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-300">
+            <p className="font-medium text-zinc-100">预算依据（当前方案）</p>
+            <p>
+              方案人数：
+              {quoteBasis?.targetUsers ??
+                budgetSummary?.companySize ??
+                (Number(companySize) > 0 ? companySize : "以方案快照为准")}
+              {" 人"}
+            </p>
+            <p>
+              方案面积：
+              {quoteBasis?.areaM2 ?? budgetSummary?.areaM2
+                ? `${quoteBasis?.areaM2 ?? budgetSummary?.areaM2}㎡`
+                : "以方案快照为准"}
+            </p>
+            <p>
+              当前方案要求：
+              {quoteBasis?.notes?.trim() ||
+                budgetSummary?.notes?.trim() ||
+                "无补充要求"}
+            </p>
+            <p className="text-xs text-zinc-500">
+              人数与面积取自当前 Quote 快照；有明确方案人数时不会被下方兼容人数覆盖。
+            </p>
+          </div>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-zinc-200">
+              兼容人数（仅方案无人数时回退）
+            </span>
+            <input
+              className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-3"
+              placeholder="方案无人数时的回退人数"
+              value={companySize}
+              onChange={(e) => setCompanySize(e.target.value)}
+            />
+          </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-zinc-200">
+              设备价格/品质档位
+            </span>
+            <select
+              className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-3"
+              value={budgetTier}
+              onChange={(e) => setBudgetTier(e.target.value as "low" | "mid" | "high")}
+            >
+              <option value="low">基础（LOW）— 单价偏低</option>
+              <option value="mid">标准（MID）— 单价适中</option>
+              <option value="high">高端（HIGH）— 单价偏高</option>
+            </select>
+            <p className="text-xs text-zinc-500">
+              LOW / MID / HIGH 仅控制器材单价区间，不改变方案器材数量与分区。
+            </p>
+          </label>
           <button
             type="button"
             onClick={handleCalculate}
@@ -555,8 +709,8 @@ function BudgetForm() {
             {loading
               ? "计算中…"
               : budgetId
-                ? "按当前参数重新计算预算"
-                : "计算预算"}
+                ? "按当前方案与档位重新计算预算"
+                : "按当前方案计算预算"}
           </button>
           {projectId && budgetId ? (
             <button
@@ -580,18 +734,27 @@ function BudgetForm() {
             <section className="rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
               <p>预算已生成。可下载预算 PDF，然后继续生成投标文件。</p>
               {budgetSummary ? (
-                <p className="mt-2 text-zinc-400">
-                  企业规模 {budgetSummary.companySize} 人 · 配置{" "}
-                  {budgetSummary.budgetTier === "low"
-                    ? "基础"
-                    : budgetSummary.budgetTier === "mid"
-                      ? "标准"
-                      : "高端"}
+                <div className="mt-2 space-y-1 text-zinc-400">
+                  <p>
+                    方案人数 {budgetSummary.companySize} 人
+                    {budgetSummary.areaM2
+                      ? ` · 方案面积 ${budgetSummary.areaM2}㎡`
+                      : ""}
+                    {" · "}
+                    档位 {tierLabel(budgetSummary.budgetTier)}
+                  </p>
+                  {budgetSummary.notes ? (
+                    <p>方案要求：{budgetSummary.notes}</p>
+                  ) : null}
                   {typeof budgetSummary.totalEstimateMin === "number" &&
-                  typeof budgetSummary.totalEstimateMax === "number"
-                    ? ` · 预算区间 ${budgetSummary.currency ?? "CNY"} ${budgetSummary.totalEstimateMin} - ${budgetSummary.totalEstimateMax}`
-                    : ""}
-                </p>
+                  typeof budgetSummary.totalEstimateMax === "number" ? (
+                    <p>
+                      预算区间 {budgetSummary.currency ?? "CNY"}{" "}
+                      {budgetSummary.totalEstimateMin} -{" "}
+                      {budgetSummary.totalEstimateMax}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
             </section>
           ) : null}

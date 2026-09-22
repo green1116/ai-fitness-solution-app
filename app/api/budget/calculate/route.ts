@@ -21,12 +21,16 @@ export async function POST(req: NextRequest) {
     traceId = gate.traceId;
 
     const quoteId = String(body?.quoteId ?? "").trim();
-    const companySize = Number(body?.companySize ?? 0);
+    const rawCompanySize = Number(body?.companySize ?? 0);
+    const companySize =
+      Number.isFinite(rawCompanySize) && rawCompanySize > 0
+        ? Math.floor(rawCompanySize)
+        : undefined;
     const budgetTier = body?.budgetTier as "low" | "mid" | "high" | undefined;
 
-    if (!quoteId || !companySize) {
+    if (!quoteId) {
       return NextResponse.json(
-        { ok: false, message: "缺少 quoteId 或 companySize", traceId: gate.traceId },
+        { ok: false, message: "缺少 quoteId", traceId: gate.traceId },
         { status: 400 },
       );
     }
@@ -41,13 +45,16 @@ export async function POST(req: NextRequest) {
     await trackFeatureUsage(gate.organizationId, "canGenerateBudget");
     trackBudgetCalculated({ userId: gate.userId, organizationId: gate.organizationId, quoteId });
 
+    const estimatedValue =
+      result.basis.targetUsers ?? companySize ?? 0;
+
     void recordBudgetAsOpportunity({
       organizationId: gate.organizationId,
       companyName: String(body?.companyName ?? "Budget Customer"),
       userId: gate.userId,
       quoteId,
       budgetId: result.budget.id,
-      estimatedValue: companySize * 100,
+      estimatedValue: estimatedValue * 100,
     }).then((crm) => {
       void onBudgetCalculated({
         organizationId: gate.organizationId,
@@ -66,6 +73,7 @@ export async function POST(req: NextRequest) {
       quoteId,
       structure: result.engine.structure,
       syncedStatus: result.engine.syncedStatus,
+      basis: result.basis,
       plan: gate.feature.plan,
       traceId: gate.traceId,
     });

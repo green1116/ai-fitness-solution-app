@@ -81,6 +81,8 @@ export interface ProductPlaceholder {
 
 export interface BudgetItem {
   category: string;
+  /** Equipment / subcategory display name when available. */
+  name?: string;
   specLevel: string;
   quantity: number;
   unitPriceMin: number;
