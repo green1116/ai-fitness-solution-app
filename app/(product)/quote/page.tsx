@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   companyNameFromProject,
   isProductContextCrmHandoff,
@@ -426,6 +426,7 @@ function formatQuoteGeneratedAt(iso: string): string {
 }
 
 function QuoteForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [companyName, setCompanyName] = useState("");
   const [companyLocked, setCompanyLocked] = useState(false);
@@ -527,6 +528,15 @@ function QuoteForm() {
         projectId: boundProjectId,
         quoteId: nextQuoteId,
       });
+      // URL quoteId wins on hydrate; keep it on the saved version.
+      router.replace(
+        productHref("/quote", {
+          organizationId,
+          projectId: boundProjectId,
+          quoteId: nextQuoteId,
+        }),
+        { scroll: false },
+      );
       await refreshQuoteHistory(boundProjectId, organizationId);
     } catch {
       setPiError("候选配置保存失败，请稍后重试");

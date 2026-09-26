@@ -48,14 +48,18 @@ function buildBudgetItem(
     placeholder.category,
     priceBand,
   );
-  const name =
+  const baseName =
     placeholder.subCategory?.trim() ||
     placeholder.category.trim() ||
     "设备分项";
-  const candidateNote =
+  const candidateLabel =
     placeholder.brand?.trim() && placeholder.model?.trim()
-      ? `；方案候选配置：${placeholder.brand.trim()} ${placeholder.model.trim()}（参考候选 / 未核实，单价按档位）`
+      ? `${placeholder.brand.trim()} ${placeholder.model.trim()}`
       : "";
+  const name = candidateLabel ? `${baseName}（${candidateLabel}）` : baseName;
+  const candidateNote = candidateLabel
+    ? `；方案候选配置：${candidateLabel}（参考候选 / 未核实，单价按档位）`
+    : "";
 
   return {
     category: placeholder.category,
