@@ -138,14 +138,8 @@ function summaryFromPersistedBudget(
         min: detailed.reduce((acc, it) => acc + it.subtotalMin, 0),
         max: detailed.reduce((acc, it) => acc + it.subtotalMax, 0),
       },
-      lines: detailed.map((it) => ({
-        category: it.category,
-        categoryName: it.category,
-        qtyText: `${it.name} ${it.quantity}-${it.quantity}`,
-        unitPriceText: `${Math.round(it.unitPriceMin)}-${Math.round(it.unitPriceMax)}`,
-        subtotal: { min: it.subtotalMin, max: it.subtotalMax },
-        note: it.remark,
-      })),
+      // Structured items only: qtyText re-parsing strips "（…）" from names.
+      lines: [],
       items: detailed.map((it) => ({
         category: it.category,
         name: it.name,
