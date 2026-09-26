@@ -6,7 +6,9 @@ import type { Prisma } from "@prisma/client";
 
 import type { ProjectInput } from "@/lib/domain/tender";
 import {
+  applyProductSelections,
   applyQuoteRevisionOverrides,
+  readStoredProductSelections,
   type CompanyInfoInput,
 } from "@/lib/product-engine";
 import type { BudgetStructure } from "@/lib/product-engine/types";
@@ -42,7 +44,9 @@ type StoredQuoteContent = {
 
 function readCompanyInfo(value: unknown): CompanyInfoInput {
   const row = (value ?? {}) as CompanyInfoInput;
+  const productSelections = readStoredProductSelections(row.productSelections);
   return applyQuoteRevisionOverrides({
+    ...(productSelections.length > 0 ? { productSelections } : {}),
     companyName: String(row.companyName ?? "").trim(),
     industry: row.industry?.trim(),
     city: row.city?.trim(),
@@ -171,10 +175,21 @@ export async function calculateBudget(input: CalculateBudgetInput) {
       : "fallback";
 
   // In-memory only — do not persist Solution / ProductPlaceholder.
-  const placeholders = generatePlaceholders(quote.project.id, projectInput);
+  const selected = applyProductSelections(
+    generatePlaceholders(quote.project.id, projectInput),
+    companyInfo.productSelections,
+  );
+  const placeholders = selected.placeholders;
   const generated = generateBudget(quote.project.id, placeholders, {
     priceBand: budgetTier,
   });
+  const selectionAssumptions =
+    selected.appliedCount > 0 || selected.warnings.length > 0
+      ? [
+          `已应用方案候选配置 ${selected.appliedCount} 项（参考候选 / 未核实；不引入 SKU 价格，单价仍按预算档位）`,
+          ...selected.warnings,
+        ]
+      : [];
 
   const categorySubtotals = rollupCategorySubtotals(generated.items);
   const stored = quote.content as StoredQuoteContent | null;
@@ -204,6 +219,7 @@ export async function calculateBudget(input: CalculateBudgetInput) {
       ...(projectInput.notes
         ? [`方案要求：${projectInput.notes}`]
         : []),
+      ...selectionAssumptions,
       `Status Sync：${syncedStatus}`,
     ],
   };

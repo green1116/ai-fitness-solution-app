@@ -50,8 +50,193 @@ type QuoteHistoryItem = {
   isLatest: boolean;
   areaM2?: number;
   notes?: string;
+  selectionCount?: number;
   summary: string;
 };
+
+type RequirementStatus =
+  | "IN_SCOPE"
+  | "CONDITIONAL"
+  | "NEEDS_CLARIFICATION"
+  | "CONFLICT"
+  | "NEW_SCOPE";
+
+type RequirementStatusItem = {
+  id: string;
+  text: string;
+  status: RequirementStatus;
+  basis: string;
+  question?: string;
+};
+
+type ProductCandidateView = {
+  candidateId: string;
+  brand: string;
+  model: string;
+  category: string;
+  keySpecs: string[];
+  fitReason: string;
+  source: string;
+  verificationStatus: string;
+  openQuestions: string[];
+};
+
+type ProductCandidateSlotView = {
+  slotKey: string;
+  category: string;
+  subCategory: string;
+  templateQuantity: number;
+  candidates: ProductCandidateView[];
+  emptyMessage?: string;
+};
+
+type ProductSelectionView = {
+  slotKey: string;
+  action: "confirm" | "replace" | "remove";
+  candidate: ProductCandidateView | null;
+  quantity?: number;
+};
+
+type ProductIntelligenceView = {
+  quoteId: string;
+  requirements: RequirementStatusItem[];
+  slots: ProductCandidateSlotView[];
+  selections: ProductSelectionView[];
+  warnings: string[];
+};
+
+type SlotDraft = {
+  mode: "template" | "candidate" | "remove";
+  candidateId?: string;
+  quantity: string;
+};
+
+type SelectionPayloadItem = {
+  slotKey: string;
+  action: "confirm" | "replace" | "remove";
+  candidateId?: string | null;
+  quantity?: number;
+};
+
+const REQUIREMENT_STATUS_LABEL: Record<RequirementStatus, string> = {
+  IN_SCOPE: "已纳入方案",
+  CONDITIONAL: "有条件纳入",
+  NEEDS_CLARIFICATION: "待澄清",
+  CONFLICT: "存在冲突",
+  NEW_SCOPE: "超出当前范围",
+};
+
+const REQUIREMENT_STATUS_CLASS: Record<RequirementStatus, string> = {
+  IN_SCOPE: "border-emerald-700 text-emerald-300",
+  CONDITIONAL: "border-sky-700 text-sky-300",
+  NEEDS_CLARIFICATION: "border-amber-700 text-amber-300",
+  CONFLICT: "border-rose-700 text-rose-300",
+  NEW_SCOPE: "border-violet-700 text-violet-300",
+};
+
+const REFERENCE_CANDIDATE_BADGE = "参考候选 / 未核实";
+const NO_CANDIDATE_TEXT = "暂无已验证候选，保留当前模板配置";
+
+async function fetchProductIntelligence(
+  quoteId: string,
+  organizationId: string,
+): Promise<ProductIntelligenceView | null> {
+  const qid = quoteId.trim();
+  const oid = organizationId.trim();
+  if (!qid || !oid) return null;
+  try {
+    const res = await fetch(
+      `/api/quote/product-intelligence?quoteId=${encodeURIComponent(qid)}&organizationId=${encodeURIComponent(oid)}`,
+      { headers: { "x-organization-id": oid } },
+    );
+    const data = (await res.json()) as { ok?: boolean } & Partial<ProductIntelligenceView>;
+    if (data.ok !== true) return null;
+    return {
+      quoteId: data.quoteId ?? qid,
+      requirements: Array.isArray(data.requirements) ? data.requirements : [],
+      slots: Array.isArray(data.slots) ? data.slots : [],
+      selections: Array.isArray(data.selections) ? data.selections : [],
+      warnings: Array.isArray(data.warnings) ? data.warnings : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function initialSlotDrafts(view: ProductIntelligenceView): {
+  drafts: Record<string, SlotDraft>;
+  warnings: string[];
+} {
+  const drafts: Record<string, SlotDraft> = {};
+  const warnings: string[] = [];
+  for (const slot of view.slots) {
+    const selection = view.selections.find((s) => s.slotKey === slot.slotKey);
+    const quantity = selection?.quantity != null ? String(selection.quantity) : "";
+    if (!selection) {
+      drafts[slot.slotKey] = { mode: "template", quantity: "" };
+    } else if (selection.action === "remove") {
+      drafts[slot.slotKey] = { mode: "remove", quantity: "" };
+    } else if (selection.candidate) {
+      const exists = slot.candidates.some(
+        (c) => c.candidateId === selection.candidate?.candidateId,
+      );
+      if (exists) {
+        drafts[slot.slotKey] = {
+          mode: "candidate",
+          candidateId: selection.candidate.candidateId,
+          quantity,
+        };
+      } else {
+        warnings.push(
+          `${slot.subCategory}：已选候选「${selection.candidate.brand} ${selection.candidate.model}」不在当前候选列表中，编辑时按模板配置处理`,
+        );
+        drafts[slot.slotKey] = { mode: "template", quantity };
+      }
+    } else {
+      drafts[slot.slotKey] = { mode: "template", quantity };
+    }
+  }
+  return { drafts, warnings };
+}
+
+function buildSelectionPayload(
+  slots: ProductCandidateSlotView[],
+  drafts: Record<string, SlotDraft>,
+): SelectionPayloadItem[] {
+  const out: SelectionPayloadItem[] = [];
+  for (const slot of slots) {
+    const draft = drafts[slot.slotKey];
+    if (!draft) continue;
+    const qtyText = draft.quantity.trim();
+    const quantity = qtyText ? Number(qtyText) : undefined;
+    if (draft.mode === "remove") {
+      out.push({ slotKey: slot.slotKey, action: "remove" });
+    } else if (draft.mode === "candidate" && draft.candidateId) {
+      out.push({
+        slotKey: slot.slotKey,
+        action:
+          draft.candidateId === slot.candidates[0]?.candidateId ? "confirm" : "replace",
+        candidateId: draft.candidateId,
+        ...(quantity != null ? { quantity } : {}),
+      });
+    } else if (quantity != null && quantity !== slot.templateQuantity) {
+      out.push({
+        slotKey: slot.slotKey,
+        action: "confirm",
+        candidateId: null,
+        quantity,
+      });
+    }
+  }
+  return out;
+}
+
+function isValidDraftQuantity(value: string): boolean {
+  const text = value.trim();
+  if (!text) return true;
+  const n = Number(text);
+  return Number.isInteger(n) && n >= 1 && n <= 999;
+}
 
 const QUOTE_PROPOSAL_KEY = "product-quote-proposal";
 
@@ -257,7 +442,98 @@ function QuoteForm() {
   const [revisionNotes, setRevisionNotes] = useState("");
   const [quoteHistory, setQuoteHistory] = useState<QuoteHistoryItem[]>([]);
   const [historyPdfDownloadingId, setHistoryPdfDownloadingId] = useState("");
+  const [piView, setPiView] = useState<ProductIntelligenceView | null>(null);
+  const [piLoading, setPiLoading] = useState(false);
+  const [piSaving, setPiSaving] = useState(false);
+  const [piError, setPiError] = useState("");
+  const [piLocalWarnings, setPiLocalWarnings] = useState<string[]>([]);
+  const [slotDrafts, setSlotDrafts] = useState<Record<string, SlotDraft>>({});
+  const [initialSelectionJson, setInitialSelectionJson] = useState("[]");
   const proTier = getPricingTier("PRO");
+
+  useEffect(() => {
+    const qid = trimQuoteId(quoteId);
+    const oid = organizationId.trim();
+    if (!qid || !oid) {
+      setPiView(null);
+      return;
+    }
+    let cancelled = false;
+    setPiLoading(true);
+    setPiError("");
+    void fetchProductIntelligence(qid, oid)
+      .then((view) => {
+        if (cancelled) return;
+        setPiView(view);
+        if (view) {
+          const init = initialSlotDrafts(view);
+          setSlotDrafts(init.drafts);
+          setPiLocalWarnings(init.warnings);
+          setInitialSelectionJson(
+            JSON.stringify(buildSelectionPayload(view.slots, init.drafts)),
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPiLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [quoteId, organizationId]);
+
+  function updateSlotDraft(slotKey: string, patch: Partial<SlotDraft>) {
+    setSlotDrafts((prev) => ({
+      ...prev,
+      [slotKey]: { ...(prev[slotKey] ?? { mode: "template", quantity: "" }), ...patch },
+    }));
+  }
+
+  const selectionPayload = piView ? buildSelectionPayload(piView.slots, slotDrafts) : [];
+  const selectionDirty = JSON.stringify(selectionPayload) !== initialSelectionJson;
+  const draftQuantitiesValid = Object.values(slotDrafts).every((d) =>
+    isValidDraftQuantity(d.quantity),
+  );
+
+  async function handleSaveSelections() {
+    const baseQuoteId = trimQuoteId(quoteId);
+    if (!baseQuoteId || !organizationId || !piView) return;
+    setPiSaving(true);
+    setPiError("");
+    try {
+      const res = await fetch("/api/quote/product-intelligence", {
+        method: "POST",
+        headers: orgHeaders(organizationId),
+        body: JSON.stringify({
+          quoteId: baseQuoteId,
+          organizationId,
+          selections: selectionPayload,
+        }),
+      });
+      const data = (await res.json()) as GenerateQuoteResponse;
+      const nextQuoteId =
+        data.ok === true && data.status === "READY" ? trimQuoteId(data.quoteId) : "";
+      if (!nextQuoteId || !data.proposal) {
+        setPiError(data.message || "候选配置保存失败，请稍后重试");
+        return;
+      }
+      const boundProjectId = data.projectId?.trim() || projectId;
+      setProposal(data.proposal);
+      setQuoteId(nextQuoteId);
+      setPdfDownloaded(false);
+      writeStoredQuoteForProject(boundProjectId, nextQuoteId, data.proposal);
+      writeStoredProductContext({
+        organizationId,
+        projectId: boundProjectId,
+        quoteId: nextQuoteId,
+      });
+      await refreshQuoteHistory(boundProjectId, organizationId);
+    } catch {
+      setPiError("候选配置保存失败，请稍后重试");
+    } finally {
+      setPiSaving(false);
+    }
+  }
 
   async function refreshQuoteHistory(
     nextProjectId: string,
@@ -682,6 +958,194 @@ function QuoteForm() {
             </div>
           ) : null}
         </article>
+      ) : null}
+
+      {quoteId && (piLoading || piView) ? (
+        <section className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+          <h2 className="text-lg font-semibold text-zinc-100">需求识别与设备候选配置</h2>
+          {piLoading && !piView ? (
+            <p className="text-sm text-zinc-500">加载中…</p>
+          ) : null}
+          {piView ? (
+            <>
+              {piView.requirements.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-zinc-200">需求识别状态</p>
+                  <p className="text-xs text-zinc-500">
+                    按确定规则识别，仅供参考，不影响方案生成。
+                  </p>
+                  <ul className="space-y-2">
+                    {piView.requirements.map((item) => (
+                      <li
+                        key={item.id}
+                        className="rounded-lg border border-zinc-800 bg-black px-3 py-2 text-xs"
+                      >
+                        <span
+                          className={`mr-2 inline-block rounded border px-1.5 py-0.5 ${REQUIREMENT_STATUS_CLASS[item.status] ?? "border-zinc-700 text-zinc-300"}`}
+                        >
+                          {REQUIREMENT_STATUS_LABEL[item.status] ?? item.status}
+                        </span>
+                        <span className="text-zinc-200">{item.text}</span>
+                        <p className="mt-1 text-zinc-500">{item.basis}</p>
+                        {item.question ? (
+                          <p className="mt-1 text-amber-300">待确认：{item.question}</p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-zinc-200">设备候选配置（有氧 / 力量）</p>
+                <p className="text-xs text-zinc-500">
+                  候选均来自参考目录，标注为「{REFERENCE_CANDIDATE_BADGE}」，仅用于加入当前方案候选配置，不代表确认采购；预算单价仍按预算档位估算。
+                </p>
+              </div>
+
+              {[...piView.warnings, ...piLocalWarnings].length > 0 ? (
+                <ul className="space-y-1 rounded-lg border border-amber-800/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-300">
+                  {[...piView.warnings, ...piLocalWarnings].map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              ) : null}
+
+              <ul className="space-y-3">
+                {piView.slots.map((slot) => {
+                  const draft = slotDrafts[slot.slotKey] ?? {
+                    mode: "template" as const,
+                    quantity: "",
+                  };
+                  const groupName = `pi-slot-${slot.slotKey}`;
+                  return (
+                    <li
+                      key={slot.slotKey}
+                      className="space-y-2 rounded-lg border border-zinc-800 bg-black px-4 py-3"
+                    >
+                      <p className="text-sm font-medium text-zinc-100">
+                        {slot.category} · {slot.subCategory}
+                        <span className="ml-2 text-xs font-normal text-zinc-500">
+                          模板数量 {slot.templateQuantity} 台/套
+                        </span>
+                      </p>
+                      <label className="flex items-center gap-2 text-sm text-zinc-300">
+                        <input
+                          type="radio"
+                          name={groupName}
+                          checked={draft.mode === "template"}
+                          onChange={() =>
+                            updateSlotDraft(slot.slotKey, { mode: "template", candidateId: undefined })
+                          }
+                          disabled={piSaving}
+                        />
+                        保留当前模板配置
+                      </label>
+                      {slot.candidates.length === 0 ? (
+                        <p className="text-xs text-zinc-500">{slot.emptyMessage || NO_CANDIDATE_TEXT}</p>
+                      ) : (
+                        slot.candidates.map((c) => (
+                          <label
+                            key={c.candidateId}
+                            className="flex items-start gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300"
+                          >
+                            <input
+                              type="radio"
+                              className="mt-1"
+                              name={groupName}
+                              checked={draft.mode === "candidate" && draft.candidateId === c.candidateId}
+                              onChange={() =>
+                                updateSlotDraft(slot.slotKey, {
+                                  mode: "candidate",
+                                  candidateId: c.candidateId,
+                                })
+                              }
+                              disabled={piSaving}
+                            />
+                            <span className="space-y-1">
+                              <span className="block">
+                                加入当前方案候选配置：{c.brand} {c.model}
+                                <span className="ml-2 rounded border border-amber-700 px-1.5 py-0.5 text-xs text-amber-300">
+                                  {REFERENCE_CANDIDATE_BADGE}
+                                </span>
+                              </span>
+                              {c.keySpecs.length > 0 ? (
+                                <span className="block text-xs text-zinc-500">
+                                  {c.keySpecs.join(" · ")}
+                                </span>
+                              ) : null}
+                              <span className="block text-xs text-zinc-400">{c.fitReason}</span>
+                              {c.openQuestions.length > 0 ? (
+                                <span className="block text-xs text-amber-300/80">
+                                  待核实：{c.openQuestions.join("；")}
+                                </span>
+                              ) : null}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                      <label className="flex items-center gap-2 text-sm text-zinc-300">
+                        <input
+                          type="radio"
+                          name={groupName}
+                          checked={draft.mode === "remove"}
+                          onChange={() =>
+                            updateSlotDraft(slot.slotKey, {
+                              mode: "remove",
+                              candidateId: undefined,
+                              quantity: "",
+                            })
+                          }
+                          disabled={piSaving}
+                        />
+                        从当前方案候选配置中移除
+                      </label>
+                      {draft.mode !== "remove" ? (
+                        <label className="flex items-center gap-2 text-xs text-zinc-400">
+                          数量
+                          <input
+                            type="number"
+                            min={1}
+                            max={999}
+                            step={1}
+                            className="w-24 rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100"
+                            placeholder={String(slot.templateQuantity)}
+                            value={draft.quantity}
+                            onChange={(e) =>
+                              updateSlotDraft(slot.slotKey, { quantity: e.target.value })
+                            }
+                            disabled={piSaving}
+                          />
+                          留空则使用模板数量
+                          {!isValidDraftQuantity(draft.quantity) ? (
+                            <span className="text-rose-300">需为 1-999 的整数</span>
+                          ) : null}
+                        </label>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveSelections()}
+                  disabled={
+                    piSaving || loading || !selectionDirty || !draftQuantitiesValid
+                  }
+                  className="rounded-xl border border-emerald-600 px-6 py-3 text-sm font-semibold text-emerald-200 hover:border-emerald-400 disabled:opacity-50"
+                >
+                  {piSaving ? "保存中…" : "保存为新方案版本"}
+                </button>
+                <p className="text-xs text-zinc-500">
+                  保存后生成新的方案版本，当前及历史版本保持不变；此操作仅调整方案候选配置，不代表确认采购。
+                </p>
+                {piError ? <p className="text-sm text-rose-300">{piError}</p> : null}
+              </div>
+            </>
+          ) : null}
+        </section>
       ) : null}
 
       {quoteHistory.length > 0 ? (

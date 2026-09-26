@@ -52,6 +52,10 @@ function buildBudgetItem(
     placeholder.subCategory?.trim() ||
     placeholder.category.trim() ||
     "设备分项";
+  const candidateNote =
+    placeholder.brand?.trim() && placeholder.model?.trim()
+      ? `；方案候选配置：${placeholder.brand.trim()} ${placeholder.model.trim()}（参考候选 / 未核实，单价按档位）`
+      : "";
 
   return {
     category: placeholder.category,
@@ -62,7 +66,7 @@ function buildBudgetItem(
     unitPriceMax,
     subtotalMin: unitPriceMin * placeholder.quantity,
     subtotalMax: unitPriceMax * placeholder.quantity,
-    remark: placeholder.recommendationReason,
+    remark: `${placeholder.recommendationReason}${candidateNote}`,
     sourceType: "placeholder",
   };
 }

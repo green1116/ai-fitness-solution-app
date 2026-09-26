@@ -6,9 +6,19 @@ import { QuoteStatus, type Prisma } from "@prisma/client";
 
 import type { ProjectInput } from "@/lib/domain/tender";
 import {
+  applyProductSelections,
   applyQuoteRevisionOverrides,
+  buildCandidateSlots,
+  buildProductIntelligenceSnapshot,
+  readStoredProductIntelligence,
+  readStoredProductSelections,
+  resolveProductSelectionInputs,
   runQuoteEngine,
   type CompanyInfoInput,
+  type ProductCandidateSlot,
+  type ProductSelection,
+  classifyRequirements,
+  type RequirementStatusItem,
 } from "@/lib/product-engine";
 import { prisma } from "@/lib/prisma";
 import { generatePlaceholders } from "@/lib/services/tender/generatePlaceholders";
@@ -36,6 +46,7 @@ export async function generateQuote(input: GenerateQuoteInput) {
   }
 
   const companyInfo = applyQuoteRevisionOverrides(input.companyInfo);
+  const { productSelections, ...engineCompanyInfo } = companyInfo;
 
   const draft = await prisma.quote.create({
     data: {
@@ -51,7 +62,14 @@ export async function generateQuote(input: GenerateQuoteInput) {
     const engine = runQuoteEngine({
       quoteId: draft.id,
       workspaceId: input.workspaceId,
-      companyInfo,
+      companyInfo: engineCompanyInfo,
+    });
+
+    const projectInput = projectInputFromQuote({ project, companyInfo });
+    const productIntelligence = buildProductIntelligenceSnapshot({
+      notes: projectInput.notes,
+      templatePlaceholders: generatePlaceholders(project.id, projectInput),
+      selections: productSelections,
     });
 
     const updated = await prisma.quote.update({
@@ -65,6 +83,7 @@ export async function generateQuote(input: GenerateQuoteInput) {
             steps: engine.runtime.steps,
             aggregatedStatus: engine.runtime.aggregatedStatus,
           },
+          productIntelligence,
         } as unknown as Prisma.JsonObject,
         orchestrationId: engine.runtime.orchestrationId,
       },
@@ -89,7 +108,9 @@ export async function getQuoteById(quoteId: string) {
 
 function readCompanyInfo(value: unknown): CompanyInfoInput {
   const row = (value ?? {}) as CompanyInfoInput;
+  const productSelections = readStoredProductSelections(row.productSelections);
   return applyQuoteRevisionOverrides({
+    ...(productSelections.length > 0 ? { productSelections } : {}),
     companyName: String(row.companyName ?? "").trim(),
     industry: row.industry?.trim(),
     city: row.city?.trim(),
@@ -164,16 +185,24 @@ export async function ensureQuotePlanPdfSource(quoteId: string) {
     throw new Error("Project not found");
   }
 
+  const companyInfo = readCompanyInfo(quote.companyInfo);
   const projectInput = projectInputFromQuote({
     project: quote.project,
-    companyInfo: readCompanyInfo(quote.companyInfo),
+    companyInfo,
   });
 
   // Build PDF source in memory from this quote's inputs.
   // Do not delete/overwrite project-level Solution or ProductPlaceholder rows.
   const now = new Date();
   const solutionData = generateSolution(projectInput);
-  const placeholdersData = generatePlaceholders(quote.project.id, projectInput);
+  const selected = applyProductSelections(
+    generatePlaceholders(quote.project.id, projectInput),
+    companyInfo.productSelections,
+  );
+  if (selected.warnings.length > 0) {
+    console.warn("[quote/pdf] product selection warnings", quote.id, selected.warnings);
+  }
+  const placeholdersData = selected.placeholders;
 
   const solution = {
     id: `quote-pdf-solution-${quote.id}`,
@@ -231,15 +260,18 @@ export type QuoteHistoryItem = {
   isLatest: boolean;
   areaM2?: number;
   notes?: string;
+  selectionCount?: number;
   summary: string;
 };
 
 function summarizeQuoteCompanyInfo(value: unknown): {
   areaM2?: number;
   notes?: string;
+  selectionCount?: number;
   summary: string;
 } {
   const companyInfo = readCompanyInfo(value);
+  const selectionCount = companyInfo.productSelections?.length ?? 0;
   const parts: string[] = [];
   if (companyInfo.areaM2 != null && companyInfo.areaM2 > 0) {
     parts.push(`${companyInfo.areaM2}㎡`);
@@ -251,11 +283,15 @@ function summarizeQuoteCompanyInfo(value: unknown): {
         : companyInfo.notes;
     parts.push(notes);
   }
+  if (selectionCount > 0) {
+    parts.push(`候选配置 ${selectionCount} 项`);
+  }
   return {
     ...(companyInfo.areaM2 != null && companyInfo.areaM2 > 0
       ? { areaM2: companyInfo.areaM2 }
       : {}),
     ...(companyInfo.notes ? { notes: companyInfo.notes } : {}),
+    ...(selectionCount > 0 ? { selectionCount } : {}),
     summary: parts.join(" · ") || "无补充要求",
   };
 }
@@ -296,7 +332,99 @@ export async function listQuotesForProject(input: {
       isLatest: index === 0,
       ...(snap.areaM2 != null ? { areaM2: snap.areaM2 } : {}),
       ...(snap.notes ? { notes: snap.notes } : {}),
+      ...(snap.selectionCount ? { selectionCount: snap.selectionCount } : {}),
       summary: snap.summary,
     };
+  });
+}
+
+export type QuoteProductIntelligenceView = {
+  quoteId: string;
+  snapshotSource: "stored" | "computed";
+  requirements: RequirementStatusItem[];
+  slots: ProductCandidateSlot[];
+  selections: ProductSelection[];
+  warnings: string[];
+};
+
+async function loadReadyQuoteForTenant(quoteId: string, organizationId: string) {
+  const quote = await prisma.quote.findUnique({
+    where: { id: quoteId },
+    include: { project: true },
+  });
+  if (!quote?.project) {
+    throw new Error("Quote not found");
+  }
+  assertResourceBelongsToTenant(
+    quote.organizationId ?? quote.project.organizationId,
+    organizationId,
+  );
+  if (quote.status !== QuoteStatus.READY) {
+    throw new Error("Quote is not READY");
+  }
+  return quote;
+}
+
+/** Read-only: requirement status + reference candidates + current selections. */
+export async function getQuoteProductIntelligence(input: {
+  quoteId: string;
+  organizationId: string;
+}): Promise<QuoteProductIntelligenceView> {
+  const quote = await loadReadyQuoteForTenant(input.quoteId, input.organizationId);
+  const companyInfo = readCompanyInfo(quote.companyInfo);
+  const projectInput = projectInputFromQuote({ project: quote.project, companyInfo });
+  const templatePlaceholders = generatePlaceholders(quote.project.id, projectInput);
+  const selections = companyInfo.productSelections ?? [];
+  const applied = applyProductSelections(templatePlaceholders, selections);
+
+  const stored = readStoredProductIntelligence(
+    (quote.content as { productIntelligence?: unknown } | null)?.productIntelligence,
+  );
+  return {
+    quoteId: quote.id,
+    snapshotSource: stored ? "stored" : "computed",
+    requirements: stored?.requirements ?? classifyRequirements(projectInput.notes),
+    slots: stored?.slots ?? buildCandidateSlots(templatePlaceholders),
+    selections,
+    warnings: applied.warnings,
+  };
+}
+
+/**
+ * Save professional selections as a NEW Quote version.
+ * The base Quote is only read; its companyInfo/content are never updated.
+ */
+export async function createQuoteVersionWithSelections(input: {
+  baseQuoteId: string;
+  organizationId: string;
+  selections: unknown;
+  decidedBy?: string;
+}) {
+  const base = await loadReadyQuoteForTenant(input.baseQuoteId, input.organizationId);
+  const baseCompanyInfo = readCompanyInfo(base.companyInfo);
+  const projectInput = projectInputFromQuote({
+    project: base.project,
+    companyInfo: baseCompanyInfo,
+  });
+  const slots = buildCandidateSlots(
+    generatePlaceholders(base.project.id, projectInput),
+  );
+  const productSelections = resolveProductSelectionInputs({
+    inputs: input.selections,
+    slots,
+    decidedAt: new Date().toISOString(),
+    decidedBy: input.decidedBy,
+  });
+
+  const nextCompanyInfo: CompanyInfoInput = { ...baseCompanyInfo };
+  delete nextCompanyInfo.productSelections;
+  if (productSelections.length > 0) {
+    nextCompanyInfo.productSelections = productSelections;
+  }
+  return generateQuote({
+    projectId: base.projectId,
+    workspaceId: base.workspaceId,
+    organizationId: input.organizationId,
+    companyInfo: nextCompanyInfo,
   });
 }

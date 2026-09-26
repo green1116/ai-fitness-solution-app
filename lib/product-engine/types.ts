@@ -2,6 +2,8 @@
  * V59 Product Engine — shared types
  */
 
+import type { ProductSelection } from "./product-intelligence";
+
 export type CompanyInfoInput = {
   companyName: string;
   industry?: string;
@@ -9,6 +11,8 @@ export type CompanyInfoInput = {
   targetUsers?: number;
   areaM2?: number;
   notes?: string;
+  /** PI.1 professional selection input for this Quote version. */
+  productSelections?: ProductSelection[];
 };
 
 export type QuoteProposal = {

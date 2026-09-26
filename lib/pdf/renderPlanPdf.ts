@@ -463,8 +463,13 @@ function expandConfigLine(
   const replaceNote = p.replaceable
     ? "允许同等级替代，须提供参数对照表并经招标人书面确认"
     : "原则上固定配置，变更须履行变更审批";
+  const brand = p.brand?.trim();
+  const model = p.model?.trim();
   return [
     `${i + 1}. ${title}（建议数量 ${p.quantity} 台/套；档次：${band}）`,
+    ...(brand && model
+      ? [`   方案候选配置：${brand} ${model}（参考候选 / 未核实，非采购确认）`]
+      : []),
     `   技术响应：满足招标技术条款与安全规范；技术要点 ${tags}；${replaceNote}`,
     `   商务响应：供货、安装、培训、质保可追溯；与 ${ctx.brand} 交付体系及合同节点对齐`,
     `   说明：${p.recommendationReason || "满足分区功能与使用强度要求"}；中标后可按集采结果替换确定型号；不含土建改造与特殊吊装（另有约定除外）`,

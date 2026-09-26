@@ -19,6 +19,31 @@ export {
 } from "./quote-revision";
 
 export {
+  PRODUCT_INTELLIGENCE_VERSION,
+  PRODUCT_SLOT_CATEGORIES,
+  NO_CANDIDATE_MESSAGE,
+  ProductSelectionInputError,
+  applyProductSelections,
+  buildCandidateSlots,
+  buildProductIntelligenceSnapshot,
+  classifyRequirements,
+  listCandidatesForSlot,
+  productSlotKey,
+  readStoredProductIntelligence,
+  readStoredProductSelections,
+  resolveProductSelectionInputs,
+  type ApplyProductSelectionsResult,
+  type ProductCandidate,
+  type ProductCandidateSlot,
+  type ProductIntelligenceSnapshot,
+  type ProductSelection,
+  type ProductSelectionAction,
+  type ProductSelectionInput,
+  type RequirementStatus,
+  type RequirementStatusItem,
+} from "./product-intelligence";
+
+export {
   runQuoteEngine,
   type QuoteEngineInput,
   type QuoteEngineResult,
