@@ -86,7 +86,6 @@ const MARGIN_X = PLAN_MARGIN_X;
 const BODY_TOP = PLAN_BODY_TOP;
 const BODY_BOTTOM = PLAN_BODY_BOTTOM;
 const BODY_SIZE = 11;
-const LINE_HEIGHT = PLAN_LINE_HEIGHT;
 
 export type ProjectLike = {
   id: string;
@@ -807,25 +806,59 @@ function addIntroIfShort(lines: string[], intro: string, minTotalLines: number):
   return [intro, "", ...lines];
 }
 
+/** Draw target that records nothing; used to measure page capacity with the real layout. */
+const MEASURE_ONLY_PAGE = new Proxy(
+  {},
+  { get: () => () => undefined },
+) as unknown as PDFPage;
+
+/** Sections whose numbered items (heading + wrapped body) must not be split across pages. */
+const KEEP_NUMBERED_ITEMS_TOGETHER = new Set(["config"]);
+
+function isNumberedItemStart(line: string): boolean {
+  return planClassifyBodyLine(line) === "numbered";
+}
+
 function paginateSection(section: Section, font: PDFFont): SectionPage[] {
   const maxWidth = PAGE_WIDTH - MARGIN_X * 2;
-  const maxLinesPerPage = Math.max(
-    8,
-    Math.floor((BODY_TOP - BODY_BOTTOM) / (LINE_HEIGHT * 1.14)),
-  );
   const wrapped = section.lines.flatMap((line) =>
     wrap(line, font, BODY_SIZE, maxWidth),
   );
   if (!wrapped.length) wrapped.push("—");
 
+  const keepItems = KEEP_NUMBERED_ITEMS_TOGETHER.has(section.key);
   const pages: SectionPage[] = [];
-  for (let i = 0; i < wrapped.length; i += maxLinesPerPage) {
+  let start = 0;
+  while (start < wrapped.length) {
+    const remaining = wrapped.slice(start);
+    const pageNoInSection = pages.length + 1;
+    let count = layoutSectionPage(MEASURE_ONLY_PAGE, font, {
+      sectionKey: section.key,
+      sectionTitle: section.title,
+      pageNoInSection,
+      lines: remaining,
+    });
+    count = Math.max(1, Math.min(count, remaining.length));
+
+    if (keepItems && count < remaining.length) {
+      const next = remaining[count];
+      const breaksInsideItem = next.trim() !== "" && !isNumberedItemStart(next);
+      if (breaksInsideItem) {
+        let itemStart = count - 1;
+        while (itemStart > 0 && !isNumberedItemStart(remaining[itemStart])) itemStart--;
+        if (itemStart > 0 && isNumberedItemStart(remaining[itemStart])) {
+          count = itemStart;
+        }
+      }
+    }
+
     pages.push({
       sectionKey: section.key,
       sectionTitle: section.title,
-      pageNoInSection: pages.length + 1,
-      lines: wrapped.slice(i, i + maxLinesPerPage),
+      pageNoInSection,
+      lines: remaining.slice(0, count),
     });
+    start += count;
   }
   return pages;
 }
@@ -1399,7 +1432,26 @@ function drawSectionPage(
   sectionPage: SectionPage,
 ): void {
   const page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  const drawn = layoutSectionPage(page, font, sectionPage);
+  if (drawn < sectionPage.lines.length) {
+    console.warn(
+      "[renderPlanPdf] section page overflow",
+      sectionPage.sectionKey,
+      sectionPage.pageNoInSection,
+      `${drawn}/${sectionPage.lines.length}`,
+    );
+  }
+}
 
+/**
+ * Lays out one section page and returns how many of `sectionPage.lines` fit.
+ * Pagination measures with the same function, so drawing never drops lines.
+ */
+function layoutSectionPage(
+  page: PDFPage,
+  font: PDFFont,
+  sectionPage: SectionPage,
+): number {
   const zhInk = rgb(0.07, 0.09, 0.13);
   const enGray = rgb(0.48, 0.5, 0.53);
   const bodyInk = FREEZE_INK_BODY;
@@ -1460,7 +1512,8 @@ function drawSectionPage(
   let introRendered = false;
   let executiveRendered = false;
 
-  for (const line of sectionPage.lines) {
+  for (let lineIndex = 0; lineIndex < sectionPage.lines.length; lineIndex++) {
+    const line = sectionPage.lines[lineIndex];
     const kind = planClassifyBodyLine(line);
     const trimmed = line.trim();
     const advance = planBodyLineAdvance(line, prevKind);
@@ -1518,7 +1571,7 @@ function drawSectionPage(
         y -= advance;
         prevKind = kind;
         prevLayer = layer;
-        if (y < BODY_BOTTOM) break;
+        if (y < BODY_BOTTOM) return lineIndex + 1;
         continue;
       }
     } else if (kind === "callout") {
@@ -1545,8 +1598,9 @@ function drawSectionPage(
     y -= advance + extraPause;
     prevKind = kind;
     prevLayer = layer;
-    if (y < BODY_BOTTOM) break;
+    if (y < BODY_BOTTOM) return lineIndex + 1;
   }
+  return sectionPage.lines.length;
 }
 
 async function renderPlanOnly(input: {
