@@ -11,6 +11,7 @@ import {
   hasBasementNoVentilationConstraint,
   hasStrengthEquipmentEmphasis,
   parseExplicitAreaM2FromNotes,
+  resolveCanonicalHeadcount,
 } from "./quote-revision";
 import type { CompanyInfoInput } from "./types";
 
@@ -121,21 +122,6 @@ function positive(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value > 0
     ? value
     : undefined;
-}
-
-/** Explicit headcount phrases only; bare "N人" (e.g. "10人同时") is ignored. */
-function parseExplicitHeadcountFromNotes(notes: string): number | undefined {
-  const patterns = [
-    /员工\s*(?:约|共|总计)?\s*(\d{1,6})\s*(?:人|名)/,
-    /(\d{1,6})\s*(?:名|位|个)?\s*(?:员工|职工)/,
-    /(\d{1,6})\s*人\s*(?:规模|企业|公司|团队)/,
-  ];
-  for (const re of patterns) {
-    const m = notes.match(re);
-    const n = m ? Number(m[1]) : NaN;
-    if (Number.isFinite(n) && n > 0) return Math.floor(n);
-  }
-  return undefined;
 }
 
 /** "预算30万" / "30万预算" / "预算 300000 元". */
@@ -380,18 +366,15 @@ export function analyzeConfigurationStrategy(input: {
   const project = input.project ?? {};
   const notes = (input.companyInfo.notes?.trim() || project.notes?.trim() || "").trim();
 
-  // Headcount — never inferred.
-  const quoteUsers = positive(input.companyInfo.targetUsers);
-  const projectUsers = positive(project.targetUsers ?? undefined);
-  const notesUsers = notes ? parseExplicitHeadcountFromNotes(notes) : undefined;
-  const headcount: ConfigurationStrategy["facts"]["headcount"] =
-    quoteUsers != null
-      ? { status: "known", source: "quote", value: Math.floor(quoteUsers) }
-      : projectUsers != null
-        ? { status: "known", source: "project", value: Math.floor(projectUsers) }
-        : notesUsers != null
-          ? { status: "known", source: "notes", value: notesUsers }
-          : { status: "unknown" };
+  // Headcount — canonical resolver shared with Quote generation; never inferred.
+  const resolvedHeadcount = resolveCanonicalHeadcount({
+    targetUsers: input.companyInfo.targetUsers,
+    projectTargetUsers: project.targetUsers,
+    notes,
+  });
+  const headcount: ConfigurationStrategy["facts"]["headcount"] = resolvedHeadcount
+    ? { status: "known", source: resolvedHeadcount.source, value: resolvedHeadcount.value }
+    : { status: "unknown" };
 
   // Area — explicit notes area wins (same rule as applyQuoteRevisionOverrides); never 120 fallback.
   const notesArea = parseExplicitAreaM2FromNotes(notes);

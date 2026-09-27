@@ -44,6 +44,16 @@ type GenerateQuoteResponse = {
   message?: string;
 };
 
+type ClarificationKey = "headcount" | "area" | "budget";
+type ClarificationItem = { key: ClarificationKey; label: string; impact: string };
+type ClarificationValues = Partial<Record<ClarificationKey, number>>;
+type ClarificationDraft = Record<ClarificationKey, string>;
+type AnalyzeResponse = {
+  ok?: boolean;
+  missingCriticalInfo?: Array<{ key?: string; label?: string; impact?: string }>;
+  conflicts?: string[];
+};
+
 type QuoteHistoryItem = {
   id: string;
   createdAt: string;
@@ -253,6 +263,63 @@ function parseExplicitAreaM2FromNotes(notes: string): number | undefined {
   return Math.round(value);
 }
 
+const CLARIFICATION_KEYS: readonly ClarificationKey[] = ["headcount", "area", "budget"];
+const EMPTY_CLARIFICATION_DRAFT: ClarificationDraft = { headcount: "", area: "", budget: "" };
+const CLARIFICATION_INPUT: Record<ClarificationKey, { unit: string; placeholder: string }> = {
+  headcount: { unit: "人", placeholder: "例如 80" },
+  area: { unit: "㎡", placeholder: "例如 100" },
+  budget: { unit: "万元", placeholder: "例如 30" },
+};
+
+function parsePositiveInput(raw: string): number | undefined {
+  const text = raw.trim();
+  if (!text) return undefined;
+  const value = Number(text);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/** Fills only facts the payload lacks; budget is appended so existing notes are kept. */
+function applyClarification(
+  payload: Record<string, unknown>,
+  values: ClarificationValues,
+): void {
+  if (values.headcount != null && payload.targetUsers == null) {
+    payload.targetUsers = Math.floor(values.headcount);
+  }
+  if (values.area != null && payload.areaM2 == null) {
+    payload.areaM2 = values.area;
+  }
+  if (values.budget != null) {
+    const existing = typeof payload.notes === "string" ? payload.notes.trim() : "";
+    payload.notes = [existing, `预算${values.budget}万`].filter(Boolean).join(" · ");
+  }
+}
+
+/** Fail-soft: null means analysis unavailable; generation proceeds as before. */
+async function requestRequirementAnalysis(
+  payload: Record<string, unknown>,
+  organizationId: string,
+): Promise<{ items: ClarificationItem[]; conflicts: string[] } | null> {
+  try {
+    const res = await fetch("/api/quote/analyze", {
+      method: "POST",
+      headers: orgHeaders(organizationId),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as AnalyzeResponse;
+    if (data.ok !== true) return null;
+    const items = (data.missingCriticalInfo ?? []).filter(
+      (item): item is ClarificationItem =>
+        CLARIFICATION_KEYS.includes(item.key as ClarificationKey) &&
+        typeof item.label === "string",
+    );
+    return { items, conflicts: Array.isArray(data.conflicts) ? data.conflicts : [] };
+  } catch {
+    return null;
+  }
+}
+
 function readStoredQuoteProposal(quoteId: string): QuoteProposalView | null {
   if (typeof window === "undefined") return null;
   const id = trimQuoteId(quoteId);
@@ -441,6 +508,12 @@ function QuoteForm() {
   const [projectIntake, setProjectIntake] = useState<StoredProjectIntake | null>(null);
   const [canGenerateBudget, setCanGenerateBudget] = useState(false);
   const [revisionNotes, setRevisionNotes] = useState("");
+  const [clarifyItems, setClarifyItems] = useState<ClarificationItem[] | null>(null);
+  const [clarifyConflicts, setClarifyConflicts] = useState<string[]>([]);
+  const [clarificationDraft, setClarificationDraft] =
+    useState<ClarificationDraft>(EMPTY_CLARIFICATION_DRAFT);
+  const [appliedClarification, setAppliedClarification] = useState<ClarificationValues>({});
+  const [clarificationResolved, setClarificationResolved] = useState(false);
   const [quoteHistory, setQuoteHistory] = useState<QuoteHistoryItem[]>([]);
   const [historyPdfDownloadingId, setHistoryPdfDownloadingId] = useState("");
   const [piView, setPiView] = useState<ProductIntelligenceView | null>(null);
@@ -641,12 +714,18 @@ function QuoteForm() {
     };
   }, [searchParams]);
 
-  async function handleGenerate(options?: { revision?: boolean }) {
+  async function handleGenerate(options?: {
+    revision?: boolean;
+    /** Set when the user confirms or skips clarification; bypasses analysis. */
+    clarification?: ClarificationValues;
+  }) {
     if (!companyName.trim()) {
       alert("请填写企业名称");
       return;
     }
     const isRevision = options?.revision === true;
+    const clarificationDecided = options?.clarification !== undefined;
+    const clarificationValues = options?.clarification ?? appliedClarification;
     if (quoteId.trim() && !isRevision) {
       return;
     }
@@ -683,6 +762,8 @@ function QuoteForm() {
       }
       if (!nextProjectId) {
         nextProjectId = await createOrgProject(organizationId, companyName.trim());
+        // Bind now: clarification may pause before generation, and a second click must reuse it.
+        setProjectId(nextProjectId);
         intake = (await fetchProjectIntake(nextProjectId, organizationId)) ?? intake;
         setProjectIntake(intake);
       }
@@ -699,6 +780,22 @@ function QuoteForm() {
         if (revisedArea != null) {
           payload.areaM2 = revisedArea;
         }
+      }
+      applyClarification(payload, clarificationValues);
+
+      if (!isRevision && !clarificationDecided && !clarificationResolved) {
+        const analysis = await requestRequirementAnalysis(payload, organizationId);
+        if (analysis && analysis.items.length > 0) {
+          setClarifyItems(analysis.items);
+          setClarifyConflicts(analysis.conflicts);
+          return;
+        }
+      }
+      if (clarificationDecided) {
+        setAppliedClarification(clarificationValues);
+        setClarificationResolved(true);
+        setClarifyItems(null);
+        setClarifyConflicts([]);
       }
 
       const res = await fetch("/api/quote/generate", {
@@ -743,6 +840,19 @@ function QuoteForm() {
       setLoading(false);
     }
   }
+
+  const clarificationInvalid = (clarifyItems ?? []).some(
+    (item) =>
+      clarificationDraft[item.key].trim() !== "" &&
+      parsePositiveInput(clarificationDraft[item.key]) == null,
+  );
+  const clarificationEntered: ClarificationValues = {};
+  for (const item of clarifyItems ?? []) {
+    const value = parsePositiveInput(clarificationDraft[item.key]);
+    if (value != null) clarificationEntered[item.key] = value;
+  }
+  const canConfirmClarification =
+    !clarificationInvalid && Object.keys(clarificationEntered).length > 0;
 
   async function handleDownloadPdf(targetQuoteId?: string) {
     const id = trimQuoteId(targetQuoteId ?? quoteId);
@@ -837,7 +947,64 @@ function QuoteForm() {
             onChange={(e) => setCompanyName(e.target.value)}
           />
         )}
-        {!quoteId ? (
+        {!quoteId && clarifyItems ? (
+          <div className="space-y-4 rounded-lg border border-amber-700/50 bg-black p-4">
+            <div>
+              <p className="text-sm font-medium text-zinc-100">生成前请补充以下关键信息</p>
+              <p className="mt-1 text-xs text-zinc-500">
+                未补充的信息将在方案中标注为待确认，不会使用默认值。
+              </p>
+            </div>
+            {clarifyConflicts.map((conflict) => (
+              <p key={conflict} className="text-xs text-amber-300">
+                {conflict}
+              </p>
+            ))}
+            {clarifyItems.map((item) => (
+              <label key={item.key} className="block space-y-1">
+                <span className="text-sm text-zinc-200">{item.label}</span>
+                <span className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    className="w-40 rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100"
+                    placeholder={CLARIFICATION_INPUT[item.key].placeholder}
+                    value={clarificationDraft[item.key]}
+                    onChange={(e) =>
+                      setClarificationDraft((prev) => ({ ...prev, [item.key]: e.target.value }))
+                    }
+                    disabled={loading}
+                  />
+                  <span className="text-sm text-zinc-400">
+                    {CLARIFICATION_INPUT[item.key].unit}
+                  </span>
+                </span>
+                {item.impact ? (
+                  <span className="block text-xs text-zinc-500">{item.impact}</span>
+                ) : null}
+              </label>
+            ))}
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleGenerate({ clarification: clarificationEntered })}
+                disabled={loading || !contextReady || !canConfirmClarification}
+                className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
+              >
+                {loading ? "生成中…" : "补充并生成方案"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleGenerate({ clarification: {} })}
+                disabled={loading || !contextReady}
+                className="rounded-xl border border-zinc-600 px-6 py-3 text-sm font-semibold text-zinc-100 hover:border-zinc-400 disabled:opacity-50"
+              >
+                暂不补充，按待确认生成
+              </button>
+            </div>
+          </div>
+        ) : !quoteId ? (
           <button
             type="button"
             onClick={() => void handleGenerate()}

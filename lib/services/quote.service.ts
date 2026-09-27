@@ -21,6 +21,7 @@ import {
   type RequirementStatusItem,
 } from "@/lib/product-engine";
 import { analyzeConfigurationStrategy } from "@/lib/product-engine/configuration-strategy";
+import { resolveCanonicalHeadcount } from "@/lib/product-engine/quote-revision";
 import { prisma } from "@/lib/prisma";
 import { generatePlaceholders } from "@/lib/services/tender/generatePlaceholders";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
@@ -46,7 +47,17 @@ export async function generateQuote(input: GenerateQuoteInput) {
     assertResourceBelongsToTenant(project.organizationId, input.organizationId);
   }
 
-  const companyInfo = applyQuoteRevisionOverrides(input.companyInfo);
+  const revisedCompanyInfo = applyQuoteRevisionOverrides(input.companyInfo);
+  // Same resolved headcount as requirement analysis; structured targetUsers stays authoritative.
+  const headcount = resolveCanonicalHeadcount({
+    targetUsers: revisedCompanyInfo.targetUsers,
+    projectTargetUsers: project.targetUsers,
+    notes: revisedCompanyInfo.notes || project.notes,
+  });
+  const companyInfo: CompanyInfoInput =
+    headcount && headcount.source !== "quote"
+      ? { ...revisedCompanyInfo, targetUsers: headcount.value }
+      : revisedCompanyInfo;
   const { productSelections, ...engineCompanyInfo } = companyInfo;
 
   const draft = await prisma.quote.create({
@@ -73,7 +84,7 @@ export async function generateQuote(input: GenerateQuoteInput) {
       selections: productSelections,
     });
     const configurationStrategy = analyzeConfigurationStrategy({
-      companyInfo,
+      companyInfo: revisedCompanyInfo,
       project,
     });
 
@@ -103,6 +114,33 @@ export async function generateQuote(input: GenerateQuoteInput) {
     });
     throw error;
   }
+}
+
+/** Pre-generation requirement check: reads the Project only; creates no Quote. */
+export async function analyzeQuoteRequirements(input: {
+  projectId: string;
+  organizationId: string;
+  companyInfo: CompanyInfoInput;
+}) {
+  const project = await prisma.project.findUnique({
+    where: { id: input.projectId },
+  });
+
+  if (!project) {
+    throw new Error("Project not found");
+  }
+
+  assertResourceBelongsToTenant(project.organizationId, input.organizationId);
+
+  const analysis = analyzeConfigurationStrategy({
+    companyInfo: applyQuoteRevisionOverrides(input.companyInfo),
+    project,
+  });
+
+  return {
+    missingCriticalInfo: analysis.missingCriticalInfo,
+    conflicts: analysis.configurationStrategy.conflicts,
+  };
 }
 
 export async function getQuoteById(quoteId: string) {
