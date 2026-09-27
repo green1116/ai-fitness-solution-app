@@ -20,6 +20,7 @@ import {
   classifyRequirements,
   type RequirementStatusItem,
 } from "@/lib/product-engine";
+import { analyzeConfigurationStrategy } from "@/lib/product-engine/configuration-strategy";
 import { prisma } from "@/lib/prisma";
 import { generatePlaceholders } from "@/lib/services/tender/generatePlaceholders";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
@@ -71,6 +72,10 @@ export async function generateQuote(input: GenerateQuoteInput) {
       templatePlaceholders: generatePlaceholders(project.id, projectInput),
       selections: productSelections,
     });
+    const configurationStrategy = analyzeConfigurationStrategy({
+      companyInfo,
+      project,
+    });
 
     const updated = await prisma.quote.update({
       where: { id: draft.id },
@@ -84,6 +89,7 @@ export async function generateQuote(input: GenerateQuoteInput) {
             aggregatedStatus: engine.runtime.aggregatedStatus,
           },
           productIntelligence,
+          configurationStrategy,
         } as unknown as Prisma.JsonObject,
         orchestrationId: engine.runtime.orchestrationId,
       },
@@ -159,13 +165,13 @@ function projectInputFromQuote(input: {
       ? companyInfo.areaM2
       : input.project.areaM2 && input.project.areaM2 > 0
         ? input.project.areaM2
-        : 120;
+        : undefined;
   return {
     name: `${company}员工健身空间建设项目`,
     clientName: company,
     industry,
     siteType: input.project.siteType,
-    areaM2,
+    ...(areaM2 != null ? { areaM2 } : {}),
     ...(targetUsers != null ? { targetUsers } : {}),
     city: companyInfo.city || input.project.city?.trim() || "上海市",
     budgetLevel: input.project.budgetLevel,

@@ -105,13 +105,13 @@ function projectInputFromQuote(input: {
       ? companyInfo.areaM2
       : input.project.areaM2 && input.project.areaM2 > 0
         ? input.project.areaM2
-        : 120;
+        : undefined;
   return {
     name: `${company}员工健身空间建设项目`,
     clientName: company,
     industry,
     siteType: input.project.siteType,
-    areaM2,
+    ...(areaM2 != null ? { areaM2 } : {}),
     ...(targetUsers != null ? { targetUsers } : {}),
     city: companyInfo.city || input.project.city?.trim() || "上海市",
     budgetLevel: input.project.budgetLevel,
@@ -215,7 +215,7 @@ export async function calculateBudget(input: CalculateBudgetInput) {
       `基于 quoteId=${quote.id} 的方案器材配置估算`,
       `预算档位（设备单价品质）：${budgetTier}`,
       `方案人数：${projectInput.targetUsers ?? "未提供"}`,
-      `方案面积：${projectInput.areaM2 ?? "未提供"}㎡`,
+      `方案面积：${projectInput.areaM2 != null ? `${projectInput.areaM2}㎡` : "待确认"}`,
       ...(projectInput.notes
         ? [`方案要求：${projectInput.notes}`]
         : []),

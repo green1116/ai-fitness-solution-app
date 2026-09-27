@@ -51,20 +51,20 @@ function buildProposalFromOrchestration(
     companyInfo.targetUsers > 0
       ? companyInfo.targetUsers
       : null;
-  const areaSize =
+  const knownAreaSize =
     typeof companyInfo.areaM2 === "number" &&
     Number.isFinite(companyInfo.areaM2) &&
     companyInfo.areaM2 > 0
       ? companyInfo.areaM2
-      : 120;
+      : null;
   const strengthEmphasis = hasStrengthEquipmentEmphasis(companyInfo.notes);
-  // buildPlan requires a numeric companySize; when unknown, overwrite size copy below.
+  // buildPlan requires numeric companySize/areaSize; when unknown, overwrite that copy below.
   const plan = buildPlan(
     {
       planId: input.quoteId,
       industry,
       companySize: knownCompanySize ?? 0,
-      areaSize,
+      areaSize: knownAreaSize ?? 0,
       budgetRange: "10-20万",
     },
     "standard",
@@ -78,6 +78,11 @@ function buildProposalFromOrchestration(
         ...plan.executiveSummary.slice(1),
       ];
     }
+  }
+
+  if (knownAreaSize == null && plan.executiveSummary.length > 1) {
+    plan.executiveSummary[1] =
+      "空间面积待确认，同时使用人数与分区规模需在面积确认后评估";
   }
 
   if (strengthEmphasis) {
@@ -119,7 +124,7 @@ function buildProposalFromOrchestration(
         knownCompanySize != null
           ? `目标用户：${knownCompanySize} 人`
           : "目标用户：人数待确认",
-        `面积：${areaSize}㎡`,
+        knownAreaSize != null ? `面积：${knownAreaSize}㎡` : "面积：待确认",
         strengthEmphasis ? "配置侧重：力量器械优先" : null,
       ]),
     },

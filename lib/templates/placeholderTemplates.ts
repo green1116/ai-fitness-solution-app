@@ -116,15 +116,23 @@ function clampQuantity(quantity: number, min?: number, max?: number): number {
   return value;
 }
 
+function knownTargetUsers(input: ProjectInput): number | undefined {
+  return typeof input.targetUsers === "number" && input.targetUsers > 0
+    ? input.targetUsers
+    : undefined;
+}
+
 function estimateQuantity(template: Template, input: ProjectInput): number {
-  const targetUsers = input.targetUsers ?? 30;
+  const targetUsers = knownTargetUsers(input);
   const areaScale =
     typeof input.areaM2 === "number" && input.areaM2 > 0
       ? input.areaM2 / 120
       : 1;
-  const userFactor = template.perUserDivisor
-    ? Math.ceil((targetUsers / template.perUserDivisor) * areaScale)
-    : template.baseQuantity;
+  // Unknown headcount: conservative template base quantity, never a default headcount.
+  const userFactor =
+    template.perUserDivisor && targetUsers != null
+      ? Math.ceil((targetUsers / template.perUserDivisor) * areaScale)
+      : template.baseQuantity;
 
   let raw = Math.max(template.baseQuantity, userFactor);
 
@@ -146,17 +154,22 @@ export function buildPlaceholders(
 ): ProductPlaceholder[] {
   const now = new Date().toISOString();
   const strengthEmphasis = hasStrengthEquipmentEmphasis(input.notes);
+  const headcountUnknown = knownTargetUsers(input) == null;
 
   return TEMPLATE_POOL.filter(
     (tpl) => !tpl.siteTypes || tpl.siteTypes.includes(input.siteType),
   ).map((tpl, idx) => {
     const quantity = estimateQuantity(tpl, input);
-    const recommendationReason =
+    const baseReason =
       strengthEmphasis && tpl.category === "力量设备"
         ? `${tpl.recommendationReason} 按客户偏重力量器械要求提高配置占比。`
         : strengthEmphasis && tpl.category === "有氧设备"
           ? `${tpl.recommendationReason} 按力量优先配置相应压缩有氧规模。`
           : tpl.recommendationReason;
+    const recommendationReason =
+      headcountUnknown && tpl.perUserDivisor
+        ? `${baseReason}（人数待确认：数量按基础配置暂估，确认人数后调整）`
+        : baseReason;
 
     return {
       id: `${projectId}-ph-${idx + 1}`,

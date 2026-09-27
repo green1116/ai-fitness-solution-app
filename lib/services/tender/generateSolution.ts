@@ -163,7 +163,7 @@ function buildImplementationPlan(input: ProjectInput): Phase[] {
 export function generateSolution(input: ProjectInput): GeneratedSolution {
   const client = input.clientName?.trim() || "示例企业";
   const city = input.city?.trim() || "项目所在地（按招标文件）";
-  const area = input.areaM2 != null ? `${input.areaM2} 平方米` : "面积以现场复核为准";
+  const area = input.areaM2 != null ? `约 ${input.areaM2} 平方米` : "以现场复核为准";
   const users =
     input.targetUsers != null
       ? `约 ${input.targetUsers} 人`
@@ -209,7 +209,7 @@ export function generateSolution(input: ProjectInput): GeneratedSolution {
   const summary = `${client}员工健身空间建设项目的投标技术方案，采用“标准化方案骨架 + 可替换配置明细”的编制方法：先确保章节齐全、指标清晰、响应可核验，再通过配置清单与实施计划形成闭环。方案覆盖空间规划、设备建议、实施组织、培训验收、运维移交与质保服务，品牌体系为 AI Fitness Solution，适用于正式投标评审与合同谈判阶段的技术澄清。`;
 
   const background = [
-    `本项目面向企业级员工健身场景，场地类型为 ${input.siteType}，规划面积约 ${area}，服务规模 ${users}。`,
+    `本项目面向企业级员工健身场景，场地类型为 ${input.siteType}，规划面积${area}，服务规模 ${users}。`,
     `项目所在地：${city}；行业与使用特征将用于分区规划、设备组合与运维策略的适配。`,
     notes
       ? `招标补充与现场约束摘要：${notes}`
