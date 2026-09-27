@@ -520,6 +520,7 @@ function QuoteForm() {
   const [piLoading, setPiLoading] = useState(false);
   const [piSaving, setPiSaving] = useState(false);
   const [piError, setPiError] = useState("");
+  const [piNotice, setPiNotice] = useState("");
   const [piLocalWarnings, setPiLocalWarnings] = useState<string[]>([]);
   const [slotDrafts, setSlotDrafts] = useState<Record<string, SlotDraft>>({});
   const [initialSelectionJson, setInitialSelectionJson] = useState("[]");
@@ -557,6 +558,7 @@ function QuoteForm() {
   }, [quoteId, organizationId]);
 
   function updateSlotDraft(slotKey: string, patch: Partial<SlotDraft>) {
+    setPiNotice("");
     setSlotDrafts((prev) => ({
       ...prev,
       [slotKey]: { ...(prev[slotKey] ?? { mode: "template", quantity: "" }), ...patch },
@@ -572,8 +574,10 @@ function QuoteForm() {
   async function handleSaveSelections() {
     const baseQuoteId = trimQuoteId(quoteId);
     if (!baseQuoteId || !organizationId || !piView) return;
+    const savedSelectionJson = JSON.stringify(selectionPayload);
     setPiSaving(true);
     setPiError("");
+    setPiNotice("");
     try {
       const res = await fetch("/api/quote/product-intelligence", {
         method: "POST",
@@ -592,6 +596,8 @@ function QuoteForm() {
         return;
       }
       const boundProjectId = data.projectId?.trim() || projectId;
+      setInitialSelectionJson(savedSelectionJson);
+      setPiNotice("已保存为新方案版本");
       setProposal(data.proposal);
       setQuoteId(nextQuoteId);
       setPdfDownloaded(false);
@@ -610,7 +616,7 @@ function QuoteForm() {
         }),
         { scroll: false },
       );
-      await refreshQuoteHistory(boundProjectId, organizationId);
+      void refreshQuoteHistory(boundProjectId, organizationId);
     } catch {
       setPiError("候选配置保存失败，请稍后重试");
     } finally {
@@ -1309,7 +1315,11 @@ function QuoteForm() {
                   type="button"
                   onClick={() => void handleSaveSelections()}
                   disabled={
-                    piSaving || loading || !selectionDirty || !draftQuantitiesValid
+                    piSaving ||
+                    piLoading ||
+                    loading ||
+                    !selectionDirty ||
+                    !draftQuantitiesValid
                   }
                   className="rounded-xl border border-emerald-600 px-6 py-3 text-sm font-semibold text-emerald-200 hover:border-emerald-400 disabled:opacity-50"
                 >
@@ -1318,6 +1328,7 @@ function QuoteForm() {
                 <p className="text-xs text-zinc-500">
                   保存后生成新的方案版本，当前及历史版本保持不变；此操作仅调整方案候选配置，不代表确认采购。
                 </p>
+                {piNotice ? <p className="text-sm text-emerald-300">{piNotice}</p> : null}
                 {piError ? <p className="text-sm text-rose-300">{piError}</p> : null}
               </div>
             </>
