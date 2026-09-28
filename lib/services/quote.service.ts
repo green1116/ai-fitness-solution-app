@@ -71,16 +71,19 @@ export async function generateQuote(input: GenerateQuoteInput) {
   });
 
   try {
+    const projectInput = projectInputFromQuote({ project, companyInfo });
+    const templatePlaceholders = generatePlaceholders(project.id, projectInput);
     const engine = runQuoteEngine({
       quoteId: draft.id,
       workspaceId: input.workspaceId,
       companyInfo: engineCompanyInfo,
+      equipment: applyProductSelections(templatePlaceholders, productSelections)
+        .placeholders,
     });
 
-    const projectInput = projectInputFromQuote({ project, companyInfo });
     const productIntelligence = buildProductIntelligenceSnapshot({
       notes: projectInput.notes,
-      templatePlaceholders: generatePlaceholders(project.id, projectInput),
+      templatePlaceholders,
       selections: productSelections,
     });
     const configurationStrategy = analyzeConfigurationStrategy({

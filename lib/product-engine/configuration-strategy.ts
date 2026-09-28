@@ -4,7 +4,8 @@
  * Only customer-provided facts are reported as facts: missing headcount / area /
  * budget stay "unknown". Strategy text stays within hardware scope (equipment,
  * flooring, mirrors, lighting, acoustics, finish, density/circulation).
- * Does not change equipment quantities.
+ * The analysis itself does not change equipment; equipment configuration reads
+ * the same focus signals through `resolveEquipmentFocus`.
  */
 
 import {
@@ -298,6 +299,106 @@ function buildZoning(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Equipment focus (PCv2.2-A) — same signals and zoning shares, equipment view
+// ---------------------------------------------------------------------------
+
+export type StudioFocus = "pilates" | "yoga" | "functional";
+
+const STUDIO_FOCUSES: readonly TrainingFocus[] = ["pilates", "yoga", "functional"];
+
+function isStudioFocus(focus: TrainingFocus): focus is StudioFocus {
+  return STUDIO_FOCUSES.includes(focus);
+}
+
+export type StudioFocusAllocation = {
+  focus: StudioFocus;
+  label: string;
+  role: "primary" | "secondary";
+  zone: string;
+  /** Lower bound of the zoning share, used for equipment sizing. */
+  sharePct: number;
+};
+
+export type EquipmentFocus = {
+  primary: TrainingFocus[];
+  secondary: TrainingFocus[];
+  studio: StudioFocusAllocation[];
+  /** A pilates / yoga / functional focus is primary. */
+  studioPrimary: boolean;
+  /** Strength is primary (includes the legacy "偏重力量器械" phrases). */
+  strengthPrimary: boolean;
+  /** Cardio is primary and strength is not. */
+  cardioPrimary: boolean;
+};
+
+/**
+ * A studio focus that is only mentioned ("需要普拉提") counts as secondary here so
+ * the requested category is configured; cardio / strength mentions add nothing
+ * because the base template already covers them.
+ */
+export function resolveEquipmentFocus(notes: string | null | undefined): EquipmentFocus {
+  const text = notes?.trim() || "";
+  const signals = text ? detectFocusSignals(text) : [];
+  const primary = signals.filter((s) => s.role === "primary").map((s) => s.focus);
+  const secondary = signals
+    .filter(
+      (s) => s.role === "secondary" || (s.role === "mentioned" && isStudioFocus(s.focus)),
+    )
+    .map((s) => s.focus);
+  const zoning = buildZoning(primary, secondary, undefined);
+  const unzonedSecondary = secondary.filter(
+    (f) => isStudioFocus(f) && !zoning.some((z) => z.zone === ZONE_LABEL[f]),
+  ).length;
+  const studio: StudioFocusAllocation[] = [];
+  for (const s of signals) {
+    if (!isStudioFocus(s.focus)) continue;
+    const role = primary.includes(s.focus)
+      ? "primary"
+      : secondary.includes(s.focus)
+        ? "secondary"
+        : null;
+    if (!role) continue;
+    const zone = ZONE_LABEL[s.focus];
+    const zoned = zoning.find((z) => z.zone === zone);
+    studio.push({
+      focus: s.focus,
+      label: s.label,
+      role,
+      zone,
+      sharePct: zoned?.sharePct[0] ?? Math.round(20 / Math.max(1, unzonedSecondary)),
+    });
+  }
+  const strengthPrimary = primary.includes("strength");
+  return {
+    primary,
+    secondary,
+    studio,
+    studioPrimary: studio.some((s) => s.role === "primary"),
+    strengthPrimary,
+    cardioPrimary: primary.includes("cardio") && !strengthPrimary,
+  };
+}
+
+/** e.g. "普拉提为主，瑜伽为辅"; null when the focus does not change equipment. */
+export function describeEquipmentFocus(focus: EquipmentFocus): string | null {
+  const strengthEmphasis = focus.strengthPrimary;
+  const main = [
+    ...(strengthEmphasis ? ["力量器械"] : []),
+    ...(focus.cardioPrimary ? ["有氧训练"] : []),
+    ...focus.studio.filter((s) => s.role === "primary").map((s) => s.label),
+  ];
+  const minor = focus.studio.filter((s) => s.role === "secondary").map((s) => s.label);
+  if (main.length === 0 && minor.length === 0) return null;
+  if (strengthEmphasis && main.length === 1 && minor.length === 0) return "力量器械优先";
+  return [
+    main.length > 0 ? `${main.join("、")}为主` : null,
+    minor.length > 0 ? `${minor.join("、")}为辅` : null,
+  ]
+    .filter(Boolean)
+    .join("，");
+}
+
 const FOCUS_GUIDANCE: Partial<Record<TrainingFocus, { primary: string; secondary: string }>> = {
   pilates: {
     primary: "普拉提为核心：以核心床（Reformer）等普拉提器械与垫上区构成主训练区",
@@ -443,12 +544,18 @@ export function analyzeConfigurationStrategy(input: {
     });
   }
 
+  const equipmentFocus = resolveEquipmentFocus(notes);
   const downstreamNotes: string[] = [];
-  if (primary.includes("pilates") || secondary.includes("pilates")) {
-    downstreamNotes.push("当前模板器材位未包含普拉提器械，本阶段不调整器材位与数量");
+  for (const s of equipmentFocus.studio) {
+    downstreamNotes.push(
+      `器材配置已按${s.label}${s.role === "primary" ? "为主" : "为辅"}加入对应器材位（按${s.zone}面积估算数量；面积未知时按基础配置暂估）`,
+    );
   }
-  if (primary.includes("yoga") || secondary.includes("yoga")) {
-    downstreamNotes.push("当前模板器材位未包含瑜伽 / 垫上区，本阶段不调整器材位与数量");
+  if (equipmentFocus.studioPrimary) {
+    downstreamNotes.push("器材配置按训练侧重压缩有氧 / 力量器械为基础补充；力量非主项时不配置自由力量区");
+  }
+  if (equipmentFocus.cardioPrimary) {
+    downstreamNotes.push("器材配置按有氧优先提高有氧器械数量、相应压缩力量器械");
   }
   if (headcount.status === "unknown") {
     downstreamNotes.push("人数未知：器材数量按模板基础配置暂估并标注待确认，不按人数推算");

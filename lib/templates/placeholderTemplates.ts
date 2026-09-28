@@ -4,7 +4,12 @@ import type {
   ProjectInput,
   SiteType,
 } from "@/lib/domain/tender";
-import { hasStrengthEquipmentEmphasis } from "@/lib/product-engine/quote-revision";
+import {
+  resolveEquipmentFocus,
+  type EquipmentFocus,
+  type StudioFocus,
+  type StudioFocusAllocation,
+} from "@/lib/product-engine/configuration-strategy";
 
 type Template = {
   category: string;
@@ -109,6 +114,60 @@ const TEMPLATE_POOL: Template[] = [
   },
 ];
 
+type StudioTemplate = {
+  category: string;
+  subCategory: string;
+  specTags: string[];
+  priceBand: PriceBand;
+  unit: string;
+  /** Floor area per unit inside the focus zone, incl. spacing. */
+  m2PerUnit: number;
+  /** Area unknown: conservative base quantity by focus role. */
+  baseQuantity: Record<StudioFocusAllocation["role"], number>;
+  minQuantity: number;
+  maxQuantity: number;
+  recommendationReason: string;
+};
+
+const STUDIO_TEMPLATES: Record<StudioFocus, StudioTemplate> = {
+  pilates: {
+    category: "普拉提设备",
+    subCategory: "普拉提核心床（Reformer）",
+    specTags: ["商用级", "弹簧阻力可调", "静音滑轨", "可调脚杆与肩托"],
+    priceBand: "mid",
+    unit: "台",
+    m2PerUnit: 6,
+    baseQuantity: { primary: 4, secondary: 2 },
+    minQuantity: 2,
+    maxQuantity: 12,
+    recommendationReason: "用于核心、体态与低冲击力量训练，适合小班课与私教场景。",
+  },
+  yoga: {
+    category: "瑜伽垫上设备",
+    subCategory: "瑜伽垫与辅具套装（瑜伽垫/瑜伽砖/伸展带）",
+    specTags: ["防滑", "高回弹", "易清洁", "可收纳"],
+    priceBand: "low",
+    unit: "套",
+    m2PerUnit: 2.5,
+    baseQuantity: { primary: 12, secondary: 6 },
+    minQuantity: 6,
+    maxQuantity: 30,
+    recommendationReason: "用于瑜伽、垫上训练与拉伸，按垫位配置。",
+  },
+  functional: {
+    category: "功能训练设备",
+    subCategory: "功能训练架与小器械组合（壶铃/药球/战绳/训练垫）",
+    specTags: ["商用级", "模块化", "多人共享", "开放地面适配"],
+    priceBand: "mid",
+    unit: "套",
+    m2PerUnit: 25,
+    baseQuantity: { primary: 2, secondary: 1 },
+    minQuantity: 1,
+    maxQuantity: 6,
+    recommendationReason: "用于功能性与体能训练，配合开放训练地面使用。",
+  },
+};
+
 function clampQuantity(quantity: number, min?: number, max?: number): number {
   let value = Math.max(1, Math.round(quantity));
   if (typeof min === "number") value = Math.max(min, value);
@@ -122,12 +181,26 @@ function knownTargetUsers(input: ProjectInput): number | undefined {
     : undefined;
 }
 
-function estimateQuantity(template: Template, input: ProjectInput): number {
+function knownAreaM2(input: ProjectInput): number | undefined {
+  return typeof input.areaM2 === "number" && input.areaM2 > 0 ? input.areaM2 : undefined;
+}
+
+/** Cardio / strength that is not itself a primary focus while a studio focus is. */
+function isCompressedByStudio(template: Template, focus: EquipmentFocus): boolean {
+  if (!focus.studioPrimary) return false;
+  if (template.category === "有氧设备") return !focus.primary.includes("cardio");
+  if (template.category === "力量设备") return !focus.strengthPrimary;
+  return false;
+}
+
+function estimateQuantity(
+  template: Template,
+  input: ProjectInput,
+  focus: EquipmentFocus,
+): number {
   const targetUsers = knownTargetUsers(input);
-  const areaScale =
-    typeof input.areaM2 === "number" && input.areaM2 > 0
-      ? input.areaM2 / 120
-      : 1;
+  const knownArea = knownAreaM2(input);
+  const areaScale = knownArea != null ? knownArea / 120 : 1;
   // Unknown headcount: conservative template base quantity, never a default headcount.
   const userFactor =
     template.perUserDivisor && targetUsers != null
@@ -136,16 +209,91 @@ function estimateQuantity(template: Template, input: ProjectInput): number {
 
   let raw = Math.max(template.baseQuantity, userFactor);
 
-  const strengthEmphasis = hasStrengthEquipmentEmphasis(input.notes);
-  if (strengthEmphasis) {
+  if (focus.strengthPrimary) {
     if (template.category === "有氧设备") {
       raw = Math.max(1, Math.round(raw * 0.65));
     } else if (template.category === "力量设备") {
       raw = Math.max(template.baseQuantity, Math.round(raw * 1.45));
     }
+  } else if (focus.cardioPrimary) {
+    if (template.category === "有氧设备") {
+      raw = Math.max(template.baseQuantity, Math.round(raw * 1.45));
+    } else if (template.category === "力量设备") {
+      raw = Math.max(1, Math.round(raw * 0.65));
+    }
+  }
+
+  if (isCompressedByStudio(template, focus)) {
+    // Template minimums assume cardio / strength is the main floor; not here.
+    return clampQuantity(Math.max(1, Math.round(raw * 0.5)), undefined, template.maxQuantity);
   }
 
   return clampQuantity(raw, template.minQuantity, template.maxQuantity);
+}
+
+type PlaceholderRow = Pick<
+  ProductPlaceholder,
+  "category" | "subCategory" | "specTags" | "quantity" | "priceBand" | "recommendationReason"
+>;
+
+function buildStudioRow(
+  allocation: StudioFocusAllocation,
+  input: ProjectInput,
+): PlaceholderRow {
+  const tpl = STUDIO_TEMPLATES[allocation.focus];
+  const area = knownAreaM2(input);
+  const roleText =
+    allocation.role === "primary"
+      ? `按客户以${allocation.label}为主的要求配置。`
+      : `按客户${allocation.label}需求少量配置。`;
+  let quantity: number;
+  let sizing: string;
+  if (area != null) {
+    const zoneArea = Math.round((area * allocation.sharePct) / 100);
+    const raw = Math.floor(zoneArea / tpl.m2PerUnit);
+    quantity = clampQuantity(raw, tpl.minQuantity, tpl.maxQuantity);
+    sizing = `按${allocation.zone}约 ${zoneArea}㎡（总面积 ${area}㎡ × ${allocation.sharePct}%）、约 ${tpl.m2PerUnit}㎡/${tpl.unit}估算`;
+    if (quantity > raw) {
+      sizing += `，按最低配置 ${tpl.minQuantity} ${tpl.unit}，需确认场地可容纳`;
+    } else if (quantity < raw) {
+      sizing += `，按单项上限 ${tpl.maxQuantity} ${tpl.unit}配置`;
+    }
+    sizing += "。";
+  } else {
+    quantity = clampQuantity(tpl.baseQuantity[allocation.role], tpl.minQuantity, tpl.maxQuantity);
+    sizing = "（面积待确认：数量按基础配置暂估，确认面积后按分区调整）";
+  }
+  return {
+    category: tpl.category,
+    subCategory: tpl.subCategory,
+    specTags: tpl.specTags,
+    quantity,
+    priceBand: tpl.priceBand,
+    recommendationReason: `${tpl.recommendationReason} ${roleText}${sizing}`,
+  };
+}
+
+function focusAdjustmentReason(template: Template, focus: EquipmentFocus): string | null {
+  if (focus.strengthPrimary && template.category === "力量设备") {
+    return "按客户偏重力量器械要求提高配置占比。";
+  }
+  if (focus.strengthPrimary && template.category === "有氧设备") {
+    return "按力量优先配置相应压缩有氧规模。";
+  }
+  if (isCompressedByStudio(template, focus)) {
+    const labels = focus.studio
+      .filter((s) => s.role === "primary")
+      .map((s) => s.label)
+      .join("、");
+    return `按${labels}为主的配置压缩为基础补充。`;
+  }
+  if (focus.cardioPrimary && template.category === "有氧设备") {
+    return "按客户有氧优先要求提高配置占比。";
+  }
+  if (focus.cardioPrimary && template.category === "力量设备") {
+    return "按有氧优先配置相应压缩力量规模。";
+  }
+  return null;
 }
 
 export function buildPlaceholders(
@@ -153,36 +301,46 @@ export function buildPlaceholders(
   input: ProjectInput,
 ): ProductPlaceholder[] {
   const now = new Date().toISOString();
-  const strengthEmphasis = hasStrengthEquipmentEmphasis(input.notes);
+  const focus = resolveEquipmentFocus(input.notes);
   const headcountUnknown = knownTargetUsers(input) == null;
+  // Strength as a non-primary item does not get a large free-weight zone.
+  const dropFreeWeight = focus.studioPrimary && !focus.strengthPrimary;
 
-  return TEMPLATE_POOL.filter(
-    (tpl) => !tpl.siteTypes || tpl.siteTypes.includes(input.siteType),
-  ).map((tpl, idx) => {
-    const quantity = estimateQuantity(tpl, input);
-    const baseReason =
-      strengthEmphasis && tpl.category === "力量设备"
-        ? `${tpl.recommendationReason} 按客户偏重力量器械要求提高配置占比。`
-        : strengthEmphasis && tpl.category === "有氧设备"
-          ? `${tpl.recommendationReason} 按力量优先配置相应压缩有氧规模。`
-          : tpl.recommendationReason;
+  const rows: PlaceholderRow[] = [];
+  for (const tpl of TEMPLATE_POOL) {
+    if (tpl.siteTypes && !tpl.siteTypes.includes(input.siteType)) continue;
+    if (dropFreeWeight && tpl.subCategory === "自由力量区设备") continue;
+    const quantity = estimateQuantity(tpl, input, focus);
+    const adjustment = focusAdjustmentReason(tpl, focus);
+    const baseReason = adjustment
+      ? `${tpl.recommendationReason} ${adjustment}`
+      : tpl.recommendationReason;
     const recommendationReason =
       headcountUnknown && tpl.perUserDivisor
         ? `${baseReason}（人数待确认：数量按基础配置暂估，确认人数后调整）`
         : baseReason;
-
-    return {
-      id: `${projectId}-ph-${idx + 1}`,
-      projectId,
+    rows.push({
       category: tpl.category,
       subCategory: tpl.subCategory,
       specTags: tpl.specTags,
       quantity,
       priceBand: tpl.priceBand,
       recommendationReason,
-      replaceable: true,
-      createdAt: now,
-      updatedAt: now,
-    };
+    });
+  }
+
+  let insertAt = 0;
+  rows.forEach((row, i) => {
+    if (row.category === "有氧设备" || row.category === "力量设备") insertAt = i + 1;
   });
+  rows.splice(insertAt, 0, ...focus.studio.map((s) => buildStudioRow(s, input)));
+
+  return rows.map((row, idx) => ({
+    id: `${projectId}-ph-${idx + 1}`,
+    projectId,
+    ...row,
+    replaceable: true,
+    createdAt: now,
+    updatedAt: now,
+  }));
 }

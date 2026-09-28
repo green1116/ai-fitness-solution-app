@@ -10,9 +10,9 @@ import type { PriceBand, ProductPlaceholder } from "@/lib/domain/tender";
 import { getSkusByCategory } from "@/lib/tender/sku/skuDatabase";
 import type { ProductSKU, SkuCategory } from "@/lib/tender/sku/skuTypes";
 
+import { resolveEquipmentFocus } from "./configuration-strategy";
 import {
   hasBasementNoVentilationConstraint,
-  hasStrengthEquipmentEmphasis,
   parseExplicitAreaM2FromNotes,
 } from "./quote-revision";
 
@@ -178,11 +178,30 @@ function classifyClause(
     };
   }
 
-  if (hasStrengthEquipmentEmphasis(clause)) {
+  if (resolveEquipmentFocus(clause).strengthPrimary) {
     return {
       text: clause,
       status: "IN_SCOPE",
       basis: "已按力量优先调整分区占比与器材数量",
+    };
+  }
+
+  const wholeFocus = resolveEquipmentFocus(wholeNotes);
+  const clauseStudio = resolveEquipmentFocus(clause).studio.filter((s) =>
+    wholeFocus.studio.some((w) => w.focus === s.focus),
+  );
+  if (clauseStudio.length > 0) {
+    return {
+      text: clause,
+      status: "IN_SCOPE",
+      basis: `已按${clauseStudio.map((s) => s.label).join("、")}需求加入对应器材位并调整分区`,
+    };
+  }
+  if (wholeFocus.cardioPrimary && resolveEquipmentFocus(clause).cardioPrimary) {
+    return {
+      text: clause,
+      status: "IN_SCOPE",
+      basis: "已按有氧优先调整分区占比与器材数量",
     };
   }
 
@@ -229,7 +248,7 @@ export function classifyRequirements(
     });
   }
 
-  if (hasStrengthEquipmentEmphasis(text) && AEROBIC_EMPHASIS_RE.test(text)) {
+  if (resolveEquipmentFocus(text).strengthPrimary && AEROBIC_EMPHASIS_RE.test(text)) {
     items.push({
       id: "conflict-emphasis",
       text: "力量优先 / 有氧优先",

@@ -1,5 +1,9 @@
 import type { Phase, ProjectInput, Zone } from "@/lib/domain/tender";
-import { hasStrengthEquipmentEmphasis } from "@/lib/product-engine/quote-revision";
+import {
+  describeEquipmentFocus,
+  resolveEquipmentFocus,
+  type StudioFocus,
+} from "@/lib/product-engine/configuration-strategy";
 
 export type GeneratedSolution = {
   summary: string;
@@ -13,27 +17,43 @@ export type GeneratedSolution = {
   acceptanceCriteria: string[];
 };
 
+const STUDIO_ZONE_PURPOSE: Record<StudioFocus, string> = {
+  pilates: "配置普拉提核心床，用于核心、体态与低冲击力量训练",
+  yoga: "开阔垫上空间，用于瑜伽、垫上训练与拉伸",
+  functional: "开放训练地面配合功能训练架与小器械，用于功能性与体能训练",
+};
+
 function buildZones(input: ProjectInput): Zone[] {
-  const strengthEmphasis = hasStrengthEquipmentEmphasis(input.notes);
+  const focus = resolveEquipmentFocus(input.notes);
+  const strengthEmphasis = focus.strengthPrimary;
+  const cardioEmphasis = focus.cardioPrimary;
   const zones: Zone[] = [
     {
       name: "有氧训练区",
       purpose: strengthEmphasis
         ? "保留基础心肺训练，服务力量优先配置下的有氧补充需求"
-        : "提升心肺功能与日常训练覆盖率",
-      areaRatio: strengthEmphasis ? 0.18 : 0.28,
+        : cardioEmphasis
+          ? "按客户有氧优先要求扩大有氧训练占比"
+          : "提升心肺功能与日常训练覆盖率",
+      areaRatio: strengthEmphasis ? 0.18 : cardioEmphasis ? 0.4 : 0.28,
       capacity: input.targetUsers
-        ? Math.ceil(input.targetUsers * (strengthEmphasis ? 0.2 : 0.35))
+        ? Math.ceil(
+            input.targetUsers * (strengthEmphasis ? 0.2 : cardioEmphasis ? 0.4 : 0.35),
+          )
         : undefined,
     },
     {
       name: "力量训练区",
       purpose: strengthEmphasis
         ? "按客户偏重力量器械要求扩大力量训练与综合训练占比"
-        : "满足基础力量与综合训练需求",
-      areaRatio: strengthEmphasis ? 0.4 : 0.3,
+        : cardioEmphasis
+          ? "保留基础力量训练，服务有氧优先配置下的力量补充需求"
+          : "满足基础力量与综合训练需求",
+      areaRatio: strengthEmphasis ? 0.4 : cardioEmphasis ? 0.18 : 0.3,
       capacity: input.targetUsers
-        ? Math.ceil(input.targetUsers * (strengthEmphasis ? 0.4 : 0.25))
+        ? Math.ceil(
+            input.targetUsers * (strengthEmphasis ? 0.4 : cardioEmphasis ? 0.2 : 0.25),
+          )
         : undefined,
     },
     {
@@ -75,6 +95,27 @@ function buildZones(input: ProjectInput): Zone[] {
       purpose: "适合高频短时训练与轮换使用",
       areaRatio: 0.1,
     });
+  }
+
+  if (focus.studio.length > 0) {
+    // Same share lower bounds that size the studio equipment placeholders.
+    const studioShare = focus.studio.reduce((sum, s) => sum + s.sharePct, 0) / 100;
+    const remaining = Math.max(0, 1 - studioShare);
+    for (const zone of zones) {
+      if (zone.areaRatio != null) {
+        zone.areaRatio = Math.round(zone.areaRatio * remaining * 100) / 100;
+      }
+      if (focus.studioPrimary && (zone.name === "有氧训练区" || zone.name === "力量训练区")) {
+        zone.purpose = `${zone.purpose}（按训练侧重压缩为基础补充）`;
+      }
+    }
+    zones.unshift(
+      ...focus.studio.map((s) => ({
+        name: s.zone,
+        purpose: `${STUDIO_ZONE_PURPOSE[s.focus]}（${s.label}${s.role === "primary" ? "为主" : "为辅"}）`,
+        areaRatio: s.sharePct / 100,
+      })),
+    );
   }
 
   return zones;
@@ -169,7 +210,10 @@ export function generateSolution(input: ProjectInput): GeneratedSolution {
       ? `约 ${input.targetUsers} 人`
       : "服务人数以招标文件及现场复核为准";
   const notes = input.notes?.trim() || "";
-  const strengthEmphasis = hasStrengthEquipmentEmphasis(notes);
+  const focus = resolveEquipmentFocus(notes);
+  const strengthEmphasis = focus.strengthPrimary;
+  const focusText = describeEquipmentFocus(focus);
+  const nonStrengthFocus = focus.studio.length > 0 || focus.cardioPrimary;
   const basementNoVentilation =
     /地下室无通风/.test(notes) ||
     (/地下室/.test(notes) && /无通风/.test(notes));
@@ -187,6 +231,11 @@ export function generateSolution(input: ProjectInput): GeneratedSolution {
   if (strengthEmphasis) {
     requirements.push(
       "客户明确偏重力量器械：空间与设备配置应提高力量训练占比，并相应压缩有氧设备规模。",
+    );
+  }
+  if (nonStrengthFocus && focusText) {
+    requirements.push(
+      `客户训练侧重为「${focusText}」：分区与器材配置按该侧重调整，对应器材位与数量见配置清单；面积或人数未确认的数量按基础配置暂估。`,
     );
   }
   if (basementNoVentilation) {
@@ -214,9 +263,10 @@ export function generateSolution(input: ProjectInput): GeneratedSolution {
     notes
       ? `招标补充与现场约束摘要：${notes}`
       : "现场约束与招标补充说明：以招标文件、答疑纪要及现场踏勘记录为准。",
-    strengthEmphasis
+    strengthEmphasis && !nonStrengthFocus
       ? "配置导向：按客户要求偏重力量器械，有氧区保留为基础补充。"
       : null,
+    nonStrengthFocus && focusText ? `配置导向：按客户要求以「${focusText}」配置分区与器材。` : null,
     "建设目标：在满足安全与合规前提下，提升员工健康参与度与空间使用效率，并形成可持续运营的健身服务载体。",
     "编制原则：以招标文件为最高优先级，以可交付实施为底线，以评分项对齐为方法，以风险控制与责任边界清晰为约束。",
   ]

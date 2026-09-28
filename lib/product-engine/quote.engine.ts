@@ -2,17 +2,18 @@
  * V59 Product Engine — Quote (V58 Lifecycle + Job + Async)
  */
 
+import type { ProductPlaceholder } from "@/lib/domain/tender";
 import { buildPlan } from "@/lib/plan/builder";
 import {
   createQuoteOrchestrator,
   type QuoteOrchestrationResult,
 } from "@/lib/quote-lifecycle";
 
+import { describeEquipmentFocus, resolveEquipmentFocus } from "./configuration-strategy";
 import type { CompanyInfoInput, QuoteProposal } from "./types";
 import {
   applyQuoteRevisionOverrides,
   hasBasementNoVentilationConstraint,
-  hasStrengthEquipmentEmphasis,
 } from "./quote-revision";
 
 export type QuoteEngineInput = {
@@ -20,7 +21,16 @@ export type QuoteEngineInput = {
   workspaceId: string;
   action?: string;
   companyInfo: CompanyInfoInput;
+  /** Configured placeholders (selections applied) that also feed PDF / PI.1 / Budget. */
+  equipment?: ProductPlaceholder[];
 };
+
+function placeholderEquipmentLine(p: ProductPlaceholder): string {
+  const name = p.subCategory?.trim() || p.category;
+  const candidate =
+    p.brand?.trim() && p.model?.trim() ? `（${p.brand.trim()} ${p.model.trim()}）` : "";
+  return `${p.category}：${name}${candidate} ×${p.quantity}（${p.recommendationReason}）`;
+}
 
 export type QuoteEngineResult = {
   proposal: QuoteProposal;
@@ -57,7 +67,8 @@ function buildProposalFromOrchestration(
     companyInfo.areaM2 > 0
       ? companyInfo.areaM2
       : null;
-  const strengthEmphasis = hasStrengthEquipmentEmphasis(companyInfo.notes);
+  const equipmentFocus = resolveEquipmentFocus(companyInfo.notes);
+  const strengthEmphasis = equipmentFocus.strengthPrimary;
   // buildPlan requires numeric companySize/areaSize; when unknown, overwrite that copy below.
   const plan = buildPlan(
     {
@@ -99,13 +110,16 @@ function buildProposalFromOrchestration(
 
   const lifecycleStep = runtime.steps.find((s) => s.step === "lifecycle");
   const jobStep = runtime.steps.find((s) => s.step === "job");
-  const equipmentBody = Object.entries(plan.equipments)
-    .flatMap(([zone, items]) =>
-      items.map(
-        (item) => `${zone}：${item.name} ×${item.qty}（${item.rationale}）`,
-      ),
-    )
-    .join(" ");
+  const equipmentBody = input.equipment?.length
+    ? input.equipment.map(placeholderEquipmentLine).join(" ")
+    : Object.entries(plan.equipments)
+        .flatMap(([zone, items]) =>
+          items.map(
+            (item) => `${zone}：${item.name} ×${item.qty}（${item.rationale}）`,
+          ),
+        )
+        .join(" ");
+  const focusText = describeEquipmentFocus(equipmentFocus);
 
   const customerRequirements = companyInfo.notes?.trim() || "";
   const siteConstraintGuidance = hasBasementNoVentilationConstraint(
@@ -125,7 +139,7 @@ function buildProposalFromOrchestration(
           ? `目标用户：${knownCompanySize} 人`
           : "目标用户：人数待确认",
         knownAreaSize != null ? `面积：${knownAreaSize}㎡` : "面积：待确认",
-        strengthEmphasis ? "配置侧重：力量器械优先" : null,
+        focusText ? `配置侧重：${focusText}` : null,
       ]),
     },
   ];
