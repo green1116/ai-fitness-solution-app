@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { normalizeEmail, sha256 } from "@/lib/auth";
-import { ensureOrganizationForUser } from "@/lib/organization/organization.service";
+import { createOrganization } from "@/lib/organization/organization.service";
 import { resolveExactSingleOrganizationForUser } from "@/lib/organization/single-org-context";
 import { prisma } from "@/lib/prisma";
 
@@ -32,12 +32,16 @@ export async function createSessionCookie(
     select: { id: true },
   });
 
-  await ensureOrganizationForUser({
-    userId: user.id,
-    name: options?.organizationName,
-  });
-
-  const resolved = await resolveExactSingleOrganizationForUser(user.id);
+  let resolved = await resolveExactSingleOrganizationForUser(user.id);
+  if (!resolved.ok && resolved.reason === "organization-missing") {
+    // 0 memberships → explicit onboarding, then re-verify exactly one org.
+    const name = options?.organizationName?.trim();
+    await createOrganization({
+      name: name && name.length > 0 ? name : "Organization",
+      ownerUserId: user.id,
+    });
+    resolved = await resolveExactSingleOrganizationForUser(user.id);
+  }
   if (!resolved.ok) {
     // 0 / >1 → fail closed; never create or silently pick first org here.
     throw new Error(resolved.reason);
