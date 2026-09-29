@@ -231,7 +231,31 @@ export async function ensureQuotePlanPdfSource(quoteId: string) {
   if (!quote?.project) {
     throw new Error("Project not found");
   }
+  return buildQuotePlanPdfSource(quote);
+}
 
+/** Plan source for project-level delivery (Tender ZIP): only a READY quote of the same project. */
+export async function findQuotePlanPdfSourceForProject(
+  quoteId: string,
+  projectId: string,
+) {
+  const quote = await prisma.quote.findUnique({
+    where: { id: quoteId },
+    include: { project: true },
+  });
+  if (
+    !quote?.project ||
+    quote.projectId !== projectId ||
+    quote.status !== QuoteStatus.READY
+  ) {
+    return null;
+  }
+  return buildQuotePlanPdfSource(quote);
+}
+
+export function buildQuotePlanPdfSource(
+  quote: Prisma.QuoteGetPayload<{ include: { project: true } }>,
+) {
   const companyInfo = readCompanyInfo(quote.companyInfo);
   const projectInput = projectInputFromQuote({
     project: quote.project,

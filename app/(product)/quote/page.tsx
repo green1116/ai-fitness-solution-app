@@ -15,6 +15,7 @@ import {
   writeStoredProductContext,
 } from "@/app/(product)/commercial-context";
 import {
+  describeQuoteProjectAreaConflict,
   projectIntakeToCreatePayload,
   quotePayloadFromProjectIntake,
   type StoredProjectIntake,
@@ -565,6 +566,14 @@ function QuoteForm() {
     }));
   }
 
+  const currentQuoteAreaM2 = quoteHistory.find(
+    (item) => item.id === trimQuoteId(quoteId),
+  )?.areaM2;
+  const areaConflict = describeQuoteProjectAreaConflict(
+    projectIntake?.areaM2,
+    currentQuoteAreaM2,
+  );
+
   const selectionPayload = piView ? buildSelectionPayload(piView.slots, slotDrafts) : [];
   const selectionDirty = JSON.stringify(selectionPayload) !== initialSelectionJson;
   const draftQuantitiesValid = Object.values(slotDrafts).every((d) =>
@@ -936,12 +945,17 @@ function QuoteForm() {
               <p className="text-xs text-zinc-500">
                 {[
                   projectIntake.targetUsers ? `${projectIntake.targetUsers} 人` : null,
-                  projectIntake.areaM2 ? `${projectIntake.areaM2} ㎡` : null,
+                  !areaConflict && projectIntake.areaM2 ? `${projectIntake.areaM2} ㎡` : null,
                   projectIntake.city?.trim() || null,
                   projectIntake.industry?.trim() || null,
                 ]
                   .filter(Boolean)
                   .join(" · ") || "项目参数已绑定"}
+              </p>
+            ) : null}
+            {areaConflict ? (
+              <p className="text-xs text-amber-300">
+                {areaConflict}（本方案版本的 PDF 与预算按方案面积测算；项目登记未自动修改）
               </p>
             ) : null}
           </div>

@@ -42,6 +42,32 @@ type StoredQuoteContent = {
   runtime?: { steps?: QuoteOrchestrationStepResult[] };
 };
 
+const QUOTE_BASIS_PREFIX = "基于 quoteId=";
+const QUOTE_BASIS_SUFFIX = " 的方案器材配置估算";
+const BUDGET_TIER_PREFIX = "预算档位（设备单价品质）：";
+
+/** Reads the quote/tier basis that `calculateBudget` writes into `Budget.assumptions`. */
+export function readBudgetQuoteBasis(
+  assumptions: unknown,
+): { quoteId: string; budgetTier?: BudgetTier } | null {
+  if (!Array.isArray(assumptions)) return null;
+  let quoteId = "";
+  let budgetTier: BudgetTier | undefined;
+  for (const line of assumptions) {
+    if (typeof line !== "string") continue;
+    if (line.startsWith(QUOTE_BASIS_PREFIX) && line.endsWith(QUOTE_BASIS_SUFFIX)) {
+      quoteId = line
+        .slice(QUOTE_BASIS_PREFIX.length, line.length - QUOTE_BASIS_SUFFIX.length)
+        .trim();
+    } else if (line.startsWith(BUDGET_TIER_PREFIX)) {
+      const tier = line.slice(BUDGET_TIER_PREFIX.length).trim();
+      if (tier === "low" || tier === "mid" || tier === "high") budgetTier = tier;
+    }
+  }
+  if (!quoteId) return null;
+  return { quoteId, ...(budgetTier ? { budgetTier } : {}) };
+}
+
 function readCompanyInfo(value: unknown): CompanyInfoInput {
   const row = (value ?? {}) as CompanyInfoInput;
   const productSelections = readStoredProductSelections(row.productSelections);
@@ -212,8 +238,8 @@ export async function calculateBudget(input: CalculateBudgetInput) {
     detailedItems: generated.items,
     assumptions: [
       ...generated.assumptions,
-      `基于 quoteId=${quote.id} 的方案器材配置估算`,
-      `预算档位（设备单价品质）：${budgetTier}`,
+      `${QUOTE_BASIS_PREFIX}${quote.id}${QUOTE_BASIS_SUFFIX}`,
+      `${BUDGET_TIER_PREFIX}${budgetTier}`,
       `方案人数：${projectInput.targetUsers ?? "未提供"}`,
       `方案面积：${projectInput.areaM2 != null ? `${projectInput.areaM2}㎡` : "待确认"}`,
       ...(projectInput.notes

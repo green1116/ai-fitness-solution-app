@@ -185,3 +185,18 @@ export function quotePayloadFromProjectIntake(input: {
   if (project?.notes?.trim()) payload.notes = project.notes.trim();
   return payload;
 }
+
+function positiveArea(value: number | null | undefined): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/** Quote area is the version's resolved fact; Project area stays the registration fact (never written back). */
+export function describeQuoteProjectAreaConflict(
+  projectAreaM2: number | null | undefined,
+  quoteAreaM2: number | null | undefined,
+): string | null {
+  const projectArea = positiveArea(projectAreaM2);
+  const quoteArea = positiveArea(quoteAreaM2);
+  if (projectArea == null || quoteArea == null || projectArea === quoteArea) return null;
+  return `方案采用 ${quoteArea}㎡；项目登记 ${projectArea}㎡`;
+}

@@ -11,7 +11,12 @@ import {
 } from "@/lib/pdf/devFallback";
 import { prisma } from "@/lib/prisma";
 import { renderBudgetPdf } from "@/lib/pdf/renderBudgetPdf";
-import { renderPlanPdf } from "@/lib/pdf/renderPlanPdf";
+import {
+  renderPlanPdf,
+  type PlaceholderLike,
+  type ProjectLike,
+  type SolutionLike,
+} from "@/lib/pdf/renderPlanPdf";
 import { renderTenderPack } from "@/lib/pdf/renderTenderPack";
 import {
   buildTenderDocumentContext,
@@ -24,6 +29,8 @@ import type {
   ProjectRecord,
   SolutionRecord,
 } from "@/lib/domain/tender";
+import { readBudgetQuoteBasis } from "@/lib/services/budget.service";
+import { findQuotePlanPdfSourceForProject } from "@/lib/services/quote.service";
 import { provisionZipProjectMinimal } from "@/lib/services/tender/provisionZipProjectMinimal";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
 import { isProductionRuntime } from "@/lib/http/productionRouteGuard";
@@ -278,23 +285,42 @@ export async function POST(req: Request) {
     let project: ZipProjectRow;
     let dataSource: string = loaded.source;
 
-    try {
-      const ready = await ensureProjectReadyForZip(pid, loaded.project);
-      project = ready.project;
-      dataSource = ready.source;
-    } catch (e) {
-      console.error("[ZIP] ensureProjectReadyForZip failed", e);
-      return zipError(
-        422,
-        "ZIP_PROJECT_PROVISION_FAILED",
-        e instanceof Error
-          ? e.message
-          : "无法在数据库中准备投标项目数据",
-        { requestedProjectId: pid },
-      );
+    const latestBudget =
+      loaded.source === "db" ? loaded.project?.budgets[0] : undefined;
+    const quoteBasis = latestBudget
+      ? readBudgetQuoteBasis(latestBudget.assumptions)
+      : null;
+    /** Quote-linked Budget：方案事实取自该 Quote 快照，不依赖项目级 Solution / Project.areaM2 */
+    const quoteSource =
+      quoteBasis && loaded.project
+        ? await findQuotePlanPdfSourceForProject(
+            quoteBasis.quoteId,
+            loaded.project.id,
+          )
+        : null;
+
+    if (quoteSource) {
+      project = loaded.project;
+      dataSource = "db-quote";
+    } else {
+      try {
+        const ready = await ensureProjectReadyForZip(pid, loaded.project);
+        project = ready.project;
+        dataSource = ready.source;
+      } catch (e) {
+        console.error("[ZIP] ensureProjectReadyForZip failed", e);
+        return zipError(
+          422,
+          "ZIP_PROJECT_PROVISION_FAILED",
+          e instanceof Error
+            ? e.message
+            : "无法在数据库中准备投标项目数据",
+          { requestedProjectId: pid },
+        );
+      }
     }
 
-    if (!project?.solution) {
+    if (!project || (!quoteSource && !project.solution)) {
       return zipError(
         422,
         "ZIP_PROJECT_NOT_READY",
@@ -314,42 +340,63 @@ export async function POST(req: Request) {
     }
 
     const bodyCompanySize = Number(body.companySize);
-    const companySize =
+    const requestedCompanySize =
       Number.isFinite(bodyCompanySize) && bodyCompanySize > 0
         ? Math.round(bodyCompanySize)
-        : project.targetUsers ?? 200;
-    /** 仅本次渲染覆盖人数元数据，不写回 DB */
-    const projectForRender = { ...project, targetUsers: companySize };
+        : undefined;
 
-    const projectInputForRender: ProjectInput = {
-      name: project.name,
-      clientName: project.clientName ?? undefined,
-      industry: project.industry ?? undefined,
-      siteType: project.siteType as ProjectInput["siteType"],
-      areaM2: project.areaM2 ?? undefined,
-      targetUsers: companySize,
-      city: project.city ?? undefined,
-      budgetLevel: project.budgetLevel as ProjectInput["budgetLevel"],
-      deliveryMode: project.deliveryMode as ProjectInput["deliveryMode"],
-      notes: project.notes ?? undefined,
-    };
-    const generatedSolution = generateSolution(projectInputForRender);
-    /** 临时 Solution：按当前 companySize 重算正文/分区，不更新 prisma.solution */
-    const solutionForRender = {
-      id: project.solution.id,
-      projectId: project.id,
-      summary: generatedSolution.summary,
-      background: generatedSolution.background,
-      requirements: generatedSolution.requirements,
-      objectives: generatedSolution.objectives,
-      zoning: generatedSolution.zoning,
-      implementationPlan: generatedSolution.implementationPlan,
-      operationsPlan: generatedSolution.operationsPlan,
-      riskControl: generatedSolution.riskControl,
-      acceptanceCriteria: generatedSolution.acceptanceCriteria,
-      createdAt: project.solution.createdAt,
-      updatedAt: project.solution.updatedAt,
-    };
+    let companySize: number;
+    let projectForRender: ProjectLike;
+    let solutionForRender: SolutionLike;
+    let placeholdersForRender: PlaceholderLike[];
+
+    if (quoteSource) {
+      companySize =
+        quoteSource.targetUsers ?? requestedCompanySize ?? project.targetUsers ?? 200;
+      projectForRender = { ...quoteSource, targetUsers: companySize };
+      solutionForRender = quoteSource.solution;
+      placeholdersForRender = quoteSource.placeholders;
+    } else {
+      const legacySolution = project.solution!;
+      companySize = requestedCompanySize ?? project.targetUsers ?? 200;
+      /** 仅本次渲染覆盖人数元数据，不写回 DB */
+      projectForRender = { ...project, targetUsers: companySize };
+
+      const projectInputForRender: ProjectInput = {
+        name: project.name,
+        clientName: project.clientName ?? undefined,
+        industry: project.industry ?? undefined,
+        siteType: project.siteType as ProjectInput["siteType"],
+        areaM2: project.areaM2 ?? undefined,
+        targetUsers: companySize,
+        city: project.city ?? undefined,
+        budgetLevel: project.budgetLevel as ProjectInput["budgetLevel"],
+        deliveryMode: project.deliveryMode as ProjectInput["deliveryMode"],
+        notes: project.notes ?? undefined,
+      };
+      const generatedSolution = generateSolution(projectInputForRender);
+      /** 临时 Solution：按当前 companySize 重算正文/分区，不更新 prisma.solution */
+      solutionForRender = {
+        id: legacySolution.id,
+        projectId: project.id,
+        summary: generatedSolution.summary,
+        background: generatedSolution.background,
+        requirements: generatedSolution.requirements,
+        objectives: generatedSolution.objectives,
+        zoning: generatedSolution.zoning,
+        implementationPlan: generatedSolution.implementationPlan,
+        operationsPlan: generatedSolution.operationsPlan,
+        riskControl: generatedSolution.riskControl,
+        acceptanceCriteria: generatedSolution.acceptanceCriteria,
+        createdAt: legacySolution.createdAt,
+        updatedAt: legacySolution.updatedAt,
+      };
+      placeholdersForRender = project.placeholders;
+    }
+
+    const budgetLevelForRender = quoteBasis?.budgetTier ?? project.budgetLevel;
+    const companyNameForRender =
+      projectForRender.clientName ?? projectForRender.name ?? "投标企业";
 
     const renderTier = normalizeUserTier(entitlement.effectiveLevel ?? "free");
 
@@ -359,7 +406,7 @@ export async function POST(req: Request) {
       tier: renderTier,
     });
     const packReqsig = await computeTenderPackReqsig(tenderDocument, {
-      budgetLevel: project.budgetLevel,
+      budgetLevel: budgetLevelForRender,
     });
     const docCtx = { ...tenderDocument, reqsig: packReqsig };
 
@@ -378,7 +425,7 @@ export async function POST(req: Request) {
         await renderPlanPdf(
           projectForRender,
           solutionForRender,
-          project.placeholders,
+          placeholdersForRender,
           {
             tier: renderTier,
             tenderDocument: docCtx,
@@ -389,9 +436,9 @@ export async function POST(req: Request) {
         await renderBudgetPdf(budget, {
           tier: renderTier,
           planId: planIdForEnt,
-          companyName: project.clientName ?? project.name ?? "投标企业",
+          companyName: companyNameForRender,
           companySize,
-          budgetLevel: project.budgetLevel,
+          budgetLevel: budgetLevelForRender,
           tenderDocument: docCtx,
         }),
       );
@@ -435,13 +482,13 @@ export async function POST(req: Request) {
           await renderTenderPack({
             project: projectForRender as unknown as ProjectRecord,
             solution: solutionForRender as unknown as SolutionRecord,
-            placeholders: project.placeholders as unknown as ProductPlaceholder[],
+            placeholders: placeholdersForRender as unknown as ProductPlaceholder[],
             budget: budget as unknown as BudgetRecord,
             tier: renderTier,
             planId: planIdForEnt,
-            companyName: project.clientName ?? project.name ?? "投标企业",
+            companyName: companyNameForRender,
             companySize,
-            budgetLevel: project.budgetLevel,
+            budgetLevel: budgetLevelForRender,
             tenderDocument: docCtx,
             reqsig: packReqsig,
           }),

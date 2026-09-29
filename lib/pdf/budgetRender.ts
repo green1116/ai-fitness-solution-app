@@ -628,6 +628,8 @@ async function renderBrand2Pages(
 ) {
   const internalPack = opts.internalPack === true || opts.packEmbed === true;
   const packEmbed = opts.packEmbed === true;
+  /** 已落库 Budget：档位只影响单价；gym-budget 兜底仍按档位区分数量/可选项 */
+  const persistedBudget = opts.summary != null;
   const A4: [number, number] = [595.28, 841.89];
 
   // ✅ use theme from opts (enterprise tender / saas brand)
@@ -1024,14 +1026,23 @@ async function renderBrand2Pages(
     const W = p.getWidth();
     let y = packEmbedHeaderStartY(packEmbed, p, ctx, theme, "预算档位对比说明", input, dateYmd);
     y -= 12;
-    const compareBullets = [
-      `当前推荐档位：${String(input.budgetTier).toUpperCase()}（与本报告测算口径一致）。`,
-      "经济档（LOW）：满足基础有氧与力量配置，适合试点或预算受限场景。",
-      "标准档（MID）：均衡功能与成本，适配多数企业日常高频使用。",
-      "高档（HIGH）：强化商用耐久与智能化扩展，适合高强度使用与品牌展示需求。",
-      "对比说明：各档位在设备数量区间、单价区间与可选项（地胶/智能看板等）上形成梯度差异。",
-      "选型建议：以招标文件评分项、使用密度与运维能力为约束，在区间内选择可交付组合。",
-    ];
+    const compareBullets = persistedBudget
+      ? [
+          `当前测算档位：${String(input.budgetTier).toUpperCase()}（与本报告测算口径一致）。`,
+          "经济档（LOW）：按较低设备单价区间测算，适合试点或预算受限场景。",
+          "标准档（MID）：按适中设备单价区间测算，适配多数企业日常高频使用。",
+          "高档（HIGH）：按较高设备单价区间测算，适合高强度使用与品牌展示需求。",
+          "对比说明：档位仅影响设备单价区间；设备品类、数量与功能分区均取自方案配置，不随档位变化。",
+          "选型建议：以招标文件评分项、使用密度与运维能力为约束，在单价区间内选择可交付品牌型号。",
+        ]
+      : [
+          `当前推荐档位：${String(input.budgetTier).toUpperCase()}（与本报告测算口径一致）。`,
+          "经济档（LOW）：满足基础有氧与力量配置，适合试点或预算受限场景。",
+          "标准档（MID）：均衡功能与成本，适配多数企业日常高频使用。",
+          "高档（HIGH）：强化商用耐久与智能化扩展，适合高强度使用与品牌展示需求。",
+          "对比说明：各档位在设备数量区间、单价区间与可选项（地胶/智能看板等）上形成梯度差异。",
+          "选型建议：以招标文件评分项、使用密度与运维能力为约束，在区间内选择可交付组合。",
+        ];
     for (const b of compareBullets) {
       const lines = wrapTextCN(`• ${b}`, {
         font: ctx.font,
@@ -1057,8 +1068,12 @@ async function renderBrand2Pages(
       "设备明细可在中标后按集采结果、品牌型号与现场条件进行固化与微调。",
       "不含装修、强弱电改造、消防专项、第三方检测等除非招标文件另有约定。",
       "税费、运输、安装、培训、验收等费用口径以合同约定为准。",
-      "假设企业规模与使用密度基于输入参数；现场复核后可能对数量区间进行调整。",
-      "可选项（运动地板、橡胶地垫、智能系统等）可在商务谈判阶段单列。",
+      persistedBudget
+        ? "设备数量取自方案配置；如现场复核后需调整数量，应先更新方案再重新测算预算。"
+        : "假设企业规模与使用密度基于输入参数；现场复核后可能对数量区间进行调整。",
+      persistedBudget
+        ? "运动地板、橡胶地垫、智能系统等未列入本预算明细的项目，可在商务谈判阶段单列，不属于档位差异。"
+        : "可选项（运动地板、橡胶地垫、智能系统等）可在商务谈判阶段单列。",
       "文档版本与页脚验真信息用于内部归档；对外提交以签章版 PDF 为准。",
     ];
     for (const b of remarkBullets) {
