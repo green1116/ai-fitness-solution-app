@@ -3,10 +3,16 @@
  * professional selections. Pure helpers (no DB); persisted only inside Quote JSON.
  *
  * Candidates come from the static/mock SKU catalog and are always
- * "reference-catalog" + "unverified". Selections never carry SKU prices.
+ * "reference-catalog" + "unverified". Selections never carry catalog prices;
+ * a verified price exists only as an explicitly supplied, validated `priceFact`.
  */
 
-import type { PriceBand, ProductPlaceholder } from "@/lib/domain/tender";
+import type {
+  PriceBand,
+  PriceFactSourceType,
+  ProductPlaceholder,
+  ProductPriceFact,
+} from "@/lib/domain/tender";
 import { getSkusByCategory } from "@/lib/tender/sku/skuDatabase";
 import type { ProductSKU, SkuCategory } from "@/lib/tender/sku/skuTypes";
 
@@ -56,6 +62,8 @@ export type ProductSelection = {
   /** null = keep current template configuration (quantity change only). */
   candidate: ProductCandidate | null;
   quantity?: number;
+  /** Explicit verified unit price; only allowed together with a concrete candidate. */
+  priceFact?: ProductPriceFact;
   decidedAt: string;
   decidedBy?: string;
 };
@@ -65,6 +73,7 @@ export type ProductSelectionInput = {
   action: ProductSelectionAction;
   candidateId?: string | null;
   quantity?: number | null;
+  priceFact?: unknown;
 };
 
 export type ProductCandidateSlot = {
@@ -93,6 +102,12 @@ export const NO_CANDIDATE_MESSAGE = "暂无已验证候选，保留当前模板�
 const MAX_SLOT_CANDIDATES = 3;
 const MIN_SELECTION_QUANTITY = 1;
 const MAX_SELECTION_QUANTITY = 999;
+const MAX_VERIFIED_UNIT_PRICE = 10_000_000;
+const MAX_PRICE_SOURCE_REFERENCE_LENGTH = 200;
+const PRICE_FACT_SOURCE_TYPES: readonly PriceFactSourceType[] = [
+  "supplier_quote",
+  "procurement_contract",
+];
 
 /** Template subCategory → catalog categories. Unmapped / empty => no candidates. */
 const SLOT_SKU_CATEGORIES: Record<string, SkuCategory[]> = {
@@ -365,6 +380,79 @@ function readQuantity(value: unknown): number | undefined {
   return n;
 }
 
+const QUOTED_AT_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isCalendarDate(text: string): boolean {
+  if (!QUOTED_AT_RE.test(text)) return false;
+  const d = new Date(`${text}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === text;
+}
+
+export type PriceFactValidation =
+  | { ok: true; priceFact: ProductPriceFact }
+  | { ok: false; message: string };
+
+/**
+ * Validates an explicitly supplied Price Fact. Missing fields are never defaulted.
+ * `now` enables the "not in the future" check (1-day tolerance for time zones).
+ */
+export function validatePriceFact(
+  value: unknown,
+  options: { now?: Date } = {},
+): PriceFactValidation {
+  if (!value || typeof value !== "object") {
+    return { ok: false, message: "核实单价格式无效" };
+  }
+  const row = value as Record<string, unknown>;
+  const unitPrice = typeof row.unitPrice === "number" ? row.unitPrice : Number.NaN;
+  if (!Number.isFinite(unitPrice) || unitPrice <= 0 || unitPrice > MAX_VERIFIED_UNIT_PRICE) {
+    return {
+      ok: false,
+      message: `核实单价需为大于 0 且不超过 ${MAX_VERIFIED_UNIT_PRICE} 的数值`,
+    };
+  }
+  if (row.currency !== "CNY") {
+    return { ok: false, message: "核实单价币种仅支持 CNY" };
+  }
+  const sourceType = row.sourceType;
+  if (
+    typeof sourceType !== "string" ||
+    !(PRICE_FACT_SOURCE_TYPES as readonly string[]).includes(sourceType)
+  ) {
+    return { ok: false, message: "价格来源类型需为供应商报价或采购合同" };
+  }
+  const sourceReference =
+    typeof row.sourceReference === "string" ? row.sourceReference.trim() : "";
+  if (!sourceReference || sourceReference.length > MAX_PRICE_SOURCE_REFERENCE_LENGTH) {
+    return {
+      ok: false,
+      message: `请填写价格来源凭据（报价单号 / 合同号，不超过 ${MAX_PRICE_SOURCE_REFERENCE_LENGTH} 字）`,
+    };
+  }
+  const quotedAt = typeof row.quotedAt === "string" ? row.quotedAt.trim() : "";
+  if (!isCalendarDate(quotedAt)) {
+    return { ok: false, message: "报价日期格式需为 YYYY-MM-DD" };
+  }
+  if (options.now) {
+    const latest = new Date(options.now.getTime() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    if (quotedAt > latest) {
+      return { ok: false, message: "报价日期不能晚于今天" };
+    }
+  }
+  return {
+    ok: true,
+    priceFact: {
+      unitPrice: Math.round(unitPrice * 100) / 100,
+      currency: "CNY",
+      sourceType: sourceType as PriceFactSourceType,
+      sourceReference,
+      quotedAt,
+    },
+  };
+}
+
 function readStoredCandidate(value: unknown): ProductCandidate | null {
   if (!value || typeof value !== "object") return null;
   const row = value as Record<string, unknown>;
@@ -398,11 +486,15 @@ export function readStoredProductSelections(value: unknown): ProductSelection[] 
       continue;
     }
     const quantity = readQuantity(row.quantity);
+    const candidate = action === "remove" ? null : readStoredCandidate(row.candidate);
+    const storedPriceFact =
+      candidate && row.priceFact != null ? validatePriceFact(row.priceFact) : null;
     bySlot.set(slotKey, {
       slotKey,
       action,
-      candidate: action === "remove" ? null : readStoredCandidate(row.candidate),
+      candidate,
       ...(quantity != null ? { quantity } : {}),
+      ...(storedPriceFact?.ok ? { priceFact: storedPriceFact.priceFact } : {}),
       decidedAt: typeof row.decidedAt === "string" ? row.decidedAt : "",
       ...(typeof row.decidedBy === "string" && row.decidedBy
         ? { decidedBy: row.decidedBy }
@@ -474,11 +566,28 @@ export function resolveProductSelectionInputs(input: {
       }
     }
 
+    let priceFact: ProductPriceFact | undefined;
+    if (row.priceFact != null) {
+      if (!candidate) {
+        throw new ProductSelectionInputError(
+          `核实单价需先选择具体候选产品：${slot.subCategory}`,
+        );
+      }
+      const validated = validatePriceFact(row.priceFact, {
+        now: new Date(input.decidedAt),
+      });
+      if (!validated.ok) {
+        throw new ProductSelectionInputError(`${validated.message}：${slot.subCategory}`);
+      }
+      priceFact = validated.priceFact;
+    }
+
     bySlot.set(slotKey, {
       slotKey,
       action,
       candidate: action === "remove" ? null : candidate,
       ...(action !== "remove" && quantity != null ? { quantity } : {}),
+      ...(priceFact ? { priceFact } : {}),
       decidedAt: input.decidedAt,
       ...(input.decidedBy ? { decidedBy: input.decidedBy } : {}),
     });
@@ -547,6 +656,7 @@ export function applyProductSelections<T extends ProductPlaceholder>(
       next.model = selection.candidate.model;
       next.skuName = `${selection.candidate.brand} ${selection.candidate.model}`;
       if (selection.candidate.candidateId) next.skuId = selection.candidate.candidateId;
+      if (selection.priceFact) next.priceFact = selection.priceFact;
     }
     appliedCount += 1;
     out.push(next);

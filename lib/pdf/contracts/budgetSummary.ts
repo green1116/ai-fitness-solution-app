@@ -17,6 +17,9 @@ export type BudgetItem = {
   unitPrice: MoneyRange;
   subtotal: MoneyRange;
   note?: string;
+  priceBasis?: "VERIFIED" | "ESTIMATE";
+  /** Human-readable source of a VERIFIED unit price. */
+  priceSource?: string;
 };
 
 export type BudgetSummary = {

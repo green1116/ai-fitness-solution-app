@@ -1,8 +1,9 @@
-import type {
-  BudgetItem,
-  BudgetRecord,
-  PriceBand,
-  ProductPlaceholder,
+import {
+  PRICE_FACT_SOURCE_LABEL,
+  type BudgetItem,
+  type BudgetRecord,
+  type PriceBand,
+  type ProductPlaceholder,
 } from "@/lib/domain/tender";
 
 function getUnitPriceRange(
@@ -59,10 +60,6 @@ function buildBudgetItem(
   placeholder: ProductPlaceholder,
   priceBand: PriceBand,
 ): BudgetItem {
-  const [unitPriceMin, unitPriceMax] = getUnitPriceRange(
-    placeholder.category,
-    priceBand,
-  );
   const baseName =
     placeholder.subCategory?.trim() ||
     placeholder.category.trim() ||
@@ -72,6 +69,31 @@ function buildBudgetItem(
       ? `${placeholder.brand.trim()} ${placeholder.model.trim()}`
       : "";
   const name = candidateLabel ? `${baseName}（${candidateLabel}）` : baseName;
+  const priceFact = candidateLabel ? placeholder.priceFact : undefined;
+
+  if (priceFact) {
+    const unitPrice = priceFact.unitPrice;
+    const subtotal = unitPrice * placeholder.quantity;
+    return {
+      category: placeholder.category,
+      name,
+      specLevel: placeholder.specTags.join(" / "),
+      quantity: placeholder.quantity,
+      unitPriceMin: unitPrice,
+      unitPriceMax: unitPrice,
+      subtotalMin: subtotal,
+      subtotalMax: subtotal,
+      remark: `${placeholder.recommendationReason}；方案候选配置：${candidateLabel}；核实单价：${PRICE_FACT_SOURCE_LABEL[priceFact.sourceType]} ${priceFact.sourceReference}（${priceFact.quotedAt}），不随预算档位变化`,
+      sourceType: "placeholder",
+      priceBasis: "VERIFIED",
+      priceFact,
+    };
+  }
+
+  const [unitPriceMin, unitPriceMax] = getUnitPriceRange(
+    placeholder.category,
+    priceBand,
+  );
   const candidateNote = candidateLabel
     ? `；方案候选配置：${candidateLabel}（参考候选 / 未核实，单价按档位）`
     : "";
@@ -87,6 +109,7 @@ function buildBudgetItem(
     subtotalMax: unitPriceMax * placeholder.quantity,
     remark: `${placeholder.recommendationReason}${candidateNote}`,
     sourceType: "placeholder",
+    priceBasis: "ESTIMATE",
   };
 }
 
@@ -110,6 +133,7 @@ export function generateBudget(
 
   const totalEstimateMin = items.reduce((sum, item) => sum + item.subtotalMin, 0);
   const totalEstimateMax = items.reduce((sum, item) => sum + item.subtotalMax, 0);
+  const verifiedCount = items.filter((item) => item.priceBasis === "VERIFIED").length;
 
   return {
     id: `${projectId}-budget`,
@@ -124,6 +148,11 @@ export function generateBudget(
       "后续接入商品系统后，可将占位预算自动替换为明细报价。",
       ...(options?.priceBand
         ? [`设备单价按预算档位 ${options.priceBand.toUpperCase()} 取值。`]
+        : []),
+      ...(verifiedCount > 0
+        ? [
+            `${verifiedCount} 项设备按已核实单价计价（来源见明细，不随预算档位变化）；其余设备按品类 × 预算档位估算。`,
+          ]
         : []),
     ],
     createdAt: now,

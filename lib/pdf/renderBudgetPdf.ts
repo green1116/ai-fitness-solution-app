@@ -2,7 +2,7 @@
  * 预算 PDF 对外入口：企业/Pro 走完整 budgetRender 引擎；简版仅作 free 兜底。
  */
 import type { UserTier } from "@/lib/commercial/userTier";
-import type { BudgetRecord } from "@/lib/domain/tender";
+import { PRICE_FACT_SOURCE_LABEL, type BudgetRecord } from "@/lib/domain/tender";
 import {
   renderBudgetPdfBuffer,
   type BudgetPdfSection,
@@ -51,7 +51,33 @@ type DetailedBudgetItem = {
   subtotalMin: number;
   subtotalMax: number;
   remark?: string;
+  priceBasis: "VERIFIED" | "ESTIMATE";
+  priceSource?: string;
 };
+
+/** VERIFIED only when the persisted row carries a complete price fact with a single unit price. */
+function readVerifiedPriceSource(
+  row: Record<string, unknown>,
+  unitPriceMin: number,
+  unitPriceMax: number,
+): string | null {
+  if (row.priceBasis !== "VERIFIED" || unitPriceMin !== unitPriceMax) return null;
+  const fact = row.priceFact as Record<string, unknown> | null | undefined;
+  if (!fact || typeof fact !== "object") return null;
+  const sourceType = fact.sourceType;
+  const sourceReference =
+    typeof fact.sourceReference === "string" ? fact.sourceReference.trim() : "";
+  const quotedAt = typeof fact.quotedAt === "string" ? fact.quotedAt.trim() : "";
+  if (
+    (sourceType !== "supplier_quote" && sourceType !== "procurement_contract") ||
+    !sourceReference ||
+    !quotedAt ||
+    fact.unitPrice !== unitPriceMin
+  ) {
+    return null;
+  }
+  return `${PRICE_FACT_SOURCE_LABEL[sourceType]} · ${sourceReference} · 报价日期 ${quotedAt}`;
+}
 
 function readDetailedBudgetItems(items: unknown): DetailedBudgetItem[] | null {
   if (!Array.isArray(items) || items.length === 0) return null;
@@ -79,6 +105,7 @@ function readDetailedBudgetItems(items: unknown): DetailedBudgetItem[] | null {
       (typeof row.name === "string" && row.name.trim()) ||
       (typeof row.subCategory === "string" && row.subCategory.trim()) ||
       row.category.trim();
+    const priceSource = readVerifiedPriceSource(row, unitPriceMin, unitPriceMax);
     out.push({
       category: row.category.trim(),
       name,
@@ -90,6 +117,8 @@ function readDetailedBudgetItems(items: unknown): DetailedBudgetItem[] | null {
       ...(typeof row.remark === "string" && row.remark.trim()
         ? { remark: row.remark.trim() }
         : {}),
+      priceBasis: priceSource ? "VERIFIED" : "ESTIMATE",
+      ...(priceSource ? { priceSource } : {}),
     });
   }
   return out.length > 0 ? out : null;
@@ -147,6 +176,8 @@ function summaryFromPersistedBudget(
         unitPrice: { min: it.unitPriceMin, max: it.unitPriceMax },
         subtotal: { min: it.subtotalMin, max: it.subtotalMax },
         note: it.remark,
+        priceBasis: it.priceBasis,
+        ...(it.priceSource ? { priceSource: it.priceSource } : {}),
       })),
       assumptions,
     };

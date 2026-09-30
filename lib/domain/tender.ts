@@ -60,6 +60,25 @@ export interface SolutionRecord {
   updatedAt: string;
 }
 
+export type PriceFactSourceType = "supplier_quote" | "procurement_contract";
+
+export const PRICE_FACT_SOURCE_LABEL: Record<PriceFactSourceType, string> = {
+  supplier_quote: "供应商报价",
+  procurement_contract: "采购合同",
+};
+
+/** Explicitly supplied, validated unit price for a resolved product. Never derived from catalog data. */
+export interface ProductPriceFact {
+  unitPrice: number;
+  currency: "CNY";
+  sourceType: PriceFactSourceType;
+  sourceReference: string;
+  /** YYYY-MM-DD */
+  quotedAt: string;
+}
+
+export type BudgetPriceBasis = "VERIFIED" | "ESTIMATE";
+
 export interface ProductPlaceholder {
   id: string;
   projectId: string;
@@ -75,6 +94,7 @@ export interface ProductPlaceholder {
   brand?: string;
   model?: string;
   imageUrl?: string;
+  priceFact?: ProductPriceFact;
   createdAt: string;
   updatedAt: string;
 }
@@ -91,6 +111,9 @@ export interface BudgetItem {
   subtotalMax: number;
   remark?: string;
   sourceType: "placeholder" | "sku";
+  priceBasis?: BudgetPriceBasis;
+  /** Present only when priceBasis is VERIFIED. */
+  priceFact?: ProductPriceFact;
 }
 
 export interface BudgetRecord {

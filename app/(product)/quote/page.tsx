@@ -101,11 +101,22 @@ type ProductCandidateSlotView = {
   emptyMessage?: string;
 };
 
+type PriceFactSourceType = "supplier_quote" | "procurement_contract";
+
+type PriceFactView = {
+  unitPrice: number;
+  currency: "CNY";
+  sourceType: PriceFactSourceType;
+  sourceReference: string;
+  quotedAt: string;
+};
+
 type ProductSelectionView = {
   slotKey: string;
   action: "confirm" | "replace" | "remove";
   candidate: ProductCandidateView | null;
   quantity?: number;
+  priceFact?: PriceFactView;
 };
 
 type ProductIntelligenceView = {
@@ -120,6 +131,10 @@ type SlotDraft = {
   mode: "template" | "candidate" | "remove";
   candidateId?: string;
   quantity: string;
+  unitPrice?: string;
+  priceSourceType?: PriceFactSourceType | "";
+  priceSourceReference?: string;
+  priceQuotedAt?: string;
 };
 
 type SelectionPayloadItem = {
@@ -127,7 +142,65 @@ type SelectionPayloadItem = {
   action: "confirm" | "replace" | "remove";
   candidateId?: string | null;
   quantity?: number;
+  priceFact?: PriceFactView;
 };
+
+const PRICE_SOURCE_OPTIONS: Array<{ value: PriceFactSourceType; label: string }> = [
+  { value: "supplier_quote", label: "供应商报价" },
+  { value: "procurement_contract", label: "采购合同" },
+];
+
+const EMPTY_PRICE_DRAFT = {
+  unitPrice: "",
+  priceSourceType: "" as const,
+  priceSourceReference: "",
+  priceQuotedAt: "",
+};
+
+function priceDraftFromFact(fact: PriceFactView | undefined): Partial<SlotDraft> {
+  if (!fact) return {};
+  return {
+    unitPrice: String(fact.unitPrice),
+    priceSourceType: fact.sourceType,
+    priceSourceReference: fact.sourceReference,
+    priceQuotedAt: fact.quotedAt,
+  };
+}
+
+function hasPriceDraft(draft: SlotDraft): boolean {
+  return Boolean(
+    draft.unitPrice?.trim() ||
+      draft.priceSourceType ||
+      draft.priceSourceReference?.trim() ||
+      draft.priceQuotedAt?.trim(),
+  );
+}
+
+/** All-or-nothing: a partially filled price is invalid, never defaulted. */
+function priceDraftError(draft: SlotDraft): string | null {
+  if (draft.mode !== "candidate" || !hasPriceDraft(draft)) return null;
+  const price = Number(draft.unitPrice?.trim());
+  if (!draft.unitPrice?.trim() || !Number.isFinite(price) || price <= 0 || price > 10_000_000) {
+    return "核实单价需为大于 0 的数值";
+  }
+  if (!draft.priceSourceType) return "请选择价格来源类型";
+  if (!draft.priceSourceReference?.trim()) return "请填写报价单号 / 合同号";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.priceQuotedAt?.trim() ?? "")) return "请填写报价日期";
+  return null;
+}
+
+function priceFactFromDraft(draft: SlotDraft): PriceFactView | undefined {
+  if (draft.mode !== "candidate" || !hasPriceDraft(draft) || priceDraftError(draft)) {
+    return undefined;
+  }
+  return {
+    unitPrice: Number(draft.unitPrice!.trim()),
+    currency: "CNY",
+    sourceType: draft.priceSourceType as PriceFactSourceType,
+    sourceReference: draft.priceSourceReference!.trim(),
+    quotedAt: draft.priceQuotedAt!.trim(),
+  };
+}
 
 const REQUIREMENT_STATUS_LABEL: Record<RequirementStatus, string> = {
   IN_SCOPE: "已纳入方案",
@@ -196,6 +269,7 @@ function initialSlotDrafts(view: ProductIntelligenceView): {
           mode: "candidate",
           candidateId: selection.candidate.candidateId,
           quantity,
+          ...priceDraftFromFact(selection.priceFact),
         };
       } else {
         warnings.push(
@@ -223,12 +297,14 @@ function buildSelectionPayload(
     if (draft.mode === "remove") {
       out.push({ slotKey: slot.slotKey, action: "remove" });
     } else if (draft.mode === "candidate" && draft.candidateId) {
+      const priceFact = priceFactFromDraft(draft);
       out.push({
         slotKey: slot.slotKey,
         action:
           draft.candidateId === slot.candidates[0]?.candidateId ? "confirm" : "replace",
         candidateId: draft.candidateId,
         ...(quantity != null ? { quantity } : {}),
+        ...(priceFact ? { priceFact } : {}),
       });
     } else if (quantity != null && quantity !== slot.templateQuantity) {
       out.push({
@@ -576,8 +652,8 @@ function QuoteForm() {
 
   const selectionPayload = piView ? buildSelectionPayload(piView.slots, slotDrafts) : [];
   const selectionDirty = JSON.stringify(selectionPayload) !== initialSelectionJson;
-  const draftQuantitiesValid = Object.values(slotDrafts).every((d) =>
-    isValidDraftQuantity(d.quantity),
+  const draftQuantitiesValid = Object.values(slotDrafts).every(
+    (d) => isValidDraftQuantity(d.quantity) && priceDraftError(d) == null,
   );
 
   async function handleSaveSelections() {
@@ -1196,7 +1272,7 @@ function QuoteForm() {
               <div className="space-y-2">
                 <p className="text-sm font-medium text-zinc-200">设备候选配置（有氧 / 力量）</p>
                 <p className="text-xs text-zinc-500">
-                  候选均来自参考目录，标注为「{REFERENCE_CANDIDATE_BADGE}」，仅用于加入当前方案候选配置，不代表确认采购；预算单价仍按预算档位估算。
+                  候选均来自参考目录，标注为「{REFERENCE_CANDIDATE_BADGE}」，仅用于加入当前方案候选配置，不代表确认采购；预算单价默认按预算档位估算，仅在为已选候选填写供应商报价或采购合同的核实单价后按核实价计价。
                 </p>
               </div>
 
@@ -1232,7 +1308,11 @@ function QuoteForm() {
                           name={groupName}
                           checked={draft.mode === "template"}
                           onChange={() =>
-                            updateSlotDraft(slot.slotKey, { mode: "template", candidateId: undefined })
+                            updateSlotDraft(slot.slotKey, {
+                              mode: "template",
+                              candidateId: undefined,
+                              ...EMPTY_PRICE_DRAFT,
+                            })
                           }
                           disabled={piSaving}
                         />
@@ -1255,6 +1335,7 @@ function QuoteForm() {
                                 updateSlotDraft(slot.slotKey, {
                                   mode: "candidate",
                                   candidateId: c.candidateId,
+                                  ...EMPTY_PRICE_DRAFT,
                                 })
                               }
                               disabled={piSaving}
@@ -1291,6 +1372,7 @@ function QuoteForm() {
                               mode: "remove",
                               candidateId: undefined,
                               quantity: "",
+                              ...EMPTY_PRICE_DRAFT,
                             })
                           }
                           disabled={piSaving}
@@ -1318,6 +1400,69 @@ function QuoteForm() {
                             <span className="text-rose-300">需为 1-999 的整数</span>
                           ) : null}
                         </label>
+                      ) : null}
+                      {draft.mode === "candidate" ? (
+                        <div className="space-y-2 rounded-md border border-zinc-800 px-3 py-2 text-xs text-zinc-400">
+                          <p>
+                            核实单价（可选）：仅在已取得供应商报价或采购合同时填写，四项需同时填写；未填写则按预算档位估算。
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="w-32 rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100"
+                              placeholder="单价（元/台）"
+                              value={draft.unitPrice ?? ""}
+                              onChange={(e) =>
+                                updateSlotDraft(slot.slotKey, { unitPrice: e.target.value })
+                              }
+                              disabled={piSaving}
+                            />
+                            <select
+                              className="rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100"
+                              value={draft.priceSourceType ?? ""}
+                              onChange={(e) =>
+                                updateSlotDraft(slot.slotKey, {
+                                  priceSourceType: e.target.value as PriceFactSourceType | "",
+                                })
+                              }
+                              disabled={piSaving}
+                            >
+                              <option value="">价格来源类型</option>
+                              {PRICE_SOURCE_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                  {o.label}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              maxLength={200}
+                              className="w-44 rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100"
+                              placeholder="报价单号 / 合同号"
+                              value={draft.priceSourceReference ?? ""}
+                              onChange={(e) =>
+                                updateSlotDraft(slot.slotKey, {
+                                  priceSourceReference: e.target.value,
+                                })
+                              }
+                              disabled={piSaving}
+                            />
+                            <input
+                              type="date"
+                              className="rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100"
+                              value={draft.priceQuotedAt ?? ""}
+                              onChange={(e) =>
+                                updateSlotDraft(slot.slotKey, { priceQuotedAt: e.target.value })
+                              }
+                              disabled={piSaving}
+                            />
+                          </div>
+                          {priceDraftError(draft) ? (
+                            <p className="text-rose-300">{priceDraftError(draft)}</p>
+                          ) : null}
+                        </div>
                       ) : null}
                     </li>
                   );

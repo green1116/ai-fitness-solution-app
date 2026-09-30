@@ -693,7 +693,7 @@ function BudgetForm() {
               <option value="high">高端（HIGH）— 单价偏高</option>
             </select>
             <p className="text-xs text-zinc-500">
-              LOW / MID / HIGH 仅控制器材单价区间，不改变方案器材数量与分区。
+              LOW / MID / HIGH 仅影响未提供核实单价的器材估算单价区间；已核实单价不随档位变化，方案器材数量与分区也不变。
             </p>
           </label>
           <button

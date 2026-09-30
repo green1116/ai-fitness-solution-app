@@ -289,6 +289,8 @@ type StrictItem = {
   subtotalMax: number;
 
   note?: string;
+  priceBasis?: "VERIFIED" | "ESTIMATE";
+  priceSource?: string;
 };
 
 type StrictSummary = {
@@ -407,6 +409,8 @@ function toStrictSummaryFromBudgetSummary(
         subtotalMin: min,
         subtotalMax: max,
         note: it.note,
+        ...(it.priceBasis ? { priceBasis: it.priceBasis } : {}),
+        ...(it.priceSource ? { priceSource: it.priceSource } : {}),
       });
     }
   }
@@ -991,13 +995,18 @@ async function renderBrand2Pages(
       drawVLines(p, xs, y, rowH);
 
       const cat = ellipsisToWidth(it.categoryName || it.category || "", ctx.font, 9, cCat - 10);
-      const nm = ellipsisToWidth(it.name || "", ctx.font, 9, cName - 10);
+      const basisTag =
+        it.priceBasis === "VERIFIED" ? "[核实] " : it.priceBasis === "ESTIMATE" ? "[估算] " : "";
+      const nm = ellipsisToWidth(`${basisTag}${it.name || ""}`, ctx.font, 9, cName - 10);
 
       drawTextF(p, ctx.font, cat, x0 + 6, y + 6, 9);
       drawTextF(p, ctx.font, nm, x0 + cCat + 6, y + 6, 9);
 
       const qtyText = `${it.qtyMin}-${it.qtyMax}`;
-      const priceText = `${fmtMoney(it.priceMin)}-${fmtMoney(it.priceMax)}`;
+      const priceText =
+        it.priceBasis === "VERIFIED"
+          ? fmtMoney(it.priceMin)
+          : `${fmtMoney(it.priceMin)}-${fmtMoney(it.priceMax)}`;
       const subText = `${fmtMoney(it.subtotalMin)}-${fmtMoney(it.subtotalMax)}`;
 
       drawTextF(p, ctx.font, qtyText, x0 + cCat + cName + 6, y + 6, 9);
@@ -1008,6 +1017,31 @@ async function renderBrand2Pages(
 
       y -= rowH;
     });
+
+    if (strict.items.some((it) => it.priceBasis)) {
+      const basisLines = [
+        strict.items.some((it) => it.priceBasis === "VERIFIED")
+          ? "[核实] 按显式提供来源的核实单价计价，不随预算档位变化；[估算] 按品类 × 预算档位的单价区间估算。"
+          : "[估算] 按品类 × 预算档位的单价区间估算。",
+        ...strict.items
+          .filter((it) => it.priceBasis === "VERIFIED" && it.priceSource)
+          .map((it) => `核实单价来源：${it.name} — ${it.priceSource}`),
+      ];
+      y -= 14;
+      for (const b of basisLines) {
+        const lines = wrapTextCN(b, {
+          font: ctx.font,
+          fontSize: 8,
+          maxWidth: tableW,
+          maxLines: 3,
+        });
+        for (const line of lines) {
+          if (y < 80) break;
+          drawTextF(p, ctx.font, line, x0, y, 8, rgb(0.3, 0.3, 0.3));
+          y -= 12;
+        }
+      }
+    }
 
     drawTextF(
       p,
@@ -1033,6 +1067,9 @@ async function renderBrand2Pages(
           "标准档（MID）：按适中设备单价区间测算，适配多数企业日常高频使用。",
           "高档（HIGH）：按较高设备单价区间测算，适合高强度使用与品牌展示需求。",
           "对比说明：档位仅影响设备单价区间；设备品类、数量与功能分区均取自方案配置，不随档位变化。",
+          ...(strict.items.some((it) => it.priceBasis === "VERIFIED")
+            ? ["标注 [核实] 的设备按已核实单价计价，不参与档位单价调整；档位仅作用于 [估算] 行。"]
+            : []),
           "选型建议：以招标文件评分项、使用密度与运维能力为约束，在单价区间内选择可交付品牌型号。",
         ]
       : [
