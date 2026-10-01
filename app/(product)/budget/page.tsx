@@ -390,10 +390,7 @@ function BudgetForm() {
             const sizeMatches =
               !projectDefaults?.companySize ||
               stored.companySize === projectDefaults.companySize;
-            const tierMatches =
-              !projectDefaults?.budgetTier ||
-              stored.budgetTier === projectDefaults.budgetTier;
-            if (!sizeMatches || !tierMatches) continue;
+            if (!sizeMatches) continue;
             acceptedBudgetId = candidateId;
             acceptedSummary = stored;
             break;
