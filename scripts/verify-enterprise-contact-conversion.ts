@@ -71,7 +71,7 @@ function checkCtaReuse() {
   assert(cta.includes("EnterpriseLeadForm"), "reuses EnterpriseLeadForm");
   assert(cta.includes('/api/lead/create'), "posts to lead create");
   assert(cta.includes("/api/auth/me"), "loads initialEmail from auth/me");
-  assert(cta.includes("商务团队将与您联系"), "shows success message");
+  assert(cta.includes("Enterprise 开通申请已提交"), "shows success message");
   assert(cta.includes("submittedRef"), "guards duplicate submit");
   assert(cta.includes("isEnterpriseRegisterHref"), "guest keeps register link");
   assert(!cta.includes("/dashboard"), "CTA has no dashboard target");

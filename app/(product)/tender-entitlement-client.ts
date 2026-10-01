@@ -28,6 +28,8 @@ function isAuthOrMembershipFailure(
   );
 }
 
+export const TENDER_ENTERPRISE_CONTACT_CTA = "联系商务开通 Enterprise";
+
 export type TenderClientEntitlement = {
   organizationId: string;
   canGenerateTender: boolean;
@@ -150,7 +152,7 @@ export async function loadTenderClientEntitlement(
       },
       { authenticated: Boolean(organizationId), currentPath: options?.currentPath },
     ),
-    upgradeCta: "升级到 Enterprise 解锁投标",
+    upgradeCta: TENDER_ENTERPRISE_CONTACT_CTA,
   };
   if (!organizationId) return denied;
 

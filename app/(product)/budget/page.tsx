@@ -782,7 +782,7 @@ function BudgetForm() {
                 继续生成投标文件需要 Enterprise。当前套餐：{tenderEntitlement.currentPlan}。
               </p>
               <p className="mt-1 text-zinc-500">
-                升级后可继续生成投标交付文件，当前进度会保留。
+                Enterprise 由商务开通，不支持在线自助支付。提交联系信息后，商务团队将在 24 小时内与您联系；开通后刷新本页即可继续生成投标文件，当前项目进度会保留。
               </p>
               <div className="mt-3">
                 <TenderEnterpriseUpgradeCta
