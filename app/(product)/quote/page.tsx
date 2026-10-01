@@ -22,6 +22,19 @@ import {
   type StoredProjectIntake,
 } from "@/lib/project/project-intake";
 import { ProUpgradePaymentCta } from "@/app/(product)/ProUpgradePaymentCta";
+import {
+  deriveQuoteWorkflowStage,
+  isPanelReachable,
+  isProductConfigConfirmed,
+  isQuoteReady,
+  QUOTE_WORKFLOW_STEPS,
+  requirementsNeedingAck,
+  resolveActivePanel,
+  withExplicitTemplateConfirmations,
+  type PiLoadStatus,
+  type QuoteWorkflowPanel,
+  type QuoteWorkflowStage,
+} from "@/app/(product)/quote/quote-workflow";
 import { getPricingTier } from "@/lib/growth/conversion/pricing.strategy";
 
 type OrgMe = { organizationId?: string | null };
@@ -122,12 +135,39 @@ type ProductSelectionView = {
   priceFact?: PriceFactView;
 };
 
+type StrategyFactView =
+  | { status: "known"; source?: string; value?: number; amountYuan?: number; label?: string }
+  | { status: "unknown" };
+
+/** Read-only mirror of persisted `Quote.content.configurationStrategy` (fields are optional by design). */
+type ConfigurationAnalysisView = {
+  analyzedAt?: string;
+  missingCriticalInfo?: Array<{ key?: string; label?: string; impact?: string }>;
+  configurationStrategy?: {
+    facts?: {
+      headcount?: StrategyFactView;
+      areaM2?: StrategyFactView;
+      budget?: StrategyFactView;
+      siteType?: string;
+      priceBand?: string;
+    };
+    experience?: { level?: string };
+    focus?: { signals?: Array<{ focus?: string; label?: string; role?: string }> };
+    zoning?: Array<{ zone?: string; sharePct?: [number, number]; areaM2?: [number, number] }>;
+    guidance?: string[];
+    constraints?: string[];
+    conflicts?: string[];
+    downstreamNotes?: string[];
+  };
+};
+
 type ProductIntelligenceView = {
   quoteId: string;
   requirements: RequirementStatusItem[];
   slots: ProductCandidateSlotView[];
   selections: ProductSelectionView[];
   warnings: string[];
+  configurationStrategy: ConfigurationAnalysisView | null;
 };
 
 type SlotDraft = {
@@ -264,6 +304,10 @@ async function fetchProductIntelligence(
         slots: Array.isArray(data.slots) ? data.slots : [],
         selections: Array.isArray(data.selections) ? data.selections : [],
         warnings: Array.isArray(data.warnings) ? data.warnings : [],
+        configurationStrategy:
+          data.configurationStrategy && typeof data.configurationStrategy === "object"
+            ? data.configurationStrategy
+            : null,
       },
     };
   } catch {
@@ -603,6 +647,68 @@ function formatQuoteGeneratedAt(iso: string): string {
   return d.toLocaleString("zh-CN", { hour12: false });
 }
 
+const STRATEGY_FACT_SOURCE_LABEL: Record<string, string> = {
+  quote: "方案输入",
+  project: "项目登记",
+  notes: "需求文本",
+};
+const FOCUS_ROLE_LABEL: Record<string, string> = {
+  primary: "为主",
+  secondary: "为辅",
+  mentioned: "提及",
+};
+const EXPERIENCE_LEVEL_LABEL: Record<string, string> = {
+  premium: "高端体验定位",
+  standard: "标准配置定位",
+};
+const PRICE_BAND_LABEL: Record<string, string> = {
+  low: "经济档",
+  mid: "中档",
+  high: "高档",
+  custom: "自定义档位",
+};
+const SITE_TYPE_LABEL: Record<string, string> = {
+  office: "办公楼",
+  factory: "工厂",
+  park: "园区",
+  school: "学校",
+  hospital: "医院",
+  mixed: "综合场地",
+};
+
+function strategyFactSource(fact: StrategyFactView): string {
+  if (fact.status !== "known" || !fact.source) return "";
+  const label = STRATEGY_FACT_SOURCE_LABEL[fact.source];
+  return label ? `（来源：${label}）` : "";
+}
+
+function describeStrategyNumberFact(fact: StrategyFactView | undefined, unit: string): string {
+  if (!fact || fact.status !== "known" || typeof fact.value !== "number") return "待确认";
+  return `${fact.value} ${unit}${strategyFactSource(fact)}`;
+}
+
+function describeStrategyBudgetFact(fact: StrategyFactView | undefined): string {
+  if (!fact || fact.status !== "known") return "待确认";
+  const parts = [
+    typeof fact.amountYuan === "number" ? `${Math.round(fact.amountYuan / 10000)} 万元` : null,
+    fact.label ? `项目档位「${fact.label}」` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? `${parts.join(" · ")}${strategyFactSource(fact)}` : "待确认";
+}
+
+function formatRange(range: [number, number] | undefined, unit: string): string | null {
+  if (!Array.isArray(range) || range.length !== 2) return null;
+  const [min, max] = range;
+  if (typeof min !== "number" || typeof max !== "number") return null;
+  return min === max ? `${min}${unit}` : `${min}–${max}${unit}`;
+}
+
+function nonEmptyStrings(list: unknown): string[] {
+  return Array.isArray(list)
+    ? list.filter((item): item is string => typeof item === "string" && item.trim() !== "")
+    : [];
+}
+
 function QuoteForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -636,11 +742,34 @@ function QuoteForm() {
   const [piLocalWarnings, setPiLocalWarnings] = useState<string[]>([]);
   const [slotDrafts, setSlotDrafts] = useState<Record<string, SlotDraft>>({});
   const [initialSelectionJson, setInitialSelectionJson] = useState("[]");
+  const [piStatus, setPiStatus] = useState<PiLoadStatus>("idle");
+  const [piReloadToken, setPiReloadToken] = useState(0);
+  const [requirementsAckQuoteId, setRequirementsAckQuoteId] = useState("");
+  const [requirementsAckCheckedQuoteId, setRequirementsAckCheckedQuoteId] = useState("");
+  const [strategyAckQuoteId, setStrategyAckQuoteId] = useState("");
+  const [viewPanel, setViewPanel] = useState<{
+    quoteId: string;
+    panel: QuoteWorkflowPanel;
+  } | null>(null);
   const hydratedProjectIdRef = useRef<string | null>(null);
   const proTier = getPricingTier("PRO");
 
+  /** F5 workflow UI state: client-only, keyed by quoteId, never written to storage. */
+  function clearWorkflowUiState() {
+    setPiStatus("idle");
+    setRequirementsAckQuoteId("");
+    setRequirementsAckCheckedQuoteId("");
+    setStrategyAckQuoteId("");
+    setViewPanel(null);
+  }
+
   /** Clears every piece of state derived from a specific project / quote. */
   function resetProjectScopedState(options?: { keepError?: boolean }) {
+    setPiStatus("idle");
+    setRequirementsAckQuoteId("");
+    setRequirementsAckCheckedQuoteId("");
+    setStrategyAckQuoteId("");
+    setViewPanel(null);
     setQuoteId("");
     setProposal(null);
     setPdfDownloaded(false);
@@ -670,6 +799,7 @@ function QuoteForm() {
     nextProjectId: string,
   ) {
     clearStoredQuoteIdForProject(nextProjectId, mismatchedQuoteId);
+    clearWorkflowUiState();
     setQuoteId("");
     setProposal(null);
     setPdfDownloaded(false);
@@ -698,11 +828,14 @@ function QuoteForm() {
     const pid = projectId.trim();
     if (!qid || !oid || !pid) {
       setPiView(null);
+      setPiStatus("idle");
       return;
     }
     let cancelled = false;
     setPiLoading(true);
+    setPiStatus("loading");
     setPiError("");
+    setPiView((prev) => (prev && prev.quoteId === qid ? prev : null));
     void fetchProductIntelligence(qid, oid, pid)
       .then((result) => {
         if (cancelled) return;
@@ -712,10 +845,12 @@ function QuoteForm() {
         }
         if (result.kind === "error") {
           setPiView(null);
+          setPiStatus("error");
           return;
         }
         const view = result.view;
         setPiView(view);
+        setPiStatus("success");
         const init = initialSlotDrafts(view);
         setSlotDrafts(init.drafts);
         setPiLocalWarnings(init.warnings);
@@ -731,7 +866,7 @@ function QuoteForm() {
     };
     // discardMismatchedQuote only uses stable setters/router.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quoteId, organizationId, projectId]);
+  }, [quoteId, organizationId, projectId, piReloadToken]);
 
   function updateSlotDraft(slotKey: string, patch: Partial<SlotDraft>) {
     setPiNotice("");
@@ -755,11 +890,14 @@ function QuoteForm() {
     (d) => isValidDraftQuantity(d.quantity) && priceDraftError(d) == null,
   );
 
-  async function handleSaveSelections() {
+  /** Persists the full configuration (every slot) as a NEW Quote version — the only confirmation fact. */
+  async function handleConfirmProductConfiguration() {
     const baseQuoteId = trimQuoteId(quoteId);
     const currentProjectId = projectId.trim();
     if (!baseQuoteId || !organizationId || !currentProjectId || !piView) return;
+    if (piView.quoteId !== baseQuoteId || piView.slots.length === 0) return;
     const savedSelectionJson = JSON.stringify(selectionPayload);
+    const confirmedSelections = withExplicitTemplateConfirmations(piView.slots, selectionPayload);
     setPiSaving(true);
     setPiError("");
     setPiNotice("");
@@ -771,7 +909,7 @@ function QuoteForm() {
           quoteId: baseQuoteId,
           organizationId,
           projectId: currentProjectId,
-          selections: selectionPayload,
+          selections: confirmedSelections,
         }),
       });
       const data = (await res.json()) as GenerateQuoteResponse & { code?: string };
@@ -782,12 +920,13 @@ function QuoteForm() {
       const nextQuoteId =
         data.ok === true && data.status === "READY" ? trimQuoteId(data.quoteId) : "";
       if (!nextQuoteId || !data.proposal) {
-        setPiError(data.message || "候选配置保存失败，请稍后重试");
+        setPiError(data.message || "产品配置确认失败，请稍后重试");
         return;
       }
       const boundProjectId = data.projectId?.trim() || currentProjectId;
       setInitialSelectionJson(savedSelectionJson);
-      setPiNotice("已保存为新方案版本");
+      setPiNotice("产品配置已确认，已保存为新方案版本");
+      setViewPanel(null);
       setProposal(data.proposal);
       setQuoteId(nextQuoteId);
       setPdfDownloaded(false);
@@ -808,7 +947,7 @@ function QuoteForm() {
       );
       void refreshQuoteHistory(boundProjectId, organizationId);
     } catch {
-      setPiError("候选配置保存失败，请稍后重试");
+      setPiError("产品配置确认失败，请稍后重试");
     } finally {
       setPiSaving(false);
     }
@@ -1031,12 +1170,28 @@ function QuoteForm() {
       setProjectId(boundProjectId);
 
       if (readyProposal && nextQuoteId) {
+        // A new Quote never inherits the previous version's PI view or workflow acknowledgements.
+        setPiView(null);
+        setPiNotice("");
+        setPiLocalWarnings([]);
+        setSlotDrafts({});
+        setInitialSelectionJson("[]");
+        clearWorkflowUiState();
         writeStoredQuoteForProject(boundProjectId, nextQuoteId, readyProposal);
         writeStoredProductContext({
           organizationId,
           projectId: boundProjectId,
           quoteId: nextQuoteId,
         });
+        // URL quoteId wins on hydrate; refresh must stay on the new version.
+        router.replace(
+          productHref("/quote", {
+            organizationId,
+            projectId: boundProjectId,
+            quoteId: nextQuoteId,
+          }),
+          { scroll: false },
+        );
         if (isRevision) {
           setRevisionNotes("");
         }
@@ -1125,20 +1280,64 @@ function QuoteForm() {
       </div>
     ) : null;
 
+  const currentQuoteId = trimQuoteId(quoteId);
+  const workflowFacts = { quoteId: currentQuoteId, piStatus, piView };
+  const quoteReady = isQuoteReady(workflowFacts);
+  const productConfigConfirmed = isProductConfigConfirmed(workflowFacts);
+  const workflowStage: QuoteWorkflowStage = deriveQuoteWorkflowStage({
+    ...workflowFacts,
+    projectId,
+    requirementsAckQuoteId,
+    strategyAckQuoteId,
+  });
+  const activePanel = resolveActivePanel(workflowStage, currentQuoteId, viewPanel);
+  const requirementsToAck = quoteReady && piView ? requirementsNeedingAck(piView.requirements) : [];
+  const requirementsAcknowledged =
+    requirementsAckQuoteId === currentQuoteId || workflowStage === "ready_for_budget";
+  const requirementsAckChecked =
+    Boolean(currentQuoteId) && requirementsAckCheckedQuoteId === currentQuoteId;
+  const configurationAnalysis = quoteReady ? piView?.configurationStrategy ?? null : null;
+  const strategy = configurationAnalysis?.configurationStrategy ?? null;
+  const missingCriticalInfo = (configurationAnalysis?.missingCriticalInfo ?? []).filter(
+    (item) => typeof item.label === "string" && item.label.trim() !== "",
+  );
+  const confirmableSlotCount = quoteReady && piView ? piView.slots.length : 0;
+
+  function handleAcknowledgeRequirements() {
+    if (!quoteReady) return;
+    if (requirementsToAck.length > 0 && !requirementsAcknowledged && !requirementsAckChecked) return;
+    setRequirementsAckQuoteId(currentQuoteId);
+    setViewPanel({ quoteId: currentQuoteId, panel: "strategy" });
+  }
+
+  function handleAcknowledgeStrategy() {
+    if (!quoteReady || !requirementsAcknowledged) return;
+    setStrategyAckQuoteId(currentQuoteId);
+    setViewPanel({ quoteId: currentQuoteId, panel: "products" });
+  }
+
+  const headerCopy = !currentQuoteId
+    ? "填写企业信息，生成专业健身空间方案。"
+    : workflowStage === "ready_for_budget"
+      ? budgetEntitled
+        ? "产品配置已确认。主要下一步：继续生成预算。"
+        : budgetEntitlement === "upgradeable"
+          ? "产品配置已确认。预算测算为专业版能力，升级后可继续。"
+          : "产品配置已确认。"
+      : !quoteReady
+        ? "方案已生成，正在加载当前方案版本。"
+        : workflowStage === "confirmation"
+          ? "方案已生成。请先在第 2 步确认 AI 需求识别结果。"
+          : workflowStage === "strategy"
+            ? "需求识别结果已确认。请在第 3 步查看方案策略。"
+            : "请在第 4 步确认产品配置；确认后才可进入预算。";
+
   return (
     <div className="space-y-6">
       <div>
         <p className="text-xs text-emerald-400">交付路径：项目 → 方案 → 预算 → 投标 → 下载</p>
         <h1 className="mt-1 text-2xl font-bold">当前：方案</h1>
-        <p className="text-sm text-zinc-400">
-          {quoteId
-            ? budgetEntitled
-              ? "方案已就绪。主要下一步：继续生成预算。"
-              : budgetEntitlement === "upgradeable"
-                ? "方案已就绪。预算测算为专业版能力，升级后可继续。"
-                : "方案已就绪。"
-            : "填写企业信息，生成专业健身空间方案。"}
-        </p>
+        <p className="text-sm text-zinc-400">{headerCopy}</p>
       </div>
 
       {showImmediateProPayGate ? (
@@ -1156,7 +1355,43 @@ function QuoteForm() {
         </div>
       ) : null}
 
+      <ol className="flex flex-wrap gap-2 text-xs" aria-label="方案流程">
+        {QUOTE_WORKFLOW_STEPS.map((step, index) => {
+          const panel =
+            step.key === "budget" || step.key === "delivery" ? null : step.key;
+          const reachable = panel
+            ? isPanelReachable(panel, workflowStage)
+            : step.key === "budget" && productConfigConfirmed;
+          const active = panel != null && panel === activePanel;
+          const label = `${index + 1} ${step.label}`;
+          const className = active
+            ? "rounded-lg border border-emerald-500 px-3 py-1.5 font-medium text-emerald-300"
+            : reachable
+              ? "rounded-lg border border-zinc-700 px-3 py-1.5 text-zinc-300 hover:border-zinc-500"
+              : "rounded-lg border border-zinc-800 px-3 py-1.5 text-zinc-600";
+          return (
+            <li key={step.key}>
+              {panel && reachable && !active ? (
+                <button
+                  type="button"
+                  className={className}
+                  onClick={() => setViewPanel({ quoteId: currentQuoteId, panel })}
+                >
+                  {label}
+                </button>
+              ) : (
+                <span className={className} aria-current={active ? "step" : undefined}>
+                  {label}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+
+      {activePanel === "requirements" ? (
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+        <h2 className="text-lg font-semibold text-zinc-100">第 1 步：项目需求</h2>
         {!contextReady ? (
           <p className="rounded-lg border border-zinc-800 bg-black px-4 py-3 text-sm text-zinc-500">
             加载中…
@@ -1254,10 +1489,107 @@ function QuoteForm() {
             disabled={loading || !contextReady}
             className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
           >
-            {loading ? "生成中…" : "生成方案"}
+            {loading ? "生成中…" : "提交需求并生成方案"}
           </button>
         ) : (
-          <div className="space-y-3">
+          <p className="text-sm text-zinc-400">
+            已基于以上项目信息生成方案。如需修改需求，请在第 2 步使用「按补充要求修改」。
+          </p>
+        )}
+      </section>
+      ) : null}
+
+      {activePanel !== "requirements" && currentQuoteId && !quoteReady ? (
+        <section className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+          {piStatus === "error" ? (
+            <div className="flex flex-wrap items-center gap-3 text-sm text-amber-300">
+              <span>当前方案版本的需求识别与配置加载失败，暂无法继续后续步骤。</span>
+              <button
+                type="button"
+                onClick={() => setPiReloadToken((n) => n + 1)}
+                className="rounded-lg border border-zinc-600 px-3 py-1 text-xs text-zinc-100 hover:border-zinc-400"
+              >
+                重试
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-500">正在加载当前方案版本…</p>
+          )}
+        </section>
+      ) : null}
+
+      {activePanel === "confirmation" && quoteReady && piView ? (
+        <section className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-100">第 2 步：AI 需求确认</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              按确定规则识别，仅供参考，不影响方案生成。确认仅表示您已知悉以下识别结果，不代表待确认事项已被自动解决。
+            </p>
+          </div>
+          {missingCriticalInfo.length > 0 ? (
+            <div className="space-y-1 rounded-lg border border-amber-800/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-300">
+              <p className="font-medium">以下关键信息缺失，方案中按待确认处理：</p>
+              <ul className="list-disc space-y-1 pl-5">
+                {missingCriticalInfo.map((item) => (
+                  <li key={item.key ?? item.label}>
+                    {item.label}
+                    {item.impact ? `：${item.impact}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {piView.requirements.length > 0 ? (
+            <ul className="space-y-2">
+              {piView.requirements.map((item) => (
+                <li
+                  key={item.id}
+                  className="rounded-lg border border-zinc-800 bg-black px-3 py-2 text-xs"
+                >
+                  <span
+                    className={`mr-2 inline-block rounded border px-1.5 py-0.5 ${REQUIREMENT_STATUS_CLASS[item.status] ?? "border-zinc-700 text-zinc-300"}`}
+                  >
+                    {REQUIREMENT_STATUS_LABEL[item.status] ?? item.status}
+                  </span>
+                  <span className="text-zinc-200">{item.text}</span>
+                  <p className="mt-1 text-zinc-500">{item.basis}</p>
+                  {item.question ? (
+                    <p className="mt-1 text-amber-300">待确认：{item.question}</p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-zinc-400">未从需求文本中识别出需逐条确认的条目。</p>
+          )}
+          {requirementsToAck.length > 0 && !requirementsAcknowledged ? (
+            <label className="flex items-start gap-2 text-sm text-zinc-200">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={requirementsAckChecked}
+                onChange={(e) =>
+                  setRequirementsAckCheckedQuoteId(e.target.checked ? currentQuoteId : "")
+                }
+                disabled={loading}
+              />
+              <span>
+                我已知悉以上 {requirementsToAck.length} 项需确认事项（待澄清 / 存在冲突 / 超出当前范围 / 有条件纳入）。这些事项不会被自动解决，方案中保持当前标注。
+              </span>
+            </label>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleAcknowledgeRequirements}
+            disabled={
+              loading ||
+              (requirementsToAck.length > 0 && !requirementsAcknowledged && !requirementsAckChecked)
+            }
+            className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
+          >
+            确认以上识别结果，继续方案策略
+          </button>
+          <div className="space-y-3 border-t border-zinc-800 pt-4">
             <label className="block space-y-2">
               <span className="text-sm font-medium text-zinc-200">补充要求</span>
               <textarea
@@ -1268,163 +1600,169 @@ function QuoteForm() {
                 disabled={loading}
               />
             </label>
+            <p className="text-xs text-zinc-500">
+              修改后会生成新的方案版本，并回到本步骤重新确认；当前版本保留在方案历史中。
+            </p>
             <button
               type="button"
               onClick={() => void handleGenerate({ revision: true })}
               disabled={loading || !contextReady || !revisionNotes.trim()}
               className="rounded-xl border border-zinc-600 px-6 py-3 text-sm font-semibold text-zinc-100 hover:border-zinc-400 disabled:opacity-50"
             >
-              {loading ? "重新生成中…" : "按新要求重新生成"}
+              {loading ? "重新生成中…" : "按补充要求修改"}
             </button>
           </div>
-        )}
-      </section>
-
-      {proposal ? (
-        <article className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
-          <h2 className="text-xl font-semibold text-zinc-100">方案结果摘要</h2>
-          {proposal.generatedAt ? (
-            <p className="text-xs text-zinc-500">{proposal.generatedAt}</p>
-          ) : null}
-          <p className="text-sm leading-relaxed text-zinc-300">
-            {buildCustomerSummary(proposal, companyName)}
-          </p>
-          {quoteId ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <p className="text-sm text-zinc-300">完整方案详情请下载方案 PDF 查看</p>
-                <button
-                  type="button"
-                  onClick={() => void handleDownloadPdf()}
-                  className="rounded-xl bg-white px-6 py-3 font-semibold text-black hover:bg-zinc-100"
-                >
-                  下载方案 PDF
-                </button>
-                {pdfDownloaded ? (
-                  <p className="text-sm text-emerald-300">方案 PDF 已下载。</p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-zinc-200">下一步：预算</p>
-                {budgetEntitled ? (
-                  <Link
-                    href={productHref("/budget", {
-                      organizationId,
-                      projectId,
-                      quoteId,
-                    })}
-                    className="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
-                  >
-                    继续生成预算
-                  </Link>
-                ) : budgetEntitlement !== "upgradeable" ? (
-                  budgetEntitlementStatus
-                ) : showImmediateProPayGate ? (
-                  <p className="text-sm text-zinc-300">
-                    升级{proTier.label}后可继续预算测算，请使用上方微信支付完成开通。
-                  </p>
-                ) : (
-                  <div className="space-y-2 rounded-xl border border-amber-700/50 bg-black p-4">
-                    <p className="text-sm text-zinc-300">
-                      预算（{proTier.label}）· ¥{proTier.monthlyPriceCny}/月 · {proTier.headline}。当前套餐无法直接进入预算计算，请使用微信扫码自助升级。
-                    </p>
-                    <ProUpgradePaymentCta
-                      context={{ organizationId, projectId, quoteId }}
-                      buttonClassName="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
-                      onPaidSuccess={refreshBudgetEntitlement}
-                      onAlreadyEntitled={refreshBudgetEntitlement}
-                    />
-                  </div>
-                )}
-                {pdfDownloaded && budgetEntitled ? (
-                  <p className="text-sm text-emerald-300">
-                    请继续下一步生成预算。{" "}
-                    <Link
-                      href={productHref("/budget", {
-                        organizationId,
-                        projectId,
-                        quoteId,
-                      })}
-                      className="underline hover:text-emerald-200"
-                    >
-                      前往预算
-                    </Link>
-                  </p>
-                ) : null}
-                {pdfDownloaded && budgetEntitlement === "upgradeable" ? (
-                  showImmediateProPayGate ? (
-                    <p className="text-sm text-emerald-300">
-                      升级{proTier.label}后可继续预算测算。
-                    </p>
-                  ) : (
-                    <p className="text-sm text-emerald-300">
-                      升级{proTier.label}后可继续预算测算。{" "}
-                      <ProUpgradePaymentCta
-                        context={{ organizationId, projectId, quoteId }}
-                        buttonClassName="underline hover:text-emerald-200 text-sm font-normal bg-transparent p-0 text-emerald-300"
-                        onPaidSuccess={refreshBudgetEntitlement}
-                        onAlreadyEntitled={refreshBudgetEntitlement}
-                      />
-                    </p>
-                  )
-                ) : null}
-              </div>
-
-              {projectId ? (
-                <Link
-                  href={`/projects/${encodeURIComponent(projectId)}`}
-                  className="inline-block text-sm text-zinc-400 underline hover:text-zinc-200"
-                >
-                  ← 返回项目
-                </Link>
-              ) : null}
-            </div>
-          ) : null}
-        </article>
+        </section>
       ) : null}
 
-      {quoteId && (piLoading || piView) ? (
+      {activePanel === "strategy" && quoteReady && piView ? (
         <section className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
-          <h2 className="text-lg font-semibold text-zinc-100">需求识别与设备候选配置</h2>
-          {piLoading && !piView ? (
-            <p className="text-sm text-zinc-500">加载中…</p>
-          ) : null}
-          {piView ? (
-            <>
-              {piView.requirements.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-zinc-200">需求识别状态</p>
-                  <p className="text-xs text-zinc-500">
-                    按确定规则识别，仅供参考，不影响方案生成。
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-100">第 3 步：方案策略</h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              以下为本方案版本生成时保存的配置策略与器材类别；具体品牌型号在第 4 步选择。
+            </p>
+          </div>
+          {strategy ? (
+            <div className="space-y-4 text-sm text-zinc-300">
+              <dl className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs text-zinc-500">使用人数</dt>
+                  <dd>{describeStrategyNumberFact(strategy.facts?.headcount, "人")}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-zinc-500">场地面积</dt>
+                  <dd>{describeStrategyNumberFact(strategy.facts?.areaM2, "㎡")}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-zinc-500">预算</dt>
+                  <dd>{describeStrategyBudgetFact(strategy.facts?.budget)}</dd>
+                </div>
+                {strategy.facts?.siteType ? (
+                  <div>
+                    <dt className="text-xs text-zinc-500">场地类型</dt>
+                    <dd>{SITE_TYPE_LABEL[strategy.facts.siteType] ?? strategy.facts.siteType}</dd>
+                  </div>
+                ) : null}
+                {strategy.facts?.priceBand ? (
+                  <div>
+                    <dt className="text-xs text-zinc-500">配置档位</dt>
+                    <dd>{PRICE_BAND_LABEL[strategy.facts.priceBand] ?? strategy.facts.priceBand}</dd>
+                  </div>
+                ) : null}
+                {strategy.experience?.level && EXPERIENCE_LEVEL_LABEL[strategy.experience.level] ? (
+                  <div>
+                    <dt className="text-xs text-zinc-500">体验定位</dt>
+                    <dd>{EXPERIENCE_LEVEL_LABEL[strategy.experience.level]}</dd>
+                  </div>
+                ) : null}
+              </dl>
+              {(strategy.focus?.signals ?? []).some((s) => s.label) ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-zinc-500">训练侧重</p>
+                  <p>
+                    {(strategy.focus?.signals ?? [])
+                      .filter((s) => s.label)
+                      .map((s) =>
+                        s.role && FOCUS_ROLE_LABEL[s.role]
+                          ? `${s.label}（${FOCUS_ROLE_LABEL[s.role]}）`
+                          : s.label,
+                      )
+                      .join("、")}
                   </p>
-                  <ul className="space-y-2">
-                    {piView.requirements.map((item) => (
-                      <li
-                        key={item.id}
-                        className="rounded-lg border border-zinc-800 bg-black px-3 py-2 text-xs"
-                      >
-                        <span
-                          className={`mr-2 inline-block rounded border px-1.5 py-0.5 ${REQUIREMENT_STATUS_CLASS[item.status] ?? "border-zinc-700 text-zinc-300"}`}
-                        >
-                          {REQUIREMENT_STATUS_LABEL[item.status] ?? item.status}
-                        </span>
-                        <span className="text-zinc-200">{item.text}</span>
-                        <p className="mt-1 text-zinc-500">{item.basis}</p>
-                        {item.question ? (
-                          <p className="mt-1 text-amber-300">待确认：{item.question}</p>
-                        ) : null}
-                      </li>
-                    ))}
+                </div>
+              ) : null}
+              {(strategy.zoning ?? []).some((z) => z.zone) ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-zinc-500">分区策略</p>
+                  <ul className="list-disc space-y-1 pl-5">
+                    {(strategy.zoning ?? [])
+                      .filter((z) => z.zone)
+                      .map((z) => (
+                        <li key={z.zone}>
+                          {[
+                            z.zone,
+                            formatRange(z.sharePct, "%"),
+                            formatRange(z.areaM2, "㎡"),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </li>
+                      ))}
                   </ul>
                 </div>
               ) : null}
+              <StrategyList title="配置指导" items={nonEmptyStrings(strategy.guidance)} />
+              <StrategyList title="场地与实施约束" items={nonEmptyStrings(strategy.constraints)} />
+              <StrategyList title="需确认的冲突" items={nonEmptyStrings(strategy.conflicts)} />
+              <StrategyList
+                title="策略与器材配置的关系"
+                items={nonEmptyStrings(strategy.downstreamNotes)}
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-amber-300">
+              该方案版本没有保存结构化策略数据（较早版本生成），以下仅展示器材类别与模板数量；如需完整策略，可在第 2 步按补充要求重新生成。
+            </p>
+          )}
+          <div className="space-y-1 text-sm text-zinc-300">
+            <p className="text-xs text-zinc-500">器材类别与模板数量（有氧 / 力量）</p>
+            {piView.slots.length > 0 ? (
+              <ul className="list-disc space-y-1 pl-5">
+                {piView.slots.map((slot) => (
+                  <li key={slot.slotKey}>
+                    {slot.category} · {slot.subCategory} · 模板数量 {slot.templateQuantity} 台/套
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-amber-300">当前方案暂无可配置的有氧 / 力量设备位。</p>
+            )}
+          </div>
+          {proposal ? (
+            <div className="space-y-2 rounded-lg border border-zinc-800 bg-black p-4">
+              <p className="text-sm font-medium text-zinc-200">方案结果摘要</p>
+              <p className="text-sm leading-relaxed text-zinc-300">
+                {buildCustomerSummary(proposal, companyName)}
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleDownloadPdf()}
+                className="rounded-xl border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400"
+              >
+                下载方案 PDF
+              </button>
+              {pdfDownloaded ? (
+                <p className="text-sm text-emerald-300">方案 PDF 已下载。</p>
+              ) : null}
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleAcknowledgeStrategy}
+            disabled={loading || !requirementsAcknowledged}
+            className="rounded-xl bg-white px-6 py-3 font-semibold text-black disabled:opacity-50"
+          >
+            确认方案策略，继续产品配置
+          </button>
+        </section>
+      ) : null}
 
+      {activePanel === "products" && quoteReady && piView ? (
+        <section className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+          <h2 className="text-lg font-semibold text-zinc-100">第 4 步：产品配置</h2>
+          {piView ? (
+            <>
               <div className="space-y-2">
                 <p className="text-sm font-medium text-zinc-200">设备候选配置（有氧 / 力量）</p>
                 <p className="text-xs text-zinc-500">
                   候选均来自参考目录，标注为「{REFERENCE_CANDIDATE_BADGE}」，仅用于加入当前方案候选配置，不代表确认采购；预算单价默认按预算档位估算，仅在为已选候选填写供应商报价或采购合同的核实单价后按核实价计价。
                 </p>
+                {piView.slots.length === 0 ? (
+                  <p className="text-sm text-amber-300">
+                    当前方案暂无可确认的设备配置，请调整需求或重新生成方案。
+                  </p>
+                ) : null}
               </div>
 
               {[...piView.warnings, ...piLocalWarnings].length > 0 ? (
@@ -1621,27 +1959,147 @@ function QuoteForm() {
               </ul>
 
               <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => void handleSaveSelections()}
-                  disabled={
-                    piSaving ||
-                    piLoading ||
-                    loading ||
-                    !selectionDirty ||
-                    !draftQuantitiesValid
-                  }
-                  className="rounded-xl border border-emerald-600 px-6 py-3 text-sm font-semibold text-emerald-200 hover:border-emerald-400 disabled:opacity-50"
-                >
-                  {piSaving ? "保存中…" : "保存为新方案版本"}
-                </button>
+                {productConfigConfirmed && !selectionDirty ? (
+                  <p className="text-sm text-emerald-300">
+                    当前方案版本的产品配置已确认（{piView.selections.length} 个设备位）。如需调整，修改后再次确认即可生成新的方案版本。
+                  </p>
+                ) : null}
+                {confirmableSlotCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleConfirmProductConfiguration()}
+                    disabled={
+                      piSaving ||
+                      piLoading ||
+                      loading ||
+                      !draftQuantitiesValid ||
+                      (productConfigConfirmed && !selectionDirty)
+                    }
+                    className="rounded-xl bg-emerald-400 px-6 py-3 text-sm font-semibold text-black hover:bg-emerald-300 disabled:opacity-50"
+                  >
+                    {piSaving ? "确认中…" : "确认产品配置"}
+                  </button>
+                ) : null}
                 <p className="text-xs text-zinc-500">
-                  保存后生成新的方案版本，当前及历史版本保持不变；此操作仅调整方案候选配置，不代表确认采购。
+                  确认后保存为新的方案版本（未选择候选的设备位按「保留当前模板配置」确认），当前及历史版本保持不变；此操作仅确认方案配置，不代表确认采购。
                 </p>
                 {piNotice ? <p className="text-sm text-emerald-300">{piNotice}</p> : null}
                 {piError ? <p className="text-sm text-rose-300">{piError}</p> : null}
               </div>
             </>
+          ) : null}
+        </section>
+      ) : null}
+
+      {currentQuoteId && productConfigConfirmed ? (
+        <section className="space-y-4 rounded-xl border border-emerald-800/60 bg-zinc-950 p-6">
+          <h2 className="text-lg font-semibold text-zinc-100">第 5 步：预算</h2>
+          <div className="space-y-2">
+            <p className="text-sm text-zinc-300">
+              产品配置已确认。完整方案详情请下载方案 PDF 查看
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleDownloadPdf()}
+              className="rounded-xl bg-white px-6 py-3 font-semibold text-black hover:bg-zinc-100"
+            >
+              下载方案 PDF
+            </button>
+            {pdfDownloaded ? (
+              <p className="text-sm text-emerald-300">方案 PDF 已下载。</p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-zinc-200">下一步：预算</p>
+            {budgetEntitled ? (
+              <Link
+                href={productHref("/budget", {
+                  organizationId,
+                  projectId,
+                  quoteId,
+                })}
+                className="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
+              >
+                继续生成预算
+              </Link>
+            ) : budgetEntitlement !== "upgradeable" ? (
+              budgetEntitlementStatus
+            ) : showImmediateProPayGate ? (
+              <p className="text-sm text-zinc-300">
+                升级{proTier.label}后可继续预算测算，请使用上方微信支付完成开通。
+              </p>
+            ) : (
+              <div className="space-y-2 rounded-xl border border-amber-700/50 bg-black p-4">
+                <p className="text-sm text-zinc-300">
+                  预算（{proTier.label}）· ¥{proTier.monthlyPriceCny}/月 · {proTier.headline}。当前套餐无法直接进入预算计算，请使用微信扫码自助升级。
+                </p>
+                <ProUpgradePaymentCta
+                  context={{ organizationId, projectId, quoteId }}
+                  buttonClassName="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
+                  onPaidSuccess={refreshBudgetEntitlement}
+                  onAlreadyEntitled={refreshBudgetEntitlement}
+                />
+              </div>
+            )}
+            {pdfDownloaded && budgetEntitled ? (
+              <p className="text-sm text-emerald-300">
+                请继续下一步生成预算。{" "}
+                <Link
+                  href={productHref("/budget", {
+                    organizationId,
+                    projectId,
+                    quoteId,
+                  })}
+                  className="underline hover:text-emerald-200"
+                >
+                  前往预算
+                </Link>
+              </p>
+            ) : null}
+            {pdfDownloaded && budgetEntitlement === "upgradeable" ? (
+              showImmediateProPayGate ? (
+                <p className="text-sm text-emerald-300">
+                  升级{proTier.label}后可继续预算测算。
+                </p>
+              ) : (
+                <p className="text-sm text-emerald-300">
+                  升级{proTier.label}后可继续预算测算。{" "}
+                  <ProUpgradePaymentCta
+                    context={{ organizationId, projectId, quoteId }}
+                    buttonClassName="underline hover:text-emerald-200 text-sm font-normal bg-transparent p-0 text-emerald-300"
+                    onPaidSuccess={refreshBudgetEntitlement}
+                    onAlreadyEntitled={refreshBudgetEntitlement}
+                  />
+                </p>
+              )
+            ) : null}
+          </div>
+
+          {projectId ? (
+            <Link
+              href={`/projects/${encodeURIComponent(projectId)}`}
+              className="inline-block text-sm text-zinc-400 underline hover:text-zinc-200"
+            >
+              ← 返回项目
+            </Link>
+          ) : null}
+        </section>
+      ) : currentQuoteId ? (
+        <section className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
+          <h2 className="text-lg font-semibold text-zinc-500">第 5 步：预算（未解锁）</h2>
+          <p className="text-sm text-zinc-500">
+            {quoteReady && confirmableSlotCount === 0
+              ? "当前方案暂无可确认的设备配置，请调整需求或重新生成方案。"
+              : "完成第 4 步「确认产品配置」并保存为方案版本后，才可进入预算。"}
+          </p>
+          {projectId ? (
+            <Link
+              href={`/projects/${encodeURIComponent(projectId)}`}
+              className="inline-block text-sm text-zinc-400 underline hover:text-zinc-200"
+            >
+              ← 返回项目
+            </Link>
           ) : null}
         </section>
       ) : null}
@@ -1699,6 +2157,20 @@ function QuoteForm() {
           {error}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+function StrategyList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-zinc-500">{title}</p>
+      <ul className="list-disc space-y-1 pl-5">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
     </div>
   );
 }

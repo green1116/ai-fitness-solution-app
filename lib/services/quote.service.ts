@@ -20,7 +20,11 @@ import {
   classifyRequirements,
   type RequirementStatusItem,
 } from "@/lib/product-engine";
-import { analyzeConfigurationStrategy } from "@/lib/product-engine/configuration-strategy";
+import {
+  analyzeConfigurationStrategy,
+  CONFIGURATION_STRATEGY_VERSION,
+  type ConfigurationAnalysis,
+} from "@/lib/product-engine/configuration-strategy";
 import { resolveCanonicalHeadcount } from "@/lib/product-engine/quote-revision";
 import { prisma } from "@/lib/prisma";
 import { generatePlaceholders } from "@/lib/services/tender/generatePlaceholders";
@@ -444,7 +448,23 @@ export type QuoteProductIntelligenceView = {
   slots: ProductCandidateSlot[];
   selections: ProductSelection[];
   warnings: string[];
+  /** Persisted `Quote.content.configurationStrategy`; null for Quotes generated before it existed. */
+  configurationStrategy: ConfigurationAnalysis | null;
 };
+
+/** Read-only view of the stored analysis; never recomputed, never written. */
+export function readStoredConfigurationAnalysis(value: unknown): ConfigurationAnalysis | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Partial<ConfigurationAnalysis>;
+  if (row.version !== CONFIGURATION_STRATEGY_VERSION) return null;
+  if (!row.configurationStrategy || typeof row.configurationStrategy !== "object") return null;
+  return {
+    version: row.version,
+    analyzedAt: typeof row.analyzedAt === "string" ? row.analyzedAt : "",
+    missingCriticalInfo: Array.isArray(row.missingCriticalInfo) ? row.missingCriticalInfo : [],
+    configurationStrategy: row.configurationStrategy,
+  };
+}
 
 async function loadReadyQuoteForTenant(
   quoteId: string,
@@ -486,9 +506,11 @@ export async function getQuoteProductIntelligence(input: {
   const selections = companyInfo.productSelections ?? [];
   const applied = applyProductSelections(templatePlaceholders, selections);
 
-  const stored = readStoredProductIntelligence(
-    (quote.content as { productIntelligence?: unknown } | null)?.productIntelligence,
-  );
+  const content = quote.content as {
+    productIntelligence?: unknown;
+    configurationStrategy?: unknown;
+  } | null;
+  const stored = readStoredProductIntelligence(content?.productIntelligence);
   return {
     quoteId: quote.id,
     snapshotSource: stored ? "stored" : "computed",
@@ -496,6 +518,7 @@ export async function getQuoteProductIntelligence(input: {
     slots: stored?.slots ?? buildCandidateSlots(templatePlaceholders),
     selections,
     warnings: applied.warnings,
+    configurationStrategy: readStoredConfigurationAnalysis(content?.configurationStrategy),
   };
 }
 
