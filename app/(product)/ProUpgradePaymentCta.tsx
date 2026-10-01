@@ -13,7 +13,10 @@ type PayUiPhase =
   | "starting"
   | "awaiting_scan"
   | "paid"
+  | "already_entitled"
   | "failed";
+
+const ALREADY_ENTITLED_CODE = "ALREADY_ENTITLED";
 
 type CreateOrderResponse = {
   ok?: boolean;
@@ -26,6 +29,7 @@ type StartPaymentResponse = {
   ok?: boolean;
   orderId?: string;
   message?: string;
+  code?: string;
   paymentSession?: {
     kind?: string;
     codeUrl?: string;
@@ -55,12 +59,15 @@ export function ProUpgradePaymentCta({
   context = {},
   buttonClassName,
   onPaidSuccess,
+  onAlreadyEntitled,
 }: {
   label?: string;
   context?: ProductCommercialContext;
   buttonClassName?: string;
   /** Called only after paymentStatus=paid && licenseIssued=true. Closing early must not invoke this. */
   onPaidSuccess?: () => void | Promise<void>;
+  /** Called when the server rejects the purchase because PRO/Enterprise is already active. */
+  onAlreadyEntitled?: () => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<PayUiPhase>("idle");
@@ -162,6 +169,19 @@ export function ProUpgradePaymentCta({
     [clearPoll, onPaidSuccess],
   );
 
+  const stopAsAlreadyEntitled = useCallback(async () => {
+    clearPoll();
+    setPhase("already_entitled");
+    setStatusText("已开通专业版或企业版");
+    setErrorText(null);
+    setQrDataUrl(null);
+    try {
+      await onAlreadyEntitled?.();
+    } catch {
+      // Parent refresh failure must not reopen the payment flow.
+    }
+  }, [clearPoll, onAlreadyEntitled]);
+
   const startPaymentFlow = useCallback(async () => {
     abortRef.current = false;
     paidRef.current = false;
@@ -195,6 +215,10 @@ export function ProUpgradePaymentCta({
       });
       const createData = (await createRes.json().catch(() => ({}))) as CreateOrderResponse;
       if (abortRef.current) return;
+      if (createData.code === ALREADY_ENTITLED_CODE) {
+        await stopAsAlreadyEntitled();
+        return;
+      }
       if (!createRes.ok || !createData.ok || !createData.orderId) {
         setPhase("failed");
         setStatusText("支付失败 / 超时");
@@ -217,6 +241,10 @@ export function ProUpgradePaymentCta({
       });
       const startData = (await startRes.json().catch(() => ({}))) as StartPaymentResponse;
       if (abortRef.current) return;
+      if (startData.code === ALREADY_ENTITLED_CODE) {
+        await stopAsAlreadyEntitled();
+        return;
+      }
       if (!startRes.ok || !startData.ok || !startData.paymentSession) {
         setPhase("failed");
         setStatusText("支付失败 / 超时");
@@ -264,7 +292,7 @@ export function ProUpgradePaymentCta({
       setStatusText("支付失败 / 超时");
       setErrorText("支付发起失败，请稍后重试");
     }
-  }, [clearPoll, context, pollUntilPaid]);
+  }, [clearPoll, context, pollUntilPaid, stopAsAlreadyEntitled]);
 
   useEffect(() => {
     return () => {
@@ -313,7 +341,7 @@ export function ProUpgradePaymentCta({
             <div className="space-y-4">
               <p
                 className={
-                  phase === "paid"
+                  phase === "paid" || phase === "already_entitled"
                     ? "text-sm font-medium text-emerald-300"
                     : phase === "failed"
                       ? "text-sm font-medium text-rose-300"
@@ -354,6 +382,12 @@ export function ProUpgradePaymentCta({
               {phase === "paid" ? (
                 <p className="text-sm text-white/70">
                   授权已就绪，可继续生成预算。
+                </p>
+              ) : null}
+
+              {phase === "already_entitled" ? (
+                <p className="text-sm text-white/70">
+                  当前组织已开通专业版或企业版，无需重复购买，未创建新的支付。请关闭后刷新页面继续。
                 </p>
               ) : null}
 

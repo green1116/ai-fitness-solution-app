@@ -16,6 +16,7 @@ import type { QuoteOrchestrationStepResult } from "@/lib/quote-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { generateBudget } from "@/lib/services/tender/generateBudget";
 import { generatePlaceholders } from "@/lib/services/tender/generatePlaceholders";
+import { assertQuoteBelongsToProject } from "@/lib/services/quote.service";
 import { assertResourceBelongsToTenant } from "@/lib/tenancy/tenant.guard";
 
 export type BudgetTier = "low" | "mid" | "high";
@@ -26,6 +27,8 @@ export type CalculateBudgetInput = {
   companySize?: number;
   budgetTier?: BudgetTier;
   organizationId?: string;
+  /** Optional for API compatibility; when provided the Quote must belong to it. */
+  projectId?: string;
 };
 
 export type BudgetCalculationBasis = {
@@ -184,6 +187,9 @@ export async function calculateBudget(input: CalculateBudgetInput) {
       quote.project.organizationId,
       input.organizationId,
     );
+    if (input.projectId?.trim()) {
+      assertQuoteBelongsToProject(quote, input.projectId, input.organizationId);
+    }
   }
 
   const budgetTier: BudgetTier = input.budgetTier ?? "mid";

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveProPurchaseEligibility } from "@/lib/commercial/proPurchaseEligibility";
 import { getPaymentProvider } from "@/lib/payments/provider";
 import { upgradeAmountForLevel } from "@/lib/upgradeUnlock";
 
@@ -32,6 +33,20 @@ export async function POST(req: Request) {
       );
     }
 
+    // PRO: session, organization, project ownership and current plan are server-verified;
+    // request-body userId is never trusted.
+    let proUserId: string | null = null;
+    if (targetLevelRaw === "pro") {
+      const eligibility = await resolveProPurchaseEligibility({ projectId });
+      if (!eligibility.ok) {
+        return NextResponse.json(
+          { ok: false, code: eligibility.code, message: eligibility.message },
+          { status: eligibility.status },
+        );
+      }
+      proUserId = eligibility.userId;
+    }
+
     // PRO: server-authoritative — never persist client body.amount.
     // Enterprise: unchanged — still requires a valid client amount.
     let amount: number;
@@ -63,7 +78,12 @@ export async function POST(req: Request) {
       projectId,
       targetLevel: targetLevelRaw as "pro" | "enterprise",
       amount,
-      userId: typeof body?.userId === "string" ? body.userId : null,
+      userId:
+        targetLevelRaw === "pro"
+          ? proUserId
+          : typeof body?.userId === "string"
+            ? body.userId
+            : null,
       clientFingerprint:
         typeof body?.clientFingerprint === "string"
           ? body.clientFingerprint

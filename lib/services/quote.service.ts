@@ -27,6 +27,34 @@ import { generatePlaceholders } from "@/lib/services/tender/generatePlaceholders
 import { generateSolution } from "@/lib/services/tender/generateSolution";
 import { assertResourceBelongsToTenant } from "@/lib/tenancy/tenant.guard";
 
+export const QUOTE_PROJECT_MISMATCH = "QUOTE_PROJECT_MISMATCH";
+
+/** The Quote exists in the tenant but does not belong to the requested project. */
+export class QuoteProjectMismatchError extends Error {
+  readonly code = QUOTE_PROJECT_MISMATCH;
+
+  constructor() {
+    super("Quote does not belong to the requested project");
+    this.name = "QuoteProjectMismatchError";
+  }
+}
+
+/** Call only after the tenant check, so a mismatch never reveals another tenant's data. */
+export function assertQuoteBelongsToProject(
+  quote: { projectId: string; project: { organizationId: string | null } },
+  projectId: string,
+  organizationId: string,
+): void {
+  const expected = projectId.trim();
+  if (
+    !expected ||
+    quote.projectId !== expected ||
+    quote.project.organizationId !== organizationId
+  ) {
+    throw new QuoteProjectMismatchError();
+  }
+}
+
 export type GenerateQuoteInput = {
   projectId: string;
   workspaceId: string;
@@ -418,7 +446,11 @@ export type QuoteProductIntelligenceView = {
   warnings: string[];
 };
 
-async function loadReadyQuoteForTenant(quoteId: string, organizationId: string) {
+async function loadReadyQuoteForTenant(
+  quoteId: string,
+  organizationId: string,
+  projectId: string,
+) {
   const quote = await prisma.quote.findUnique({
     where: { id: quoteId },
     include: { project: true },
@@ -430,6 +462,7 @@ async function loadReadyQuoteForTenant(quoteId: string, organizationId: string) 
     quote.organizationId ?? quote.project.organizationId,
     organizationId,
   );
+  assertQuoteBelongsToProject(quote, projectId, organizationId);
   if (quote.status !== QuoteStatus.READY) {
     throw new Error("Quote is not READY");
   }
@@ -440,8 +473,13 @@ async function loadReadyQuoteForTenant(quoteId: string, organizationId: string) 
 export async function getQuoteProductIntelligence(input: {
   quoteId: string;
   organizationId: string;
+  projectId: string;
 }): Promise<QuoteProductIntelligenceView> {
-  const quote = await loadReadyQuoteForTenant(input.quoteId, input.organizationId);
+  const quote = await loadReadyQuoteForTenant(
+    input.quoteId,
+    input.organizationId,
+    input.projectId,
+  );
   const companyInfo = readCompanyInfo(quote.companyInfo);
   const projectInput = projectInputFromQuote({ project: quote.project, companyInfo });
   const templatePlaceholders = generatePlaceholders(quote.project.id, projectInput);
@@ -468,10 +506,15 @@ export async function getQuoteProductIntelligence(input: {
 export async function createQuoteVersionWithSelections(input: {
   baseQuoteId: string;
   organizationId: string;
+  projectId: string;
   selections: unknown;
   decidedBy?: string;
 }) {
-  const base = await loadReadyQuoteForTenant(input.baseQuoteId, input.organizationId);
+  const base = await loadReadyQuoteForTenant(
+    input.baseQuoteId,
+    input.organizationId,
+    input.projectId,
+  );
   const baseCompanyInfo = readCompanyInfo(base.companyInfo);
   const projectInput = projectInputFromQuote({
     project: base.project,

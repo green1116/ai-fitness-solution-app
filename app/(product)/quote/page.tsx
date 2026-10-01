@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  clearStoredQuoteIdForProject,
   companyNameFromProject,
   isProductContextCrmHandoff,
   parseProductContextSearch,
@@ -26,8 +27,10 @@ import { getPricingTier } from "@/lib/growth/conversion/pricing.strategy";
 type OrgMe = { organizationId?: string | null };
 type SubscriptionResponse = {
   ok?: boolean;
+  subscription?: { plan?: string };
   featureFlags?: { canGenerateBudget?: boolean };
 };
+type BudgetEntitlementState = "loading" | "entitled" | "upgradeable" | "error";
 type ProjectListItem = { id: string; name?: string; clientName?: string | null };
 type ProjectList = { ok?: boolean; projects?: ProjectListItem[] };
 type ProjectCreate = { ok?: boolean; project?: { id: string }; message?: string };
@@ -221,29 +224,50 @@ const REQUIREMENT_STATUS_CLASS: Record<RequirementStatus, string> = {
 const REFERENCE_CANDIDATE_BADGE = "参考候选 / 未核实";
 const NO_CANDIDATE_TEXT = "暂无已验证候选，保留当前模板配置";
 
+const QUOTE_PROJECT_MISMATCH_CODE = "QUOTE_PROJECT_MISMATCH";
+
+type ProductIntelligenceResult =
+  | { kind: "ok"; view: ProductIntelligenceView }
+  | { kind: "mismatch" }
+  | { kind: "error" };
+
 async function fetchProductIntelligence(
   quoteId: string,
   organizationId: string,
-): Promise<ProductIntelligenceView | null> {
+  projectId: string,
+): Promise<ProductIntelligenceResult> {
   const qid = quoteId.trim();
   const oid = organizationId.trim();
-  if (!qid || !oid) return null;
+  const pid = projectId.trim();
+  if (!qid || !oid || !pid) return { kind: "error" };
   try {
     const res = await fetch(
-      `/api/quote/product-intelligence?quoteId=${encodeURIComponent(qid)}&organizationId=${encodeURIComponent(oid)}`,
+      `/api/quote/product-intelligence?quoteId=${encodeURIComponent(qid)}&organizationId=${encodeURIComponent(oid)}&projectId=${encodeURIComponent(pid)}`,
       { headers: { "x-organization-id": oid } },
     );
-    const data = (await res.json()) as { ok?: boolean } & Partial<ProductIntelligenceView>;
-    if (data.ok !== true) return null;
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      code?: string;
+    } & Partial<ProductIntelligenceView>;
+    if (
+      (res.status === 409 && data.code === QUOTE_PROJECT_MISMATCH_CODE) ||
+      res.status === 404
+    ) {
+      return { kind: "mismatch" };
+    }
+    if (data.ok !== true) return { kind: "error" };
     return {
-      quoteId: data.quoteId ?? qid,
-      requirements: Array.isArray(data.requirements) ? data.requirements : [],
-      slots: Array.isArray(data.slots) ? data.slots : [],
-      selections: Array.isArray(data.selections) ? data.selections : [],
-      warnings: Array.isArray(data.warnings) ? data.warnings : [],
+      kind: "ok",
+      view: {
+        quoteId: data.quoteId ?? qid,
+        requirements: Array.isArray(data.requirements) ? data.requirements : [],
+        slots: Array.isArray(data.slots) ? data.slots : [],
+        selections: Array.isArray(data.selections) ? data.selections : [],
+        warnings: Array.isArray(data.warnings) ? data.warnings : [],
+      },
     };
   } catch {
-    return null;
+    return { kind: "error" };
   }
 }
 
@@ -468,10 +492,15 @@ async function resolveOrganizationId(): Promise<string> {
   return typeof me.organizationId === "string" ? me.organizationId.trim() : "";
 }
 
-/** Fail closed: only true when billing subscription confirms the flag. */
-async function loadCanGenerateBudget(organizationId: string): Promise<boolean> {
+/**
+ * Payment CTAs may only render for "upgradeable" (explicit BASIC plan);
+ * any lookup failure is "error", never purchasable.
+ */
+async function loadBudgetEntitlement(
+  organizationId: string,
+): Promise<Exclude<BudgetEntitlementState, "loading">> {
   const orgId = organizationId.trim();
-  if (!orgId) return false;
+  if (!orgId) return "error";
   try {
     const res = await fetch("/api/billing/subscription", {
       headers: {
@@ -479,11 +508,16 @@ async function loadCanGenerateBudget(organizationId: string): Promise<boolean> {
         "x-organization-id": orgId,
       },
     });
-    if (!res.ok) return false;
+    if (!res.ok) return "error";
     const body = (await res.json().catch(() => ({}))) as SubscriptionResponse;
-    return body.ok === true && body.featureFlags?.canGenerateBudget === true;
+    if (body.ok !== true) return "error";
+    const plan = String(body.subscription?.plan ?? "").trim().toUpperCase();
+    if (body.featureFlags?.canGenerateBudget === true) return "entitled";
+    if (plan === "PRO" || plan === "ENTERPRISE") return "entitled";
+    if (plan === "BASIC") return "upgradeable";
+    return "error";
   } catch {
-    return false;
+    return "error";
   }
 }
 
@@ -583,7 +617,8 @@ function QuoteForm() {
   const [quoteId, setQuoteId] = useState("");
   const [pdfDownloaded, setPdfDownloaded] = useState(false);
   const [projectIntake, setProjectIntake] = useState<StoredProjectIntake | null>(null);
-  const [canGenerateBudget, setCanGenerateBudget] = useState(false);
+  const [budgetEntitlement, setBudgetEntitlement] =
+    useState<BudgetEntitlementState>("loading");
   const [revisionNotes, setRevisionNotes] = useState("");
   const [clarifyItems, setClarifyItems] = useState<ClarificationItem[] | null>(null);
   const [clarifyConflicts, setClarifyConflicts] = useState<string[]>([]);
@@ -601,30 +636,92 @@ function QuoteForm() {
   const [piLocalWarnings, setPiLocalWarnings] = useState<string[]>([]);
   const [slotDrafts, setSlotDrafts] = useState<Record<string, SlotDraft>>({});
   const [initialSelectionJson, setInitialSelectionJson] = useState("[]");
+  const hydratedProjectIdRef = useRef<string | null>(null);
   const proTier = getPricingTier("PRO");
+
+  /** Clears every piece of state derived from a specific project / quote. */
+  function resetProjectScopedState(options?: { keepError?: boolean }) {
+    setQuoteId("");
+    setProposal(null);
+    setPdfDownloaded(false);
+    setProjectIntake(null);
+    setRevisionNotes("");
+    setClarifyItems(null);
+    setClarifyConflicts([]);
+    setClarificationDraft(EMPTY_CLARIFICATION_DRAFT);
+    setAppliedClarification({});
+    setClarificationResolved(false);
+    setQuoteHistory([]);
+    setHistoryPdfDownloadingId("");
+    setPiView(null);
+    setPiError("");
+    setPiNotice("");
+    setPiLocalWarnings([]);
+    setSlotDrafts({});
+    setInitialSelectionJson("[]");
+    setCompanyName("");
+    setCompanyLocked(false);
+    if (!options?.keepError) setError("");
+  }
+
+  function discardMismatchedQuote(
+    mismatchedQuoteId: string,
+    nextOrganizationId: string,
+    nextProjectId: string,
+  ) {
+    clearStoredQuoteIdForProject(nextProjectId, mismatchedQuoteId);
+    setQuoteId("");
+    setProposal(null);
+    setPdfDownloaded(false);
+    setPiView(null);
+    setPiNotice("");
+    setPiLocalWarnings([]);
+    setSlotDrafts({});
+    setInitialSelectionJson("[]");
+    writeStoredProductContext(
+      { organizationId: nextOrganizationId, projectId: nextProjectId },
+      { mode: "replace" },
+    );
+    router.replace(
+      productHref("/quote", {
+        organizationId: nextOrganizationId,
+        projectId: nextProjectId,
+      }),
+      { scroll: false },
+    );
+    setError("原方案不属于当前项目，已清除。请为当前项目重新生成方案。");
+  }
 
   useEffect(() => {
     const qid = trimQuoteId(quoteId);
     const oid = organizationId.trim();
-    if (!qid || !oid) {
+    const pid = projectId.trim();
+    if (!qid || !oid || !pid) {
       setPiView(null);
       return;
     }
     let cancelled = false;
     setPiLoading(true);
     setPiError("");
-    void fetchProductIntelligence(qid, oid)
-      .then((view) => {
+    void fetchProductIntelligence(qid, oid, pid)
+      .then((result) => {
         if (cancelled) return;
-        setPiView(view);
-        if (view) {
-          const init = initialSlotDrafts(view);
-          setSlotDrafts(init.drafts);
-          setPiLocalWarnings(init.warnings);
-          setInitialSelectionJson(
-            JSON.stringify(buildSelectionPayload(view.slots, init.drafts)),
-          );
+        if (result.kind === "mismatch") {
+          discardMismatchedQuote(qid, oid, pid);
+          return;
         }
+        if (result.kind === "error") {
+          setPiView(null);
+          return;
+        }
+        const view = result.view;
+        setPiView(view);
+        const init = initialSlotDrafts(view);
+        setSlotDrafts(init.drafts);
+        setPiLocalWarnings(init.warnings);
+        setInitialSelectionJson(
+          JSON.stringify(buildSelectionPayload(view.slots, init.drafts)),
+        );
       })
       .finally(() => {
         if (!cancelled) setPiLoading(false);
@@ -632,7 +729,9 @@ function QuoteForm() {
     return () => {
       cancelled = true;
     };
-  }, [quoteId, organizationId]);
+    // discardMismatchedQuote only uses stable setters/router.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteId, organizationId, projectId]);
 
   function updateSlotDraft(slotKey: string, patch: Partial<SlotDraft>) {
     setPiNotice("");
@@ -658,7 +757,8 @@ function QuoteForm() {
 
   async function handleSaveSelections() {
     const baseQuoteId = trimQuoteId(quoteId);
-    if (!baseQuoteId || !organizationId || !piView) return;
+    const currentProjectId = projectId.trim();
+    if (!baseQuoteId || !organizationId || !currentProjectId || !piView) return;
     const savedSelectionJson = JSON.stringify(selectionPayload);
     setPiSaving(true);
     setPiError("");
@@ -670,17 +770,22 @@ function QuoteForm() {
         body: JSON.stringify({
           quoteId: baseQuoteId,
           organizationId,
+          projectId: currentProjectId,
           selections: selectionPayload,
         }),
       });
-      const data = (await res.json()) as GenerateQuoteResponse;
+      const data = (await res.json()) as GenerateQuoteResponse & { code?: string };
+      if (res.status === 409 && data.code === QUOTE_PROJECT_MISMATCH_CODE) {
+        discardMismatchedQuote(baseQuoteId, organizationId, currentProjectId);
+        return;
+      }
       const nextQuoteId =
         data.ok === true && data.status === "READY" ? trimQuoteId(data.quoteId) : "";
       if (!nextQuoteId || !data.proposal) {
         setPiError(data.message || "候选配置保存失败，请稍后重试");
         return;
       }
-      const boundProjectId = data.projectId?.trim() || projectId;
+      const boundProjectId = data.projectId?.trim() || currentProjectId;
       setInitialSelectionJson(savedSelectionJson);
       setPiNotice("已保存为新方案版本");
       setProposal(data.proposal);
@@ -727,15 +832,18 @@ function QuoteForm() {
       if (cancelled) return;
       setOrganizationId(organizationId);
       if (!organizationId) {
-        setCanGenerateBudget(false);
+        hydratedProjectIdRef.current = "";
+        resetProjectScopedState();
+        setProjectId("");
+        setBudgetEntitlement("error");
         setContextReady(true);
         return;
       }
 
-      // Budget flag: background only — must not block first paint.
-      void loadCanGenerateBudget(organizationId).then((budgetAllowed) => {
+      // Budget entitlement: background only — must not block first paint.
+      void loadBudgetEntitlement(organizationId).then((state) => {
         if (cancelled) return;
-        setCanGenerateBudget(budgetAllowed);
+        setBudgetEntitlement(state);
       });
 
       const owned = await listOwnedProjects(organizationId);
@@ -747,19 +855,26 @@ function QuoteForm() {
       );
       const ownedProject = owned.find((p) => p.id === ownedProjectId);
       const resolvedName = companyNameFromProject(ownedProject);
-      setProjectId(ownedProjectId);
-      if (ownedProjectId) {
-        const resolvedQuoteId =
-          trimQuoteId(urlCtx.quoteId) ||
+      const resolvedQuoteId = ownedProjectId
+        ? trimQuoteId(urlCtx.quoteId) ||
           trimQuoteId(ctx.quoteId) ||
           (!crmHandoff && ownedProjectId
             ? readStoredQuoteIdForProject(ownedProjectId)
-            : "");
+            : "")
+        : "";
+      const projectChanged = hydratedProjectIdRef.current !== ownedProjectId;
+      hydratedProjectIdRef.current = ownedProjectId;
+      if (projectChanged || !resolvedQuoteId) {
+        resetProjectScopedState({ keepError: !projectChanged });
+      }
+      setProjectId(ownedProjectId);
+      if (ownedProjectId) {
         if (resolvedQuoteId) {
           const storedProposal = readStoredQuoteProposal(resolvedQuoteId);
           setQuoteId(resolvedQuoteId);
           setProposal(
-            storedProposal ?? stubProposalForRestore(resolvedName || companyName),
+            storedProposal ??
+              stubProposalForRestore(resolvedName || (projectChanged ? "" : companyName)),
           );
         }
         writeStoredProductContext({
@@ -825,6 +940,15 @@ function QuoteForm() {
       alert("请填写补充要求后再重新生成");
       return;
     }
+    if (
+      isRevision &&
+      (piView?.selections.length ?? 0) > 0 &&
+      !window.confirm(
+        "当前方案已保存设备候选选择。按新要求重新生成的新版本不会带入这些选择，需要在新版本中重新选择；当前版本仍保留在方案历史中。是否继续？",
+      )
+    ) {
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -846,17 +970,17 @@ function QuoteForm() {
         projectId,
         owned.map((p) => p.id),
       );
-      let intake = projectIntake;
-      if (nextProjectId) {
-        intake = (await fetchProjectIntake(nextProjectId, organizationId)) ?? intake;
-        setProjectIntake(intake);
-      }
       if (!nextProjectId) {
         nextProjectId = await createOrgProject(organizationId, companyName.trim());
         // Bind now: clarification may pause before generation, and a second click must reuse it.
         setProjectId(nextProjectId);
-        intake = (await fetchProjectIntake(nextProjectId, organizationId)) ?? intake;
-        setProjectIntake(intake);
+      }
+      // Never fall back to intake held in state: it may belong to a previous project.
+      const intake = await fetchProjectIntake(nextProjectId, organizationId).catch(() => null);
+      setProjectIntake(intake);
+      if (!intake) {
+        setError("项目信息加载失败，请刷新后重试");
+        return;
       }
 
       const payload = quotePayloadFromProjectIntake({
@@ -974,12 +1098,32 @@ function QuoteForm() {
   const hasProjectId = Boolean(projectId.trim());
   /** BASIC pay gate: visible on arrival from「升级专业版」, no quoteId/proposal required. */
   const showImmediateProPayGate =
-    contextReady && !canGenerateBudget && hasProjectId;
+    contextReady && budgetEntitlement === "upgradeable" && hasProjectId;
+  const budgetEntitled = budgetEntitlement === "entitled";
 
   const refreshBudgetEntitlement = async () => {
-    const allowed = await loadCanGenerateBudget(organizationId);
-    setCanGenerateBudget(allowed);
+    setBudgetEntitlement(await loadBudgetEntitlement(organizationId));
   };
+  const retryBudgetEntitlement = () => {
+    setBudgetEntitlement("loading");
+    void refreshBudgetEntitlement();
+  };
+
+  const budgetEntitlementStatus =
+    budgetEntitlement === "loading" ? (
+      <p className="text-sm text-zinc-500">正在确认套餐权限…</p>
+    ) : budgetEntitlement === "error" ? (
+      <div className="flex flex-wrap items-center gap-3 text-sm text-amber-300">
+        <span>套餐权限确认失败，暂无法继续预算。</span>
+        <button
+          type="button"
+          onClick={retryBudgetEntitlement}
+          className="rounded-lg border border-zinc-600 px-3 py-1 text-xs text-zinc-100 hover:border-zinc-400"
+        >
+          重试
+        </button>
+      </div>
+    ) : null;
 
   return (
     <div className="space-y-6">
@@ -988,9 +1132,11 @@ function QuoteForm() {
         <h1 className="mt-1 text-2xl font-bold">当前：方案</h1>
         <p className="text-sm text-zinc-400">
           {quoteId
-            ? canGenerateBudget
+            ? budgetEntitled
               ? "方案已就绪。主要下一步：继续生成预算。"
-              : "方案已就绪。预算测算为专业版能力，升级后可继续。"
+              : budgetEntitlement === "upgradeable"
+                ? "方案已就绪。预算测算为专业版能力，升级后可继续。"
+                : "方案已就绪。"
             : "填写企业信息，生成专业健身空间方案。"}
         </p>
       </div>
@@ -1005,6 +1151,7 @@ function QuoteForm() {
             context={{ organizationId, projectId, quoteId }}
             buttonClassName="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
             onPaidSuccess={refreshBudgetEntitlement}
+            onAlreadyEntitled={refreshBudgetEntitlement}
           />
         </div>
       ) : null}
@@ -1160,7 +1307,7 @@ function QuoteForm() {
 
               <div className="space-y-2">
                 <p className="text-sm font-medium text-zinc-200">下一步：预算</p>
-                {canGenerateBudget ? (
+                {budgetEntitled ? (
                   <Link
                     href={productHref("/budget", {
                       organizationId,
@@ -1171,6 +1318,8 @@ function QuoteForm() {
                   >
                     继续生成预算
                   </Link>
+                ) : budgetEntitlement !== "upgradeable" ? (
+                  budgetEntitlementStatus
                 ) : showImmediateProPayGate ? (
                   <p className="text-sm text-zinc-300">
                     升级{proTier.label}后可继续预算测算，请使用上方微信支付完成开通。
@@ -1184,10 +1333,11 @@ function QuoteForm() {
                       context={{ organizationId, projectId, quoteId }}
                       buttonClassName="inline-block rounded-xl bg-emerald-400 px-6 py-3 font-semibold text-black hover:bg-emerald-300"
                       onPaidSuccess={refreshBudgetEntitlement}
+                      onAlreadyEntitled={refreshBudgetEntitlement}
                     />
                   </div>
                 )}
-                {pdfDownloaded && canGenerateBudget ? (
+                {pdfDownloaded && budgetEntitled ? (
                   <p className="text-sm text-emerald-300">
                     请继续下一步生成预算。{" "}
                     <Link
@@ -1202,7 +1352,7 @@ function QuoteForm() {
                     </Link>
                   </p>
                 ) : null}
-                {pdfDownloaded && !canGenerateBudget ? (
+                {pdfDownloaded && budgetEntitlement === "upgradeable" ? (
                   showImmediateProPayGate ? (
                     <p className="text-sm text-emerald-300">
                       升级{proTier.label}后可继续预算测算。
@@ -1214,6 +1364,7 @@ function QuoteForm() {
                         context={{ organizationId, projectId, quoteId }}
                         buttonClassName="underline hover:text-emerald-200 text-sm font-normal bg-transparent p-0 text-emerald-300"
                         onPaidSuccess={refreshBudgetEntitlement}
+                        onAlreadyEntitled={refreshBudgetEntitlement}
                       />
                     </p>
                   )

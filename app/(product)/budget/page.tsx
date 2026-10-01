@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  clearStoredQuoteIdForProject,
   isProductContextCrmHandoff,
   parseProductContextSearch,
   pickOwnedProjectId,
@@ -45,6 +46,7 @@ type CalculateBudgetResponse = {
     budgetTier?: "low" | "mid" | "high";
     headcountSource?: "quote" | "fallback";
   };
+  code?: string;
   message?: string;
 };
 
@@ -473,6 +475,10 @@ function BudgetForm() {
       setOrganizationId(organizationId);
       const ownedIds = organizationId ? await listOwnedProjectIds(organizationId) : [];
       const ownedProjectId = pickOwnedProjectId(projectId, ownedIds);
+      if (!ownedProjectId) {
+        setError("未识别当前项目，请从项目页重新进入预算。");
+        return;
+      }
 
       const res = await fetch("/api/budget/calculate", {
         method: "POST",
@@ -482,12 +488,29 @@ function BudgetForm() {
         },
         body: JSON.stringify({
           quoteId,
+          projectId: ownedProjectId,
           companySize: Number(companySize),
           budgetTier,
           ...(organizationId ? { organizationId } : {}),
         }),
       });
       const data = (await res.json()) as CalculateBudgetResponse;
+      if (res.status === 409 && data.code === "QUOTE_PROJECT_MISMATCH") {
+        clearStoredQuoteIdForProject(ownedProjectId, quoteId);
+        setQuoteId("");
+        setBudgetId("");
+        setQuoteBasis(null);
+        setBudgetSummary(null);
+        writeStoredProductContext(
+          { organizationId, projectId: ownedProjectId },
+          { mode: "replace" },
+        );
+        router.replace(
+          productHref("/budget", { organizationId, projectId: ownedProjectId }),
+        );
+        setError("当前方案不属于该项目，已清除。请从项目页重新进入预算。");
+        return;
+      }
       if (!res.ok || data.ok !== true) {
         throw new Error("BUDGET_CALCULATE_FAILED");
       }

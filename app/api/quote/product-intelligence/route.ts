@@ -9,6 +9,7 @@ import { runSaasApiGate, saasGateErrorResponse, trackFeatureUsage } from "@/lib/
 import {
   createQuoteVersionWithSelections,
   getQuoteProductIntelligence,
+  QuoteProjectMismatchError,
 } from "@/lib/services/quote.service";
 
 const ENDPOINT = "/api/quote/product-intelligence";
@@ -36,6 +37,12 @@ function errorResponse(
   }
   if (err instanceof Error && err.name === "SaasAuthError") {
     return saasGateErrorResponse(err, ctx.traceId);
+  }
+  if (err instanceof QuoteProjectMismatchError) {
+    return NextResponse.json(
+      { ok: false, code: err.code, message: "方案不属于当前项目", traceId: ctx.traceId },
+      { status: 409 },
+    );
   }
   if (err instanceof ProductSelectionInputError) {
     return NextResponse.json(
@@ -66,6 +73,7 @@ export async function GET(req: NextRequest) {
   const ctx: { organizationId?: string; userId?: string; traceId?: string } = {};
   try {
     const quoteId = String(req.nextUrl.searchParams.get("quoteId") ?? "").trim();
+    const projectId = String(req.nextUrl.searchParams.get("projectId") ?? "").trim();
     const queryOrg = String(req.nextUrl.searchParams.get("organizationId") ?? "").trim();
     const gate = await runSaasApiGate(req, "canGenerateQuote", {
       quoteId,
@@ -75,9 +83,9 @@ export async function GET(req: NextRequest) {
     ctx.userId = gate.userId;
     ctx.traceId = gate.traceId;
 
-    if (!quoteId) {
+    if (!quoteId || !projectId) {
       return NextResponse.json(
-        { ok: false, message: "缺少 quoteId", traceId: gate.traceId },
+        { ok: false, message: "缺少 quoteId 或 projectId", traceId: gate.traceId },
         { status: 400 },
       );
     }
@@ -85,6 +93,7 @@ export async function GET(req: NextRequest) {
     const view = await getQuoteProductIntelligence({
       quoteId,
       organizationId: gate.organizationId,
+      projectId,
     });
     return NextResponse.json({ ok: true, ...view, traceId: gate.traceId });
   } catch (err: unknown) {
@@ -103,9 +112,10 @@ export async function POST(req: NextRequest) {
     ctx.traceId = gate.traceId;
 
     const baseQuoteId = String(body?.quoteId ?? "").trim();
-    if (!baseQuoteId) {
+    const projectId = String(body?.projectId ?? "").trim();
+    if (!baseQuoteId || !projectId) {
       return NextResponse.json(
-        { ok: false, message: "缺少 quoteId", traceId: gate.traceId },
+        { ok: false, message: "缺少 quoteId 或 projectId", traceId: gate.traceId },
         { status: 400 },
       );
     }
@@ -113,6 +123,7 @@ export async function POST(req: NextRequest) {
     const result = await createQuoteVersionWithSelections({
       baseQuoteId,
       organizationId: gate.organizationId,
+      projectId,
       selections: body?.selections,
       decidedBy: gate.userId,
     });

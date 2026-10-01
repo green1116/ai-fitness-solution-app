@@ -7,6 +7,7 @@ import { recordBudgetAsOpportunity } from "@/lib/crm/crm.product-bridge";
 import { onBudgetCalculated } from "@/lib/sales/sales.product-bridge";
 import { runSaasApiGate, saasGateErrorResponse, trackFeatureUsage } from "@/lib/saas/api-gate";
 import { calculateBudget } from "@/lib/services/budget.service";
+import { QuoteProjectMismatchError } from "@/lib/services/quote.service";
 
 export async function POST(req: NextRequest) {
   let organizationId: string | undefined;
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
     traceId = gate.traceId;
 
     const quoteId = String(body?.quoteId ?? "").trim();
+    const projectId = String(body?.projectId ?? "").trim();
     const rawCompanySize = Number(body?.companySize ?? 0);
     const companySize =
       Number.isFinite(rawCompanySize) && rawCompanySize > 0
@@ -40,6 +42,7 @@ export async function POST(req: NextRequest) {
       companySize,
       budgetTier,
       organizationId: gate.organizationId,
+      ...(projectId ? { projectId } : {}),
     });
 
     await trackFeatureUsage(gate.organizationId, "canGenerateBudget");
@@ -88,6 +91,12 @@ export async function POST(req: NextRequest) {
     }
     if (err instanceof Error && err.name === "SaasAuthError") {
       return saasGateErrorResponse(err, traceId);
+    }
+    if (err instanceof QuoteProjectMismatchError) {
+      return NextResponse.json(
+        { ok: false, code: err.code, message: "方案不属于当前项目", traceId },
+        { status: 409 },
+      );
     }
     console.error("[budget/calculate]", err);
     return NextResponse.json(

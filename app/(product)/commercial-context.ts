@@ -66,11 +66,20 @@ export function productHref(
   return query ? `${path}?${query}` : path;
 }
 
+/**
+ * Explicit overlay projectId is canonical: when it differs from the base projectId,
+ * base quoteId/budgetId belong to another project and are discarded, never inherited.
+ */
 export function mergeProductContext(
   base: ProductCommercialContext,
   overlay: ProductCommercialContext,
 ): ProductCommercialContext {
   const merged: ProductCommercialContext = { ...base };
+  const overlayProjectId = trimId(overlay.projectId);
+  if (overlayProjectId && overlayProjectId !== trimId(base.projectId)) {
+    delete merged.quoteId;
+    delete merged.budgetId;
+  }
   for (const key of CONTEXT_KEYS) {
     const value = trimId(overlay[key]);
     if (value) merged[key] = value;
@@ -116,6 +125,23 @@ export function readStoredQuoteIdForProject(projectId: string): string {
     return trimId(map[id]);
   } catch {
     return "";
+  }
+}
+
+export function clearStoredQuoteIdForProject(projectId: string, quoteId?: string): void {
+  if (typeof window === "undefined") return;
+  const id = trimId(projectId);
+  if (!id) return;
+  try {
+    const raw = window.sessionStorage.getItem(QUOTE_BY_PROJECT_STORAGE_KEY);
+    if (!raw) return;
+    const map = JSON.parse(raw) as Record<string, string>;
+    const expected = trimId(quoteId);
+    if (expected && trimId(map[id]) !== expected) return;
+    delete map[id];
+    window.sessionStorage.setItem(QUOTE_BY_PROJECT_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
   }
 }
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { resolveProPurchaseEligibility } from "@/lib/commercial/proPurchaseEligibility";
 import { getPaymentProvider } from "@/lib/payments/provider";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +32,26 @@ export async function POST(req: Request) {
         code: "MISSING_ORDER_ID",
         message: "缺少 orderId",
       });
+    }
+
+    // Final financial gate: re-verify every PRO order at payment time, whichever path created it.
+    const order = await prisma.upgradeOrder.findUnique({
+      where: { id: orderId },
+      select: { targetLevel: true, projectId: true, userId: true },
+    });
+    if (order && String(order.targetLevel ?? "").trim().toLowerCase() === "pro") {
+      const eligibility = await resolveProPurchaseEligibility({
+        projectId: order.projectId,
+        orderUserId: order.userId,
+      });
+      if (!eligibility.ok) {
+        console.info("[pay] start-payment rejected", { orderId, code: eligibility.code });
+        return json(eligibility.status, {
+          ok: false,
+          code: eligibility.code,
+          message: eligibility.message,
+        });
+      }
     }
 
     const provider = getPaymentProvider();
