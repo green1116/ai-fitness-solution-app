@@ -9,6 +9,7 @@ import {
   resolveClientProductContext,
   type ProductCommercialContext,
 } from "./commercial-context";
+import { LogoutButton } from "./LogoutButton";
 import { loadTenderClientEntitlement } from "./tender-entitlement-client";
 import { TenderEnterpriseUpgradeCta } from "./TenderEnterpriseUpgradeCta";
 import { buildTenderUpgradeHref } from "./tender-entitlement";
@@ -96,6 +97,7 @@ function NavLinks({
         <Link href="/account" className="text-zinc-300 underline-offset-2 hover:text-white hover:underline">
           账户
         </Link>
+        <LogoutButton />
       </span>
     </>
   );

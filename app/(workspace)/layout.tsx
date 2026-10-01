@@ -9,6 +9,7 @@ import {
   PEX_INTELLIGENCE_ENDPOINT,
   readProductIntelligenceExperience,
 } from "@/lib/product/experience";
+import { LogoutButton } from "@/app/(product)/LogoutButton";
 import { WorkspaceActionSurfacePanel } from "./WorkspaceActionSurfacePanel";
 import { WorkspaceOrganizationProvider } from "./WorkspaceOrganizationProvider";
 
@@ -93,6 +94,7 @@ export default async function WorkspaceLayout({
               >
                 账户
               </Link>
+              <LogoutButton />
             </span>
           </nav>
           {pex ? (
