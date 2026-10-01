@@ -83,6 +83,38 @@ function budgetPdfErrorMessage(status: number, data: BudgetPdfErrorResponse | nu
   return `预算 PDF 下载失败（${code || status}），请稍后重试。`;
 }
 
+function filenameFromContentDisposition(header: string | null, fallback: string): string {
+  if (!header) return fallback;
+  const encoded = /filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i.exec(header)?.[1]?.trim();
+  if (encoded) {
+    try {
+      const decoded = decodeURIComponent(encoded.replace(/^"|"$/g, "")).trim();
+      if (decoded) return decoded;
+    } catch {
+      // fall through to the plain filename parameter
+    }
+  }
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(header)?.[1]?.trim();
+  return plain || fallback;
+}
+
+/** The anchor must be attached for Firefox, and the object URL must outlive the click. */
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.rel = "noopener";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+}
+
 const BUDGET_SUMMARY_STORAGE_KEY = "product-budget-summary";
 
 function trimBindingId(value: unknown): string {
@@ -645,13 +677,16 @@ function BudgetForm() {
         setError(budgetPdfErrorMessage(res.status, data));
         return;
       }
+      const contentType = res.headers.get("content-type") ?? "";
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "预算.pdf";
-      link.click();
-      URL.revokeObjectURL(url);
+      if (!contentType.includes("application/pdf") || blob.size === 0) {
+        setError("预算 PDF 下载失败：服务器未返回有效的 PDF 文件，请稍后重试。");
+        return;
+      }
+      triggerBlobDownload(
+        blob,
+        filenameFromContentDisposition(res.headers.get("content-disposition"), "budget.pdf"),
+      );
       setPdfDownloaded(true);
     } catch {
       setError("预算 PDF 下载失败，请检查网络后重试。");

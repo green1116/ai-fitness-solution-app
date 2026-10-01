@@ -192,7 +192,12 @@ async function call(
   POST: PostHandler,
   body: Record<string, unknown>,
   orgHeader?: string,
-): Promise<{ status: number; type: string; json: Record<string, unknown> | null }> {
+): Promise<{
+  status: number;
+  type: string;
+  disposition: string;
+  json: Record<string, unknown> | null;
+}> {
   const { NextRequest } = await import("next/server");
   resetCalls();
   const req = new NextRequest(`http://localhost${PDF_ENDPOINT}`, {
@@ -205,10 +210,11 @@ async function call(
   });
   const res = await POST(req);
   const type = res.headers.get("content-type") ?? "";
+  const disposition = res.headers.get("content-disposition") ?? "";
   const json = type.includes("application/json")
     ? ((await res.json()) as Record<string, unknown>)
     : null;
-  return { status: res.status, type, json };
+  return { status: res.status, type, disposition, json };
 }
 
 function renderedBudgetId() {
@@ -223,6 +229,10 @@ async function checkRouteRuntime(POST: PostHandler) {
   state.gate = member("org-a");
   let r = await call(POST, { projectId: "p-new", planId: "p-new", budgetId: "b-mid", budgetTier: "mid" }, "org-a");
   assert(r.status === 200 && r.type === "application/pdf", `AC1 PRO org new project → 200 pdf (got ${r.status} ${JSON.stringify(r.json)})`);
+  assert(
+    r.disposition === 'attachment; filename="budget.pdf"',
+    `F6.1 PDF served as attachment (got ${r.disposition || "none"})`,
+  );
   assert(renderedBudgetId() === "b-mid", "AC2 renders requested budgetId, not latest");
   assert(state.rendered[0].options.tier === "pro", "PRO plan renders pro tier");
   assert(state.legacyCalls === 0, "SaaS grant does not need legacy entitlement");
@@ -290,6 +300,7 @@ async function checkRouteRuntime(POST: PostHandler) {
   state.legacyPlanIds.add("p-legacy");
   r = await call(POST, { projectId: "p-legacy", planId: "p-legacy", tier: "pro" });
   assert(r.status === 200 && r.type === "application/pdf", "AC8 legacy license caller → 200");
+  assert(r.disposition.startsWith("attachment;"), "F6.1 legacy caller also receives attachment");
   assert(renderedBudgetId() === "b-legacy" && state.legacyCalls === 1, "AC8 legacy caller uses latest Budget");
   r = await call(POST, { projectId: "p-new", planId: "p-new" });
   assert(r.status === 403 && r.json?.error === "BUDGET_NOT_ENTITLED", "anonymous without legacy → 403");
@@ -319,6 +330,8 @@ function checkRouteStatic() {
     assert(!src.includes(forbidden), `route does not use quota-touching ${forbidden}`);
   }
   assert(src.includes("runSaasOrgGate(req, BUDGET_PDF_ENDPOINT"), "org gate keyed to PDF endpoint");
+  assert(src.includes(`"Content-Disposition": 'attachment; filename="budget.pdf"'`), "F6.1 route uses attachment");
+  assert(!src.includes("inline; filename"), "F6.1 inline disposition removed");
   assert(src.includes("resolveOrganizationFeatures("), "read-only plan capability check");
   assert(src.includes("features.flags.canGenerateBudget"), "same capability as Budget calculation");
   console.log("✓ route uses non-consuming capability path (no usage write, no calculate quota/rate bucket)");
@@ -343,6 +356,75 @@ function checkBudgetPageStatic() {
   const calc = src.slice(src.indexOf("async function handleCalculate"), src.indexOf("async function handleDownloadPdf"));
   assert(calc.includes('fetch("/api/budget/calculate"'), "budget calculation call unchanged");
   console.log("✓ budget page sends org header + budgetId, surfaces errors, keeps disabled state");
+
+  const trigger = src.slice(
+    src.indexOf("function triggerBlobDownload"),
+    src.indexOf("const BUDGET_SUMMARY_STORAGE_KEY"),
+  );
+  const order = (hay: string, tokens: string[], label: string) => {
+    let at = -1;
+    for (const token of tokens) {
+      const next = hay.indexOf(token, at + 1);
+      assert(next > at, `${label}: "${token}" present and in order`);
+      at = next;
+    }
+  };
+  order(
+    trigger,
+    [
+      "URL.createObjectURL(blob)",
+      'document.createElement("a")',
+      "link.href = url",
+      "link.download = filename",
+      "document.body.appendChild(link)",
+      "link.click()",
+      "link.remove()",
+      "window.setTimeout(() => URL.revokeObjectURL(url)",
+    ],
+    "F6.1 blob download trigger",
+  );
+  assert(
+    !/link\.click\(\);\s*URL\.revokeObjectURL/.test(src),
+    "F6.1 object URL is not revoked synchronously after click",
+  );
+  order(
+    handler,
+    [
+      "await res.blob()",
+      'contentType.includes("application/pdf")',
+      "triggerBlobDownload(",
+      'filenameFromContentDisposition(res.headers.get("content-disposition"), "budget.pdf")',
+      "setPdfDownloaded(true)",
+    ],
+    "F6.1 handler consumes Blob, triggers download, then marks success",
+  );
+  assert(
+    handler.indexOf("setPdfDownloaded(true)") > handler.indexOf("triggerBlobDownload("),
+    "F6.1 success state only after download trigger",
+  );
+  console.log("✓ F6.1 Blob → object URL → attached anchor click → deferred revoke → success state");
+}
+
+function checkFilenameParser() {
+  const src = read(BUDGET_PAGE);
+  const start = src.indexOf("function filenameFromContentDisposition");
+  const end = src.indexOf("/** The anchor must be attached", start);
+  assert(start >= 0 && end > start, "filename parser present");
+  const js = src
+    .slice(start, end)
+    .replace("(header: string | null, fallback: string): string", "(header, fallback)");
+  const parse = new Function(`${js}; return filenameFromContentDisposition;`)() as (
+    header: string | null,
+    fallback: string,
+  ) => string;
+  assert(parse('attachment; filename="budget.pdf"', "x.pdf") === "budget.pdf", "plain filename parsed");
+  assert(
+    parse("attachment; filename*=UTF-8''%E9%A2%84%E7%AE%97.pdf", "x.pdf") === "预算.pdf",
+    "RFC 5987 filename* parsed",
+  );
+  assert(parse(null, "budget.pdf") === "budget.pdf", "missing header → fallback");
+  assert(parse("attachment", "budget.pdf") === "budget.pdf", "no filename → fallback");
+  console.log("✓ F6.1 server filename used when present, otherwise budget.pdf");
 }
 
 function checkScopeUntouched() {
@@ -355,7 +437,7 @@ function checkScopeUntouched() {
     "lib/payments/wechatProvider.ts",
     "prisma/migrations/20260913120000_upgrade_order_provider_order_id/migration.sql",
   ]);
-  const allowed = new Set([ROUTE, BUDGET_PAGE]);
+  const allowed = new Set([ROUTE, BUDGET_PAGE, "scripts/verify-prepilot-f6-budget-pdf.ts"]);
   for (const file of changed) {
     if (knownDirty.has(file)) continue;
     assert(allowed.has(file), `out-of-scope file changed: ${file}`);
@@ -379,6 +461,7 @@ async function main() {
   }
   checkRouteStatic();
   checkBudgetPageStatic();
+  checkFilenameParser();
   checkScopeUntouched();
   console.log("\nverify-prepilot-f6-budget-pdf: ALL PASS");
 }

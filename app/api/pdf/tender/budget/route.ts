@@ -329,7 +329,7 @@ export async function POST(req: NextRequest) {
     return new Response(new Uint8Array(pdfBytes), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": 'inline; filename="budget.pdf"',
+        "Content-Disposition": 'attachment; filename="budget.pdf"',
       },
     });
   } catch (error) {
