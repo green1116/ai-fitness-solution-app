@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { normalizeUserTier } from "@/lib/commercial/userTier";
+import { NextRequest, NextResponse } from "next/server";
+import { normalizeUserTier, type UserTier } from "@/lib/commercial/userTier";
 import {
   deniedErrorFor,
   isAccessEnabled,
@@ -12,11 +12,16 @@ import {
 import { resolveDownloadIds } from "@/lib/http/resolveDownloadIds";
 import { sanitizeProductionClientMessage } from "@/lib/http/sanitizeProductionClient";
 import { DOWNLOAD_SERVICE_UNAVAILABLE } from "@/lib/client/clientFacingMessages";
+import { resolveOrganizationFeatures } from "@/lib/billing/subscription/subscription.resolver";
 import { prisma } from "@/lib/prisma";
 import { renderBudgetPdf } from "@/lib/pdf/renderBudgetPdf";
+import { runSaasOrgGate } from "@/lib/saas/api-gate";
 import { ensureProjectFromPlanJobId } from "@/lib/services/tender/provisionProjectFromPlan";
 
 export const runtime = "nodejs";
+
+const BUDGET_PDF_ENDPOINT = "/api/pdf/tender/budget";
+const BUDGET_NOT_ENTITLED_MESSAGE = "当前套餐不包含预算 PDF 下载，请升级专业版后重试。";
 
 function parseRequestBudgetTier(raw: unknown): "low" | "mid" | "high" | undefined {
   const value = String(raw ?? "").trim().toLowerCase();
@@ -24,21 +29,70 @@ function parseRequestBudgetTier(raw: unknown): "low" | "mid" | "high" | undefine
   return undefined;
 }
 
+function deny(status: number, error: string, message: string) {
+  return NextResponse.json({ error, message }, { status });
+}
+
+type SaasIdentity =
+  | { kind: "member"; organizationId: string; userId: string }
+  | { kind: "none" }
+  | { kind: "denied"; response: NextResponse };
+
 /**
- * Budget PDF：权限来源唯一 = entitlement.budgetEnabled。
- * 数据来源：优先 Prisma Budget 行；缺失时使用 stub budget 兜底（避免"完整结果未生成"导致 404）。
+ * Org session identity without feature/usage checks: the gate's rate-limit bucket is this
+ * endpoint (not /api/budget/calculate) and no UsageRecord is written, so a download never
+ * consumes Budget generation quota. No session / org / membership / role → legacy-only.
  */
-export async function POST(req: Request) {
+async function resolveSaasIdentity(
+  req: NextRequest,
+  projectId: string,
+): Promise<SaasIdentity> {
+  try {
+    const gate = await runSaasOrgGate(req, BUDGET_PDF_ENDPOINT, { projectId });
+    return { kind: "member", organizationId: gate.organizationId, userId: gate.userId };
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    if (name === "SaasAuthError" || name === "FeatureGateError") return { kind: "none" };
+    if (name === "TenantIsolationError") {
+      return {
+        kind: "denied",
+        response: deny(403, "TENANT_ISOLATION", "当前项目不属于你的组织，无法下载预算 PDF。"),
+      };
+    }
+    if (name === "RateLimitError") {
+      return {
+        kind: "denied",
+        response: deny(429, "RATE_LIMITED", "下载过于频繁，请稍后再试。"),
+      };
+    }
+    throw err;
+  }
+}
+
+function tierFromSaasPlan(plan: string): UserTier {
+  return plan === "ENTERPRISE" ? "enterprise" : "pro";
+}
+
+/**
+ * Budget PDF 授权：
+ * 1) 主路径：组织会话 + 项目归属当前组织 + 订阅计划含 canGenerateBudget（与预算计算同一能力，只读，不计用量）；
+ * 2) 兼容回退：旧 License / 已支付 UpgradeOrder（entitlement.budgetEnabled，按 planId=projectId）。
+ * 已登录组织访问其他组织的项目直接拒绝，不走回退。
+ * 数据来源：请求带 budgetId 时只用该 Budget（须属于 projectId）；未带时沿用最新 Budget / stub 兜底。
+ */
+export async function POST(req: NextRequest) {
   try {
     const body = (await req.clone().json().catch(() => ({}))) as {
       projectId?: string;
       planId?: string;
+      budgetId?: unknown;
       tier?: string;
       companySize?: unknown;
       budgetTier?: unknown;
       budgetLevel?: unknown;
     };
     const { projectId, planId, tier: bodyTier } = body;
+    const requestBudgetId = typeof body.budgetId === "string" ? body.budgetId.trim() : "";
 
     const ids = resolveDownloadIds({ projectId, planId });
     if (!ids.ok) {
@@ -50,59 +104,61 @@ export async function POST(req: Request) {
     const resolvedProjectId = ids.projectId;
     const requestPlanId = ids.entitlementId;
 
-    /** ★ DEBUG：budget 路由原始输入 */
     console.log("[DEBUG][BUDGET][INPUT]", {
       projectId: resolvedProjectId,
       planId: requestPlanId,
+      budgetId: requestBudgetId || null,
       tier: bodyTier ?? null,
     });
-    console.log("[DEBUG][BUDGET][PROJECT_ID]", resolvedProjectId);
 
-    /** —— 权限：entitlement-only —— */
-    const { entitlement, source, userId } = await resolveRequestEntitlement({
-      req,
-      planId: requestPlanId,
-    });
+    let renderTier: UserTier | null = null;
+    let accessSource: "saas-subscription" | "legacy-entitlement" = "legacy-entitlement";
 
-    console.log("[DEBUG][BUDGET][ENTITLEMENT]", entitlement);
-
-    const flags = {
-      effectiveLevel: entitlement?.effectiveLevel,
-      planEnabled: entitlement?.planEnabled,
-      budgetEnabled: entitlement?.budgetEnabled,
-      zipEnabled: entitlement?.zipEnabled,
-      allowed: entitlement?.budgetEnabled === true,
-    };
-    console.log("[DEBUG][BUDGET][FLAGS]", flags);
-
-    const allowed = flags.allowed;
-
-    console.log("[budget-check] entitlement raw", entitlement);
-    console.log(
-      "[DEBUG][BUDGET][READ]",
-      JSON.stringify({ planId: requestPlanId, entitlement }, null, 2),
-    );
-    console.log("[access-check]", {
-      type: "budget",
-      planId: requestPlanId,
-      entitlement,
-      allowed,
-      allowedViaHelper: isAccessEnabled(entitlement, "budget"),
-      source,
-      userId,
-    });
-
-    if (!allowed) {
-      console.log("[DEBUG][BUDGET][DECISION]", {
-        exists: null,
-        allowed: false,
-        reason: "BUDGET_NOT_ENTITLED",
+    const identity = await resolveSaasIdentity(req, resolvedProjectId);
+    if (identity.kind === "denied") return identity.response;
+    if (identity.kind === "member") {
+      const owner = await prisma.project.findUnique({
+        where: { id: resolvedProjectId },
+        select: { organizationId: true },
       });
-      return NextResponse.json(
-        { error: deniedErrorFor("budget") },
-        { status: 403 },
-      );
+      const ownerOrganizationId = owner?.organizationId?.trim() || "";
+      if (ownerOrganizationId && ownerOrganizationId !== identity.organizationId) {
+        console.log("[DEBUG][BUDGET][DECISION]", { allowed: false, reason: "TENANT_ISOLATION" });
+        return deny(403, "TENANT_ISOLATION", "当前项目不属于你的组织，无法下载预算 PDF。");
+      }
+      if (ownerOrganizationId) {
+        const features = await resolveOrganizationFeatures(identity.organizationId);
+        if (features.flags.canGenerateBudget) {
+          renderTier = tierFromSaasPlan(features.plan);
+          accessSource = "saas-subscription";
+        }
+      }
     }
+
+    if (!renderTier) {
+      const { entitlement, source, userId } = await resolveRequestEntitlement({
+        req,
+        planId: requestPlanId,
+      });
+      const allowed = isAccessEnabled(entitlement, "budget");
+      console.log("[access-check]", {
+        type: "budget",
+        planId: requestPlanId,
+        effectiveLevel: entitlement?.effectiveLevel,
+        allowed,
+        source,
+        userId,
+      });
+      if (!allowed) {
+        console.log("[DEBUG][BUDGET][DECISION]", {
+          allowed: false,
+          reason: "BUDGET_NOT_ENTITLED",
+        });
+        return deny(403, deniedErrorFor("budget"), BUDGET_NOT_ENTITLED_MESSAGE);
+      }
+      renderTier = normalizeUserTier(entitlement.effectiveLevel);
+    }
+    console.log("[DEBUG][BUDGET][ACCESS]", { allowed: true, source: accessSource, tier: renderTier });
 
     const projectSelect = {
       id: true,
@@ -213,27 +269,36 @@ export async function POST(req: Request) {
     }
 
     let budgetRow = null;
-    try {
-      budgetRow = await prisma.budget.findFirst({
-        where: { projectId: resolvedProjectId },
-        orderBy: { createdAt: "desc" },
-      });
-    } catch (error) {
-      if (
-        process.env.NODE_ENV === "production" ||
-        !isDatabaseConnectivityError(error)
-      ) {
-        throw error;
+    if (requestBudgetId) {
+      budgetRow = await prisma.budget.findUnique({ where: { id: requestBudgetId } });
+      if (!budgetRow) {
+        return deny(404, "BUDGET_NOT_FOUND", "未找到当前预算，请重新计算预算后再下载。");
       }
-      console.warn(
-        "[tender-budget] DEV DB fallback (budget findFirst); using stub budget",
-        error,
-      );
+      if (budgetRow.projectId !== resolvedProjectId) {
+        console.log("[DEBUG][BUDGET][DECISION]", { allowed: false, reason: "BUDGET_PROJECT_MISMATCH" });
+        return deny(409, "BUDGET_PROJECT_MISMATCH", "该预算不属于当前项目，请从项目页重新进入预算。");
+      }
+    } else {
+      try {
+        budgetRow = await prisma.budget.findFirst({
+          where: { projectId: resolvedProjectId },
+          orderBy: { createdAt: "desc" },
+        });
+      } catch (error) {
+        if (
+          process.env.NODE_ENV === "production" ||
+          !isDatabaseConnectivityError(error)
+        ) {
+          throw error;
+        }
+        console.warn(
+          "[tender-budget] DEV DB fallback (budget findFirst); using stub budget",
+          error,
+        );
+      }
     }
 
-    const renderTier = normalizeUserTier(entitlement.effectiveLevel);
-
-    /** Budget 缺失时的 stub：保证 Pro 用户已付费就能拿到一份预算 PDF（不要求"先生成完整结果"） */
+    /** 仅旧调用方（未带 budgetId）且 Budget 缺失时使用 stub；带 budgetId 时上方已保证 budgetRow 存在 */
     const budget = budgetRow ?? buildStubBudget(project);
 
     console.log("[DEBUG][BUDGET][DECISION]", {

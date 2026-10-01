@@ -72,6 +72,17 @@ type BudgetSummaryBinding = {
   quoteId?: string;
 };
 
+type BudgetPdfErrorResponse = { error?: string; message?: string };
+
+function budgetPdfErrorMessage(status: number, data: BudgetPdfErrorResponse | null): string {
+  const serverMessage = typeof data?.message === "string" ? data.message.trim() : "";
+  if (serverMessage) return `预算 PDF 下载失败：${serverMessage}`;
+  if (status === 401) return "预算 PDF 下载失败：登录已失效，请重新登录后重试。";
+  if (status === 403) return "预算 PDF 下载失败：当前账号无权下载该预算 PDF。";
+  const code = typeof data?.error === "string" ? data.error.trim() : "";
+  return `预算 PDF 下载失败（${code || status}），请稍后重试。`;
+}
+
 const BUDGET_SUMMARY_STORAGE_KEY = "product-budget-summary";
 
 function trimBindingId(value: unknown): string {
@@ -612,29 +623,39 @@ function BudgetForm() {
 
   async function handleDownloadPdf() {
     if (!canDownloadPdf || !budgetSummary) return;
-    const res = await fetch("/api/pdf/tender/budget", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projectId,
-        planId: projectId,
-        companySize: budgetSummary.companySize,
-        budgetTier: budgetSummary.budgetTier,
-      }),
-    });
-    if (!res.ok) {
-      alert("PDF 下载失败");
-      return;
+    setError("");
+    try {
+      const res = await fetch("/api/pdf/tender/budget", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(organizationId ? { "x-organization-id": organizationId } : {}),
+        },
+        body: JSON.stringify({
+          projectId,
+          planId: projectId,
+          budgetId,
+          companySize: budgetSummary.companySize,
+          budgetTier: budgetSummary.budgetTier,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as BudgetPdfErrorResponse | null;
+        setError(budgetPdfErrorMessage(res.status, data));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "预算.pdf";
+      link.click();
+      URL.revokeObjectURL(url);
+      setPdfDownloaded(true);
+    } catch {
+      setError("预算 PDF 下载失败，请检查网络后重试。");
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "预算.pdf";
-    link.click();
-    URL.revokeObjectURL(url);
-    setPdfDownloaded(true);
   }
 
   return (
