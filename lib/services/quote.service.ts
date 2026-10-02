@@ -27,8 +27,12 @@ import {
 } from "@/lib/product-engine/configuration-strategy";
 import { resolveCanonicalHeadcount } from "@/lib/product-engine/quote-revision";
 import { prisma } from "@/lib/prisma";
-import { generatePlaceholders } from "@/lib/services/tender/generatePlaceholders";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
+import {
+  buildPlaceholders,
+  QUANTITY_MODEL_PER_USER_V2,
+  resolveQuoteQuantityModel,
+} from "@/lib/templates/placeholderTemplates";
 import { assertResourceBelongsToTenant } from "@/lib/tenancy/tenant.guard";
 
 export const QUOTE_PROJECT_MISMATCH = "QUOTE_PROJECT_MISMATCH";
@@ -104,7 +108,9 @@ export async function generateQuote(input: GenerateQuoteInput) {
 
   try {
     const projectInput = projectInputFromQuote({ project, companyInfo });
-    const templatePlaceholders = generatePlaceholders(project.id, projectInput);
+    const templatePlaceholders = buildPlaceholders(project.id, projectInput, {
+      quantityModel: QUANTITY_MODEL_PER_USER_V2,
+    });
     const engine = runQuoteEngine({
       quoteId: draft.id,
       workspaceId: input.workspaceId,
@@ -136,6 +142,7 @@ export async function generateQuote(input: GenerateQuoteInput) {
           },
           productIntelligence,
           configurationStrategy,
+          quantityModel: QUANTITY_MODEL_PER_USER_V2,
         } as unknown as Prisma.JsonObject,
         orchestrationId: engine.runtime.orchestrationId,
       },
@@ -299,7 +306,9 @@ export function buildQuotePlanPdfSource(
   const now = new Date();
   const solutionData = generateSolution(projectInput);
   const selected = applyProductSelections(
-    generatePlaceholders(quote.project.id, projectInput),
+    buildPlaceholders(quote.project.id, projectInput, {
+      quantityModel: resolveQuoteQuantityModel(quote.content),
+    }),
     companyInfo.productSelections,
   );
   if (selected.warnings.length > 0) {
@@ -502,7 +511,9 @@ export async function getQuoteProductIntelligence(input: {
   );
   const companyInfo = readCompanyInfo(quote.companyInfo);
   const projectInput = projectInputFromQuote({ project: quote.project, companyInfo });
-  const templatePlaceholders = generatePlaceholders(quote.project.id, projectInput);
+  const templatePlaceholders = buildPlaceholders(quote.project.id, projectInput, {
+    quantityModel: resolveQuoteQuantityModel(quote.content),
+  });
   const selections = companyInfo.productSelections ?? [];
   const applied = applyProductSelections(templatePlaceholders, selections);
 
@@ -544,7 +555,9 @@ export async function createQuoteVersionWithSelections(input: {
     companyInfo: baseCompanyInfo,
   });
   const slots = buildCandidateSlots(
-    generatePlaceholders(base.project.id, projectInput),
+    buildPlaceholders(base.project.id, projectInput, {
+      quantityModel: resolveQuoteQuantityModel(base.content),
+    }),
   );
   const productSelections = resolveProductSelectionInputs({
     inputs: input.selections,

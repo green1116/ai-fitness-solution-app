@@ -11,6 +11,31 @@ import {
   type StudioFocusAllocation,
 } from "@/lib/product-engine/configuration-strategy";
 
+/**
+ * Quantity semantics for per-user templates.
+ * - legacy-v1: ceil(users / perUserDivisor × area / 120) — Quotes without a marker.
+ * - per-user-v2: ceil(users / perUserDivisor) — every Quote generated after C.0.
+ */
+export const QUANTITY_MODEL_LEGACY_V1 = "legacy-v1" as const;
+export const QUANTITY_MODEL_PER_USER_V2 = "per-user-v2" as const;
+export type QuantityModel =
+  | typeof QUANTITY_MODEL_LEGACY_V1
+  | typeof QUANTITY_MODEL_PER_USER_V2;
+
+export type BuildPlaceholdersOptions = {
+  /** Defaults to per-user-v2; Quote-scoped callers must pass the Quote's own model. */
+  quantityModel?: QuantityModel;
+};
+
+/** Reads `Quote.content.quantityModel`; a missing or unknown marker means legacy-v1. */
+export function resolveQuoteQuantityModel(content: unknown): QuantityModel {
+  if (content && typeof content === "object") {
+    const marker = (content as { quantityModel?: unknown }).quantityModel;
+    if (marker === QUANTITY_MODEL_PER_USER_V2) return QUANTITY_MODEL_PER_USER_V2;
+  }
+  return QUANTITY_MODEL_LEGACY_V1;
+}
+
 type Template = {
   category: string;
   subCategory: string;
@@ -197,10 +222,12 @@ function estimateQuantity(
   template: Template,
   input: ProjectInput,
   focus: EquipmentFocus,
+  quantityModel: QuantityModel,
 ): number {
   const targetUsers = knownTargetUsers(input);
   const knownArea = knownAreaM2(input);
-  const areaScale = knownArea != null ? knownArea / 120 : 1;
+  const areaScale =
+    quantityModel === QUANTITY_MODEL_LEGACY_V1 && knownArea != null ? knownArea / 120 : 1;
   // Unknown headcount: conservative template base quantity, never a default headcount.
   const userFactor =
     template.perUserDivisor && targetUsers != null
@@ -299,7 +326,9 @@ function focusAdjustmentReason(template: Template, focus: EquipmentFocus): strin
 export function buildPlaceholders(
   projectId: string,
   input: ProjectInput,
+  options: BuildPlaceholdersOptions = {},
 ): ProductPlaceholder[] {
+  const quantityModel = options.quantityModel ?? QUANTITY_MODEL_PER_USER_V2;
   const now = new Date().toISOString();
   const focus = resolveEquipmentFocus(input.notes);
   const headcountUnknown = knownTargetUsers(input) == null;
@@ -310,7 +339,7 @@ export function buildPlaceholders(
   for (const tpl of TEMPLATE_POOL) {
     if (tpl.siteTypes && !tpl.siteTypes.includes(input.siteType)) continue;
     if (dropFreeWeight && tpl.subCategory === "自由力量区设备") continue;
-    const quantity = estimateQuantity(tpl, input, focus);
+    const quantity = estimateQuantity(tpl, input, focus, quantityModel);
     const adjustment = focusAdjustmentReason(tpl, focus);
     const baseReason = adjustment
       ? `${tpl.recommendationReason} ${adjustment}`

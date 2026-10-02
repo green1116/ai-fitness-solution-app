@@ -15,8 +15,11 @@ import type { BudgetStructure } from "@/lib/product-engine/types";
 import type { QuoteOrchestrationStepResult } from "@/lib/quote-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { generateBudget } from "@/lib/services/tender/generateBudget";
-import { generatePlaceholders } from "@/lib/services/tender/generatePlaceholders";
 import { assertQuoteBelongsToProject } from "@/lib/services/quote.service";
+import {
+  buildPlaceholders,
+  resolveQuoteQuantityModel,
+} from "@/lib/templates/placeholderTemplates";
 import { assertResourceBelongsToTenant } from "@/lib/tenancy/tenant.guard";
 
 export type BudgetTier = "low" | "mid" | "high";
@@ -208,7 +211,9 @@ export async function calculateBudget(input: CalculateBudgetInput) {
 
   // In-memory only — do not persist Solution / ProductPlaceholder.
   const selected = applyProductSelections(
-    generatePlaceholders(quote.project.id, projectInput),
+    buildPlaceholders(quote.project.id, projectInput, {
+      quantityModel: resolveQuoteQuantityModel(quote.content),
+    }),
     companyInfo.productSelections,
   );
   const placeholders = selected.placeholders;
