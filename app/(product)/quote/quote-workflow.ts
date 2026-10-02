@@ -1,10 +1,11 @@
 /**
- * F5 guided Quote workflow — pure helpers (no React, no storage, no network).
+ * F5 guided Quote workflow — pure helpers (no React, no network; storage is injected).
  *
  * The workflow stage is a DISPLAY state derived from canonical facts:
  * the current quoteId and the Product Intelligence read for exactly that quoteId.
- * The only persisted confirmation fact is "the current Quote has saved productSelections".
- * Requirement / strategy acknowledgements are client navigation only and are keyed by quoteId.
+ * The only persisted business fact is "the current Quote has saved productSelections".
+ * Requirement / strategy acknowledgements are navigation state, not business facts: they may be
+ * restored within the browser session for the exact userId + projectId + quoteId, never inherited.
  */
 
 export type QuoteWorkflowStage =
@@ -111,6 +112,108 @@ export function resolveActivePanel(
     return viewPanel.panel;
   }
   return fallback;
+}
+
+/** Dedicated sessionStorage key; deliberately separate from product-commercial-context. */
+export const QUOTE_WORKFLOW_ACK_STORAGE_KEY = "product-quote-workflow-ack";
+export const QUOTE_WORKFLOW_ACK_MAX_RECORDS = 50;
+
+export type WorkflowAckScope = { userId: string; projectId: string; quoteId: string };
+
+export type WorkflowAckRecord = {
+  requirementsAck: boolean;
+  strategyAck: boolean;
+  at: number;
+};
+
+export type WorkflowAckStorage = Pick<Storage, "getItem" | "setItem">;
+
+const EMPTY_ACK = { requirementsAck: false, strategyAck: false } as const;
+
+function workflowAckRecordKey(scope: WorkflowAckScope): string | null {
+  const userId = trimId(scope.userId);
+  const projectId = trimId(scope.projectId);
+  const quoteId = trimId(scope.quoteId);
+  if (!userId || !projectId || !quoteId) return null;
+  return JSON.stringify([userId, projectId, quoteId]);
+}
+
+function readWorkflowAckMap(storage: WorkflowAckStorage): Record<string, WorkflowAckRecord> {
+  try {
+    const parsed: unknown = JSON.parse(storage.getItem(QUOTE_WORKFLOW_ACK_STORAGE_KEY) ?? "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, WorkflowAckRecord> = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!value || typeof value !== "object") continue;
+      const row = value as Partial<WorkflowAckRecord>;
+      out[key] = {
+        requirementsAck: row.requirementsAck === true,
+        strategyAck: row.strategyAck === true,
+        at: typeof row.at === "number" && Number.isFinite(row.at) ? row.at : 0,
+      };
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function readWorkflowAck(
+  storage: WorkflowAckStorage,
+  scope: WorkflowAckScope,
+): { requirementsAck: boolean; strategyAck: boolean } {
+  const key = workflowAckRecordKey(scope);
+  if (!key) return { ...EMPTY_ACK };
+  const row = readWorkflowAckMap(storage)[key];
+  return row
+    ? { requirementsAck: row.requirementsAck, strategyAck: row.strategyAck }
+    : { ...EMPTY_ACK };
+}
+
+/** Merges an acknowledgement for exactly this scope; keeps only the most recent records. */
+export function writeWorkflowAck(
+  storage: WorkflowAckStorage,
+  scope: WorkflowAckScope,
+  patch: { requirementsAck?: true; strategyAck?: true },
+  now: number = Date.now(),
+): void {
+  const key = workflowAckRecordKey(scope);
+  if (!key) return;
+  const map = readWorkflowAckMap(storage);
+  const prev = map[key];
+  map[key] = {
+    requirementsAck: prev?.requirementsAck === true || patch.requirementsAck === true,
+    strategyAck: prev?.strategyAck === true || patch.strategyAck === true,
+    at: now,
+  };
+  const kept = Object.entries(map)
+    .sort((a, b) => b[1].at - a[1].at)
+    .slice(0, QUOTE_WORKFLOW_ACK_MAX_RECORDS);
+  try {
+    storage.setItem(QUOTE_WORKFLOW_ACK_STORAGE_KEY, JSON.stringify(Object.fromEntries(kept)));
+  } catch {
+    // Storage full / unavailable: acknowledgement simply stays in memory for this page.
+  }
+}
+
+/**
+ * Acknowledgement quoteIds to restore. Only once PI has loaded for exactly the scoped quoteId
+ * (which also proves server-side tenant/project ownership); strategy requires requirements.
+ */
+export function restoredWorkflowAckQuoteIds(input: {
+  scope: WorkflowAckScope;
+  facts: WorkflowFactsInput;
+  record: { requirementsAck: boolean; strategyAck: boolean };
+}): { requirementsAckQuoteId: string; strategyAckQuoteId: string } {
+  const qid = trimId(input.scope.quoteId);
+  if (!workflowAckRecordKey(input.scope) || trimId(input.facts.quoteId) !== qid || !isQuoteReady(input.facts)) {
+    return { requirementsAckQuoteId: "", strategyAckQuoteId: "" };
+  }
+  const requirements = input.record.requirementsAck;
+  return {
+    requirementsAckQuoteId: requirements ? qid : "",
+    strategyAckQuoteId: requirements && input.record.strategyAck ? qid : "",
+  };
 }
 
 export type ExplicitTemplateConfirmation = {

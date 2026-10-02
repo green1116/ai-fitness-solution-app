@@ -28,16 +28,19 @@ import {
   isProductConfigConfirmed,
   isQuoteReady,
   QUOTE_WORKFLOW_STEPS,
+  readWorkflowAck,
   requirementsNeedingAck,
   resolveActivePanel,
+  restoredWorkflowAckQuoteIds,
   withExplicitTemplateConfirmations,
+  writeWorkflowAck,
   type PiLoadStatus,
   type QuoteWorkflowPanel,
   type QuoteWorkflowStage,
 } from "@/app/(product)/quote/quote-workflow";
 import { getPricingTier } from "@/lib/growth/conversion/pricing.strategy";
 
-type OrgMe = { organizationId?: string | null };
+type OrgMe = { organizationId?: string | null; user?: { id?: string | null } | null };
 type SubscriptionResponse = {
   ok?: boolean;
   subscription?: { plan?: string };
@@ -530,10 +533,17 @@ function orgHeaders(organizationId: string): HeadersInit {
   };
 }
 
-async function resolveOrganizationId(): Promise<string> {
+async function resolveSessionIdentity(): Promise<{ organizationId: string; userId: string }> {
   const meRes = await fetch("/api/auth/me");
   const me = (await meRes.json()) as OrgMe;
-  return typeof me.organizationId === "string" ? me.organizationId.trim() : "";
+  return {
+    organizationId: typeof me.organizationId === "string" ? me.organizationId.trim() : "",
+    userId: typeof me.user?.id === "string" ? me.user.id.trim() : "",
+  };
+}
+
+async function resolveOrganizationId(): Promise<string> {
+  return (await resolveSessionIdentity()).organizationId;
 }
 
 /**
@@ -747,6 +757,7 @@ function QuoteForm() {
   const [requirementsAckQuoteId, setRequirementsAckQuoteId] = useState("");
   const [requirementsAckCheckedQuoteId, setRequirementsAckCheckedQuoteId] = useState("");
   const [strategyAckQuoteId, setStrategyAckQuoteId] = useState("");
+  const [sessionUserId, setSessionUserId] = useState("");
   const [viewPanel, setViewPanel] = useState<{
     quoteId: string;
     panel: QuoteWorkflowPanel;
@@ -754,7 +765,10 @@ function QuoteForm() {
   const hydratedProjectIdRef = useRef<string | null>(null);
   const proTier = getPricingTier("PRO");
 
-  /** F5 workflow UI state: client-only, keyed by quoteId, never written to storage. */
+  /**
+   * F5 workflow UI state, keyed by quoteId. Acknowledgements are mirrored only to the dedicated
+   * session ack store (userId + projectId + quoteId), never to product-commercial-context.
+   */
   function clearWorkflowUiState() {
     setPiStatus("idle");
     setRequirementsAckQuoteId("");
@@ -868,6 +882,19 @@ function QuoteForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteId, organizationId, projectId, piReloadToken]);
 
+  useEffect(() => {
+    const scope = { userId: sessionUserId, projectId, quoteId: trimQuoteId(quoteId) };
+    const facts = { quoteId: scope.quoteId, piStatus, piView };
+    if (!isQuoteReady(facts)) return;
+    const restored = restoredWorkflowAckQuoteIds({
+      scope,
+      facts,
+      record: readWorkflowAck(window.sessionStorage, scope),
+    });
+    if (restored.requirementsAckQuoteId) setRequirementsAckQuoteId(restored.requirementsAckQuoteId);
+    if (restored.strategyAckQuoteId) setStrategyAckQuoteId(restored.strategyAckQuoteId);
+  }, [sessionUserId, projectId, quoteId, piStatus, piView]);
+
   function updateSlotDraft(slotKey: string, patch: Partial<SlotDraft>) {
     setPiNotice("");
     setSlotDrafts((prev) => ({
@@ -967,8 +994,9 @@ function QuoteForm() {
       const urlCtx = parseProductContextSearch(searchParams);
       const crmHandoff = isProductContextCrmHandoff(searchParams);
       const ctx = resolveClientProductContext(searchParams);
-      const organizationId = await resolveOrganizationId();
+      const { organizationId, userId } = await resolveSessionIdentity();
       if (cancelled) return;
+      setSessionUserId(userId);
       setOrganizationId(organizationId);
       if (!organizationId) {
         hydratedProjectIdRef.current = "";
@@ -1303,16 +1331,26 @@ function QuoteForm() {
   );
   const confirmableSlotCount = quoteReady && piView ? piView.slots.length : 0;
 
+  function persistWorkflowAck(patch: { requirementsAck?: true; strategyAck?: true }) {
+    writeWorkflowAck(
+      window.sessionStorage,
+      { userId: sessionUserId, projectId, quoteId: currentQuoteId },
+      patch,
+    );
+  }
+
   function handleAcknowledgeRequirements() {
     if (!quoteReady) return;
     if (requirementsToAck.length > 0 && !requirementsAcknowledged && !requirementsAckChecked) return;
     setRequirementsAckQuoteId(currentQuoteId);
+    persistWorkflowAck({ requirementsAck: true });
     setViewPanel({ quoteId: currentQuoteId, panel: "strategy" });
   }
 
   function handleAcknowledgeStrategy() {
     if (!quoteReady || !requirementsAcknowledged) return;
     setStrategyAckQuoteId(currentQuoteId);
+    persistWorkflowAck({ strategyAck: true });
     setViewPanel({ quoteId: currentQuoteId, panel: "products" });
   }
 

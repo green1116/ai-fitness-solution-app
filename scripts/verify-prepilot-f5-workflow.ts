@@ -1,22 +1,31 @@
 /**
- * Target-user Pre-Pilot — F5 guided solution workflow verification.
- * Pure derivation + static wiring checks. No DB, no network, no storage writes.
+ * Target-user Pre-Pilot — F5 guided solution workflow verification (+ F5.1 session ack restore).
+ * Pure derivation + static wiring checks. No DB, no network; storage is an in-memory stub.
  */
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import { PRODUCT_CONTEXT_STORAGE_KEY } from "../app/(product)/commercial-context";
 import {
   deriveQuoteWorkflowStage,
   isPanelReachable,
   isProductConfigConfirmed,
   isQuoteReady,
+  QUOTE_WORKFLOW_ACK_MAX_RECORDS,
+  QUOTE_WORKFLOW_ACK_STORAGE_KEY,
   QUOTE_WORKFLOW_STEPS,
+  readWorkflowAck,
   requirementsNeedingAck,
   resolveActivePanel,
+  restoredWorkflowAckQuoteIds,
   withExplicitTemplateConfirmations,
+  writeWorkflowAck,
   type DeriveQuoteWorkflowStageInput,
   type PiLoadStatus,
+  type WorkflowAckScope,
+  type WorkflowAckStorage,
+  type WorkflowFactsInput,
   type WorkflowPiFacts,
 } from "../app/(product)/quote/quote-workflow";
 
@@ -227,10 +236,24 @@ function checkPageWorkflowWiring() {
   }
   assert(src.includes("不会带入这些选择"), "revision warning kept");
 
-  for (const token of ["requirementsAckQuoteId", "strategyAckQuoteId", "viewPanel", "piStatus"]) {
+  for (const token of ["requirementsAck", "strategyAck", "viewPanel", "piStatus"]) {
     const storageWrite = new RegExp(`writeStored\\w*\\([^)]*${token}`);
-    assert(!storageWrite.test(src), `${token} never written to storage`);
+    assert(!storageWrite.test(src), `${token} never written via product-context storage helpers`);
   }
+  assert(!src.includes("localStorage"), "quote page never uses localStorage");
+  const sessionWrites = src.match(/sessionStorage\.setItem\(/g) ?? [];
+  const writeOwners = [...src.matchAll(/sessionStorage\.setItem\((\w+)/g)].map((m) => m[1]);
+  assert(
+    sessionWrites.length === writeOwners.length &&
+      writeOwners.every((key) => key === "QUOTE_BY_PROJECT_STORAGE_KEY" || key === "QUOTE_PROPOSAL_KEY"),
+    "page writes no workflow ack via raw sessionStorage.setItem",
+  );
+  const ackWrites = [...src.matchAll(/writeWorkflowAck\(\s*window\.sessionStorage/g)].length;
+  assert(ackWrites === 1, "acknowledgement written only through writeWorkflowAck(window.sessionStorage, …)");
+  assert(
+    QUOTE_WORKFLOW_ACK_STORAGE_KEY !== PRODUCT_CONTEXT_STORAGE_KEY,
+    "dedicated ack key differs from product-commercial-context",
+  );
   const ctx = read("app/(product)/commercial-context.ts");
   for (const token of ["requirementsAck", "strategyAck", "viewPanel", "workflow"]) {
     assert(!ctx.includes(token), `product-commercial-context has no ${token}`);
@@ -395,12 +418,161 @@ function checkProtectedFilesUntouched() {
   console.log("✓ protected files untouched (schema / PI engine / budget / pay / tender / enterprise / F3-F4)");
 }
 
+function memoryStorage(): WorkflowAckStorage & { dump: () => Record<string, string> } {
+  const map = new Map<string, string>();
+  return {
+    getItem: (key: string) => map.get(key) ?? null,
+    setItem: (key: string, value: string) => void map.set(key, value),
+    dump: () => Object.fromEntries(map),
+  };
+}
+
+function stageAfterRefresh(
+  storage: WorkflowAckStorage,
+  scope: WorkflowAckScope,
+  facts: WorkflowFactsInput,
+) {
+  const restored = restoredWorkflowAckQuoteIds({
+    scope,
+    facts,
+    record: readWorkflowAck(storage, scope),
+  });
+  return deriveQuoteWorkflowStage({ projectId: scope.projectId, ...facts, ...restored });
+}
+
+function checkSessionAckRestore() {
+  const scope: WorkflowAckScope = { userId: "u1", projectId: "p1", quoteId: "q1" };
+  const ready: WorkflowFactsInput = {
+    quoteId: "q1",
+    piStatus: "success",
+    piView: { quoteId: "q1", selections: [] },
+  };
+
+  const storage = memoryStorage();
+  assert(stageAfterRefresh(storage, scope, ready) === "confirmation", "no record → Step 2");
+
+  writeWorkflowAck(storage, scope, { requirementsAck: true }, 1);
+  assert(stageAfterRefresh(storage, scope, ready) === "strategy", "Step 2 ack + refresh → Step 3");
+  writeWorkflowAck(storage, scope, { strategyAck: true }, 2);
+  assert(stageAfterRefresh(storage, scope, ready) === "products", "Step 2 + Step 3 ack + refresh → Step 4");
+
+  const nextQuote = { ...scope, quoteId: "q2" };
+  const nextReady: WorkflowFactsInput = { quoteId: "q2", piStatus: "success", piView: { quoteId: "q2", selections: [] } };
+  assert(stageAfterRefresh(storage, nextQuote, nextReady) === "confirmation", "new quoteId (revision) → Step 2");
+  assert(
+    stageAfterRefresh(storage, { ...scope, projectId: "p2" }, ready) === "confirmation",
+    "different project → no restore",
+  );
+  assert(
+    stageAfterRefresh(storage, { ...scope, userId: "u2" }, ready) === "confirmation",
+    "different user → no restore",
+  );
+  assert(
+    stageAfterRefresh(storage, { ...scope, userId: "" }, ready) === "confirmation",
+    "unknown user → no restore",
+  );
+
+  for (const piStatus of ["idle", "loading", "error"] as const) {
+    const facts: WorkflowFactsInput = { ...ready, piStatus, piView: piStatus === "error" ? null : ready.piView };
+    const restored = restoredWorkflowAckQuoteIds({ scope, facts, record: readWorkflowAck(storage, scope) });
+    assert(
+      !restored.requirementsAckQuoteId && !restored.strategyAckQuoteId,
+      `PI ${piStatus} → no premature restore`,
+    );
+    assert(stageAfterRefresh(storage, scope, facts) === "confirmation", `PI ${piStatus} → Steps 3/4 hidden`);
+  }
+  const stale: WorkflowFactsInput = { quoteId: "q1", piStatus: "success", piView: { quoteId: "q0", selections: [] } };
+  assert(stageAfterRefresh(storage, scope, stale) === "confirmation", "stale PI view → no restore");
+  const mismatchedFacts = restoredWorkflowAckQuoteIds({
+    scope,
+    facts: nextReady,
+    record: { requirementsAck: true, strategyAck: true },
+  });
+  assert(!mismatchedFacts.requirementsAckQuoteId, "record of one quote never applies to another quote's facts");
+
+  const strategyOnly = memoryStorage();
+  writeWorkflowAck(strategyOnly, scope, { strategyAck: true }, 1);
+  assert(stageAfterRefresh(strategyOnly, scope, ready) === "confirmation", "strategy ack alone never skips Step 2");
+
+  const saved: WorkflowFactsInput = {
+    quoteId: "q1",
+    piStatus: "success",
+    piView: { quoteId: "q1", selections: [{ slotKey: "s1" }] },
+  };
+  assert(stageAfterRefresh(memoryStorage(), scope, saved) === "ready_for_budget", "saved selections → ready_for_budget without acks");
+  assert(
+    stageAfterRefresh(memoryStorage(), nextQuote, nextReady) === "confirmation",
+    "budget unlock still requires persisted selections (ack alone never unlocks)",
+  );
+  assert(!isProductConfigConfirmed(ready), "acks never count as product configuration");
+
+  const raw = JSON.parse(storage.dump()[QUOTE_WORKFLOW_ACK_STORAGE_KEY]) as Record<string, Record<string, unknown>>;
+  assert(!(PRODUCT_CONTEXT_STORAGE_KEY in storage.dump()), "ack never written to product-commercial-context key");
+  for (const row of Object.values(raw)) {
+    assert(
+      Object.keys(row).sort().join(",") === "at,requirementsAck,strategyAck",
+      "record stores only requirementsAck / strategyAck / at",
+    );
+  }
+
+  const bounded = memoryStorage();
+  for (let i = 0; i < QUOTE_WORKFLOW_ACK_MAX_RECORDS + 10; i++) {
+    writeWorkflowAck(bounded, { userId: "u1", projectId: "p1", quoteId: `q${i}` }, { requirementsAck: true }, i);
+  }
+  const kept = JSON.parse(bounded.dump()[QUOTE_WORKFLOW_ACK_STORAGE_KEY]) as Record<string, unknown>;
+  assert(Object.keys(kept).length === QUOTE_WORKFLOW_ACK_MAX_RECORDS, "at most 50 records retained");
+  assert(
+    readWorkflowAck(bounded, { userId: "u1", projectId: "p1", quoteId: "q0" }).requirementsAck === false &&
+      readWorkflowAck(bounded, { userId: "u1", projectId: "p1", quoteId: `q${QUOTE_WORKFLOW_ACK_MAX_RECORDS + 9}` })
+        .requirementsAck === true,
+    "oldest records pruned first",
+  );
+
+  const corrupt = memoryStorage();
+  corrupt.setItem(QUOTE_WORKFLOW_ACK_STORAGE_KEY, "{not json");
+  assert(readWorkflowAck(corrupt, scope).requirementsAck === false, "corrupt storage → no restore, no throw");
+  const throwing: WorkflowAckStorage = {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error("QuotaExceeded");
+    },
+  };
+  writeWorkflowAck(throwing, scope, { requirementsAck: true });
+  console.log("✓ F5.1 session ack restore (user/project/quote isolation, PI-ready gate, bounded)");
+}
+
+function checkSessionAckWiring() {
+  const src = read(QUOTE_PAGE);
+  const restoreEffect = sliceBetween(src, "const scope = { userId: sessionUserId", "}, [sessionUserId, projectId, quoteId, piStatus, piView]);");
+  assert(restoreEffect.includes("if (!isQuoteReady(facts)) return;"), "restore waits for PI success on current quote");
+  assert(restoreEffect.includes("readWorkflowAck(window.sessionStorage, scope)"), "restore reads dedicated session store");
+  assert(!restoreEffect.includes("setRequirementsAckCheckedQuoteId"), "checkbox state is never restored as a fact");
+
+  const reqAck = sliceBetween(src, "function handleAcknowledgeRequirements", "function handleAcknowledgeStrategy");
+  assert(reqAck.includes("persistWorkflowAck({ requirementsAck: true })"), "Step 2 confirmation persists requirementsAck");
+  const strategyAck = sliceBetween(src, "function handleAcknowledgeStrategy", "const headerCopy");
+  assert(strategyAck.includes("persistWorkflowAck({ strategyAck: true })"), "Step 3 confirmation persists strategyAck");
+  const persist = sliceBetween(src, "function persistWorkflowAck", "function handleAcknowledgeRequirements");
+  assert(
+    persist.includes("{ userId: sessionUserId, projectId, quoteId: currentQuoteId }"),
+    "write scoped to exact userId + projectId + quoteId",
+  );
+  assert(src.includes("setSessionUserId(userId)"), "userId comes from the authenticated session (/api/auth/me)");
+
+  const generateBody = sliceBetween(src, "if (readyProposal && nextQuoteId) {", "} else {");
+  assert(!generateBody.includes("writeWorkflowAck") && !generateBody.includes("persistWorkflowAck"), "revision never copies acks");
+  assert(src.includes("requirementsToAck.length > 0 && !requirementsAcknowledged ?"), "checkbox hidden once acknowledged");
+  console.log("✓ F5.1 page wiring (restore after PI ready, scoped writes, no revision copy)");
+}
+
 async function main() {
   checkDerivationTruthTable();
   checkConfirmationFacts();
   checkPanelNavigation();
   checkRequirementAck();
   checkExplicitTemplateConfirmations();
+  checkSessionAckRestore();
+  checkSessionAckWiring();
   checkPageWorkflowWiring();
   checkBudgetGate();
   checkConfigurationStrategyReadOnly();
