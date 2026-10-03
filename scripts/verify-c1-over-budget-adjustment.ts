@@ -677,6 +677,149 @@ function checkStatic() {
   console.log("✓ static wiring (pure lib, response-only slotKeys, explicit apply, transient target)");
 }
 
+// ---------------------------------------------------------------------------
+// C.1 UX consistency (quote workflow + budget flow)
+// ---------------------------------------------------------------------------
+
+function checkQuoteWorkflowUx() {
+  const quote = read("app/(product)/quote/page.tsx");
+
+  // B. one current step
+  assert(
+    quote.includes("const showBudgetStepCard = reviewingPanel == null;") &&
+      /\{showBudgetStepCard \? \(\s*<>\s*\{currentQuoteId && productConfigConfirmed \? \(/.test(quote),
+    "Step 5 card gated by the visibility condition around the unchanged confirmed condition",
+  );
+  const gateOpen = quote.indexOf("{currentQuoteId && productConfigConfirmed ? (");
+  assert(
+    gateOpen > 0 && quote.indexOf(") : currentQuoteId ? (", gateOpen) > gateOpen,
+    "confirmed / locked Step 5 structure preserved",
+  );
+  assert(
+    quote.includes('const budgetIsCurrent = workflowStage === "ready_for_budget" && reviewingPanel == null;') &&
+      quote.includes('{activePanel === "products" && !budgetIsCurrent && quoteReady && piView ? ('),
+    "full Step 4 editor is not the default view once Budget is current",
+  );
+  const summary = sliceBetween(quote, "{budgetIsCurrent && quoteReady && piView ? (", "{showBudgetStepCard ? (");
+  assert(
+    summary.includes("已完成步骤") && !summary.includes('productHref("/budget"'),
+    "completed-step summaries render before Step 5 without an extra Budget link",
+  );
+  assert(quote.includes("返回当前步骤：第 "), "review mode offers 返回当前步骤");
+  assert(quote.includes('aria-current="step"'), 'current step uses aria-current="step"');
+  assert(quote.includes("（查看中）"), "reviewed step marked 查看中");
+  assert(!/\bcurrentStep\b/.test(quote), "identifier currentStep not introduced");
+  console.log("✓ quote workflow UX (single current step, review mode, Step 5 gate preserved)");
+
+  // C. Step 3 / Step 4 semantics
+  const step3 = sliceBetween(quote, "第 3 步：方案策略", "确认方案策略，继续产品配置");
+  for (const phrase of ["AI 建议配置", "AI 建议数量", "非最终采购数量"]) {
+    assert(step3.includes(phrase), `Step 3 shows ${phrase}`);
+  }
+  const step4 = sliceBetween(quote, "第 4 步：产品配置", '"确认产品配置"');
+  for (const phrase of ["AI 建议数量", "当前方案数量", "当前参考目录", "参考候选 / 未核实"]) {
+    assert(step4.includes(phrase), `Step 4 shows ${phrase}`);
+  }
+  assert(
+    !/templateQuantity\s*[-+*/%]|[-+*/%]\s*(slot\.)?templateQuantity/.test(quote),
+    "no arithmetic on templateQuantity",
+  );
+  const payload = sliceBetween(quote, "function buildSelectionPayload(", "function isValidDraftQuantity(");
+  assert(
+    payload.includes("} else if (quantity != null && quantity !== slot.templateQuantity) {") &&
+      payload.includes('draft.candidateId === slot.candidates[0]?.candidateId ? "confirm" : "replace"'),
+    "buildSelectionPayload quantity behaviour preserved",
+  );
+  console.log("✓ Step 3 / Step 4 semantics (AI 建议数量 vs 当前方案数量, no new quantity logic)");
+}
+
+function checkBudgetUx() {
+  const page = read("app/(product)/budget/page.tsx");
+
+  // D. flow + transient target + cache boundary
+  const order = ["当前方案预算", "客户目标预算对照", "数量调整选项", "确认后保存为新方案版本，并自动重新计算预算"].map(
+    (phrase) => page.indexOf(phrase),
+  );
+  assert(
+    order.every((v, i) => v > 0 && (i === 0 || v > order[i - 1])),
+    "budget flow order: 当前方案预算 → 客户目标预算对照 → 数量调整选项 → 确认后保存为新方案版本",
+  );
+  const dirtyFn = sliceBetween(page, "function isBudgetDraftDirty(", "function BudgetForm()");
+  assert(
+    !dirtyFn.includes("targetBudget") &&
+      page.includes("isBudgetDraftDirty(companySize, budgetTier, budgetSummary)"),
+    "targetBudget is not part of the dirty / recalculation comparison",
+  );
+  assert(page.includes("当前预算与方案一致，修改目标预算无需重新计算。"), "no-recalculation hint for target changes");
+
+  const hydrate = sliceBetween(page, "async function hydrate()", "async function handleCalculate(");
+  assert(
+    !hydrate.includes("/api/budget/calculate") && !hydrate.includes("handleCalculate("),
+    "page-load restore never calls /api/budget/calculate or handleCalculate",
+  );
+  assert(
+    /readStoredAdjustmentDetail\(\{\s*projectId: ownedProjectId,\s*quoteId: resolvedQuoteId,\s*budgetId: acceptedBudgetId,\s*\}\)/.test(
+      hydrate,
+    ) && hydrate.includes("fetchProductIntelligenceSnapshot("),
+    "restore reads cached detail for the restored project + quote + budget, then reads current PI",
+  );
+  const reader = sliceBetween(page, "function readStoredAdjustmentDetail(", "function resolveBoundBudgetSummary(");
+  for (const field of ["projectId", "quoteId", "budgetId"]) {
+    assert(
+      reader.includes(`trimBindingId(detail.${field}) !== ${field}`),
+      `cached detail rejected on ${field} mismatch`,
+    );
+  }
+  assert(
+    (page.match(/readStoredAdjustmentDetail\(/g) ?? []).length === 2,
+    "cached detail is only read by the restore path",
+  );
+  assert(
+    /writeStoredAdjustmentDetail\(\s*\{ projectId: boundProjectId, quoteId: calculatedQuoteId, budgetId: data\.budgetId \}/.test(page),
+    "cache written with projectId + quoteId + budgetId of the calculation",
+  );
+  const applyFn = sliceBetween(page, "async function handleApplyAdjustment()", "async function reloadPiSnapshot()");
+  const discardAt = applyFn.indexOf("discardStoredAdjustmentDetail()");
+  assert(
+    discardAt > 0 && discardAt < applyFn.indexOf("setQuoteId(nextQuoteId)"),
+    "new Quote switch invalidates the old adjustment-detail cache first",
+  );
+  assert(
+    page.includes("正在加载数量调整依据") &&
+      page.includes("onClick={() => void reloadPiSnapshot()}") &&
+      page.includes("重新计算不会改变方案或产品配置"),
+    "loading / PI-retry / no-cache copy present",
+  );
+  const reloadFn = sliceBetween(page, "async function reloadPiSnapshot()", "async function handleDownloadPdf()");
+  assert(
+    reloadFn.includes("fetchProductIntelligenceSnapshot(") && !reloadFn.includes("/api/budget/calculate"),
+    "retry re-reads PI only",
+  );
+
+  // E. transient before/after comparison
+  assert(
+    /const \[preAdjustmentRange, setPreAdjustmentRange\] = useState<\{\s*quoteId: string;\s*min: number;\s*max: number;\s*\} \| null>\(null\);/.test(page),
+    "transient pre-adjustment range state",
+  );
+  const captureAt = applyFn.indexOf("const rangeBeforeAdjustment");
+  assert(
+    captureAt > 0 && captureAt < applyFn.indexOf('fetch("/api/quote/product-intelligence"'),
+    "pre-adjustment range captured immediately before applying",
+  );
+  assert(
+    page.includes("调整前 {preAdjustmentRange.min}–{preAdjustmentRange.max} → 调整后 {estimateMin}–"),
+    "completion UI renders before / after range",
+  );
+  for (const line of page.split(/\r?\n/)) {
+    if (!/preAdjustmentRange|rangeBeforeAdjustment/.test(line)) continue;
+    assert(
+      !/Storage|writeStored|productHref|JSON\.stringify/.test(line),
+      "before / after comparison is not persisted",
+    );
+  }
+  console.log("✓ budget UX (explicit flow, transient target, identity-bound cache, before / after range)");
+}
+
 function checkScope() {
   const lines = (cmd: string) =>
     execSync(cmd, { cwd: ROOT, encoding: "utf8" })
@@ -686,9 +829,8 @@ function checkScope() {
   const changed = lines("git diff --name-only HEAD");
   const untracked = lines("git ls-files --others --exclude-standard");
   const allowed = new Set([
-    "lib/budget/over-budget-adjustment.ts",
+    "app/(product)/quote/page.tsx",
     "app/(product)/budget/page.tsx",
-    "lib/services/budget.service.ts",
     "scripts/verify-c1-over-budget-adjustment.ts",
   ]);
   const knownDirty = new Set([
@@ -702,13 +844,15 @@ function checkScope() {
     assert(allowed.has(file), `C.1 scope: unexpected change ${file}`);
     assert(!file.startsWith("prisma/"), `C.1: no Prisma / schema / migration change (${file})`);
   }
-  console.log("✓ scope (4 authorized files; no Prisma / schema / migration change)");
+  console.log("✓ scope (quote page + budget page + this verifier; no Prisma / schema / migration change)");
 }
 
 async function main() {
   checkStatus();
   await checkFlow();
   checkStatic();
+  checkQuoteWorkflowUx();
+  checkBudgetUx();
   checkScope();
   console.log("\nverify-c1-over-budget-adjustment: ALL PASS");
 }

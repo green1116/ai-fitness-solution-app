@@ -208,6 +208,89 @@ function writeStoredBudgetSummary(
   );
 }
 
+type AdjustmentDetailBinding = { projectId: string; quoteId: string; budgetId: string };
+
+/** UX cache only: lets C.1 options survive a refresh. Never a source for amounts or quantities. */
+function writeStoredAdjustmentDetail(
+  binding: AdjustmentDetailBinding,
+  detail: { items: BudgetItem[]; slotKeys: Array<string | null> } | null,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.sessionStorage.getItem(BUDGET_SUMMARY_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    delete parsed.adjustmentDetail;
+    if (detail && parsed.budgetId === binding.budgetId) {
+      parsed.adjustmentDetail = { ...binding, items: detail.items, slotKeys: detail.slotKeys };
+    }
+    window.sessionStorage.setItem(BUDGET_SUMMARY_STORAGE_KEY, JSON.stringify(parsed));
+  } catch {
+    // Cache is optional; options fall back to the "no cached detail" message.
+  }
+}
+
+function discardStoredAdjustmentDetail(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.sessionStorage.getItem(BUDGET_SUMMARY_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!("adjustmentDetail" in parsed)) return;
+    delete parsed.adjustmentDetail;
+    window.sessionStorage.setItem(BUDGET_SUMMARY_STORAGE_KEY, JSON.stringify(parsed));
+  } catch {
+    window.sessionStorage.removeItem(BUDGET_SUMMARY_STORAGE_KEY);
+  }
+}
+
+/** Restores cached detail only when projectId + quoteId + budgetId all match; otherwise null. */
+function readStoredAdjustmentDetail(
+  binding: AdjustmentDetailBinding,
+): { items: BudgetItem[]; slotKeys: Array<string | null> } | null {
+  if (typeof window === "undefined") return null;
+  const projectId = trimBindingId(binding.projectId);
+  const quoteId = trimBindingId(binding.quoteId);
+  const budgetId = trimBindingId(binding.budgetId);
+  if (!projectId || !quoteId || !budgetId) return null;
+  try {
+    const raw = window.sessionStorage.getItem(BUDGET_SUMMARY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      budgetId?: string;
+      adjustmentDetail?: {
+        projectId?: string;
+        quoteId?: string;
+        budgetId?: string;
+        items?: unknown;
+        slotKeys?: unknown;
+      };
+    };
+    const detail = parsed.adjustmentDetail;
+    if (!detail || parsed.budgetId !== budgetId) return null;
+    if (
+      trimBindingId(detail.projectId) !== projectId ||
+      trimBindingId(detail.quoteId) !== quoteId ||
+      trimBindingId(detail.budgetId) !== budgetId
+    ) {
+      return null;
+    }
+    if (
+      !Array.isArray(detail.items) ||
+      !Array.isArray(detail.slotKeys) ||
+      detail.items.length !== detail.slotKeys.length
+    ) {
+      return null;
+    }
+    return {
+      items: detail.items as BudgetItem[],
+      slotKeys: detail.slotKeys.map((k) => (typeof k === "string" && k.trim() ? k : null)),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function resolveBoundBudgetSummary(
   budgetId: string,
   binding: BudgetSummaryBinding,
@@ -430,6 +513,12 @@ function BudgetForm() {
   const [adjustBlocked, setAdjustBlocked] = useState(false);
   const [adjustNotice, setAdjustNotice] = useState("");
   const [applyingAdjustment, setApplyingAdjustment] = useState(false);
+  const [piSnapshotStatus, setPiSnapshotStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [preAdjustmentRange, setPreAdjustmentRange] = useState<{
+    quoteId: string;
+    min: number;
+    max: number;
+  } | null>(null);
   const targetBudget = parseTargetBudget(targetBudgetInput);
   const estimateMin = budgetSummary?.totalEstimateMin;
   const estimateMax = budgetSummary?.totalEstimateMax;
@@ -497,6 +586,7 @@ function BudgetForm() {
       setProjectId(ownedProjectId);
       setQuoteId(resolvedQuoteId);
       let entitlementBudgetId = "";
+      let restoredDetail: ReturnType<typeof readStoredAdjustmentDetail> = null;
 
       if (ownedProjectId) {
         const binding: BudgetSummaryBinding = {
@@ -565,6 +655,15 @@ function BudgetForm() {
           setCompanySize(String(acceptedSummary.companySize));
           setBudgetTier(acceptedSummary.budgetTier);
         }
+        restoredDetail =
+          acceptedBudgetId && acceptedSummary && resolvedQuoteId
+            ? readStoredAdjustmentDetail({
+                projectId: ownedProjectId,
+                quoteId: resolvedQuoteId,
+                budgetId: acceptedBudgetId,
+              })
+            : null;
+        setBudgetDetail(restoredDetail ? { quoteId: resolvedQuoteId, ...restoredDetail } : null);
 
         writeStoredProductContext({
           organizationId,
@@ -576,6 +675,7 @@ function BudgetForm() {
         const nextBudgetId = ctx.budgetId ?? "";
         entitlementBudgetId = nextBudgetId;
         setBudgetId(nextBudgetId);
+        setBudgetDetail(null);
         let hydratedFromSummary = false;
         if (nextBudgetId && !crmHandoff) {
           const stored = readStoredBudgetSummary(nextBudgetId);
@@ -600,6 +700,17 @@ function BudgetForm() {
         });
       }
       if (!cancelled) setContextReady(true);
+      if (restoredDetail && organizationId && ownedProjectId && resolvedQuoteId) {
+        setPiSnapshotStatus("loading");
+        const snapshot = await fetchProductIntelligenceSnapshot(
+          resolvedQuoteId,
+          organizationId,
+          ownedProjectId,
+        );
+        if (cancelled) return;
+        setPiSnapshot(snapshot);
+        setPiSnapshotStatus(snapshot ? "idle" : "error");
+      }
       if (organizationId) {
         const entitlement = await loadTenderClientEntitlement(
           organizationId,
@@ -633,6 +744,7 @@ function BudgetForm() {
       setAdjustNotice("");
       setAdjustError("");
       setAdjustBlocked(false);
+      setPreAdjustmentRange(null);
     }
 
     try {
@@ -747,6 +859,19 @@ function BudgetForm() {
             quoteId: data.quoteId?.trim() || activeQuoteId,
           },
         );
+        const calculatedQuoteId = data.quoteId?.trim() || activeQuoteId;
+        const detailItems = data.structure?.detailedItems;
+        const detailSlotKeys = data.structure?.detailedItemSlotKeys;
+        const detail =
+          Array.isArray(detailItems) &&
+          Array.isArray(detailSlotKeys) &&
+          detailItems.length === detailSlotKeys.length
+            ? { items: detailItems, slotKeys: detailSlotKeys }
+            : null;
+        writeStoredAdjustmentDetail(
+          { projectId: boundProjectId, quoteId: calculatedQuoteId, budgetId: data.budgetId },
+          detail,
+        );
         writeStoredProductContext({
           organizationId,
           projectId: boundProjectId,
@@ -761,22 +886,16 @@ function BudgetForm() {
             budgetId: data.budgetId,
           }),
         );
-        const calculatedQuoteId = data.quoteId?.trim() || activeQuoteId;
-        const detailItems = data.structure?.detailedItems;
-        const detailSlotKeys = data.structure?.detailedItemSlotKeys;
-        setBudgetDetail(
-          Array.isArray(detailItems) && Array.isArray(detailSlotKeys)
-            ? { quoteId: calculatedQuoteId, items: detailItems, slotKeys: detailSlotKeys }
-            : null,
-        );
+        setBudgetDetail(detail ? { quoteId: calculatedQuoteId, ...detail } : null);
         setAdjustDrafts({});
-        setPiSnapshot(
-          await fetchProductIntelligenceSnapshot(
-            calculatedQuoteId,
-            organizationId,
-            boundProjectId,
-          ),
+        setPiSnapshotStatus("loading");
+        const snapshot = await fetchProductIntelligenceSnapshot(
+          calculatedQuoteId,
+          organizationId,
+          boundProjectId,
         );
+        setPiSnapshot(snapshot);
+        setPiSnapshotStatus(snapshot ? "idle" : "error");
         setTenderEntitlement(
           await loadTenderClientEntitlement(organizationId, {
             organizationId,
@@ -823,6 +942,9 @@ function BudgetForm() {
       return;
     }
 
+    const rangeBeforeAdjustment =
+      hasEstimateRange ? { min: estimateMin, max: estimateMax } : null;
+    setPreAdjustmentRange(null);
     setApplyingAdjustment(true);
     try {
       const res = await fetch("/api/quote/product-intelligence", {
@@ -852,12 +974,17 @@ function BudgetForm() {
         return;
       }
       const boundProjectId = data.projectId?.trim() || currentProjectId;
+      discardStoredAdjustmentDetail();
+      setPreAdjustmentRange(
+        rangeBeforeAdjustment ? { quoteId: nextQuoteId, ...rangeBeforeAdjustment } : null,
+      );
       setQuoteId(nextQuoteId);
       setProjectId(boundProjectId);
       setBudgetId("");
       setBudgetSummary(null);
       setBudgetDetail(null);
       setPiSnapshot(null);
+      setPiSnapshotStatus("idle");
       setAdjustDrafts({});
       setPdfDownloaded(false);
       writeStoredProductContext(
@@ -871,6 +998,15 @@ function BudgetForm() {
     } finally {
       setApplyingAdjustment(false);
     }
+  }
+
+  async function reloadPiSnapshot() {
+    const qid = quoteId.trim();
+    if (!qid || !organizationId || !projectId) return;
+    setPiSnapshotStatus("loading");
+    const snapshot = await fetchProductIntelligenceSnapshot(qid, organizationId, projectId);
+    setPiSnapshot(snapshot);
+    setPiSnapshotStatus(snapshot ? "idle" : "error");
   }
 
   async function handleDownloadPdf() {
@@ -1021,6 +1157,9 @@ function BudgetForm() {
           {budgetId && budgetDraftDirty ? (
             <p className="text-sm text-amber-300">参数已修改，请按当前参数重新计算预算</p>
           ) : null}
+          {budgetId && budgetSummary && !budgetDraftDirty ? (
+            <p className="text-xs text-zinc-500">当前预算与方案一致，修改目标预算无需重新计算。</p>
+          ) : null}
           {budgetOverLabel ? (
             <p className="text-sm text-amber-300">
               估算上限超出所选预算区间「{projectBudgetLabel}」，请复核规模或调整档位
@@ -1028,7 +1167,8 @@ function BudgetForm() {
           ) : null}
           {budgetId ? (
             <section className="rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
-              <p>预算已生成。可下载预算 PDF，然后继续生成投标文件。</p>
+              <p className="font-medium text-zinc-100">① 当前方案预算</p>
+              <p className="mt-1">预算已生成。可下载预算 PDF，然后继续生成投标文件。</p>
               {budgetSummary ? (
                 <div className="mt-2 space-y-1 text-zinc-400">
                   <p>
@@ -1056,7 +1196,7 @@ function BudgetForm() {
           ) : null}
           {budgetId && hasEstimateRange ? (
             <section className="space-y-3 rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
-              <p className="font-medium text-zinc-100">目标预算对照（仅本页参考，不保存）</p>
+              <p className="font-medium text-zinc-100">② 客户目标预算对照（仅本页参考，不保存）</p>
               <label className="block space-y-2">
                 <span className="text-zinc-400">
                   目标预算（{budgetSummary?.currency ?? "CNY"}）
@@ -1084,15 +1224,31 @@ function BudgetForm() {
               ) : null}
               {targetStatus === "OVER_BUDGET" ? (
                 !reduction ? (
-                  <p className="text-zinc-500">
-                    数量调整选项需基于本次计算结果，请按当前方案重新计算预算后查看。
-                  </p>
+                  budgetDetail?.quoteId !== quoteId ? (
+                    <p className="text-zinc-500">
+                      本浏览器标签页没有当前预算的明细计算结果。点击上方「按当前方案与档位重新计算预算」可恢复数量调整明细；重新计算不会改变方案或产品配置。
+                    </p>
+                  ) : piSnapshotStatus === "error" ? (
+                    <p className="flex flex-wrap items-center gap-3 text-amber-300">
+                      <span>数量调整依据（当前方案产品配置）加载失败。</span>
+                      <button
+                        type="button"
+                        onClick={() => void reloadPiSnapshot()}
+                        className="rounded-lg border border-zinc-600 px-3 py-1 text-xs text-zinc-100 hover:border-zinc-400"
+                      >
+                        重试
+                      </button>
+                    </p>
+                  ) : (
+                    <p className="text-zinc-500">正在加载数量调整依据…</p>
+                  )
                 ) : reduction.options.length === 0 ? (
                   <p className="text-zinc-500">
                     当前方案没有可调整数量的产品选型器材（仅当前产品选型槽位且数量大于 1 时可调整）。
                   </p>
                 ) : (
                   <div className="space-y-3">
+                    <p className="font-medium text-zinc-100">③ 数量调整选项</p>
                     <p className="text-zinc-400">
                       可选的数量调整（按预算明细原顺序列出，不代表削减优先级；是否调整由您决定）：
                     </p>
@@ -1163,7 +1319,7 @@ function BudgetForm() {
                       {applyingAdjustment ? "保存中…" : "确认调整并保存为新方案版本"}
                     </button>
                     <p className="text-xs text-zinc-500">
-                      确认后才会创建新的方案版本并重新计算预算，当前方案版本保持不变；仅调整数量，已选产品与已核实单价保留。
+                      ④ 确认后保存为新方案版本，并自动重新计算预算；当前方案版本保持不变，仅调整数量，已选产品与已核实单价保留。
                     </p>
                   </div>
                 )
@@ -1190,6 +1346,12 @@ function BudgetForm() {
             </section>
           ) : null}
           {adjustNotice ? <p className="text-sm text-emerald-300">{adjustNotice}</p> : null}
+          {preAdjustmentRange && preAdjustmentRange.quoteId === quoteId && budgetId && hasEstimateRange ? (
+            <p className="text-sm text-emerald-300">
+              调整前 {preAdjustmentRange.min}–{preAdjustmentRange.max} → 调整后 {estimateMin}–
+              {estimateMax}
+            </p>
+          ) : null}
           {pdfDownloaded ? (
             <p className="text-sm text-emerald-300">
               预算 PDF 已下载。

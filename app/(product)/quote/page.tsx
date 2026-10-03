@@ -265,7 +265,17 @@ const REQUIREMENT_STATUS_CLASS: Record<RequirementStatus, string> = {
 };
 
 const REFERENCE_CANDIDATE_BADGE = "参考候选 / 未核实";
-const NO_CANDIDATE_TEXT = "暂无已验证候选，保留当前模板配置";
+const NO_CANDIDATE_TEXT = "暂无已验证候选，保留 AI 建议配置";
+
+/** Saved quantity of the current Quote version for a slot; read-only view of existing selections. */
+function savedSlotQuantity(
+  slot: ProductCandidateSlotView,
+  selection: ProductSelectionView | undefined,
+): { quantity: number | null; status: "已确认" | "沿用 AI 建议" | "已移除" } {
+  if (selection?.action === "remove") return { quantity: null, status: "已移除" };
+  if (selection?.quantity != null) return { quantity: selection.quantity, status: "已确认" };
+  return { quantity: slot.templateQuantity, status: "沿用 AI 建议" };
+}
 
 const QUOTE_PROJECT_MISMATCH_CODE = "QUOTE_PROJECT_MISMATCH";
 
@@ -1330,6 +1340,34 @@ function QuoteForm() {
     (item) => typeof item.label === "string" && item.label.trim() !== "",
   );
   const confirmableSlotCount = quoteReady && piView ? piView.slots.length : 0;
+  const stagePanel: QuoteWorkflowPanel | null =
+    workflowStage === "ready_for_budget" ? null : workflowStage;
+  const workflowCurrentKey = workflowStage === "ready_for_budget" ? "budget" : workflowStage;
+  const workflowCurrentIndex = Math.max(
+    0,
+    QUOTE_WORKFLOW_STEPS.findIndex((s) => s.key === workflowCurrentKey),
+  );
+  const workflowCurrentLabel = QUOTE_WORKFLOW_STEPS[workflowCurrentIndex]?.label ?? "";
+  /** An explicitly opened, already-completed panel (never the stage's own panel). */
+  const reviewingPanel: QuoteWorkflowPanel | null =
+    viewPanel &&
+    viewPanel.quoteId === currentQuoteId &&
+    viewPanel.panel === activePanel &&
+    activePanel !== stagePanel
+      ? activePanel
+      : null;
+  const budgetIsCurrent = workflowStage === "ready_for_budget" && reviewingPanel == null;
+  const showBudgetStepCard = reviewingPanel == null;
+  const summaryUsers = strategy?.facts?.headcount
+    ? describeStrategyNumberFact(strategy.facts.headcount, "人")
+    : projectIntake?.targetUsers
+      ? `${projectIntake.targetUsers} 人`
+      : "待确认";
+  const summaryArea = strategy?.facts?.areaM2
+    ? describeStrategyNumberFact(strategy.facts.areaM2, "㎡")
+    : !areaConflict && projectIntake?.areaM2
+      ? `${projectIntake.areaM2} ㎡`
+      : "待确认";
 
   function persistWorkflowAck(patch: { requirementsAck?: true; strategyAck?: true }) {
     writeWorkflowAck(
@@ -1400,16 +1438,35 @@ function QuoteForm() {
           const reachable = panel
             ? isPanelReachable(panel, workflowStage)
             : step.key === "budget" && productConfigConfirmed;
-          const active = panel != null && panel === activePanel;
-          const label = `${index + 1} ${step.label}`;
-          const className = active
+          const isCurrent = index === workflowCurrentIndex;
+          const completed = index < workflowCurrentIndex;
+          const reviewing = panel != null && panel === reviewingPanel;
+          const label = `${index + 1} ${step.label}${completed ? " ✓" : ""}${reviewing ? "（查看中）" : ""}`;
+          const className = isCurrent
             ? "rounded-lg border border-emerald-500 px-3 py-1.5 font-medium text-emerald-300"
-            : reachable
-              ? "rounded-lg border border-zinc-700 px-3 py-1.5 text-zinc-300 hover:border-zinc-500"
-              : "rounded-lg border border-zinc-800 px-3 py-1.5 text-zinc-600";
+            : reviewing
+              ? "rounded-lg border border-sky-500 px-3 py-1.5 font-medium text-sky-300"
+              : completed && reachable
+                ? "rounded-lg border border-zinc-700 px-3 py-1.5 text-emerald-200/80 hover:border-zinc-500"
+                : "rounded-lg border border-zinc-800 px-3 py-1.5 text-zinc-600";
           return (
             <li key={step.key}>
-              {panel && reachable && !active ? (
+              {isCurrent ? (
+                reviewingPanel ? (
+                  <button
+                    type="button"
+                    className={className}
+                    aria-current="step"
+                    onClick={() => setViewPanel(null)}
+                  >
+                    {label}
+                  </button>
+                ) : (
+                  <span className={className} aria-current="step">
+                    {label}
+                  </span>
+                )
+              ) : panel && reachable && !reviewing ? (
                 <button
                   type="button"
                   className={className}
@@ -1418,14 +1475,25 @@ function QuoteForm() {
                   {label}
                 </button>
               ) : (
-                <span className={className} aria-current={active ? "step" : undefined}>
-                  {label}
-                </span>
+                <span className={className}>{label}</span>
               )}
             </li>
           );
         })}
       </ol>
+
+      {reviewingPanel ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-sky-800/60 bg-sky-950/20 px-4 py-2 text-sm text-sky-200">
+          <span>正在查看已完成的步骤（查看中），内容按当前方案版本展示。</span>
+          <button
+            type="button"
+            onClick={() => setViewPanel(null)}
+            className="rounded-lg border border-sky-700 px-3 py-1 text-xs text-sky-100 hover:border-sky-500"
+          >
+            返回当前步骤：第 {workflowCurrentIndex + 1} 步 {workflowCurrentLabel}
+          </button>
+        </div>
+      ) : null}
 
       {activePanel === "requirements" ? (
       <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
@@ -1740,16 +1808,19 @@ function QuoteForm() {
             </div>
           ) : (
             <p className="text-sm text-amber-300">
-              该方案版本没有保存结构化策略数据（较早版本生成），以下仅展示器材类别与模板数量；如需完整策略，可在第 2 步按补充要求重新生成。
+              该方案版本没有保存结构化策略数据（较早版本生成），以下仅展示器材类别与 AI 建议数量；如需完整策略，可在第 2 步按补充要求重新生成。
             </p>
           )}
           <div className="space-y-1 text-sm text-zinc-300">
-            <p className="text-xs text-zinc-500">器材类别与模板数量（有氧 / 力量）</p>
+            <p className="text-xs text-zinc-500">AI 建议配置（建议数量，非最终采购数量）</p>
+            <p className="text-xs text-zinc-500">
+              建议数量由方案生成规则按本版本的项目输入推算（见上方使用人数 / 面积及来源），可在第 4 步调整，以确认后的方案版本为准。
+            </p>
             {piView.slots.length > 0 ? (
               <ul className="list-disc space-y-1 pl-5">
                 {piView.slots.map((slot) => (
                   <li key={slot.slotKey}>
-                    {slot.category} · {slot.subCategory} · 模板数量 {slot.templateQuantity} 台/套
+                    {slot.category} · {slot.subCategory} · AI 建议数量 {slot.templateQuantity} 台/套
                   </li>
                 ))}
               </ul>
@@ -1786,7 +1857,7 @@ function QuoteForm() {
         </section>
       ) : null}
 
-      {activePanel === "products" && quoteReady && piView ? (
+      {activePanel === "products" && !budgetIsCurrent && quoteReady && piView ? (
         <section className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-950 p-6">
           <h2 className="text-lg font-semibold text-zinc-100">第 4 步：产品配置</h2>
           {piView ? (
@@ -1794,7 +1865,10 @@ function QuoteForm() {
               <div className="space-y-2">
                 <p className="text-sm font-medium text-zinc-200">设备候选配置（有氧 / 力量）</p>
                 <p className="text-xs text-zinc-500">
-                  候选均来自参考目录，标注为「{REFERENCE_CANDIDATE_BADGE}」，仅用于加入当前方案候选配置，不代表确认采购；预算单价默认按预算档位估算，仅在为已选候选填写供应商报价或采购合同的核实单价后按核实价计价。
+                  候选来自当前参考目录，标注「参考候选 / 未核实」；型号参数与价格均未核实，不代表采购承诺。
+                </p>
+                <p className="text-xs text-zinc-500">
+                  预算单价默认按预算档位估算，仅在为已选候选填写供应商报价或采购合同的核实单价后按核实价计价。
                 </p>
                 {piView.slots.length === 0 ? (
                   <p className="text-sm text-amber-300">
@@ -1818,6 +1892,10 @@ function QuoteForm() {
                     quantity: "",
                   };
                   const groupName = `pi-slot-${slot.slotKey}`;
+                  const saved = savedSlotQuantity(
+                    slot,
+                    piView.selections.find((s) => s.slotKey === slot.slotKey),
+                  );
                   return (
                     <li
                       key={slot.slotKey}
@@ -1825,9 +1903,12 @@ function QuoteForm() {
                     >
                       <p className="text-sm font-medium text-zinc-100">
                         {slot.category} · {slot.subCategory}
-                        <span className="ml-2 text-xs font-normal text-zinc-500">
-                          模板数量 {slot.templateQuantity} 台/套
-                        </span>
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        AI 建议数量 {slot.templateQuantity} 台/套 · 当前方案数量{" "}
+                        {saved.quantity != null
+                          ? `${saved.quantity} 台/套（${saved.status}）`
+                          : `—（${saved.status}）`}
                       </p>
                       <label className="flex items-center gap-2 text-sm text-zinc-300">
                         <input
@@ -1843,7 +1924,7 @@ function QuoteForm() {
                           }
                           disabled={piSaving}
                         />
-                        保留当前模板配置
+                        保留 AI 建议配置
                       </label>
                       {slot.candidates.length === 0 ? (
                         <p className="text-xs text-zinc-500">{slot.emptyMessage || NO_CANDIDATE_TEXT}</p>
@@ -1908,7 +1989,7 @@ function QuoteForm() {
                       </label>
                       {draft.mode !== "remove" ? (
                         <label className="flex items-center gap-2 text-xs text-zinc-400">
-                          数量
+                          确认数量（留空则采用 AI 建议数量）
                           <input
                             type="number"
                             min={1}
@@ -1922,7 +2003,6 @@ function QuoteForm() {
                             }
                             disabled={piSaving}
                           />
-                          留空则使用模板数量
                           {!isValidDraftQuantity(draft.quantity) ? (
                             <span className="text-rose-300">需为 1-999 的整数</span>
                           ) : null}
@@ -2019,7 +2099,7 @@ function QuoteForm() {
                   </button>
                 ) : null}
                 <p className="text-xs text-zinc-500">
-                  确认后保存为新的方案版本（未选择候选的设备位按「保留当前模板配置」确认），当前及历史版本保持不变；此操作仅确认方案配置，不代表确认采购。
+                  确认后保存为新的方案版本（未选择候选的设备位按「保留 AI 建议配置」确认），当前及历史版本保持不变；此操作仅确认方案配置，不代表确认采购。
                 </p>
                 {piNotice ? <p className="text-sm text-emerald-300">{piNotice}</p> : null}
                 {piError ? <p className="text-sm text-rose-300">{piError}</p> : null}
@@ -2029,6 +2109,88 @@ function QuoteForm() {
         </section>
       ) : null}
 
+      {budgetIsCurrent && quoteReady && piView ? (
+        <section className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-950 p-6 text-sm text-zinc-300">
+          <h2 className="text-base font-semibold text-zinc-100">已完成步骤</h2>
+          <ul className="space-y-3">
+            <li className="flex flex-wrap items-start justify-between gap-2">
+              <span>
+                <span className="text-zinc-500">1 项目需求 ✓ </span>
+                {companyName.trim() || "企业"} · 使用人数 {summaryUsers} · 场地面积 {summaryArea}
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewPanel({ quoteId: currentQuoteId, panel: "requirements" })}
+                className="text-xs text-zinc-400 underline hover:text-zinc-200"
+              >
+                查看
+              </button>
+            </li>
+            <li className="flex flex-wrap items-start justify-between gap-2">
+              <span>
+                <span className="text-zinc-500">2 AI 需求确认 ✓ </span>
+                已识别 {piView.requirements.length} 项需求条目
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewPanel({ quoteId: currentQuoteId, panel: "confirmation" })}
+                className="text-xs text-zinc-400 underline hover:text-zinc-200"
+              >
+                查看
+              </button>
+            </li>
+            <li className="flex flex-wrap items-start justify-between gap-2">
+              <span>
+                <span className="text-zinc-500">3 方案策略 ✓ </span>
+                AI 建议配置 {piView.slots.length} 个设备位
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewPanel({ quoteId: currentQuoteId, panel: "strategy" })}
+                className="text-xs text-zinc-400 underline hover:text-zinc-200"
+              >
+                查看
+              </button>
+            </li>
+            <li className="space-y-1">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <span>
+                  <span className="text-zinc-500">4 产品配置 ✓ </span>
+                  已确认 {piView.selections.length} 个设备位
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setViewPanel({ quoteId: currentQuoteId, panel: "products" })}
+                  className="text-xs text-zinc-400 underline hover:text-zinc-200"
+                >
+                  查看 / 修改
+                </button>
+              </div>
+              <ul className="list-disc space-y-1 pl-5 text-xs text-zinc-400">
+                {piView.slots.map((slot) => {
+                  const selection = piView.selections.find((s) => s.slotKey === slot.slotKey);
+                  const saved = savedSlotQuantity(slot, selection);
+                  const choice =
+                    selection?.action === "remove"
+                      ? "已移除"
+                      : selection?.candidate
+                        ? `${selection.candidate.brand} ${selection.candidate.model}`
+                        : "沿用 AI 建议";
+                  return (
+                    <li key={slot.slotKey}>
+                      {slot.subCategory} · {choice}
+                      {saved.quantity != null ? ` · 当前方案数量 ${saved.quantity} 台/套` : ""}
+                    </li>
+                  );
+                })}
+              </ul>
+            </li>
+          </ul>
+        </section>
+      ) : null}
+
+      {showBudgetStepCard ? (
+        <>
       {currentQuoteId && productConfigConfirmed ? (
         <section className="space-y-4 rounded-xl border border-emerald-800/60 bg-zinc-950 p-6">
           <h2 className="text-lg font-semibold text-zinc-100">第 5 步：预算</h2>
@@ -2140,6 +2302,8 @@ function QuoteForm() {
             </Link>
           ) : null}
         </section>
+      ) : null}
+        </>
       ) : null}
 
       {quoteHistory.length > 0 ? (
