@@ -23,6 +23,20 @@ import {
   isBudgetOverLabelUpperBound,
   resolveProjectBudgetLabel,
 } from "@/lib/project/project-intake";
+import {
+  buildAdjustedSelectionSnapshot,
+  buildQuantityReductionOptions,
+  classifyBudgetTarget,
+  estimateAdjustedTotals,
+  parseTargetBudget,
+  readApprovedQuantities,
+  type BudgetTargetStatus,
+} from "@/lib/budget/over-budget-adjustment";
+import type { BudgetItem } from "@/lib/domain/tender";
+import type {
+  ProductCandidateSlot,
+  ProductSelection,
+} from "@/lib/product-engine/product-intelligence";
 
 type OrgMe = { organizationId?: string | null };
 type ProjectList = { ok?: boolean; projects?: Array<{ id: string }> };
@@ -37,6 +51,8 @@ type CalculateBudgetResponse = {
     totalMin?: number;
     totalMax?: number;
     currency?: string;
+    detailedItems?: BudgetItem[];
+    detailedItemSlotKeys?: Array<string | null>;
   };
   basis?: {
     quoteId?: string;
@@ -300,6 +316,64 @@ async function fetchQuoteBasis(
   }
 }
 
+type BudgetDetailState = {
+  quoteId: string;
+  items: BudgetItem[];
+  slotKeys: Array<string | null>;
+};
+
+type ProductIntelligenceSnapshot = {
+  quoteId: string;
+  slots: ProductCandidateSlot[];
+  selections: ProductSelection[];
+};
+
+async function fetchProductIntelligenceSnapshot(
+  quoteId: string,
+  organizationId: string,
+  projectId: string,
+): Promise<ProductIntelligenceSnapshot | null> {
+  const qid = quoteId.trim();
+  const oid = organizationId.trim();
+  const pid = projectId.trim();
+  if (!qid || !oid || !pid) return null;
+  try {
+    const res = await fetch(
+      `/api/quote/product-intelligence?quoteId=${encodeURIComponent(qid)}&organizationId=${encodeURIComponent(oid)}&projectId=${encodeURIComponent(pid)}`,
+      { headers: { "x-organization-id": oid } },
+    );
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      quoteId?: string;
+      slots?: ProductCandidateSlot[];
+      selections?: ProductSelection[];
+    };
+    if (!res.ok || data.ok !== true) return null;
+    return {
+      quoteId: data.quoteId?.trim() || qid,
+      slots: Array.isArray(data.slots) ? data.slots : [],
+      selections: Array.isArray(data.selections) ? data.selections : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function targetStatusText(
+  status: BudgetTargetStatus,
+  target: number,
+  min: number,
+  max: number,
+): string {
+  if (status === "OVER_BUDGET") {
+    return `超出目标预算：目标 ${target} 低于当前估算下限 ${min}。`;
+  }
+  if (status === "TARGET_WITHIN_RANGE") {
+    return `目标预算 ${target} 落在当前估算区间 ${min} - ${max} 内，是否足够取决于最终选型与报价。`;
+  }
+  return `目标预算 ${target} 不低于当前估算上限 ${max}。`;
+}
+
 function tierLabel(tier: "low" | "mid" | "high"): string {
   if (tier === "low") return "基础（单价偏低）";
   if (tier === "high") return "高端（单价偏高）";
@@ -348,6 +422,48 @@ function BudgetForm() {
     !budgetDraftDirty &&
     typeof budgetSummary.totalEstimateMax === "number" &&
     isBudgetOverLabelUpperBound(budgetSummary.totalEstimateMax, projectBudgetLabel);
+  const [targetBudgetInput, setTargetBudgetInput] = useState("");
+  const [budgetDetail, setBudgetDetail] = useState<BudgetDetailState | null>(null);
+  const [piSnapshot, setPiSnapshot] = useState<ProductIntelligenceSnapshot | null>(null);
+  const [adjustDrafts, setAdjustDrafts] = useState<Record<string, string>>({});
+  const [adjustError, setAdjustError] = useState("");
+  const [adjustBlocked, setAdjustBlocked] = useState(false);
+  const [adjustNotice, setAdjustNotice] = useState("");
+  const [applyingAdjustment, setApplyingAdjustment] = useState(false);
+  const targetBudget = parseTargetBudget(targetBudgetInput);
+  const estimateMin = budgetSummary?.totalEstimateMin;
+  const estimateMax = budgetSummary?.totalEstimateMax;
+  const hasEstimateRange =
+    !budgetDraftDirty && typeof estimateMin === "number" && typeof estimateMax === "number";
+  const targetStatus =
+    targetBudget != null && hasEstimateRange
+      ? classifyBudgetTarget(targetBudget, estimateMin, estimateMax)
+      : null;
+  const adjustmentSourceReady =
+    Boolean(quoteId) &&
+    budgetDetail?.quoteId === quoteId &&
+    piSnapshot?.quoteId === quoteId;
+  const reduction =
+    adjustmentSourceReady && budgetDetail && piSnapshot
+      ? buildQuantityReductionOptions({
+          items: budgetDetail.items,
+          slotKeys: budgetDetail.slotKeys,
+          slots: piSnapshot.slots,
+        })
+      : null;
+  const approvedResult = reduction
+    ? readApprovedQuantities(reduction.options, adjustDrafts)
+    : null;
+  const projectedTotals =
+    reduction && approvedResult?.ok && hasEstimateRange
+      ? estimateAdjustedTotals({
+          totalEstimateMin: estimateMin,
+          totalEstimateMax: estimateMax,
+          options: reduction.options,
+          approved: approvedResult.approved,
+        })
+      : null;
+  const approvedCount = approvedResult?.ok ? Object.keys(approvedResult.approved).length : 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -504,14 +620,20 @@ function BudgetForm() {
     };
   }, [searchParams]);
 
-  async function handleCalculate() {
-    if (!quoteId) {
+  async function handleCalculate(quoteIdOverride?: string) {
+    const activeQuoteId = quoteIdOverride?.trim() || quoteId;
+    if (!activeQuoteId) {
       alert("请先生成方案");
       return;
     }
 
     setLoading(true);
     setError("");
+    if (!quoteIdOverride) {
+      setAdjustNotice("");
+      setAdjustError("");
+      setAdjustBlocked(false);
+    }
 
     try {
       const organizationId = await resolveOrganizationId();
@@ -530,7 +652,7 @@ function BudgetForm() {
           ...(organizationId ? { "x-organization-id": organizationId } : {}),
         },
         body: JSON.stringify({
-          quoteId,
+          quoteId: activeQuoteId,
           projectId: ownedProjectId,
           companySize: Number(companySize),
           budgetTier,
@@ -539,8 +661,10 @@ function BudgetForm() {
       });
       const data = (await res.json()) as CalculateBudgetResponse;
       if (res.status === 409 && data.code === "QUOTE_PROJECT_MISMATCH") {
-        clearStoredQuoteIdForProject(ownedProjectId, quoteId);
+        clearStoredQuoteIdForProject(ownedProjectId, activeQuoteId);
         setQuoteId("");
+        setBudgetDetail(null);
+        setPiSnapshot(null);
         setBudgetId("");
         setQuoteBasis(null);
         setBudgetSummary(null);
@@ -620,28 +744,44 @@ function BudgetForm() {
           },
           {
             projectId: boundProjectId,
-            quoteId: data.quoteId?.trim() || quoteId,
+            quoteId: data.quoteId?.trim() || activeQuoteId,
           },
         );
         writeStoredProductContext({
           organizationId,
           projectId: boundProjectId,
-          quoteId: data.quoteId?.trim() || quoteId,
+          quoteId: data.quoteId?.trim() || activeQuoteId,
           budgetId: data.budgetId,
         });
         router.replace(
           productHref("/budget", {
             organizationId,
             projectId: boundProjectId,
-            quoteId: data.quoteId?.trim() || quoteId,
+            quoteId: data.quoteId?.trim() || activeQuoteId,
             budgetId: data.budgetId,
           }),
+        );
+        const calculatedQuoteId = data.quoteId?.trim() || activeQuoteId;
+        const detailItems = data.structure?.detailedItems;
+        const detailSlotKeys = data.structure?.detailedItemSlotKeys;
+        setBudgetDetail(
+          Array.isArray(detailItems) && Array.isArray(detailSlotKeys)
+            ? { quoteId: calculatedQuoteId, items: detailItems, slotKeys: detailSlotKeys }
+            : null,
+        );
+        setAdjustDrafts({});
+        setPiSnapshot(
+          await fetchProductIntelligenceSnapshot(
+            calculatedQuoteId,
+            organizationId,
+            boundProjectId,
+          ),
         );
         setTenderEntitlement(
           await loadTenderClientEntitlement(organizationId, {
             organizationId,
             projectId: boundProjectId,
-            quoteId: data.quoteId?.trim() || quoteId,
+            quoteId: calculatedQuoteId,
             budgetId: data.budgetId,
           }, { currentPath: "/budget" }),
         );
@@ -650,6 +790,86 @@ function BudgetForm() {
       setError("预算计算失败，请稍后重试");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleApplyAdjustment() {
+    const baseQuoteId = quoteId.trim();
+    const currentProjectId = projectId.trim();
+    if (!baseQuoteId || !organizationId || !currentProjectId) return;
+    if (!reduction || !piSnapshot || piSnapshot.quoteId !== baseQuoteId) return;
+    setAdjustError("");
+    setAdjustBlocked(false);
+    setAdjustNotice("");
+    const approved = readApprovedQuantities(reduction.options, adjustDrafts);
+    if (!approved.ok) {
+      setAdjustError(approved.errors.join("；"));
+      return;
+    }
+    if (Object.keys(approved.approved).length === 0) {
+      setAdjustError("请至少为一项器材填写调整后的数量");
+      return;
+    }
+    const snapshot = buildAdjustedSelectionSnapshot({
+      slots: piSnapshot.slots,
+      selections: piSnapshot.selections,
+      approved: approved.approved,
+    });
+    if (!snapshot.ok) {
+      setAdjustBlocked(true);
+      setAdjustError(
+        `以下器材的已选产品在当前候选中无法确认：${snapshot.blockedSlots.join("、")}。请先在方案页处理产品配置后再调整数量。`,
+      );
+      return;
+    }
+
+    setApplyingAdjustment(true);
+    try {
+      const res = await fetch("/api/quote/product-intelligence", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": organizationId,
+        },
+        body: JSON.stringify({
+          quoteId: baseQuoteId,
+          organizationId,
+          projectId: currentProjectId,
+          selections: snapshot.selections,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        quoteId?: string;
+        projectId?: string;
+        status?: string;
+        message?: string;
+      };
+      const nextQuoteId =
+        data.ok === true && data.status === "READY" ? trimBindingId(data.quoteId) : "";
+      if (!nextQuoteId) {
+        setAdjustError(data.message || "保存调整失败，当前方案未改变，请稍后重试");
+        return;
+      }
+      const boundProjectId = data.projectId?.trim() || currentProjectId;
+      setQuoteId(nextQuoteId);
+      setProjectId(boundProjectId);
+      setBudgetId("");
+      setBudgetSummary(null);
+      setBudgetDetail(null);
+      setPiSnapshot(null);
+      setAdjustDrafts({});
+      setPdfDownloaded(false);
+      writeStoredProductContext(
+        { organizationId, projectId: boundProjectId, quoteId: nextQuoteId },
+        { mode: "replace" },
+      );
+      setAdjustNotice("已保存为新方案版本，并按新方案重新计算预算。");
+      await handleCalculate(nextQuoteId);
+    } catch {
+      setAdjustError("保存调整失败，当前方案未改变，请稍后重试");
+    } finally {
+      setApplyingAdjustment(false);
     }
   }
 
@@ -774,8 +994,8 @@ function BudgetForm() {
           </label>
           <button
             type="button"
-            onClick={handleCalculate}
-            disabled={loading}
+            onClick={() => void handleCalculate()}
+            disabled={loading || applyingAdjustment}
             className={
               budgetId
                 ? "rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400 disabled:opacity-50"
@@ -834,6 +1054,142 @@ function BudgetForm() {
               ) : null}
             </section>
           ) : null}
+          {budgetId && hasEstimateRange ? (
+            <section className="space-y-3 rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
+              <p className="font-medium text-zinc-100">目标预算对照（仅本页参考，不保存）</p>
+              <label className="block space-y-2">
+                <span className="text-zinc-400">
+                  目标预算（{budgetSummary?.currency ?? "CNY"}）
+                </span>
+                <input
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-2"
+                  inputMode="numeric"
+                  placeholder="输入客户目标预算金额"
+                  value={targetBudgetInput}
+                  onChange={(e) => setTargetBudgetInput(e.target.value)}
+                />
+              </label>
+              {targetStatus && targetBudget != null ? (
+                <p
+                  className={
+                    targetStatus === "OVER_BUDGET"
+                      ? "text-amber-300"
+                      : targetStatus === "TARGET_WITHIN_RANGE"
+                        ? "text-sky-300"
+                        : "text-emerald-300"
+                  }
+                >
+                  {targetStatusText(targetStatus, targetBudget, estimateMin, estimateMax)}
+                </p>
+              ) : null}
+              {targetStatus === "OVER_BUDGET" ? (
+                !reduction ? (
+                  <p className="text-zinc-500">
+                    数量调整选项需基于本次计算结果，请按当前方案重新计算预算后查看。
+                  </p>
+                ) : reduction.options.length === 0 ? (
+                  <p className="text-zinc-500">
+                    当前方案没有可调整数量的产品选型器材（仅当前产品选型槽位且数量大于 1 时可调整）。
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-zinc-400">
+                      可选的数量调整（按预算明细原顺序列出，不代表削减优先级；是否调整由您决定）：
+                    </p>
+                    <div className="space-y-2">
+                      {reduction.options.map((option) => (
+                        <div
+                          key={option.slotKey}
+                          className="flex flex-wrap items-center gap-3 rounded-lg border border-zinc-800 px-3 py-2"
+                        >
+                          <div className="min-w-[12rem] flex-1">
+                            <p className="text-zinc-100">
+                              {option.subCategory}
+                              <span className="text-zinc-500">（{option.category}）</span>
+                            </p>
+                            <p className="text-xs text-zinc-500">
+                              当前 {option.currentQuantity} 台 · 单价{" "}
+                              {option.unitPriceMin} - {option.unitPriceMax}
+                              {option.priceBasis === "VERIFIED" ? "（已核实单价）" : "（估算单价）"}
+                              {" · "}每减少 1 台约减少 {option.unitPriceMin} - {option.unitPriceMax}
+                            </p>
+                          </div>
+                          <label className="flex items-center gap-2 text-xs text-zinc-400">
+                            调整为
+                            <input
+                              className="w-20 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100"
+                              type="number"
+                              min={option.minQuantity}
+                              max={option.currentQuantity - 1}
+                              step={1}
+                              placeholder={String(option.currentQuantity)}
+                              value={adjustDrafts[option.slotKey] ?? ""}
+                              onChange={(e) =>
+                                setAdjustDrafts((prev) => ({
+                                  ...prev,
+                                  [option.slotKey]: e.target.value,
+                                }))
+                              }
+                            />
+                            台
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    {reduction.nonAdjustable.length > 0 ? (
+                      <p className="text-xs text-zinc-500">
+                        其余 {reduction.nonAdjustable.length}{" "}
+                        项不提供数量调整（非产品选型槽位，或数量已为最小值 1）。
+                      </p>
+                    ) : null}
+                    {approvedResult && !approvedResult.ok ? (
+                      <p className="text-amber-300">{approvedResult.errors.join("；")}</p>
+                    ) : null}
+                    {projectedTotals && approvedCount > 0 ? (
+                      <p className="text-zinc-200">
+                        按所填数量预估：{budgetSummary?.currency ?? "CNY"}{" "}
+                        {projectedTotals.totalEstimateMin} - {projectedTotals.totalEstimateMax}
+                        （减少约 {projectedTotals.reductionMin} - {projectedTotals.reductionMax}）
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void handleApplyAdjustment()}
+                      disabled={
+                        applyingAdjustment || loading || approvedCount === 0 || !approvedResult?.ok
+                      }
+                      className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {applyingAdjustment ? "保存中…" : "确认调整并保存为新方案版本"}
+                    </button>
+                    <p className="text-xs text-zinc-500">
+                      确认后才会创建新的方案版本并重新计算预算，当前方案版本保持不变；仅调整数量，已选产品与已核实单价保留。
+                    </p>
+                  </div>
+                )
+              ) : null}
+              {adjustError ? (
+                <p className="text-rose-300">
+                  {adjustError}
+                  {adjustBlocked ? (
+                    <>
+                      {" "}
+                      <Link
+                        href={productHref("/quote", { organizationId, projectId, quoteId })}
+                        className="underline"
+                      >
+                        前往方案页
+                      </Link>
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
+              <p className="text-xs text-zinc-500">
+                以上为基于当前方案的估算区间对照，不构成最终成交价或预算保证。
+              </p>
+            </section>
+          ) : null}
+          {adjustNotice ? <p className="text-sm text-emerald-300">{adjustNotice}</p> : null}
           {pdfDownloaded ? (
             <p className="text-sm text-emerald-300">
               预算 PDF 已下载。

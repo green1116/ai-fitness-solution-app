@@ -11,6 +11,10 @@ import {
   readStoredProductSelections,
   type CompanyInfoInput,
 } from "@/lib/product-engine";
+import {
+  isProductSlotCategory,
+  productSlotKey,
+} from "@/lib/product-engine/product-intelligence";
 import type { BudgetStructure } from "@/lib/product-engine/types";
 import type { QuoteOrchestrationStepResult } from "@/lib/quote-lifecycle";
 import { prisma } from "@/lib/prisma";
@@ -241,6 +245,8 @@ export async function calculateBudget(input: CalculateBudgetInput) {
     totalEstimateMax: number;
     categorySubtotals: Array<{ category: string; min: number; max: number }>;
     detailedItems: typeof generated.items;
+    /** Response-only; index-aligned with detailedItems (generateBudget maps placeholders 1:1). */
+    detailedItemSlotKeys: Array<string | null>;
   } = {
     currency: generated.currency,
     totalMin: Math.round(generated.totalEstimateMin),
@@ -250,6 +256,11 @@ export async function calculateBudget(input: CalculateBudgetInput) {
     items: categorySubtotals,
     categorySubtotals,
     detailedItems: generated.items,
+    detailedItemSlotKeys: placeholders.map((p) =>
+      isProductSlotCategory(p.category) && p.subCategory?.trim()
+        ? productSlotKey(p.category, p.subCategory)
+        : null,
+    ),
     assumptions: [
       ...generated.assumptions,
       `${QUOTE_BASIS_PREFIX}${quote.id}${QUOTE_BASIS_SUFFIX}`,
