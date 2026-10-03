@@ -68,7 +68,8 @@ function buildBudgetItem(
     placeholder.brand?.trim() && placeholder.model?.trim()
       ? `${placeholder.brand.trim()} ${placeholder.model.trim()}`
       : "";
-  const name = candidateLabel ? `${baseName}（${candidateLabel}）` : baseName;
+  const sourceLabel =
+    placeholder.productSource === "customer-specified" ? "客户指定" : "参考候选";
   const priceFact = candidateLabel ? placeholder.priceFact : undefined;
 
   if (priceFact) {
@@ -76,14 +77,14 @@ function buildBudgetItem(
     const subtotal = unitPrice * placeholder.quantity;
     return {
       category: placeholder.category,
-      name,
+      name: `${baseName}（${candidateLabel}）`,
       specLevel: placeholder.specTags.join(" / "),
       quantity: placeholder.quantity,
       unitPriceMin: unitPrice,
       unitPriceMax: unitPrice,
       subtotalMin: subtotal,
       subtotalMax: subtotal,
-      remark: `${placeholder.recommendationReason}；方案候选配置：${candidateLabel}；核实单价：${PRICE_FACT_SOURCE_LABEL[priceFact.sourceType]} ${priceFact.sourceReference}（${priceFact.quotedAt}），不随预算档位变化`,
+      remark: `${placeholder.recommendationReason}；当前配置：${candidateLabel}（${sourceLabel}；参数未核实）；核实单价：${PRICE_FACT_SOURCE_LABEL[priceFact.sourceType]} ${priceFact.sourceReference}（${priceFact.quotedAt}），不随预算档位变化`,
       sourceType: "placeholder",
       priceBasis: "VERIFIED",
       priceFact,
@@ -94,13 +95,15 @@ function buildBudgetItem(
     placeholder.category,
     priceBand,
   );
+  // Estimates price category × tier, not the configured model: the model stays out of
+  // `name` and must remain the remark's last segment (Budget PDF footnotes read it there).
   const candidateNote = candidateLabel
-    ? `；方案候选配置：${candidateLabel}（参考候选 / 未核实，单价按档位）`
+    ? `；当前配置：${candidateLabel}（${sourceLabel}；单价未核实）`
     : "";
 
   return {
     category: placeholder.category,
-    name,
+    name: baseName,
     specLevel: placeholder.specTags.join(" / "),
     quantity: placeholder.quantity,
     unitPriceMin,

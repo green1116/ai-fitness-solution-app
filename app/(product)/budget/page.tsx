@@ -1100,6 +1100,7 @@ function BudgetForm() {
               人数与面积取自当前 Quote 快照；有明确方案人数时不会被下方兼容人数覆盖。
             </p>
           </div>
+          <p className="font-medium text-zinc-100">预算设置</p>
           <label className="block space-y-2">
             <span className="text-sm font-medium text-zinc-200">
               兼容人数（仅方案无人数时回退）
@@ -1128,6 +1129,21 @@ function BudgetForm() {
               LOW / MID / HIGH 仅影响未提供核实单价的器材估算单价区间；已核实单价不随档位变化，方案器材数量与分区也不变。
             </p>
           </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-zinc-200">
+              客户目标预算（可选，{budgetSummary?.currency ?? "CNY"}）
+            </span>
+            <input
+              className="w-full rounded-lg border border-zinc-700 bg-black px-4 py-3"
+              inputMode="numeric"
+              placeholder="输入客户目标预算金额"
+              value={targetBudgetInput}
+              onChange={(e) => setTargetBudgetInput(e.target.value)}
+            />
+            <p className="text-xs text-zinc-500">
+              仅本页参考，不保存；只与已计算的当前方案预算对照，填写或修改不会触发重新计算。
+            </p>
+          </label>
           <button
             type="button"
             onClick={() => void handleCalculate()}
@@ -1141,34 +1157,19 @@ function BudgetForm() {
             {loading
               ? "计算中…"
               : budgetId
-                ? "按当前方案与档位重新计算预算"
+                ? "按当前方案与预算设置重新计算预算"
                 : "按当前方案计算预算"}
           </button>
-          {projectId && budgetId ? (
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={!canDownloadPdf}
-              className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              下载预算 PDF
-            </button>
-          ) : null}
           {budgetId && budgetDraftDirty ? (
             <p className="text-sm text-amber-300">参数已修改，请按当前参数重新计算预算</p>
           ) : null}
           {budgetId && budgetSummary && !budgetDraftDirty ? (
             <p className="text-xs text-zinc-500">当前预算与方案一致，修改目标预算无需重新计算。</p>
           ) : null}
-          {budgetOverLabel ? (
-            <p className="text-sm text-amber-300">
-              估算上限超出所选预算区间「{projectBudgetLabel}」，请复核规模或调整档位
-            </p>
-          ) : null}
           {budgetId ? (
             <section className="rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
               <p className="font-medium text-zinc-100">① 当前方案预算</p>
-              <p className="mt-1">预算已生成。可下载预算 PDF，然后继续生成投标文件。</p>
+              <p className="mt-1">预算已生成。可在下方对照客户目标预算（可选），再下载预算 PDF 并继续生成投标文件。</p>
               {budgetSummary ? (
                 <div className="mt-2 space-y-1 text-zinc-400">
                   <p>
@@ -1194,21 +1195,17 @@ function BudgetForm() {
               ) : null}
             </section>
           ) : null}
+          {budgetOverLabel ? (
+            <p className="text-sm text-amber-300">
+              估算上限超出所选预算区间「{projectBudgetLabel}」，请复核规模或调整档位
+            </p>
+          ) : null}
           {budgetId && hasEstimateRange ? (
             <section className="space-y-3 rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
               <p className="font-medium text-zinc-100">② 客户目标预算对照（仅本页参考，不保存）</p>
-              <label className="block space-y-2">
-                <span className="text-zinc-400">
-                  目标预算（{budgetSummary?.currency ?? "CNY"}）
-                </span>
-                <input
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-2"
-                  inputMode="numeric"
-                  placeholder="输入客户目标预算金额"
-                  value={targetBudgetInput}
-                  onChange={(e) => setTargetBudgetInput(e.target.value)}
-                />
-              </label>
+              {!targetBudgetInput.trim() ? (
+                <p className="text-zinc-500">未填写客户目标预算（可选），可在上方「预算设置」中填写后对照。</p>
+              ) : null}
               {targetStatus && targetBudget != null ? (
                 <p
                   className={
@@ -1226,7 +1223,7 @@ function BudgetForm() {
                 !reduction ? (
                   budgetDetail?.quoteId !== quoteId ? (
                     <p className="text-zinc-500">
-                      本浏览器标签页没有当前预算的明细计算结果。点击上方「按当前方案与档位重新计算预算」可恢复数量调整明细；重新计算不会改变方案或产品配置。
+                      本浏览器标签页没有当前预算的明细计算结果。点击上方「按当前方案与预算设置重新计算预算」可恢复数量调整明细；重新计算不会改变方案或产品配置。
                     </p>
                   ) : piSnapshotStatus === "error" ? (
                     <p className="flex flex-wrap items-center gap-3 text-amber-300">
@@ -1351,6 +1348,19 @@ function BudgetForm() {
               调整前 {preAdjustmentRange.min}–{preAdjustmentRange.max} → 调整后 {estimateMin}–
               {estimateMax}
             </p>
+          ) : null}
+          {projectId && budgetId ? (
+            <div className="space-y-2 border-t border-zinc-800 pt-4">
+              <p className="font-medium text-zinc-100">下载与后续交付</p>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={!canDownloadPdf}
+                className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                下载预算 PDF
+              </button>
+            </div>
           ) : null}
           {pdfDownloaded ? (
             <p className="text-sm text-emerald-300">

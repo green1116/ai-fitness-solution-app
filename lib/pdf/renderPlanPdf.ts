@@ -134,6 +134,10 @@ export type PlaceholderLike = {
   brand: string | null;
   model: string | null;
   imageUrl: string | null;
+  /** Quote plan sources only; DB rows omit these. */
+  productSource?: "customer-specified" | null;
+  quantityConfirmed?: boolean;
+  priceVerified?: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -322,6 +326,11 @@ export function normalizePlaceholders(rows: PlaceholderLike[] | ProductPlacehold
     brand: row.brand ?? undefined,
     model: row.model ?? undefined,
     imageUrl: row.imageUrl ?? undefined,
+    ...(row.productSource === "customer-specified"
+      ? { productSource: "customer-specified" as const }
+      : {}),
+    ...(row.quantityConfirmed === true ? { quantityConfirmed: true } : {}),
+    ...(row.priceVerified === true ? { priceVerified: true } : {}),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }));
@@ -464,11 +473,22 @@ function expandConfigLine(
     : "原则上固定配置，变更须履行变更审批";
   const brand = p.brand?.trim();
   const model = p.model?.trim();
+  const quantityLabel = p.quantityConfirmed === true ? "确认数量" : "建议数量";
+  const productLines =
+    brand && model
+      ? [
+          p.productSource === "customer-specified"
+            ? `   客户指定：${brand} ${model}`
+            : `   参考候选：${brand} ${model}（非采购确认）`,
+          "   参数状态：未核实",
+          p.priceVerified === true
+            ? "   单价已核实，详见预算"
+            : "   单价未核实（预算按品类与档位估算）",
+        ]
+      : [];
   return [
-    `${i + 1}. ${title}（建议数量 ${p.quantity} 台/套；档次：${band}）`,
-    ...(brand && model
-      ? [`   方案候选配置：${brand} ${model}（参考候选 / 未核实，非采购确认）`]
-      : []),
+    `${i + 1}. ${title}（${quantityLabel}：${p.quantity} 台/套；档次：${band}）`,
+    ...productLines,
     `   技术响应：满足招标技术条款与安全规范；技术要点 ${tags}；${replaceNote}`,
     `   商务响应：供货、安装、培训、质保可追溯；与 ${ctx.brand} 交付体系及合同节点对齐`,
     `   说明：${p.recommendationReason || "满足分区功能与使用强度要求"}；中标后可按集采结果替换确定型号；不含土建改造与特殊吊装（另有约定除外）`,

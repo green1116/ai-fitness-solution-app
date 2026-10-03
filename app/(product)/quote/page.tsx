@@ -174,8 +174,10 @@ type ProductIntelligenceView = {
 };
 
 type SlotDraft = {
-  mode: "template" | "candidate" | "remove";
+  mode: "template" | "candidate" | "custom" | "remove";
   candidateId?: string;
+  customBrand?: string;
+  customModel?: string;
   quantity: string;
   unitPrice?: string;
   priceSourceType?: PriceFactSourceType | "";
@@ -187,9 +189,14 @@ type SelectionPayloadItem = {
   slotKey: string;
   action: "confirm" | "replace" | "remove";
   candidateId?: string | null;
+  /** Customer-specified product; identity / source / verification are set by the server. */
+  customProduct?: { brand: string; model: string };
   quantity?: number;
   priceFact?: PriceFactView;
 };
+
+const CUSTOMER_SPECIFIED_SOURCE = "customer-specified";
+const MAX_CUSTOM_PRODUCT_FIELD_LENGTH = 100;
 
 const PRICE_SOURCE_OPTIONS: Array<{ value: PriceFactSourceType; label: string }> = [
   { value: "supplier_quote", label: "供应商报价" },
@@ -213,6 +220,34 @@ function priceDraftFromFact(fact: PriceFactView | undefined): Partial<SlotDraft>
   };
 }
 
+/** Concrete product (reference candidate or customer-specified) that a verified price can attach to. */
+function draftHasProduct(draft: SlotDraft): boolean {
+  return draft.mode === "candidate" || draft.mode === "custom";
+}
+
+function customProductFromDraft(draft: SlotDraft): { brand: string; model: string } | undefined {
+  if (draft.mode !== "custom") return undefined;
+  const brand = draft.customBrand?.trim() ?? "";
+  const model = draft.customModel?.trim() ?? "";
+  if (!brand || !model) return undefined;
+  if (brand.length > MAX_CUSTOM_PRODUCT_FIELD_LENGTH || model.length > MAX_CUSTOM_PRODUCT_FIELD_LENGTH) {
+    return undefined;
+  }
+  return { brand, model };
+}
+
+function customDraftError(draft: SlotDraft): string | null {
+  if (draft.mode !== "custom") return null;
+  const brand = draft.customBrand?.trim() ?? "";
+  const model = draft.customModel?.trim() ?? "";
+  if (!brand) return "请填写客户指定产品的品牌";
+  if (!model) return "请填写客户指定产品的型号";
+  if (brand.length > MAX_CUSTOM_PRODUCT_FIELD_LENGTH || model.length > MAX_CUSTOM_PRODUCT_FIELD_LENGTH) {
+    return `品牌与型号均不超过 ${MAX_CUSTOM_PRODUCT_FIELD_LENGTH} 字`;
+  }
+  return null;
+}
+
 function hasPriceDraft(draft: SlotDraft): boolean {
   return Boolean(
     draft.unitPrice?.trim() ||
@@ -224,7 +259,7 @@ function hasPriceDraft(draft: SlotDraft): boolean {
 
 /** All-or-nothing: a partially filled price is invalid, never defaulted. */
 function priceDraftError(draft: SlotDraft): string | null {
-  if (draft.mode !== "candidate" || !hasPriceDraft(draft)) return null;
+  if (!draftHasProduct(draft) || !hasPriceDraft(draft)) return null;
   const price = Number(draft.unitPrice?.trim());
   if (!draft.unitPrice?.trim() || !Number.isFinite(price) || price <= 0 || price > 10_000_000) {
     return "核实单价需为大于 0 的数值";
@@ -236,7 +271,7 @@ function priceDraftError(draft: SlotDraft): string | null {
 }
 
 function priceFactFromDraft(draft: SlotDraft): PriceFactView | undefined {
-  if (draft.mode !== "candidate" || !hasPriceDraft(draft) || priceDraftError(draft)) {
+  if (!draftHasProduct(draft) || !hasPriceDraft(draft) || priceDraftError(draft)) {
     return undefined;
   }
   return {
@@ -265,6 +300,7 @@ const REQUIREMENT_STATUS_CLASS: Record<RequirementStatus, string> = {
 };
 
 const REFERENCE_CANDIDATE_BADGE = "参考候选 / 未核实";
+const CUSTOMER_SPECIFIED_BADGE = "客户指定 / 参数未核实";
 const NO_CANDIDATE_TEXT = "暂无已验证候选，保留 AI 建议配置";
 
 /** Saved quantity of the current Quote version for a slot; read-only view of existing selections. */
@@ -341,6 +377,14 @@ function initialSlotDrafts(view: ProductIntelligenceView): {
       drafts[slot.slotKey] = { mode: "template", quantity: "" };
     } else if (selection.action === "remove") {
       drafts[slot.slotKey] = { mode: "remove", quantity: "" };
+    } else if (selection.candidate?.source === CUSTOMER_SPECIFIED_SOURCE) {
+      drafts[slot.slotKey] = {
+        mode: "custom",
+        customBrand: selection.candidate.brand,
+        customModel: selection.candidate.model,
+        quantity,
+        ...priceDraftFromFact(selection.priceFact),
+      };
     } else if (selection.candidate) {
       const exists = slot.candidates.some(
         (c) => c.candidateId === selection.candidate?.candidateId,
@@ -377,6 +421,17 @@ function buildSelectionPayload(
     const quantity = qtyText ? Number(qtyText) : undefined;
     if (draft.mode === "remove") {
       out.push({ slotKey: slot.slotKey, action: "remove" });
+    } else if (draft.mode === "custom") {
+      const customProduct = customProductFromDraft(draft);
+      if (!customProduct) continue;
+      const priceFact = priceFactFromDraft(draft);
+      out.push({
+        slotKey: slot.slotKey,
+        action: "replace",
+        customProduct,
+        ...(quantity != null ? { quantity } : {}),
+        ...(priceFact ? { priceFact } : {}),
+      });
     } else if (draft.mode === "candidate" && draft.candidateId) {
       const priceFact = priceFactFromDraft(draft);
       out.push({
@@ -924,7 +979,8 @@ function QuoteForm() {
   const selectionPayload = piView ? buildSelectionPayload(piView.slots, slotDrafts) : [];
   const selectionDirty = JSON.stringify(selectionPayload) !== initialSelectionJson;
   const draftQuantitiesValid = Object.values(slotDrafts).every(
-    (d) => isValidDraftQuantity(d.quantity) && priceDraftError(d) == null,
+    (d) =>
+      isValidDraftQuantity(d.quantity) && priceDraftError(d) == null && customDraftError(d) == null,
   );
 
   /** Persists the full configuration (every slot) as a NEW Quote version — the only confirmation fact. */
@@ -1868,7 +1924,10 @@ function QuoteForm() {
                   候选来自当前参考目录，标注「参考候选 / 未核实」；型号参数与价格均未核实，不代表采购承诺。
                 </p>
                 <p className="text-xs text-zinc-500">
-                  预算单价默认按预算档位估算，仅在为已选候选填写供应商报价或采购合同的核实单价后按核实价计价。
+                  参考目录中没有的产品，可选择「客户指定产品」并填写品牌与型号，标注「客户指定 / 参数未核实」；它不属于参考目录，产品参数同样未核实。
+                </p>
+                <p className="text-xs text-zinc-500">
+                  预算单价默认按预算档位估算，仅在为已选候选或客户指定产品填写供应商报价或采购合同的核实单价后按核实价计价。
                 </p>
                 {piView.slots.length === 0 ? (
                   <p className="text-sm text-amber-300">
@@ -1970,6 +2029,64 @@ function QuoteForm() {
                           </label>
                         ))
                       )}
+                      <label className="flex items-start gap-2 rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300">
+                        <input
+                          type="radio"
+                          className="mt-1"
+                          name={groupName}
+                          checked={draft.mode === "custom"}
+                          onChange={() =>
+                            updateSlotDraft(slot.slotKey, {
+                              mode: "custom",
+                              candidateId: undefined,
+                              ...EMPTY_PRICE_DRAFT,
+                            })
+                          }
+                          disabled={piSaving}
+                        />
+                        <span className="space-y-1">
+                          <span className="block">
+                            客户指定产品（不在参考目录中）
+                            <span className="ml-2 rounded border border-sky-700 px-1.5 py-0.5 text-xs text-sky-300">
+                              {CUSTOMER_SPECIFIED_BADGE}
+                            </span>
+                          </span>
+                          <span className="block text-xs text-zinc-400">
+                            品牌与型号由客户提供；产品参数、供货与售后能力需向供应商核实。
+                          </span>
+                        </span>
+                      </label>
+                      {draft.mode === "custom" ? (
+                        <div className="space-y-2 rounded-md border border-zinc-800 px-3 py-2 text-xs text-zinc-400">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input
+                              type="text"
+                              maxLength={MAX_CUSTOM_PRODUCT_FIELD_LENGTH}
+                              className="w-44 rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100"
+                              placeholder="品牌（必填）"
+                              value={draft.customBrand ?? ""}
+                              onChange={(e) =>
+                                updateSlotDraft(slot.slotKey, { customBrand: e.target.value })
+                              }
+                              disabled={piSaving}
+                            />
+                            <input
+                              type="text"
+                              maxLength={MAX_CUSTOM_PRODUCT_FIELD_LENGTH}
+                              className="w-44 rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100"
+                              placeholder="型号（必填）"
+                              value={draft.customModel ?? ""}
+                              onChange={(e) =>
+                                updateSlotDraft(slot.slotKey, { customModel: e.target.value })
+                              }
+                              disabled={piSaving}
+                            />
+                          </div>
+                          {customDraftError(draft) ? (
+                            <p className="text-rose-300">{customDraftError(draft)}</p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <label className="flex items-center gap-2 text-sm text-zinc-300">
                         <input
                           type="radio"
@@ -2008,7 +2125,7 @@ function QuoteForm() {
                           ) : null}
                         </label>
                       ) : null}
-                      {draft.mode === "candidate" ? (
+                      {draftHasProduct(draft) ? (
                         <div className="space-y-2 rounded-md border border-zinc-800 px-3 py-2 text-xs text-zinc-400">
                           <p>
                             核实单价（可选）：仅在已取得供应商报价或采购合同时填写，四项需同时填写；未填写则按预算档位估算。
@@ -2174,7 +2291,11 @@ function QuoteForm() {
                     selection?.action === "remove"
                       ? "已移除"
                       : selection?.candidate
-                        ? `${selection.candidate.brand} ${selection.candidate.model}`
+                        ? `${selection.candidate.brand} ${selection.candidate.model}${
+                            selection.candidate.source === CUSTOMER_SPECIFIED_SOURCE
+                              ? `（${CUSTOMER_SPECIFIED_BADGE}）`
+                              : ""
+                          }`
                         : "沿用 AI 建议";
                   return (
                     <li key={slot.slotKey}>

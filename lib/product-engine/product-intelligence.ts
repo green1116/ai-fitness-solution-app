@@ -2,8 +2,10 @@
  * PI.1 Product Intelligence — requirement status, reference candidates,
  * professional selections. Pure helpers (no DB); persisted only inside Quote JSON.
  *
- * Candidates come from the static/mock SKU catalog and are always
- * "reference-catalog" + "unverified". Selections never carry catalog prices;
+ * Slot candidates come from the static/mock SKU catalog and are always
+ * "reference-catalog" + "unverified". A selection may instead name a
+ * "customer-specified" product (brand + model, identity generated server-side),
+ * which is also always "unverified". Selections never carry catalog prices;
  * a verified price exists only as an explicitly supplied, validated `priceFact`.
  */
 
@@ -39,7 +41,7 @@ export type RequirementStatusItem = {
   question?: string;
 };
 
-export type ProductCandidateSource = "reference-catalog";
+export type ProductCandidateSource = "reference-catalog" | "customer-specified";
 export type ProductCandidateVerificationStatus = "unverified";
 
 export type ProductCandidate = {
@@ -72,6 +74,8 @@ export type ProductSelectionInput = {
   slotKey: string;
   action: ProductSelectionAction;
   candidateId?: string | null;
+  /** `{ brand, model }` of a product outside the reference catalog; requires action "replace". */
+  customProduct?: unknown;
   quantity?: number | null;
   priceFact?: unknown;
 };
@@ -107,6 +111,15 @@ const MAX_PRICE_SOURCE_REFERENCE_LENGTH = 200;
 const PRICE_FACT_SOURCE_TYPES: readonly PriceFactSourceType[] = [
   "supplier_quote",
   "procurement_contract",
+];
+
+export const CUSTOM_CANDIDATE_ID_PREFIX = "custom:";
+const MAX_CUSTOM_PRODUCT_FIELD_LENGTH = 100;
+const CONTROL_CHAR_RE = /[\u0000-\u001f\u007f]/;
+const CUSTOM_PRODUCT_FIT_REASON = "客户指定产品（不在参考目录中），品牌与型号由客户提供";
+const CUSTOM_PRODUCT_OPEN_QUESTIONS = [
+  "产品参数由客户提供，需向供应商索取最新参数表核实",
+  "供货周期与本地安装/售后能力待确认",
 ];
 
 /** Template subCategory → catalog categories. Unmapped / empty => no candidates. */
@@ -453,9 +466,93 @@ export function validatePriceFact(
   };
 }
 
+function normalizeCustomProductField(value: unknown): string {
+  return typeof value === "string" ? value.normalize("NFC").replace(/\s+/g, " ").trim() : "";
+}
+
+export type CustomProductValidation =
+  | { ok: true; brand: string; model: string }
+  | { ok: false; message: string };
+
+/** Validates `{ brand, model }` of a customer-specified product; every other field is ignored. */
+export function validateCustomProduct(value: unknown): CustomProductValidation {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ok: false, message: "客户指定产品格式无效" };
+  }
+  const row = value as Record<string, unknown>;
+  const fields = [
+    ["品牌", normalizeCustomProductField(row.brand)],
+    ["型号", normalizeCustomProductField(row.model)],
+  ] as const;
+  for (const [label, text] of fields) {
+    if (!text) return { ok: false, message: `请填写客户指定产品的${label}` };
+    if (text.length > MAX_CUSTOM_PRODUCT_FIELD_LENGTH) {
+      return {
+        ok: false,
+        message: `客户指定产品的${label}不超过 ${MAX_CUSTOM_PRODUCT_FIELD_LENGTH} 字`,
+      };
+    }
+    if (CONTROL_CHAR_RE.test(text)) {
+      return { ok: false, message: `客户指定产品的${label}包含无效字符` };
+    }
+  }
+  return { ok: true, brand: fields[0][1], model: fields[1][1] };
+}
+
+/**
+ * Deterministic, case-insensitive identity of a normalized customer-specified product.
+ * encodeURIComponent escapes ":" so the id is injective, and the prefix never matches a catalog id.
+ */
+export function customProductCandidateId(brand: string, model: string): string {
+  return `${CUSTOM_CANDIDATE_ID_PREFIX}${encodeURIComponent(brand.toLowerCase())}:${encodeURIComponent(model.toLowerCase())}`;
+}
+
+function buildCustomProductCandidate(
+  brand: string,
+  model: string,
+  category: string,
+): ProductCandidate {
+  return {
+    candidateId: customProductCandidateId(brand, model),
+    brand,
+    model,
+    category,
+    keySpecs: [],
+    fitReason: CUSTOM_PRODUCT_FIT_REASON,
+    source: "customer-specified",
+    verificationStatus: "unverified",
+    openQuestions: [...CUSTOM_PRODUCT_OPEN_QUESTIONS],
+  };
+}
+
+/** Customer-specified identity survives a read only in its canonical server-written form. */
+function readStoredCustomCandidate(row: Record<string, unknown>): ProductCandidate | null {
+  if (row.source !== "customer-specified" || row.verificationStatus !== "unverified") {
+    return null;
+  }
+  const checked = validateCustomProduct(row);
+  if (!checked.ok || checked.brand !== row.brand || checked.model !== row.model) return null;
+  if (row.candidateId !== customProductCandidateId(checked.brand, checked.model)) return null;
+  return {
+    candidateId: row.candidateId,
+    brand: checked.brand,
+    model: checked.model,
+    category: typeof row.category === "string" ? row.category : "",
+    keySpecs: toStringList(row.keySpecs),
+    fitReason: typeof row.fitReason === "string" ? row.fitReason : "",
+    source: "customer-specified",
+    verificationStatus: "unverified",
+    openQuestions: toStringList(row.openQuestions),
+  };
+}
+
 function readStoredCandidate(value: unknown): ProductCandidate | null {
   if (!value || typeof value !== "object") return null;
   const row = value as Record<string, unknown>;
+  const storedId = typeof row.candidateId === "string" ? row.candidateId.trim() : "";
+  if (row.source === "customer-specified" || storedId.startsWith(CUSTOM_CANDIDATE_ID_PREFIX)) {
+    return readStoredCustomCandidate(row);
+  }
   const brand = typeof row.brand === "string" ? row.brand.trim() : "";
   const model = typeof row.model === "string" ? row.model.trim() : "";
   if (!brand || !model) return null;
@@ -513,7 +610,8 @@ export class ProductSelectionInputError extends Error {
 
 /**
  * Resolve client input against the server-side slots/candidates.
- * Candidate data is always re-read from the catalog (client cannot inject products).
+ * Catalog candidates are always re-read from the catalog; a customer-specified product
+ * contributes only brand + model, and its identity / source / verification are server-set.
  */
 export function resolveProductSelectionInputs(input: {
   inputs: unknown;
@@ -553,7 +651,25 @@ export function resolveProductSelectionInputs(input: {
     }
 
     let candidate: ProductCandidate | null = null;
-    if (action !== "remove") {
+    if (row.customProduct != null) {
+      if (action !== "replace") {
+        throw new ProductSelectionInputError(`客户指定产品需使用替换操作：${slot.subCategory}`);
+      }
+      if (typeof row.candidateId === "string" && row.candidateId.trim()) {
+        throw new ProductSelectionInputError(
+          `客户指定产品不能同时指定参考候选：${slot.subCategory}`,
+        );
+      }
+      const custom = validateCustomProduct(row.customProduct);
+      if (!custom.ok) {
+        throw new ProductSelectionInputError(`${custom.message}：${slot.subCategory}`);
+      }
+      candidate = buildCustomProductCandidate(custom.brand, custom.model, slot.subCategory);
+      const customId = candidate.candidateId;
+      if (slot.candidates.some((c) => c.candidateId === customId)) {
+        throw new ProductSelectionInputError(`客户指定产品标识冲突：${slot.subCategory}`);
+      }
+    } else if (action !== "remove") {
       const candidateId =
         typeof row.candidateId === "string" ? row.candidateId.trim() : "";
       if (candidateId) {
@@ -657,6 +773,9 @@ export function applyProductSelections<T extends ProductPlaceholder>(
       next.skuName = `${selection.candidate.brand} ${selection.candidate.model}`;
       if (selection.candidate.candidateId) next.skuId = selection.candidate.candidateId;
       if (selection.priceFact) next.priceFact = selection.priceFact;
+      if (selection.candidate.source === "customer-specified") {
+        next.productSource = "customer-specified";
+      }
     }
     appliedCount += 1;
     out.push(next);
@@ -697,7 +816,9 @@ function readStoredSlots(value: unknown): ProductCandidateSlot[] | null {
     const candidates = Array.isArray(row.candidates)
       ? row.candidates
           .map(readStoredCandidate)
-          .filter((c): c is ProductCandidate => c != null)
+          .filter(
+            (c): c is ProductCandidate => c != null && c.source === "reference-catalog",
+          )
       : [];
     slots.push({
       slotKey,

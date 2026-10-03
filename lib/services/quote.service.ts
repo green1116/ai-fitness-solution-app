@@ -10,6 +10,8 @@ import {
   applyQuoteRevisionOverrides,
   buildCandidateSlots,
   buildProductIntelligenceSnapshot,
+  PRODUCT_SLOT_CATEGORIES,
+  productSlotKey,
   readStoredProductIntelligence,
   readStoredProductSelections,
   resolveProductSelectionInputs,
@@ -315,6 +317,16 @@ export function buildQuotePlanPdfSource(
     console.warn("[quote/pdf] product selection warnings", quote.id, selected.warnings);
   }
   const placeholdersData = selected.placeholders;
+  const confirmedQuantitySlots = new Set(
+    (companyInfo.productSelections ?? [])
+      .filter(
+        (s) =>
+          s.action !== "remove" &&
+          s.quantity != null &&
+          !(s.action === "replace" && !s.candidate),
+      )
+      .map((s) => s.slotKey),
+  );
 
   const solution = {
     id: `quote-pdf-solution-${quote.id}`,
@@ -347,6 +359,11 @@ export function buildQuotePlanPdfSource(
     brand: item.brand ?? null,
     model: item.model ?? null,
     imageUrl: item.imageUrl ?? null,
+    productSource: item.productSource ?? null,
+    quantityConfirmed:
+      PRODUCT_SLOT_CATEGORIES.some((c) => c === item.category) &&
+      confirmedQuantitySlots.has(productSlotKey(item.category, item.subCategory)),
+    priceVerified: Boolean(item.brand?.trim() && item.model?.trim() && item.priceFact),
     createdAt: now,
     updatedAt: now,
   }));

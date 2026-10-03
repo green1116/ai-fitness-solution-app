@@ -173,6 +173,8 @@ export type AdjustedSnapshotResult =
  * Full configuration snapshot over every current PI slot (same contract as the Quote page).
  * Existing selections keep action, candidate, quantity and priceFact; only approved slots get a
  * new quantity. Slots without a selection become explicit template confirmations.
+ * A customer-specified candidate (as emitted by the canonical stored-selection reader) is re-sent
+ * as `customProduct: { brand, model }`; the server re-derives its identity on save.
  */
 export function buildAdjustedSelectionSnapshot(input: {
   slots: ProductCandidateSlot[];
@@ -200,6 +202,30 @@ export function buildAdjustedSelectionSnapshot(input: {
     if (existing.action === "remove") {
       if (approvedQuantity != null) blockedSlots.push(slot.subCategory);
       else out.push({ slotKey: slot.slotKey, action: "remove" });
+      continue;
+    }
+
+    const custom = existing.candidate?.source === "customer-specified" ? existing.candidate : null;
+    if (custom) {
+      const brand = typeof custom.brand === "string" ? custom.brand : "";
+      const model = typeof custom.model === "string" ? custom.model : "";
+      if (
+        existing.action !== "replace" ||
+        custom.verificationStatus !== "unverified" ||
+        !brand.trim() ||
+        !model.trim()
+      ) {
+        blockedSlots.push(slot.subCategory);
+        continue;
+      }
+      const customQuantity = approvedQuantity ?? existing.quantity;
+      out.push({
+        slotKey: slot.slotKey,
+        action: "replace",
+        customProduct: { brand, model },
+        ...(customQuantity != null ? { quantity: customQuantity } : {}),
+        ...(existing.priceFact ? { priceFact: existing.priceFact } : {}),
+      });
       continue;
     }
 

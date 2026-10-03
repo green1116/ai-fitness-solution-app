@@ -293,6 +293,29 @@ type StrictItem = {
   priceSource?: string;
 };
 
+/** Configuration context generateBudget appends as the last segment of an ESTIMATE remark. */
+const ESTIMATE_CONFIG_CONTEXT_RE = /当前配置：.+$/;
+
+/** Footnotes under the detailed table: basis legend, verified sources, estimate configuration context. */
+export function budgetPriceBasisLines(
+  items: Array<Pick<StrictItem, "name" | "note" | "priceBasis" | "priceSource">>,
+): string[] {
+  return [
+    items.some((it) => it.priceBasis === "VERIFIED")
+      ? "[核实] 按显式提供来源的核实单价计价，不随预算档位变化；[估算] 按品类 × 预算档位的单价区间估算。"
+      : "[估算] 按品类 × 预算档位的单价区间估算。",
+    ...items
+      .filter((it) => it.priceBasis === "VERIFIED" && it.priceSource)
+      .map((it) => `核实单价来源：${it.name} — ${it.priceSource}`),
+    ...items
+      .filter((it) => it.priceBasis === "ESTIMATE")
+      .flatMap((it) => {
+        const context = it.note?.match(ESTIMATE_CONFIG_CONTEXT_RE)?.[0];
+        return context ? [`[估算] ${it.name} — ${context}`] : [];
+      }),
+  ];
+}
+
 type StrictSummary = {
   docNo: string;
   planId: string;
@@ -1019,14 +1042,7 @@ async function renderBrand2Pages(
     });
 
     if (strict.items.some((it) => it.priceBasis)) {
-      const basisLines = [
-        strict.items.some((it) => it.priceBasis === "VERIFIED")
-          ? "[核实] 按显式提供来源的核实单价计价，不随预算档位变化；[估算] 按品类 × 预算档位的单价区间估算。"
-          : "[估算] 按品类 × 预算档位的单价区间估算。",
-        ...strict.items
-          .filter((it) => it.priceBasis === "VERIFIED" && it.priceSource)
-          .map((it) => `核实单价来源：${it.name} — ${it.priceSource}`),
-      ];
+      const basisLines = budgetPriceBasisLines(strict.items);
       y -= 14;
       for (const b of basisLines) {
         const lines = wrapTextCN(b, {
