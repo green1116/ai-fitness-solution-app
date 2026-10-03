@@ -67,6 +67,13 @@ export const PRICE_FACT_SOURCE_LABEL: Record<PriceFactSourceType, string> = {
   procurement_contract: "采购合同",
 };
 
+export type PriceFactTaxStatus = "tax_included" | "tax_excluded";
+
+export const PRICE_FACT_TAX_STATUS_LABEL: Record<PriceFactTaxStatus, string> = {
+  tax_included: "含税",
+  tax_excluded: "不含税",
+};
+
 /** Explicitly supplied, validated unit price for a resolved product. Never derived from catalog data. */
 export interface ProductPriceFact {
   unitPrice: number;
@@ -75,6 +82,11 @@ export interface ProductPriceFact {
   sourceReference: string;
   /** YYYY-MM-DD */
   quotedAt: string;
+  /** Procurement metadata only: never affects VERIFIED status, unit price or totals. */
+  supplier?: string;
+  taxStatus?: PriceFactTaxStatus;
+  /** YYYY-MM-DD, >= quotedAt; an expired date keeps the price VERIFIED. */
+  validUntil?: string;
 }
 
 export type BudgetPriceBasis = "VERIFIED" | "ESTIMATE";

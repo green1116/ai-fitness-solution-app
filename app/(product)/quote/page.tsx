@@ -121,6 +121,7 @@ type ProductCandidateSlotView = {
 };
 
 type PriceFactSourceType = "supplier_quote" | "procurement_contract";
+type PriceFactTaxStatus = "tax_included" | "tax_excluded";
 
 type PriceFactView = {
   unitPrice: number;
@@ -128,6 +129,9 @@ type PriceFactView = {
   sourceType: PriceFactSourceType;
   sourceReference: string;
   quotedAt: string;
+  supplier?: string;
+  taxStatus?: PriceFactTaxStatus;
+  validUntil?: string;
 };
 
 type ProductSelectionView = {
@@ -183,6 +187,9 @@ type SlotDraft = {
   priceSourceType?: PriceFactSourceType | "";
   priceSourceReference?: string;
   priceQuotedAt?: string;
+  priceSupplier?: string;
+  priceTaxStatus?: PriceFactTaxStatus | "";
+  priceValidUntil?: string;
 };
 
 type SelectionPayloadItem = {
@@ -203,13 +210,24 @@ const PRICE_SOURCE_OPTIONS: Array<{ value: PriceFactSourceType; label: string }>
   { value: "procurement_contract", label: "采购合同" },
 ];
 
+const PRICE_TAX_STATUS_OPTIONS: Array<{ value: PriceFactTaxStatus; label: string }> = [
+  { value: "tax_included", label: "含税" },
+  { value: "tax_excluded", label: "不含税" },
+];
+
+const MAX_PRICE_SUPPLIER_LENGTH = 100;
+
 const EMPTY_PRICE_DRAFT = {
   unitPrice: "",
   priceSourceType: "" as const,
   priceSourceReference: "",
   priceQuotedAt: "",
+  priceSupplier: "",
+  priceTaxStatus: "" as const,
+  priceValidUntil: "",
 };
 
+/** Optional metadata keys appear only when the stored fact carries them (old facts hydrate unchanged). */
 function priceDraftFromFact(fact: PriceFactView | undefined): Partial<SlotDraft> {
   if (!fact) return {};
   return {
@@ -217,7 +235,21 @@ function priceDraftFromFact(fact: PriceFactView | undefined): Partial<SlotDraft>
     priceSourceType: fact.sourceType,
     priceSourceReference: fact.sourceReference,
     priceQuotedAt: fact.quotedAt,
+    ...(fact.supplier ? { priceSupplier: fact.supplier } : {}),
+    ...(fact.taxStatus ? { priceTaxStatus: fact.taxStatus } : {}),
+    ...(fact.validUntil ? { priceValidUntil: fact.validUntil } : {}),
   };
+}
+
+/** Same normalization as the server (NFC, collapsed whitespace, trimmed). */
+function normalizePriceSupplier(value: string | undefined): string {
+  return (value ?? "").normalize("NFC").replace(/\s+/g, " ").trim();
+}
+
+function priceTaxStatusFromDraft(draft: SlotDraft): PriceFactTaxStatus | undefined {
+  return draft.priceTaxStatus === "tax_included" || draft.priceTaxStatus === "tax_excluded"
+    ? draft.priceTaxStatus
+    : undefined;
 }
 
 /** Concrete product (reference candidate or customer-specified) that a verified price can attach to. */
@@ -248,7 +280,7 @@ function customDraftError(draft: SlotDraft): string | null {
   return null;
 }
 
-function hasPriceDraft(draft: SlotDraft): boolean {
+function hasRequiredPriceDraft(draft: SlotDraft): boolean {
   return Boolean(
     draft.unitPrice?.trim() ||
       draft.priceSourceType ||
@@ -257,9 +289,24 @@ function hasPriceDraft(draft: SlotDraft): boolean {
   );
 }
 
-/** All-or-nothing: a partially filled price is invalid, never defaulted. */
+function hasPriceMetadataDraft(draft: SlotDraft): boolean {
+  return Boolean(
+    normalizePriceSupplier(draft.priceSupplier) ||
+      draft.priceTaxStatus ||
+      draft.priceValidUntil?.trim(),
+  );
+}
+
+function hasPriceDraft(draft: SlotDraft): boolean {
+  return hasRequiredPriceDraft(draft) || hasPriceMetadataDraft(draft);
+}
+
+/** All-or-nothing: a partially filled price is invalid, never defaulted; metadata alone is never dropped silently. */
 function priceDraftError(draft: SlotDraft): string | null {
   if (!draftHasProduct(draft) || !hasPriceDraft(draft)) return null;
+  if (!hasRequiredPriceDraft(draft)) {
+    return "填写供应商、含税状态或有效期时，需同时填写核实单价、来源类型、来源编号和报价日期";
+  }
   const price = Number(draft.unitPrice?.trim());
   if (!draft.unitPrice?.trim() || !Number.isFinite(price) || price <= 0 || price > 10_000_000) {
     return "核实单价需为大于 0 的数值";
@@ -267,6 +314,14 @@ function priceDraftError(draft: SlotDraft): string | null {
   if (!draft.priceSourceType) return "请选择价格来源类型";
   if (!draft.priceSourceReference?.trim()) return "请填写报价单号 / 合同号";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.priceQuotedAt?.trim() ?? "")) return "请填写报价日期";
+  if (normalizePriceSupplier(draft.priceSupplier).length > MAX_PRICE_SUPPLIER_LENGTH) {
+    return `供应商不超过 ${MAX_PRICE_SUPPLIER_LENGTH} 字`;
+  }
+  const validUntil = draft.priceValidUntil?.trim() ?? "";
+  if (validUntil) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) return "请填写有效的报价有效期";
+    if (validUntil < draft.priceQuotedAt!.trim()) return "报价有效期不能早于报价日期";
+  }
   return null;
 }
 
@@ -274,12 +329,18 @@ function priceFactFromDraft(draft: SlotDraft): PriceFactView | undefined {
   if (!draftHasProduct(draft) || !hasPriceDraft(draft) || priceDraftError(draft)) {
     return undefined;
   }
+  const supplier = normalizePriceSupplier(draft.priceSupplier);
+  const taxStatus = priceTaxStatusFromDraft(draft);
+  const validUntil = draft.priceValidUntil?.trim() ?? "";
   return {
     unitPrice: Number(draft.unitPrice!.trim()),
     currency: "CNY",
     sourceType: draft.priceSourceType as PriceFactSourceType,
     sourceReference: draft.priceSourceReference!.trim(),
     quotedAt: draft.priceQuotedAt!.trim(),
+    ...(supplier ? { supplier } : {}),
+    ...(taxStatus ? { taxStatus } : {}),
+    ...(validUntil ? { validUntil } : {}),
   };
 }
 
@@ -2128,7 +2189,7 @@ function QuoteForm() {
                       {draftHasProduct(draft) ? (
                         <div className="space-y-2 rounded-md border border-zinc-800 px-3 py-2 text-xs text-zinc-400">
                           <p>
-                            核实单价（可选）：仅在已取得供应商报价或采购合同时填写，四项需同时填写；未填写则按预算档位估算。
+                            核实单价（可选）：仅在已取得供应商报价或采购合同时填写；未填写则按预算档位估算。核实单价、来源类型、来源编号和报价日期为必填；供应商、含税状态和有效期可选，仅记录报价来源信息，不代表对供应商的认证。
                           </p>
                           <div className="flex flex-wrap items-center gap-2">
                             <input
@@ -2182,6 +2243,48 @@ function QuoteForm() {
                               }
                               disabled={piSaving}
                             />
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input
+                              type="text"
+                              maxLength={MAX_PRICE_SUPPLIER_LENGTH}
+                              className="w-56 rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100"
+                              placeholder="报价供应商（可选）"
+                              value={draft.priceSupplier ?? ""}
+                              onChange={(e) =>
+                                updateSlotDraft(slot.slotKey, { priceSupplier: e.target.value })
+                              }
+                              disabled={piSaving}
+                            />
+                            <select
+                              className="rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100"
+                              value={draft.priceTaxStatus ?? ""}
+                              onChange={(e) =>
+                                updateSlotDraft(slot.slotKey, {
+                                  priceTaxStatus: e.target.value as PriceFactTaxStatus | "",
+                                })
+                              }
+                              disabled={piSaving}
+                            >
+                              <option value="">含税状态：未注明</option>
+                              {PRICE_TAX_STATUS_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                  {o.label}
+                                </option>
+                              ))}
+                            </select>
+                            <label className="flex items-center gap-1">
+                              有效期至（可选）
+                              <input
+                                type="date"
+                                className="rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100"
+                                value={draft.priceValidUntil ?? ""}
+                                onChange={(e) =>
+                                  updateSlotDraft(slot.slotKey, { priceValidUntil: e.target.value })
+                                }
+                                disabled={piSaving}
+                              />
+                            </label>
                           </div>
                           {priceDraftError(draft) ? (
                             <p className="text-rose-300">{priceDraftError(draft)}</p>

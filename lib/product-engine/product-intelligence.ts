@@ -12,6 +12,7 @@
 import type {
   PriceBand,
   PriceFactSourceType,
+  PriceFactTaxStatus,
   ProductPlaceholder,
   ProductPriceFact,
 } from "@/lib/domain/tender";
@@ -112,6 +113,8 @@ const PRICE_FACT_SOURCE_TYPES: readonly PriceFactSourceType[] = [
   "supplier_quote",
   "procurement_contract",
 ];
+export const MAX_PRICE_FACT_SUPPLIER_LENGTH = 100;
+const PRICE_FACT_TAX_STATUSES: readonly PriceFactTaxStatus[] = ["tax_included", "tax_excluded"];
 
 export const CUSTOM_CANDIDATE_ID_PREFIX = "custom:";
 const MAX_CUSTOM_PRODUCT_FIELD_LENGTH = 100;
@@ -405,13 +408,64 @@ export type PriceFactValidation =
   | { ok: true; priceFact: ProductPriceFact }
   | { ok: false; message: string };
 
+type PriceFactMetadata = Pick<ProductPriceFact, "supplier" | "taxStatus" | "validUntil">;
+
+/**
+ * Optional procurement metadata. An absent field is omitted (never defaulted);
+ * `errors` lists every supplied-but-invalid field, whose value is left out of `metadata`.
+ */
+function readPriceFactMetadata(
+  row: Record<string, unknown>,
+  quotedAt: string,
+): { metadata: PriceFactMetadata; errors: string[] } {
+  const metadata: PriceFactMetadata = {};
+  const errors: string[] = [];
+  if (row.supplier != null) {
+    if (typeof row.supplier !== "string") {
+      errors.push("供应商需为文本");
+    } else {
+      const supplier = normalizeCustomProductField(row.supplier);
+      if (supplier.length > MAX_PRICE_FACT_SUPPLIER_LENGTH) {
+        errors.push(`供应商不超过 ${MAX_PRICE_FACT_SUPPLIER_LENGTH} 字`);
+      } else if (CONTROL_CHAR_RE.test(supplier)) {
+        errors.push("供应商包含无效字符");
+      } else if (supplier) {
+        metadata.supplier = supplier;
+      }
+    }
+  }
+  if (row.taxStatus != null) {
+    if (
+      typeof row.taxStatus === "string" &&
+      (PRICE_FACT_TAX_STATUSES as readonly string[]).includes(row.taxStatus)
+    ) {
+      metadata.taxStatus = row.taxStatus as PriceFactTaxStatus;
+    } else {
+      errors.push("含税状态需为含税或不含税");
+    }
+  }
+  if (row.validUntil != null) {
+    const validUntil = typeof row.validUntil === "string" ? row.validUntil.trim() : "";
+    if (!isCalendarDate(validUntil)) {
+      errors.push("报价有效期格式需为 YYYY-MM-DD");
+    } else if (validUntil < quotedAt) {
+      errors.push("报价有效期不能早于报价日期");
+    } else {
+      metadata.validUntil = validUntil;
+    }
+  }
+  return { metadata, errors };
+}
+
 /**
  * Validates an explicitly supplied Price Fact. Missing fields are never defaulted.
  * `now` enables the "not in the future" check (1-day tolerance for time zones).
+ * `lenientMetadata` (stored reads) drops invalid procurement metadata field by field instead of
+ * rejecting the fact, so metadata can never demote a valid verified price to an estimate.
  */
 export function validatePriceFact(
   value: unknown,
-  options: { now?: Date } = {},
+  options: { now?: Date; lenientMetadata?: boolean } = {},
 ): PriceFactValidation {
   if (!value || typeof value !== "object") {
     return { ok: false, message: "核实单价格式无效" };
@@ -454,6 +508,10 @@ export function validatePriceFact(
       return { ok: false, message: "报价日期不能晚于今天" };
     }
   }
+  const { metadata, errors } = readPriceFactMetadata(row, quotedAt);
+  if (errors.length > 0 && !options.lenientMetadata) {
+    return { ok: false, message: errors[0] };
+  }
   return {
     ok: true,
     priceFact: {
@@ -462,6 +520,9 @@ export function validatePriceFact(
       sourceType: sourceType as PriceFactSourceType,
       sourceReference,
       quotedAt,
+      ...(metadata.supplier ? { supplier: metadata.supplier } : {}),
+      ...(metadata.taxStatus ? { taxStatus: metadata.taxStatus } : {}),
+      ...(metadata.validUntil ? { validUntil: metadata.validUntil } : {}),
     },
   };
 }
@@ -585,7 +646,9 @@ export function readStoredProductSelections(value: unknown): ProductSelection[] 
     const quantity = readQuantity(row.quantity);
     const candidate = action === "remove" ? null : readStoredCandidate(row.candidate);
     const storedPriceFact =
-      candidate && row.priceFact != null ? validatePriceFact(row.priceFact) : null;
+      candidate && row.priceFact != null
+        ? validatePriceFact(row.priceFact, { lenientMetadata: true })
+        : null;
     bySlot.set(slotKey, {
       slotKey,
       action,

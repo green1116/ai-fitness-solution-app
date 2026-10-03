@@ -5,6 +5,7 @@ import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PDFFont, PDFPage, rgb, StandardFonts } from "pdf-lib";
 
 import { getBudgetSummary } from "@/lib/services/budgetService";
+import { PRICE_FACT_TAX_STATUS_LABEL } from "@/lib/domain/tender";
 import type { BudgetSummary } from "@/lib/pdf/contracts/budgetSummary";
 import { wrapTextCN } from "@/lib/pdf/engine/text";
 import {
@@ -296,17 +297,27 @@ type StrictItem = {
 /** Configuration context generateBudget appends as the last segment of an ESTIMATE remark. */
 const ESTIMATE_CONFIG_CONTEXT_RE = /当前配置：.+$/;
 
+export const VERIFIED_PRICE_SOURCE_PREFIX = "核实单价来源：";
+
+export const VERIFIED_PRICE_TAX_NOTE =
+  "核实单价按录入价格计入；含税状态仅作采购事实记录，系统未进行税额换算。";
+
+const TAX_STATUS_LABELS = new Set<string>(Object.values(PRICE_FACT_TAX_STATUS_LABEL));
+
 /** Footnotes under the detailed table: basis legend, verified sources, estimate configuration context. */
 export function budgetPriceBasisLines(
   items: Array<Pick<StrictItem, "name" | "note" | "priceBasis" | "priceSource">>,
 ): string[] {
+  const verifiedSources = items.filter((it) => it.priceBasis === "VERIFIED" && it.priceSource);
+  const taxStatusDisclosed = verifiedSources.some((it) =>
+    it.priceSource!.split(" · ").some((segment) => TAX_STATUS_LABELS.has(segment)),
+  );
   return [
     items.some((it) => it.priceBasis === "VERIFIED")
       ? "[核实] 按显式提供来源的核实单价计价，不随预算档位变化；[估算] 按品类 × 预算档位的单价区间估算。"
       : "[估算] 按品类 × 预算档位的单价区间估算。",
-    ...items
-      .filter((it) => it.priceBasis === "VERIFIED" && it.priceSource)
-      .map((it) => `核实单价来源：${it.name} — ${it.priceSource}`),
+    ...(taxStatusDisclosed ? [VERIFIED_PRICE_TAX_NOTE] : []),
+    ...verifiedSources.map((it) => `${VERIFIED_PRICE_SOURCE_PREFIX}${it.name} — ${it.priceSource}`),
     ...items
       .filter((it) => it.priceBasis === "ESTIMATE")
       .flatMap((it) => {
@@ -1045,11 +1056,12 @@ async function renderBrand2Pages(
       const basisLines = budgetPriceBasisLines(strict.items);
       y -= 14;
       for (const b of basisLines) {
+        // wrapTextCN drops overflow silently; a verified price source must print in full.
         const lines = wrapTextCN(b, {
           font: ctx.font,
           fontSize: 8,
           maxWidth: tableW,
-          maxLines: 3,
+          maxLines: b.startsWith(VERIFIED_PRICE_SOURCE_PREFIX) ? 999 : 3,
         });
         for (const line of lines) {
           if (y < 80) break;

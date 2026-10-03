@@ -2,7 +2,12 @@
  * 预算 PDF 对外入口：企业/Pro 走完整 budgetRender 引擎；简版仅作 free 兜底。
  */
 import type { UserTier } from "@/lib/commercial/userTier";
-import { PRICE_FACT_SOURCE_LABEL, type BudgetRecord } from "@/lib/domain/tender";
+import {
+  PRICE_FACT_SOURCE_LABEL,
+  PRICE_FACT_TAX_STATUS_LABEL,
+  type BudgetRecord,
+} from "@/lib/domain/tender";
+import { validatePriceFact } from "@/lib/product-engine/product-intelligence";
 import {
   renderBudgetPdfBuffer,
   type BudgetPdfSection,
@@ -76,7 +81,25 @@ function readVerifiedPriceSource(
   ) {
     return null;
   }
-  return `${PRICE_FACT_SOURCE_LABEL[sourceType]} · ${sourceReference} · 报价日期 ${quotedAt}`;
+  return [
+    `${PRICE_FACT_SOURCE_LABEL[sourceType]} · ${sourceReference} · 报价日期 ${quotedAt}`,
+    ...readProcurementMetadata(fact),
+  ].join(" · ");
+}
+
+/**
+ * Optional procurement metadata of a persisted fact, read through the canonical lenient reader:
+ * an invalid field is dropped on its own and never affects the verified price or its base source.
+ */
+function readProcurementMetadata(fact: Record<string, unknown>): string[] {
+  const canonical = validatePriceFact(fact, { lenientMetadata: true });
+  if (!canonical.ok) return [];
+  const { supplier, taxStatus, validUntil } = canonical.priceFact;
+  return [
+    ...(supplier ? [`供应商 ${supplier}`] : []),
+    ...(taxStatus ? [PRICE_FACT_TAX_STATUS_LABEL[taxStatus]] : []),
+    ...(validUntil ? [`有效期至 ${validUntil}`] : []),
+  ];
 }
 
 function readDetailedBudgetItems(items: unknown): DetailedBudgetItem[] | null {
