@@ -12,6 +12,7 @@ import {
   readStoredQuoteIdForProject,
   resolveClientProductContext,
   writeStoredProductContext,
+  writeStoredQuoteIdForProject,
 } from "@/app/(product)/commercial-context";
 import {
   loadTenderClientEntitlement,
@@ -32,6 +33,12 @@ import {
   readApprovedQuantities,
   type BudgetTargetStatus,
 } from "@/lib/budget/over-budget-adjustment";
+import {
+  adjustmentOutcomeMessages,
+  resolveAdjustmentSubmitState,
+  runAdjustmentApply,
+  UNSAVED_ESTIMATE_LABEL,
+} from "@/lib/budget/over-budget-adjustment-flow";
 import type { BudgetItem } from "@/lib/domain/tender";
 import type {
   ProductCandidateSlot,
@@ -512,6 +519,7 @@ function BudgetForm() {
   const [adjustError, setAdjustError] = useState("");
   const [adjustBlocked, setAdjustBlocked] = useState(false);
   const [adjustNotice, setAdjustNotice] = useState("");
+  const [adjustWarning, setAdjustWarning] = useState("");
   const [applyingAdjustment, setApplyingAdjustment] = useState(false);
   const [piSnapshotStatus, setPiSnapshotStatus] = useState<"idle" | "loading" | "error">("idle");
   const [preAdjustmentRange, setPreAdjustmentRange] = useState<{
@@ -553,6 +561,18 @@ function BudgetForm() {
         })
       : null;
   const approvedCount = approvedResult?.ok ? Object.keys(approvedResult.approved).length : 0;
+  const adjustmentSubmit = resolveAdjustmentSubmitState({
+    quoteId,
+    organizationId,
+    projectId,
+    budgetDetailQuoteId: budgetDetail?.quoteId ?? null,
+    piSnapshotQuoteId: piSnapshot?.quoteId ?? null,
+    optionCount: reduction?.options.length ?? 0,
+    approvedOk: approvedResult?.ok === true,
+    approvedCount,
+    loading,
+    applying: applyingAdjustment,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -731,17 +751,18 @@ function BudgetForm() {
     };
   }, [searchParams]);
 
-  async function handleCalculate(quoteIdOverride?: string) {
+  async function handleCalculate(quoteIdOverride?: string): Promise<boolean> {
     const activeQuoteId = quoteIdOverride?.trim() || quoteId;
     if (!activeQuoteId) {
       alert("请先生成方案");
-      return;
+      return false;
     }
 
     setLoading(true);
     setError("");
     if (!quoteIdOverride) {
       setAdjustNotice("");
+      setAdjustWarning("");
       setAdjustError("");
       setAdjustBlocked(false);
       setPreAdjustmentRange(null);
@@ -754,7 +775,7 @@ function BudgetForm() {
       const ownedProjectId = pickOwnedProjectId(projectId, ownedIds);
       if (!ownedProjectId) {
         setError("未识别当前项目，请从项目页重新进入预算。");
-        return;
+        return false;
       }
 
       const res = await fetch("/api/budget/calculate", {
@@ -788,7 +809,7 @@ function BudgetForm() {
           productHref("/budget", { organizationId, projectId: ownedProjectId }),
         );
         setError("当前方案不属于该项目，已清除。请从项目页重新进入预算。");
-        return;
+        return false;
       }
       if (!res.ok || data.ok !== true) {
         throw new Error("BUDGET_CALCULATE_FAILED");
@@ -904,22 +925,30 @@ function BudgetForm() {
             budgetId: data.budgetId,
           }, { currentPath: "/budget" }),
         );
+        return true;
       }
+      return false;
     } catch {
       setError("预算计算失败，请稍后重试");
+      return false;
     } finally {
       setLoading(false);
     }
   }
 
   async function handleApplyAdjustment() {
-    const baseQuoteId = quoteId.trim();
-    const currentProjectId = projectId.trim();
-    if (!baseQuoteId || !organizationId || !currentProjectId) return;
-    if (!reduction || !piSnapshot || piSnapshot.quoteId !== baseQuoteId) return;
     setAdjustError("");
     setAdjustBlocked(false);
     setAdjustNotice("");
+    setAdjustWarning("");
+    if (!adjustmentSubmit.ok || !reduction || !piSnapshot) {
+      setAdjustError(
+        adjustmentSubmit.ok ? "数量调整依据未就绪，请重新计算预算后再调整。" : adjustmentSubmit.reason,
+      );
+      return;
+    }
+    const baseQuoteId = quoteId.trim();
+    const currentProjectId = projectId.trim();
     const approved = readApprovedQuantities(reduction.options, adjustDrafts);
     if (!approved.ok) {
       setAdjustError(approved.errors.join("；"));
@@ -947,54 +976,71 @@ function BudgetForm() {
     setPreAdjustmentRange(null);
     setApplyingAdjustment(true);
     try {
-      const res = await fetch("/api/quote/product-intelligence", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-organization-id": organizationId,
+      const outcome = await runAdjustmentApply({
+        approved: approved.approved,
+        saveNewVersion: async () => {
+          const res = await fetch("/api/quote/product-intelligence", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-organization-id": organizationId,
+            },
+            body: JSON.stringify({
+              quoteId: baseQuoteId,
+              organizationId,
+              projectId: currentProjectId,
+              selections: snapshot.selections,
+            }),
+          });
+          const data = (await res.json().catch(() => ({}))) as {
+            ok?: boolean;
+            quoteId?: string;
+            projectId?: string;
+            status?: string;
+            message?: string;
+          };
+          const nextQuoteId =
+            data.ok === true && data.status === "READY" ? trimBindingId(data.quoteId) : "";
+          return {
+            status: res.status,
+            nextQuoteId,
+            projectId: trimBindingId(data.projectId) || currentProjectId,
+            message: typeof data.message === "string" ? data.message : "",
+          };
         },
-        body: JSON.stringify({
-          quoteId: baseQuoteId,
-          organizationId,
-          projectId: currentProjectId,
-          selections: snapshot.selections,
-        }),
+        readPersistedSnapshot: (nextQuoteId, boundProjectId) =>
+          fetchProductIntelligenceSnapshot(nextQuoteId, organizationId, boundProjectId),
+        commitVerifiedQuote: (nextQuoteId, boundProjectId) => {
+          discardStoredAdjustmentDetail();
+          setPreAdjustmentRange(
+            rangeBeforeAdjustment ? { quoteId: nextQuoteId, ...rangeBeforeAdjustment } : null,
+          );
+          setQuoteId(nextQuoteId);
+          setProjectId(boundProjectId);
+          setBudgetId("");
+          setBudgetSummary(null);
+          setBudgetDetail(null);
+          setPiSnapshot(null);
+          setPiSnapshotStatus("idle");
+          setAdjustDrafts({});
+          setPdfDownloaded(false);
+          writeStoredProductContext(
+            { organizationId, projectId: boundProjectId, quoteId: nextQuoteId },
+            { mode: "replace" },
+          );
+          writeStoredQuoteIdForProject(boundProjectId, nextQuoteId);
+          router.replace(
+            productHref("/budget", { organizationId, projectId: boundProjectId, quoteId: nextQuoteId }),
+          );
+        },
+        recalculate: async (nextQuoteId) => await handleCalculate(nextQuoteId),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        quoteId?: string;
-        projectId?: string;
-        status?: string;
-        message?: string;
-      };
-      const nextQuoteId =
-        data.ok === true && data.status === "READY" ? trimBindingId(data.quoteId) : "";
-      if (!nextQuoteId) {
-        setAdjustError(data.message || "保存调整失败，当前方案未改变，请稍后重试");
-        return;
-      }
-      const boundProjectId = data.projectId?.trim() || currentProjectId;
-      discardStoredAdjustmentDetail();
-      setPreAdjustmentRange(
-        rangeBeforeAdjustment ? { quoteId: nextQuoteId, ...rangeBeforeAdjustment } : null,
-      );
-      setQuoteId(nextQuoteId);
-      setProjectId(boundProjectId);
-      setBudgetId("");
-      setBudgetSummary(null);
-      setBudgetDetail(null);
-      setPiSnapshot(null);
-      setPiSnapshotStatus("idle");
-      setAdjustDrafts({});
-      setPdfDownloaded(false);
-      writeStoredProductContext(
-        { organizationId, projectId: boundProjectId, quoteId: nextQuoteId },
-        { mode: "replace" },
-      );
-      setAdjustNotice("已保存为新方案版本，并按新方案重新计算预算。");
-      await handleCalculate(nextQuoteId);
+      const messages = adjustmentOutcomeMessages(outcome);
+      setAdjustNotice(messages.notice);
+      setAdjustWarning(messages.warning);
+      setAdjustError(messages.error);
     } catch {
-      setAdjustError("保存调整失败，当前方案未改变，请稍后重试");
+      setAdjustError("保存调整时发生异常，请刷新页面后在方案页核对当前方案版本。");
     } finally {
       setApplyingAdjustment(false);
     }
@@ -1300,21 +1346,27 @@ function BudgetForm() {
                     ) : null}
                     {projectedTotals && approvedCount > 0 ? (
                       <p className="text-zinc-200">
-                        按所填数量预估：{budgetSummary?.currency ?? "CNY"}{" "}
+                        {UNSAVED_ESTIMATE_LABEL}按所填数量：{budgetSummary?.currency ?? "CNY"}{" "}
                         {projectedTotals.totalEstimateMin} - {projectedTotals.totalEstimateMax}
                         （减少约 {projectedTotals.reductionMin} - {projectedTotals.reductionMax}）
+                      </p>
+                    ) : null}
+                    {approvedCount > 0 ? (
+                      <p className="text-xs text-amber-300">
+                        所填数量与上方金额均为{UNSAVED_ESTIMATE_LABEL}；当前方案版本未改变，确认并核对保存成功后才会切换为新方案版本。
                       </p>
                     ) : null}
                     <button
                       type="button"
                       onClick={() => void handleApplyAdjustment()}
-                      disabled={
-                        applyingAdjustment || loading || approvedCount === 0 || !approvedResult?.ok
-                      }
+                      disabled={!adjustmentSubmit.ok}
                       className="rounded-lg border border-zinc-600 px-4 py-2 text-sm text-zinc-100 hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {applyingAdjustment ? "保存中…" : "确认调整并保存为新方案版本"}
                     </button>
+                    {!adjustmentSubmit.ok && !applyingAdjustment ? (
+                      <p className="text-xs text-amber-300">暂不能确认调整：{adjustmentSubmit.reason}</p>
+                    ) : null}
                     <p className="text-xs text-zinc-500">
                       ④ 确认后保存为新方案版本，并自动重新计算预算；当前方案版本保持不变，仅调整数量，已选产品与已核实单价保留。
                     </p>
@@ -1343,6 +1395,7 @@ function BudgetForm() {
             </section>
           ) : null}
           {adjustNotice ? <p className="text-sm text-emerald-300">{adjustNotice}</p> : null}
+          {adjustWarning ? <p className="text-sm text-amber-300">{adjustWarning}</p> : null}
           {preAdjustmentRange && preAdjustmentRange.quoteId === quoteId && budgetId && hasEstimateRange ? (
             <p className="text-sm text-emerald-300">
               调整前 {preAdjustmentRange.min}–{preAdjustmentRange.max} → 调整后 {estimateMin}–

@@ -128,6 +128,21 @@ export function readStoredQuoteIdForProject(projectId: string): string {
   }
 }
 
+export function writeStoredQuoteIdForProject(projectId: string, quoteId: string): void {
+  if (typeof window === "undefined") return;
+  const id = trimId(projectId);
+  const qid = trimId(quoteId);
+  if (!id || !qid) return;
+  try {
+    const raw = window.sessionStorage.getItem(QUOTE_BY_PROJECT_STORAGE_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    map[id] = qid;
+    window.sessionStorage.setItem(QUOTE_BY_PROJECT_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
+
 export function clearStoredQuoteIdForProject(projectId: string, quoteId?: string): void {
   if (typeof window === "undefined") return;
   const id = trimId(projectId);
