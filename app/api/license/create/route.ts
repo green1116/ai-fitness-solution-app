@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+import { blockDebugInProduction } from "@/lib/http/productionRouteGuard";
 import { hashLicenseKey } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
 
@@ -7,9 +8,12 @@ export const runtime = "nodejs";
 
 /**
  * POST /api/license/create
- * 生成随机 licenseKey，sha256 后写入 keyHash；生产环境请用网关 / 鉴权保护此路由。
+ * 生成随机 licenseKey，sha256 后写入 keyHash；仅限非生产环境（生产环境一律 404）。
  */
 export async function POST(req: Request) {
+  const blocked = blockDebugInProduction();
+  if (blocked) return blocked;
+
   const body = (await req.json().catch(() => ({}))) as {
     planLevel?: string;
   };
