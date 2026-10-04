@@ -6,7 +6,7 @@ import { growthAwareGateErrorResponse } from "@/lib/growth/growth.api-helper";
 import { recordTenderAsDeal } from "@/lib/crm/crm.product-bridge";
 import { onTenderGenerated } from "@/lib/sales/sales.product-bridge";
 import { runSaasApiGate, saasGateErrorResponse, trackFeatureUsage } from "@/lib/saas/api-gate";
-import { generateTender } from "@/lib/services/tender.service";
+import { generateTender, TenderBindingError } from "@/lib/services/tender.service";
 
 export async function POST(req: NextRequest) {
   let organizationId: string | undefined;
@@ -22,11 +22,11 @@ export async function POST(req: NextRequest) {
 
     const projectId = String(body?.projectId ?? "").trim();
     const quoteId = String(body?.quoteId ?? "").trim();
-    const budgetId = body?.budgetId ? String(body.budgetId) : undefined;
+    const budgetId = String(body?.budgetId ?? "").trim();
 
-    if (!projectId || !quoteId) {
+    if (!projectId || !quoteId || !budgetId) {
       return NextResponse.json(
-        { ok: false, message: "缺少 projectId 或 quoteId", traceId: gate.traceId },
+        { ok: false, message: "缺少 projectId、quoteId 或 budgetId", traceId: gate.traceId },
         { status: 400 },
       );
     }
@@ -81,6 +81,12 @@ export async function POST(req: NextRequest) {
     }
     if (err instanceof Error && err.name === "SaasAuthError") {
       return saasGateErrorResponse(err, traceId);
+    }
+    if (err instanceof TenderBindingError) {
+      return NextResponse.json(
+        { ok: false, code: err.code, message: err.message, traceId },
+        { status: err.status },
+      );
     }
     console.error("[tender/generate]", err);
     return NextResponse.json(

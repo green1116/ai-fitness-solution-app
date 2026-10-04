@@ -14,6 +14,7 @@ import {
   readProductIntelligenceExperience,
 } from "@/lib/product/experience";
 import { getProjectById } from "@/lib/services/project.service";
+import { resolveProjectTenderRoute } from "@/lib/services/tender/projectTenderRoute";
 
 export default async function ProjectDetailPage({
   params,
@@ -54,6 +55,14 @@ export default async function ProjectDetailPage({
   });
   const canGenerateBudget = !budgetPaywall.showPaywall;
   const proTier = getPricingTier("PRO");
+  const tenderRoute = await resolveProjectTenderRoute({
+    projectId: project.id,
+    latestBudget: project.budgets[0],
+  });
+  const tenderBinding = tenderRoute.kind === "ready" ? tenderRoute : null;
+  const budgetRecalcHref = `/budget?projectId=${encodeURIComponent(project.id)}${
+    project.quotes[0] ? `&quoteId=${encodeURIComponent(project.quotes[0].id)}` : ""
+  }`;
 
   return (
     <div className="space-y-6">
@@ -151,28 +160,29 @@ export default async function ProjectDetailPage({
             </div>
           </div>
         )}
-        {canGenerateTender ? (
+        {canGenerateTender && tenderBinding ? (
           <Link
-            href={`/tender?projectId=${encodeURIComponent(project.id)}${
-              project.quotes[0]
-                ? `&quoteId=${encodeURIComponent(project.quotes[0].id)}`
-                : ""
-            }${
-              project.budgets[0]
-                ? `&budgetId=${encodeURIComponent(project.budgets[0].id)}`
-                : ""
-            }`}
-            className={`rounded-xl border bg-black p-4 hover:border-zinc-600 ${
-              project.budgets.length > 0
-                ? "border-emerald-600 ring-1 ring-emerald-600/40"
-                : "border-zinc-800"
-            }`}
+            href={`/tender?projectId=${encodeURIComponent(project.id)}&quoteId=${encodeURIComponent(
+              tenderBinding.quoteId,
+            )}&budgetId=${encodeURIComponent(tenderBinding.budgetId)}`}
+            className="rounded-xl border border-emerald-600 bg-black p-4 ring-1 ring-emerald-600/40 hover:border-zinc-600"
           >
             <div className="text-xs text-emerald-400">第 3 步</div>
-            <div className="font-semibold">
-              {project.budgets.length > 0 ? "下一步：生成投标文件" : "投标"}
-            </div>
+            <div className="font-semibold">下一步：生成投标文件</div>
             <div className="text-xs text-zinc-400">已有 {project.tenders.length} 份投标文件</div>
+          </Link>
+        ) : canGenerateTender ? (
+          <Link
+            href={budgetRecalcHref}
+            className="rounded-xl border border-zinc-800 bg-black p-4 hover:border-zinc-600"
+          >
+            <div className="text-xs text-emerald-400">第 3 步</div>
+            <div className="font-semibold">投标</div>
+            <div className="text-xs text-zinc-400">
+              {tenderRoute.kind === "budget-required" && tenderRoute.reason === "NO_BUDGET"
+                ? "请先为当前方案生成预算，再生成投标文件"
+                : "当前预算未关联可用的方案版本，请重新计算预算后再生成投标文件"}
+            </div>
           </Link>
         ) : (
           <div className="rounded-xl border border-amber-700/50 bg-black p-4">
@@ -189,16 +199,16 @@ export default async function ProjectDetailPage({
                   {
                     organizationId,
                     projectId: project.id,
-                    quoteId: project.quotes[0]?.id,
-                    budgetId: project.budgets[0]?.id,
+                    quoteId: tenderBinding?.quoteId,
+                    budgetId: tenderBinding?.budgetId,
                   },
                   { authenticated: Boolean(organizationId), currentPath: "/tender" },
                 )}
                 context={{
                   organizationId,
                   projectId: project.id,
-                  quoteId: project.quotes[0]?.id,
-                  budgetId: project.budgets[0]?.id,
+                  quoteId: tenderBinding?.quoteId,
+                  budgetId: tenderBinding?.budgetId,
                 }}
               />
             </div>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
-import { downloadTenderPack } from "@/components/documents/downloadTenderPack";
+import { downloadPilotProjectZip } from "@/components/documents/downloadTenderPack";
 
 type WorkflowStep = {
   step: string;
@@ -169,7 +169,7 @@ export function IntakeArtifactCenter({
     if (!projectId) return;
     setDownloadingZip(true);
     try {
-      await downloadTenderPack(projectId);
+      await downloadPilotProjectZip(projectId);
     } catch (e) {
       setPollError(e instanceof Error ? e.message : "ZIP 下载失败");
     } finally {

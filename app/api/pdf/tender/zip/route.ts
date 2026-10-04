@@ -1,5 +1,6 @@
 import JSZip from "jszip";
-import { NextResponse } from "next/server";
+import type { Budget } from "@prisma/client";
+import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { toSafeEntitlementsDebug } from "@/lib/entitlements/publicEntitlement";
 import { evaluateZipAccess } from "@/lib/entitlements/zipAccess";
@@ -29,8 +30,16 @@ import type {
   ProjectRecord,
   SolutionRecord,
 } from "@/lib/domain/tender";
+import { runSaasOrgGate } from "@/lib/saas/api-gate";
 import { readBudgetQuoteBasis } from "@/lib/services/budget.service";
-import { findQuotePlanPdfSourceForProject } from "@/lib/services/quote.service";
+import {
+  buildQuotePlanPdfSource,
+  findQuotePlanPdfSourceForProject,
+} from "@/lib/services/quote.service";
+import {
+  loadTenderDeliveryBinding,
+  TenderBindingError,
+} from "@/lib/services/tender.service";
 import { provisionZipProjectMinimal } from "@/lib/services/tender/provisionZipProjectMinimal";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
 import { isProductionRuntime } from "@/lib/http/productionRouteGuard";
@@ -46,6 +55,19 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const ZIP_FILENAME = "enterprise-package.zip";
+const ZIP_ENDPOINT = "/api/pdf/tender/zip";
+
+/** Placeholder Project/Solution/Budget provisioning is a local/dev fixture only; never for production delivery. */
+function isProductionDelivery(): boolean {
+  return isProductionRuntime() || process.env.NODE_ENV === "production";
+}
+
+class ZipDeliveryFactsMissingError extends Error {
+  constructor() {
+    super("缺少可交付的方案与预算，请先完成方案和预算后再下载");
+    this.name = "ZipDeliveryFactsMissingError";
+  }
+}
 
 const projectInclude = {
   solution: true,
@@ -101,7 +123,7 @@ export async function GET() {
       ok: true,
       route: "/api/pdf/tender/zip",
       methods: ["GET", "POST"],
-      hint: "POST body: { projectId, planId? } — 成功响应为 application/zip 二进制",
+      hint: "POST body: { projectId, tenderId, planId? } — 成功响应为 application/zip 二进制",
     },
     { status: 200 },
   );
@@ -137,6 +159,9 @@ async function ensureProjectReadyForZip(
 ): Promise<{ project: ZipProjectRow; source: "db" | "dev-fallback" | "provisioned" }> {
   if (initial?.solution && initial.budgets[0]) {
     return { project: initial, source: "db" };
+  }
+  if (isProductionDelivery()) {
+    throw new ZipDeliveryFactsMissingError();
   }
 
   console.warn("[ZIP] db-miss-or-incomplete — provisioning or fallback", {
@@ -193,7 +218,234 @@ async function ensureProjectReadyForZip(
   throw new Error("ZIP_PROJECT_PROVISION_FAILED");
 }
 
-export async function POST(req: Request) {
+/** Facts every ZIP document is rendered from. */
+type ZipRenderSource = {
+  projectId: string;
+  budget: Budget;
+  budgetLevel: "low" | "mid" | "high" | "custom";
+  companySize: number;
+  project: ProjectLike;
+  solution: SolutionLike;
+  placeholders: PlaceholderLike[];
+  dataSource: string;
+};
+
+type ZipSourceResult = { ok: true; source: ZipRenderSource } | { ok: false; response: Response };
+
+/** Tender-bound delivery requires an org member session; the Tender's project must belong to that org. */
+async function resolveZipOrganizationId(
+  req: NextRequest,
+  projectId: string,
+): Promise<{ ok: true; organizationId: string } | { ok: false; response: Response }> {
+  try {
+    const gate = await runSaasOrgGate(req, ZIP_ENDPOINT, { projectId });
+    return { ok: true, organizationId: gate.organizationId };
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    if (name === "SaasAuthError") {
+      return { ok: false, response: zipError(401, "ZIP_AUTH_REQUIRED", "请先登录组织账号后再下载投标交付包") };
+    }
+    if (name === "TenantIsolationError") {
+      return { ok: false, response: zipError(403, "TENANT_ISOLATION", "当前投标文件不属于你的组织，无法下载。") };
+    }
+    if (name === "RateLimitError") {
+      return { ok: false, response: zipError(429, "RATE_LIMITED", "下载过于频繁，请稍后再试。") };
+    }
+    throw err;
+  }
+}
+
+/** Exactly the Quote + Budget persisted on the Tender; never the project's latest Budget. */
+async function resolveTenderBoundSource(
+  req: NextRequest,
+  params: { projectId: string; tenderId: string; requestedCompanySize?: number },
+): Promise<ZipSourceResult> {
+  const org = await resolveZipOrganizationId(req, params.projectId);
+  if (!org.ok) return org;
+
+  let binding: Awaited<ReturnType<typeof loadTenderDeliveryBinding>>;
+  try {
+    binding = await loadTenderDeliveryBinding({
+      tenderId: params.tenderId,
+      projectId: params.projectId,
+      organizationId: org.organizationId,
+    });
+  } catch (err) {
+    if (err instanceof TenderBindingError) {
+      return { ok: false, response: zipError(err.status, err.code, err.message) };
+    }
+    if (err instanceof Error && err.name === "TenantIsolationError") {
+      return { ok: false, response: zipError(403, "TENANT_ISOLATION", "当前投标文件不属于你的组织，无法下载。") };
+    }
+    throw err;
+  }
+
+  const { project, quote, budget } = binding;
+  const quoteSource = buildQuotePlanPdfSource(quote);
+  const companySize =
+    quoteSource.targetUsers ?? params.requestedCompanySize ?? project.targetUsers ?? 200;
+  return {
+    ok: true,
+    source: {
+      projectId: project.id,
+      budget,
+      budgetLevel: readBudgetQuoteBasis(budget.assumptions)?.budgetTier ?? project.budgetLevel,
+      companySize,
+      project: { ...quoteSource, targetUsers: companySize },
+      solution: quoteSource.solution,
+      placeholders: quoteSource.placeholders,
+      dataSource: "db-tender",
+    },
+  };
+}
+
+/** Legacy project-level contract (no tenderId): latest Budget of the project. */
+async function resolveLegacyProjectSource(params: {
+  projectId: string;
+  requestedCompanySize?: number;
+}): Promise<ZipSourceResult> {
+  const pid = params.projectId;
+  const requestedCompanySize = params.requestedCompanySize;
+  const loaded = await loadProjectForZip(pid);
+  let project: ZipProjectRow;
+  let dataSource: string = loaded.source;
+
+  const latestBudget =
+    loaded.source === "db" ? loaded.project?.budgets[0] : undefined;
+  const quoteBasis = latestBudget
+    ? readBudgetQuoteBasis(latestBudget.assumptions)
+    : null;
+  /** Quote-linked Budget：方案事实取自该 Quote 快照，不依赖项目级 Solution / Project.areaM2 */
+  const quoteSource =
+    quoteBasis && loaded.project
+      ? await findQuotePlanPdfSourceForProject(
+          quoteBasis.quoteId,
+          loaded.project.id,
+        )
+      : null;
+
+  if (quoteSource) {
+    project = loaded.project;
+    dataSource = "db-quote";
+  } else {
+    try {
+      const ready = await ensureProjectReadyForZip(pid, loaded.project);
+      project = ready.project;
+      dataSource = ready.source;
+    } catch (e) {
+      if (e instanceof ZipDeliveryFactsMissingError) {
+        return {
+          ok: false,
+          response: zipError(422, "ZIP_DELIVERY_FACTS_MISSING", e.message, {
+            requestedProjectId: pid,
+          }),
+        };
+      }
+      console.error("[ZIP] ensureProjectReadyForZip failed", e);
+      return {
+        ok: false,
+        response: zipError(
+          422,
+          "ZIP_PROJECT_PROVISION_FAILED",
+          e instanceof Error
+            ? e.message
+            : "无法在数据库中准备投标项目数据",
+          { requestedProjectId: pid },
+        ),
+      };
+    }
+  }
+
+  if (!project || (!quoteSource && !project.solution)) {
+    return {
+      ok: false,
+      response: zipError(
+        422,
+        "ZIP_PROJECT_NOT_READY",
+        "缺少可用的 Project / Solution 数据",
+        { requestedProjectId: pid, dataSource },
+      ),
+    };
+  }
+
+  const budget = project.budgets[0];
+  if (!budget) {
+    return {
+      ok: false,
+      response: zipError(
+        422,
+        "ZIP_BUDGET_NOT_FOUND",
+        "项目存在但缺少 Budget 记录",
+        { projectId: project.id, dataSource },
+      ),
+    };
+  }
+
+  let companySize: number;
+  let projectForRender: ProjectLike;
+  let solutionForRender: SolutionLike;
+  let placeholdersForRender: PlaceholderLike[];
+
+  if (quoteSource) {
+    companySize =
+      quoteSource.targetUsers ?? requestedCompanySize ?? project.targetUsers ?? 200;
+    projectForRender = { ...quoteSource, targetUsers: companySize };
+    solutionForRender = quoteSource.solution;
+    placeholdersForRender = quoteSource.placeholders;
+  } else {
+    const legacySolution = project.solution!;
+    companySize = requestedCompanySize ?? project.targetUsers ?? 200;
+    /** 仅本次渲染覆盖人数元数据，不写回 DB */
+    projectForRender = { ...project, targetUsers: companySize };
+
+    const projectInputForRender: ProjectInput = {
+      name: project.name,
+      clientName: project.clientName ?? undefined,
+      industry: project.industry ?? undefined,
+      siteType: project.siteType as ProjectInput["siteType"],
+      areaM2: project.areaM2 ?? undefined,
+      targetUsers: companySize,
+      city: project.city ?? undefined,
+      budgetLevel: project.budgetLevel as ProjectInput["budgetLevel"],
+      deliveryMode: project.deliveryMode as ProjectInput["deliveryMode"],
+      notes: project.notes ?? undefined,
+    };
+    const generatedSolution = generateSolution(projectInputForRender);
+    /** 临时 Solution：按当前 companySize 重算正文/分区，不更新 prisma.solution */
+    solutionForRender = {
+      id: legacySolution.id,
+      projectId: project.id,
+      summary: generatedSolution.summary,
+      background: generatedSolution.background,
+      requirements: generatedSolution.requirements,
+      objectives: generatedSolution.objectives,
+      zoning: generatedSolution.zoning,
+      implementationPlan: generatedSolution.implementationPlan,
+      operationsPlan: generatedSolution.operationsPlan,
+      riskControl: generatedSolution.riskControl,
+      acceptanceCriteria: generatedSolution.acceptanceCriteria,
+      createdAt: legacySolution.createdAt,
+      updatedAt: legacySolution.updatedAt,
+    };
+    placeholdersForRender = project.placeholders;
+  }
+
+  return {
+    ok: true,
+    source: {
+      projectId: project.id,
+      budget,
+      budgetLevel: quoteBasis?.budgetTier ?? project.budgetLevel,
+      companySize,
+      project: projectForRender,
+      solution: solutionForRender,
+      placeholders: placeholdersForRender,
+      dataSource,
+    },
+  };
+}
+
+export async function POST(req: NextRequest) {
   const startedAt = Date.now();
   try {
     console.log("[ZIP] POST start", { t: startedAt });
@@ -201,6 +453,7 @@ export async function POST(req: Request) {
     const body = (await req.clone().json().catch(() => ({}))) as {
       projectId?: string;
       planId?: string;
+      tenderId?: unknown;
       companySize?: unknown;
     };
 
@@ -220,6 +473,13 @@ export async function POST(req: Request) {
     }
 
     const pid = String(projectId).trim();
+
+    const tenderIdRequested = Object.prototype.hasOwnProperty.call(body, "tenderId");
+    const requestedTenderId =
+      typeof body.tenderId === "string" ? body.tenderId.trim() : "";
+    if (tenderIdRequested && !requestedTenderId) {
+      return zipError(400, "TENDER_ID_REQUIRED", "缺少 tenderId");
+    }
 
     const { entitlement, debug, source, userId } =
       await resolveRequestEntitlement({
@@ -281,127 +541,40 @@ export async function POST(req: Request) {
       });
     }
 
-    const loaded = await loadProjectForZip(pid);
-    let project: ZipProjectRow;
-    let dataSource: string = loaded.source;
-
-    const latestBudget =
-      loaded.source === "db" ? loaded.project?.budgets[0] : undefined;
-    const quoteBasis = latestBudget
-      ? readBudgetQuoteBasis(latestBudget.assumptions)
-      : null;
-    /** Quote-linked Budget：方案事实取自该 Quote 快照，不依赖项目级 Solution / Project.areaM2 */
-    const quoteSource =
-      quoteBasis && loaded.project
-        ? await findQuotePlanPdfSourceForProject(
-            quoteBasis.quoteId,
-            loaded.project.id,
-          )
-        : null;
-
-    if (quoteSource) {
-      project = loaded.project;
-      dataSource = "db-quote";
-    } else {
-      try {
-        const ready = await ensureProjectReadyForZip(pid, loaded.project);
-        project = ready.project;
-        dataSource = ready.source;
-      } catch (e) {
-        console.error("[ZIP] ensureProjectReadyForZip failed", e);
-        return zipError(
-          422,
-          "ZIP_PROJECT_PROVISION_FAILED",
-          e instanceof Error
-            ? e.message
-            : "无法在数据库中准备投标项目数据",
-          { requestedProjectId: pid },
-        );
-      }
-    }
-
-    if (!project || (!quoteSource && !project.solution)) {
-      return zipError(
-        422,
-        "ZIP_PROJECT_NOT_READY",
-        "缺少可用的 Project / Solution 数据",
-        { requestedProjectId: pid, dataSource },
-      );
-    }
-
-    const budget = project.budgets[0];
-    if (!budget) {
-      return zipError(
-        422,
-        "ZIP_BUDGET_NOT_FOUND",
-        "项目存在但缺少 Budget 记录",
-        { projectId: project.id, dataSource },
-      );
-    }
-
     const bodyCompanySize = Number(body.companySize);
     const requestedCompanySize =
       Number.isFinite(bodyCompanySize) && bodyCompanySize > 0
         ? Math.round(bodyCompanySize)
         : undefined;
 
-    let companySize: number;
-    let projectForRender: ProjectLike;
-    let solutionForRender: SolutionLike;
-    let placeholdersForRender: PlaceholderLike[];
+    const resolved =
+      tenderIdRequested
+        ? await resolveTenderBoundSource(req, {
+            projectId: pid,
+            tenderId: requestedTenderId,
+            requestedCompanySize,
+          })
+        : await resolveLegacyProjectSource({ projectId: pid, requestedCompanySize });
+    if (!resolved.ok) return resolved.response;
 
-    if (quoteSource) {
-      companySize =
-        quoteSource.targetUsers ?? requestedCompanySize ?? project.targetUsers ?? 200;
-      projectForRender = { ...quoteSource, targetUsers: companySize };
-      solutionForRender = quoteSource.solution;
-      placeholdersForRender = quoteSource.placeholders;
-    } else {
-      const legacySolution = project.solution!;
-      companySize = requestedCompanySize ?? project.targetUsers ?? 200;
-      /** 仅本次渲染覆盖人数元数据，不写回 DB */
-      projectForRender = { ...project, targetUsers: companySize };
+    const {
+      projectId: renderProjectId,
+      budget,
+      budgetLevel: budgetLevelForRender,
+      companySize,
+      project: projectForRender,
+      solution: solutionForRender,
+      placeholders: placeholdersForRender,
+      dataSource,
+    } = resolved.source;
 
-      const projectInputForRender: ProjectInput = {
-        name: project.name,
-        clientName: project.clientName ?? undefined,
-        industry: project.industry ?? undefined,
-        siteType: project.siteType as ProjectInput["siteType"],
-        areaM2: project.areaM2 ?? undefined,
-        targetUsers: companySize,
-        city: project.city ?? undefined,
-        budgetLevel: project.budgetLevel as ProjectInput["budgetLevel"],
-        deliveryMode: project.deliveryMode as ProjectInput["deliveryMode"],
-        notes: project.notes ?? undefined,
-      };
-      const generatedSolution = generateSolution(projectInputForRender);
-      /** 临时 Solution：按当前 companySize 重算正文/分区，不更新 prisma.solution */
-      solutionForRender = {
-        id: legacySolution.id,
-        projectId: project.id,
-        summary: generatedSolution.summary,
-        background: generatedSolution.background,
-        requirements: generatedSolution.requirements,
-        objectives: generatedSolution.objectives,
-        zoning: generatedSolution.zoning,
-        implementationPlan: generatedSolution.implementationPlan,
-        operationsPlan: generatedSolution.operationsPlan,
-        riskControl: generatedSolution.riskControl,
-        acceptanceCriteria: generatedSolution.acceptanceCriteria,
-        createdAt: legacySolution.createdAt,
-        updatedAt: legacySolution.updatedAt,
-      };
-      placeholdersForRender = project.placeholders;
-    }
-
-    const budgetLevelForRender = quoteBasis?.budgetTier ?? project.budgetLevel;
     const companyNameForRender =
       projectForRender.clientName ?? projectForRender.name ?? "投标企业";
 
     const renderTier = normalizeUserTier(entitlement.effectiveLevel ?? "free");
 
     const tenderDocument = buildTenderDocumentContext({
-      projectId: project.id,
+      projectId: renderProjectId,
       planId: planIdForEnt,
       tier: renderTier,
     });
@@ -411,7 +584,7 @@ export async function POST(req: Request) {
     const docCtx = { ...tenderDocument, reqsig: packReqsig };
 
     console.log("[ZIP] render start", {
-      projectId: project.id,
+      projectId: renderProjectId,
       renderTier,
       dataSource,
       tenderId: docCtx.tenderId,
@@ -450,7 +623,7 @@ export async function POST(req: Request) {
         renderErr instanceof Error
           ? renderErr.message
           : "Plan 或 Budget PDF 生成失败",
-        { projectId: project.id },
+        { projectId: renderProjectId },
       );
     }
 
