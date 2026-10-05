@@ -69,7 +69,11 @@ function buildBudgetItem(
       ? `${placeholder.brand.trim()} ${placeholder.model.trim()}`
       : "";
   const sourceLabel =
-    placeholder.productSource === "customer-specified" ? "客户指定" : "参考候选";
+    placeholder.productSource === "customer-specified"
+      ? "客户指定"
+      : placeholder.productSource === "procurement-product"
+        ? "采购库产品"
+        : "参考候选";
   const priceFact = candidateLabel ? placeholder.priceFact : undefined;
 
   if (priceFact) {

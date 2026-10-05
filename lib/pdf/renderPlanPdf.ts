@@ -135,7 +135,7 @@ export type PlaceholderLike = {
   model: string | null;
   imageUrl: string | null;
   /** Quote plan sources only; DB rows omit these. */
-  productSource?: "customer-specified" | null;
+  productSource?: "customer-specified" | "procurement-product" | null;
   quantityConfirmed?: boolean;
   priceVerified?: boolean;
   createdAt: Date;
@@ -326,8 +326,8 @@ export function normalizePlaceholders(rows: PlaceholderLike[] | ProductPlacehold
     brand: row.brand ?? undefined,
     model: row.model ?? undefined,
     imageUrl: row.imageUrl ?? undefined,
-    ...(row.productSource === "customer-specified"
-      ? { productSource: "customer-specified" as const }
+    ...(row.productSource === "customer-specified" || row.productSource === "procurement-product"
+      ? { productSource: row.productSource }
       : {}),
     ...(row.quantityConfirmed === true ? { quantityConfirmed: true } : {}),
     ...(row.priceVerified === true ? { priceVerified: true } : {}),
@@ -479,7 +479,9 @@ function expandConfigLine(
       ? [
           p.productSource === "customer-specified"
             ? `   客户指定：${brand} ${model}`
-            : `   参考候选：${brand} ${model}（非采购确认）`,
+            : p.productSource === "procurement-product"
+              ? `   采购库产品：${brand} ${model}`
+              : `   参考候选：${brand} ${model}（非采购确认）`,
           "   参数状态：未核实",
           p.priceVerified === true
             ? "   单价已核实，详见预算"

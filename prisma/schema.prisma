@@ -66,6 +66,7 @@ model Organization {
   payments      Payment[]
   crmCustomers  Customer[]
   opsCrmIdentityLinks OpsCrmIdentityLink[]
+  procurementProducts ProcurementProduct[]
 
   @@map("organization")
 }
@@ -440,6 +441,35 @@ model Quote {
   @@index([organizationId])
   @@index([workspaceId])
   @@map("quote")
+}
+
+/// C.5-A — Organization-scoped procurement product master data (Quote candidate source only).
+/// Quotes snapshot the selected candidate; they never resolve this row again.
+/// Every update increments `revision`; deactivation is soft (no physical delete).
+model ProcurementProduct {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// SKU category (treadmill / elliptical / strength / rack / free_weight), never a Quote slotKey.
+  category       String
+  brand          String
+  model          String
+  /// Normalized lower-case `brand|model`; unique among active products of one organization (service-enforced).
+  identityKey    String
+  keySpecs       Json     @default("[]")
+  /// Optional validated ProductPriceFact; product identity alone is never a verified price.
+  priceFact      Json?
+  revision       Int      @default(1)
+  active         Boolean  @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, active, category])
+  @@index([organizationId, identityKey])
+  @@map("procurement_product")
 }
 
 /// V59 — Tender document record (PDF export target)

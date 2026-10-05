@@ -203,6 +203,7 @@ type SelectionPayloadItem = {
 };
 
 const CUSTOMER_SPECIFIED_SOURCE = "customer-specified";
+const PROCUREMENT_PRODUCT_SOURCE = "procurement-product";
 const MAX_CUSTOM_PRODUCT_FIELD_LENGTH = 100;
 
 const PRICE_SOURCE_OPTIONS: Array<{ value: PriceFactSourceType; label: string }> = [
@@ -362,6 +363,7 @@ const REQUIREMENT_STATUS_CLASS: Record<RequirementStatus, string> = {
 
 const REFERENCE_CANDIDATE_BADGE = "参考候选 / 未核实";
 const CUSTOMER_SPECIFIED_BADGE = "客户指定 / 参数未核实";
+const PROCUREMENT_PRODUCT_BADGE = "采购库产品 / 参数未核实";
 const NO_CANDIDATE_TEXT = "暂无已验证候选，保留 AI 建议配置";
 
 /** Saved quantity of the current Quote version for a slot; read-only view of existing selections. */
@@ -1995,6 +1997,9 @@ function QuoteForm() {
                   参考目录中没有的产品，可选择「客户指定产品」并填写品牌与型号，标注「客户指定 / 参数未核实」；它不属于参考目录，产品参数同样未核实。
                 </p>
                 <p className="text-xs text-zinc-500">
+                  组织采购库中登记的产品标注「采购库产品 / 参数未核实」；选择后方案保存当时的产品快照，之后修改或停用采购库产品不影响已保存的方案。若采购库已登记核实单价，新选择时自动带入，否则预算按档位估算。
+                </p>
+                <p className="text-xs text-zinc-500">
                   预算单价默认按预算档位估算，仅在为已选候选或客户指定产品填写供应商报价或采购合同的核实单价后按核实价计价。
                 </p>
                 {piView.slots.length === 0 ? (
@@ -2078,9 +2083,15 @@ function QuoteForm() {
                             <span className="space-y-1">
                               <span className="block">
                                 加入当前方案候选配置：{c.brand} {c.model}
-                                <span className="ml-2 rounded border border-amber-700 px-1.5 py-0.5 text-xs text-amber-300">
-                                  {REFERENCE_CANDIDATE_BADGE}
-                                </span>
+                                {c.source === PROCUREMENT_PRODUCT_SOURCE ? (
+                                  <span className="ml-2 rounded border border-emerald-700 px-1.5 py-0.5 text-xs text-emerald-300">
+                                    {PROCUREMENT_PRODUCT_BADGE}
+                                  </span>
+                                ) : (
+                                  <span className="ml-2 rounded border border-amber-700 px-1.5 py-0.5 text-xs text-amber-300">
+                                    {REFERENCE_CANDIDATE_BADGE}
+                                  </span>
+                                )}
                               </span>
                               {c.keySpecs.length > 0 ? (
                                 <span className="block text-xs text-zinc-500">
@@ -2404,7 +2415,9 @@ function QuoteForm() {
                         ? `${selection.candidate.brand} ${selection.candidate.model}${
                             selection.candidate.source === CUSTOMER_SPECIFIED_SOURCE
                               ? `（${CUSTOMER_SPECIFIED_BADGE}）`
-                              : ""
+                              : selection.candidate.source === PROCUREMENT_PRODUCT_SOURCE
+                                ? `（${PROCUREMENT_PRODUCT_BADGE}）`
+                                : ""
                           }`
                         : "沿用 AI 建议";
                   return (

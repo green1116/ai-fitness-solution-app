@@ -107,8 +107,8 @@ export interface ProductPlaceholder {
   model?: string;
   imageUrl?: string;
   priceFact?: ProductPriceFact;
-  /** Set only for customer-specified products; absent with brand/model = reference candidate. */
-  productSource?: "customer-specified";
+  /** Set only for customer-specified / procurement products; absent with brand/model = reference candidate. */
+  productSource?: "customer-specified" | "procurement-product";
   /** Plan PDF facts from a Quote source; absent = suggested quantity / unit price not verified. */
   quantityConfirmed?: boolean;
   priceVerified?: boolean;

@@ -9,7 +9,11 @@ import {
   applyProductSelections,
   applyQuoteRevisionOverrides,
   buildCandidateSlots,
+  buildProcurementCandidateOptions,
   buildProductIntelligenceSnapshot,
+  mergeProcurementCandidates,
+  parseProcurementCandidateId,
+  PROCUREMENT_CANDIDATE_ID_PREFIX,
   PRODUCT_SLOT_CATEGORIES,
   productSlotKey,
   readStoredProductIntelligence,
@@ -17,6 +21,7 @@ import {
   resolveProductSelectionInputs,
   runQuoteEngine,
   type CompanyInfoInput,
+  type ProcurementCandidateOption,
   type ProductCandidateSlot,
   type ProductSelection,
   classifyRequirements,
@@ -29,6 +34,7 @@ import {
 } from "@/lib/product-engine/configuration-strategy";
 import { resolveCanonicalHeadcount } from "@/lib/product-engine/quote-revision";
 import { prisma } from "@/lib/prisma";
+import { listActiveProcurementProductRecords } from "@/lib/services/procurement-product.service";
 import { generateSolution } from "@/lib/services/tender/generateSolution";
 import {
   buildPlaceholders,
@@ -539,15 +545,59 @@ export async function getQuoteProductIntelligence(input: {
     configurationStrategy?: unknown;
   } | null;
   const stored = readStoredProductIntelligence(content?.productIntelligence);
+  const baseSlots = stored?.slots ?? buildCandidateSlots(templatePlaceholders);
+  const procurementWarnings: string[] = [];
+  let procurementOptions: ProcurementCandidateOption[] = [];
+  try {
+    procurementOptions = buildProcurementCandidateOptions(
+      await listActiveProcurementProductRecords(input.organizationId),
+      baseSlots,
+    );
+  } catch (err) {
+    // Read-only view: selected procurement snapshots below stay visible; saving is unaffected.
+    console.error("[quote/product-intelligence] procurement products unavailable", err);
+    procurementWarnings.push("采购库产品暂时无法加载，当前仅显示参考候选与已选配置");
+  }
   return {
     quoteId: quote.id,
     snapshotSource: stored ? "stored" : "computed",
     requirements: stored?.requirements ?? classifyRequirements(projectInput.notes),
-    slots: stored?.slots ?? buildCandidateSlots(templatePlaceholders),
+    slots: mergeProcurementCandidates(baseSlots, procurementOptions, selections),
     selections,
-    warnings: applied.warnings,
+    warnings: [...applied.warnings, ...procurementWarnings],
     configurationStrategy: readStoredConfigurationAnalysis(content?.configurationStrategy),
   };
+}
+
+/**
+ * Current procurement options needed to resolve `inputs`; ids already satisfied by the base
+ * Quote's stored snapshot (same slot + candidateId) never query current master data.
+ */
+async function loadProcurementOptionsForInputs(input: {
+  organizationId: string;
+  inputs: unknown;
+  retained: ProductSelection[];
+  slots: ProductCandidateSlot[];
+}): Promise<ProcurementCandidateOption[]> {
+  if (!Array.isArray(input.inputs)) return [];
+  const productIds = new Set<string>();
+  for (const raw of input.inputs) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    const candidateId = typeof row.candidateId === "string" ? row.candidateId.trim() : "";
+    if (!candidateId.startsWith(PROCUREMENT_CANDIDATE_ID_PREFIX)) continue;
+    const slotKey = typeof row.slotKey === "string" ? row.slotKey.trim() : "";
+    const retained = input.retained.some(
+      (s) => s.slotKey === slotKey && s.candidate?.candidateId === candidateId,
+    );
+    const parsed = retained ? null : parseProcurementCandidateId(candidateId);
+    if (parsed) productIds.add(parsed.productId);
+  }
+  if (productIds.size === 0) return [];
+  return buildProcurementCandidateOptions(
+    await listActiveProcurementProductRecords(input.organizationId, Array.from(productIds)),
+    input.slots,
+  );
 }
 
 /**
@@ -576,11 +626,21 @@ export async function createQuoteVersionWithSelections(input: {
       quantityModel: resolveQuoteQuantityModel(base.content),
     }),
   );
+  const retained = baseCompanyInfo.productSelections ?? [];
   const productSelections = resolveProductSelectionInputs({
     inputs: input.selections,
     slots,
     decidedAt: new Date().toISOString(),
     decidedBy: input.decidedBy,
+    procurement: {
+      options: await loadProcurementOptionsForInputs({
+        organizationId: input.organizationId,
+        inputs: input.selections,
+        retained,
+        slots,
+      }),
+      retained,
+    },
   });
 
   const nextCompanyInfo: CompanyInfoInput = { ...baseCompanyInfo };

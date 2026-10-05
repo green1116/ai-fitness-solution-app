@@ -225,12 +225,20 @@ export async function calculateBudget(input: CalculateBudgetInput) {
     priceBand: budgetTier,
   });
   const hasVerifiedPrice = placeholders.some((p) => p.priceFact != null);
+  const procurementCount = placeholders.filter(
+    (p) => p.productSource === "procurement-product",
+  ).length;
   const selectionAssumptions =
     selected.appliedCount > 0 || selected.warnings.length > 0
       ? [
           hasVerifiedPrice
             ? `已应用方案候选配置 ${selected.appliedCount} 项（参考候选 / 产品参数未核实；不引入 SKU 目录价格；仅显式提供来源的核实单价按核实价计价，其余单价按预算档位）`
             : `已应用方案候选配置 ${selected.appliedCount} 项（参考候选 / 未核实；不引入 SKU 价格，单价仍按预算档位）`,
+          ...(procurementCount > 0
+            ? [
+                `其中采购库产品 ${procurementCount} 项（来自组织采购库登记，产品参数未核实；仅附带核实单价的按核实价计价）`,
+              ]
+            : []),
           ...selected.warnings,
         ]
       : [];

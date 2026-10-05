@@ -7,6 +7,11 @@
  * "customer-specified" product (brand + model, identity generated server-side),
  * which is also always "unverified". Selections never carry catalog prices;
  * a verified price exists only as an explicitly supplied, validated `priceFact`.
+ *
+ * "procurement-product" candidates come from the organization's procurement product records,
+ * passed in by the service layer (this module stays DB-free). Their identity is product id +
+ * revision; once selected, the Quote keeps the full candidate (+ optional priceFact) snapshot and
+ * never resolves the current record again.
  */
 
 import type {
@@ -42,7 +47,10 @@ export type RequirementStatusItem = {
   question?: string;
 };
 
-export type ProductCandidateSource = "reference-catalog" | "customer-specified";
+export type ProductCandidateSource =
+  | "reference-catalog"
+  | "customer-specified"
+  | "procurement-product";
 export type ProductCandidateVerificationStatus = "unverified";
 
 export type ProductCandidate = {
@@ -132,6 +140,30 @@ const SLOT_SKU_CATEGORIES: Record<string, SkuCategory[]> = {
   综合训练器: ["strength"],
   自由力量区设备: ["rack", "free_weight"],
 };
+
+export const PROCUREMENT_CANDIDATE_ID_PREFIX = "proc:";
+const PROCUREMENT_CANDIDATE_ID_RE = /^proc:([A-Za-z0-9_-]{1,64}):r([1-9]\d{0,8})$/;
+export const MAX_PROCUREMENT_KEY_SPECS = 10;
+export const MAX_PROCUREMENT_KEY_SPEC_LENGTH = 100;
+const PROCUREMENT_PRODUCT_OPEN_QUESTIONS = [
+  "产品参数来自组织采购库登记，需与供应商最新参数表核实",
+  "供货周期与本地安装/售后能力待确认",
+];
+
+/**
+ * Procurement product categories are SKU categories (never Quote slotKeys); only categories that
+ * map to a current product slot are accepted, so every record is eligible for at least one slot.
+ */
+export const PROCUREMENT_PRODUCT_CATEGORIES: readonly SkuCategory[] = Array.from(
+  new Set(Object.values(SLOT_SKU_CATEGORIES).flat()),
+);
+
+export function isProcurementProductCategory(value: unknown): value is SkuCategory {
+  return (
+    typeof value === "string" &&
+    (PROCUREMENT_PRODUCT_CATEGORIES as readonly string[]).includes(value)
+  );
+}
 
 const TIER_LABEL: Record<PriceBand, string> = {
   low: "经济档",
@@ -607,12 +639,154 @@ function readStoredCustomCandidate(row: Record<string, unknown>): ProductCandida
   };
 }
 
+/** Tenant-safe, revision-bound identity of one procurement product revision. */
+export function procurementCandidateId(productId: string, revision: number): string {
+  return `${PROCUREMENT_CANDIDATE_ID_PREFIX}${productId}:r${revision}`;
+}
+
+export function parseProcurementCandidateId(
+  candidateId: string,
+): { productId: string; revision: number } | null {
+  const match = PROCUREMENT_CANDIDATE_ID_RE.exec(candidateId);
+  return match ? { productId: match[1], revision: Number(match[2]) } : null;
+}
+
+/** DB-free shape of one active organization procurement product (supplied by the service layer). */
+export type ProcurementProductRecord = {
+  id: string;
+  category: string;
+  brand: string;
+  model: string;
+  keySpecs: unknown;
+  priceFact: unknown;
+  revision: number;
+};
+
+/** A selectable current procurement candidate for one slot, with its stored valid priceFact. */
+export type ProcurementCandidateOption = {
+  slotKey: string;
+  candidate: ProductCandidate;
+  priceFact?: ProductPriceFact;
+};
+
+function procurementProductToCandidate(
+  product: ProcurementProductRecord,
+  subCategory: string,
+): ProductCandidate | null {
+  const checked = validateCustomProduct(product);
+  if (!checked.ok || !Number.isInteger(product.revision) || product.revision < 1) return null;
+  const candidateId = procurementCandidateId(product.id, product.revision);
+  if (!parseProcurementCandidateId(candidateId)) return null;
+  return {
+    candidateId,
+    brand: checked.brand,
+    model: checked.model,
+    category: subCategory,
+    keySpecs: toStringList(product.keySpecs).slice(0, MAX_PROCUREMENT_KEY_SPECS),
+    fitReason: `组织采购库产品（第 ${product.revision} 版），品牌与型号来自采购资料登记`,
+    source: "procurement-product",
+    verificationStatus: "unverified",
+    openQuestions: [...PROCUREMENT_PRODUCT_OPEN_QUESTIONS],
+  };
+}
+
+/**
+ * Category → eligible current slot adaptation. A stored priceFact is offered only if it is valid;
+ * otherwise the candidate carries no price and the Budget stays an estimate.
+ */
+export function buildProcurementCandidateOptions(
+  products: ProcurementProductRecord[],
+  slots: ProductCandidateSlot[],
+): ProcurementCandidateOption[] {
+  const out: ProcurementCandidateOption[] = [];
+  for (const slot of slots) {
+    const eligible: readonly string[] = SLOT_SKU_CATEGORIES[slot.subCategory.trim()] ?? [];
+    if (eligible.length === 0) continue;
+    for (const product of products) {
+      if (!eligible.includes(product.category)) continue;
+      const candidate = procurementProductToCandidate(product, slot.subCategory);
+      if (!candidate) continue;
+      const fact = product.priceFact != null ? validatePriceFact(product.priceFact) : null;
+      out.push({
+        slotKey: slot.slotKey,
+        candidate,
+        ...(fact?.ok ? { priceFact: fact.priceFact } : {}),
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * View-only: appends current procurement candidates and the selected (possibly historical)
+ * procurement snapshots after the reference candidates. Never replaces a stored snapshot.
+ */
+export function mergeProcurementCandidates(
+  slots: ProductCandidateSlot[],
+  options: ProcurementCandidateOption[],
+  selections: ProductSelection[] | null | undefined,
+): ProductCandidateSlot[] {
+  return slots.map((slot) => {
+    const seen = new Set(slot.candidates.map((c) => c.candidateId));
+    const extra: ProductCandidate[] = [];
+    const add = (candidate: ProductCandidate) => {
+      if (seen.has(candidate.candidateId)) return;
+      seen.add(candidate.candidateId);
+      extra.push(candidate);
+    };
+    for (const option of options) {
+      if (option.slotKey === slot.slotKey) add(option.candidate);
+    }
+    for (const selection of selections ?? []) {
+      if (
+        selection.slotKey === slot.slotKey &&
+        selection.candidate?.source === "procurement-product"
+      ) {
+        add(selection.candidate);
+      }
+    }
+    if (extra.length === 0) return slot;
+    const merged: ProductCandidateSlot = { ...slot, candidates: [...slot.candidates, ...extra] };
+    delete merged.emptyMessage;
+    return merged;
+  });
+}
+
+/** Procurement snapshots survive a read only in their canonical server-written form. */
+function readStoredProcurementCandidate(row: Record<string, unknown>): ProductCandidate | null {
+  if (row.source !== "procurement-product" || row.verificationStatus !== "unverified") {
+    return null;
+  }
+  if (typeof row.candidateId !== "string" || !parseProcurementCandidateId(row.candidateId)) {
+    return null;
+  }
+  const checked = validateCustomProduct(row);
+  if (!checked.ok || checked.brand !== row.brand || checked.model !== row.model) return null;
+  return {
+    candidateId: row.candidateId,
+    brand: checked.brand,
+    model: checked.model,
+    category: typeof row.category === "string" ? row.category : "",
+    keySpecs: toStringList(row.keySpecs),
+    fitReason: typeof row.fitReason === "string" ? row.fitReason : "",
+    source: "procurement-product",
+    verificationStatus: "unverified",
+    openQuestions: toStringList(row.openQuestions),
+  };
+}
+
 function readStoredCandidate(value: unknown): ProductCandidate | null {
   if (!value || typeof value !== "object") return null;
   const row = value as Record<string, unknown>;
   const storedId = typeof row.candidateId === "string" ? row.candidateId.trim() : "";
   if (row.source === "customer-specified" || storedId.startsWith(CUSTOM_CANDIDATE_ID_PREFIX)) {
     return readStoredCustomCandidate(row);
+  }
+  if (
+    row.source === "procurement-product" ||
+    storedId.startsWith(PROCUREMENT_CANDIDATE_ID_PREFIX)
+  ) {
+    return readStoredProcurementCandidate(row);
   }
   const brand = typeof row.brand === "string" ? row.brand.trim() : "";
   const model = typeof row.model === "string" ? row.model.trim() : "";
@@ -671,22 +845,48 @@ export class ProductSelectionInputError extends Error {
   }
 }
 
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const row = value as Record<string, unknown>;
+    return `{${Object.keys(row)
+      .filter((k) => row[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stableJson(row[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
 /**
  * Resolve client input against the server-side slots/candidates.
  * Catalog candidates are always re-read from the catalog; a customer-specified product
  * contributes only brand + model, and its identity / source / verification are server-set.
+ *
+ * A procurement candidateId resolves only to (1) the same slot's snapshot already stored on the
+ * base Quote (`procurement.retained`, kept exactly, including an unchanged priceFact), or (2) a
+ * current option of the requesting organization (`procurement.options`), whose stored valid
+ * priceFact is snapshotted when the client supplies none. Anything else is "候选不存在".
  */
 export function resolveProductSelectionInputs(input: {
   inputs: unknown;
   slots: ProductCandidateSlot[];
   decidedAt: string;
   decidedBy?: string;
+  procurement?: {
+    options: ProcurementCandidateOption[];
+    retained: ProductSelection[] | null | undefined;
+  };
 }): ProductSelection[] {
   if (!Array.isArray(input.inputs)) {
     throw new ProductSelectionInputError("selections 必须为数组");
   }
   const slotMap = new Map(input.slots.map((s) => [s.slotKey, s]));
   const bySlot = new Map<string, ProductSelection>();
+  const procurementOptions = input.procurement?.options ?? [];
+  const procurementRetained = (input.procurement?.retained ?? []).filter(
+    (s) => s.candidate?.source === "procurement-product",
+  );
 
   for (const raw of input.inputs) {
     if (!raw || typeof raw !== "object") {
@@ -714,6 +914,8 @@ export function resolveProductSelectionInputs(input: {
     }
 
     let candidate: ProductCandidate | null = null;
+    let retainedPriceFact: ProductPriceFact | undefined;
+    let optionPriceFact: ProductPriceFact | undefined;
     if (row.customProduct != null) {
       if (action !== "replace") {
         throw new ProductSelectionInputError(`客户指定产品需使用替换操作：${slot.subCategory}`);
@@ -735,7 +937,22 @@ export function resolveProductSelectionInputs(input: {
     } else if (action !== "remove") {
       const candidateId =
         typeof row.candidateId === "string" ? row.candidateId.trim() : "";
-      if (candidateId) {
+      if (candidateId.startsWith(PROCUREMENT_CANDIDATE_ID_PREFIX)) {
+        const kept = procurementRetained.find(
+          (s) => s.slotKey === slotKey && s.candidate?.candidateId === candidateId,
+        );
+        const option = kept
+          ? undefined
+          : procurementOptions.find(
+              (o) => o.slotKey === slotKey && o.candidate.candidateId === candidateId,
+            );
+        candidate = kept?.candidate ?? option?.candidate ?? null;
+        if (!candidate) {
+          throw new ProductSelectionInputError(`候选不存在：${slot.subCategory}`);
+        }
+        retainedPriceFact = kept?.priceFact;
+        optionPriceFact = option?.priceFact;
+      } else if (candidateId) {
         candidate = slot.candidates.find((c) => c.candidateId === candidateId) ?? null;
         if (!candidate) {
           throw new ProductSelectionInputError(`候选不存在：${slot.subCategory}`);
@@ -752,13 +969,19 @@ export function resolveProductSelectionInputs(input: {
           `核实单价需先选择具体候选产品：${slot.subCategory}`,
         );
       }
-      const validated = validatePriceFact(row.priceFact, {
-        now: new Date(input.decidedAt),
-      });
-      if (!validated.ok) {
-        throw new ProductSelectionInputError(`${validated.message}：${slot.subCategory}`);
+      if (retainedPriceFact && stableJson(row.priceFact) === stableJson(retainedPriceFact)) {
+        priceFact = retainedPriceFact;
+      } else {
+        const validated = validatePriceFact(row.priceFact, {
+          now: new Date(input.decidedAt),
+        });
+        if (!validated.ok) {
+          throw new ProductSelectionInputError(`${validated.message}：${slot.subCategory}`);
+        }
+        priceFact = validated.priceFact;
       }
-      priceFact = validated.priceFact;
+    } else if (optionPriceFact) {
+      priceFact = optionPriceFact;
     }
 
     bySlot.set(slotKey, {
@@ -838,6 +1061,8 @@ export function applyProductSelections<T extends ProductPlaceholder>(
       if (selection.priceFact) next.priceFact = selection.priceFact;
       if (selection.candidate.source === "customer-specified") {
         next.productSource = "customer-specified";
+      } else if (selection.candidate.source === "procurement-product") {
+        next.productSource = "procurement-product";
       }
     }
     appliedCount += 1;
