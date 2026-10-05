@@ -595,3 +595,35 @@ export async function createQuoteVersionWithSelections(input: {
     companyInfo: nextCompanyInfo,
   });
 }
+
+/**
+ * Requirement revision → NEW Quote version based on an explicit READY base Quote.
+ * Revised requirements come from `companyInfo`; productSelections are carried over exactly as
+ * stored on the base (no re-validation, no catalog re-read). The base Quote is only read.
+ */
+export async function generateQuoteRevision(input: {
+  baseQuoteId: string;
+  projectId: string;
+  workspaceId: string;
+  organizationId: string;
+  companyInfo: CompanyInfoInput;
+}) {
+  const base = await loadReadyQuoteForTenant(
+    input.baseQuoteId,
+    input.organizationId,
+    input.projectId,
+  );
+  const inherited = readCompanyInfo(base.companyInfo).productSelections ?? [];
+
+  const nextCompanyInfo: CompanyInfoInput = { ...input.companyInfo };
+  delete nextCompanyInfo.productSelections;
+  if (inherited.length > 0) {
+    nextCompanyInfo.productSelections = inherited;
+  }
+  return generateQuote({
+    projectId: input.projectId,
+    workspaceId: input.workspaceId,
+    organizationId: input.organizationId,
+    companyInfo: nextCompanyInfo,
+  });
+}

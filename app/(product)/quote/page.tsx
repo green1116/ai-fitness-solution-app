@@ -1234,13 +1234,9 @@ function QuoteForm() {
       alert("请填写补充要求后再重新生成");
       return;
     }
-    if (
-      isRevision &&
-      (piView?.selections.length ?? 0) > 0 &&
-      !window.confirm(
-        "当前方案已保存设备候选选择。按新要求重新生成的新版本不会带入这些选择，需要在新版本中重新选择；当前版本仍保留在方案历史中。是否继续？",
-      )
-    ) {
+    const baseQuoteId = isRevision ? trimQuoteId(quoteId) : "";
+    if (isRevision && !baseQuoteId) {
+      setError("当前没有可修改的方案版本，请先生成方案");
       return;
     }
 
@@ -1291,6 +1287,9 @@ function QuoteForm() {
         }
       }
       applyClarification(payload, clarificationValues);
+      if (isRevision) {
+        payload.baseQuoteId = baseQuoteId;
+      }
 
       if (!isRevision && !clarificationDecided && !clarificationResolved) {
         const analysis = await requestRequirementAnalysis(payload, organizationId);
@@ -1312,7 +1311,15 @@ function QuoteForm() {
         headers: orgHeaders(organizationId),
         body: JSON.stringify(payload),
       });
-      const data = (await res.json()) as GenerateQuoteResponse;
+      const data = (await res.json()) as GenerateQuoteResponse & { code?: string };
+      if (isRevision && res.status === 409 && data.code === QUOTE_PROJECT_MISMATCH_CODE) {
+        discardMismatchedQuote(baseQuoteId, organizationId, nextProjectId);
+        return;
+      }
+      if (isRevision && data.ok !== true) {
+        setError("方案修改失败，当前版本保持不变。请刷新页面后重试。");
+        return;
+      }
       const readyProposal =
         data.ok === true && data.status === "READY" && data.proposal
           ? data.proposal
@@ -1824,7 +1831,7 @@ function QuoteForm() {
               />
             </label>
             <p className="text-xs text-zinc-500">
-              修改后会生成新的方案版本，并回到本步骤重新确认；当前版本保留在方案历史中。
+              修改后会基于当前版本生成新的方案版本，已确认的设备选择与核实单价会带入新版本，并回到本步骤重新确认；当前版本保留在方案历史中。
             </p>
             <button
               type="button"

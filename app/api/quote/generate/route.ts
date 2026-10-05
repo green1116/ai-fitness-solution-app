@@ -9,7 +9,11 @@ import { recordQuoteGenerationSuccess } from "@/lib/growth/growth.service";
 import { recordQuoteAsLead } from "@/lib/crm/crm.product-bridge";
 import { onQuoteGenerated } from "@/lib/sales/sales.product-bridge";
 import { runSaasApiGate, saasGateErrorResponse, trackFeatureUsage } from "@/lib/saas/api-gate";
-import { generateQuote } from "@/lib/services/quote.service";
+import {
+  generateQuote,
+  generateQuoteRevision,
+  QuoteProjectMismatchError,
+} from "@/lib/services/quote.service";
 
 export async function POST(req: NextRequest) {
   let organizationId: string | undefined;
@@ -34,21 +38,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const baseQuoteRequested =
+      body !== null && typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "baseQuoteId");
+    const baseQuoteId = typeof body?.baseQuoteId === "string" ? body.baseQuoteId.trim() : "";
+    if (baseQuoteRequested && !baseQuoteId) {
+      return NextResponse.json(
+        { ok: false, code: "BASE_QUOTE_ID_REQUIRED", message: "缺少 baseQuoteId", traceId: gate.traceId },
+        { status: 400 },
+      );
+    }
+
     const isFirst = !hasFirstQuote(gate.organizationId);
 
-    const result = await generateQuote({
-      projectId,
-      workspaceId,
-      organizationId: gate.organizationId,
-      companyInfo: {
-        companyName,
-        industry: body?.industry ?? body?.companyInfo?.industry,
-        city: body?.city ?? body?.companyInfo?.city,
-        targetUsers: body?.targetUsers ?? body?.companyInfo?.targetUsers,
-        areaM2: body?.areaM2 ?? body?.companyInfo?.areaM2,
-        notes: body?.notes ?? body?.companyInfo?.notes,
-      },
-    });
+    const companyInfo = {
+      companyName,
+      industry: body?.industry ?? body?.companyInfo?.industry,
+      city: body?.city ?? body?.companyInfo?.city,
+      targetUsers: body?.targetUsers ?? body?.companyInfo?.targetUsers,
+      areaM2: body?.areaM2 ?? body?.companyInfo?.areaM2,
+      notes: body?.notes ?? body?.companyInfo?.notes,
+    };
+    const result = baseQuoteRequested
+      ? await generateQuoteRevision({
+          baseQuoteId,
+          projectId,
+          workspaceId,
+          organizationId: gate.organizationId,
+          companyInfo,
+        })
+      : await generateQuote({
+          projectId,
+          workspaceId,
+          organizationId: gate.organizationId,
+          companyInfo,
+        });
 
     await trackFeatureUsage(gate.organizationId, "canGenerateQuote");
     await recordQuoteGenerationSuccess({
@@ -107,6 +130,24 @@ export async function POST(req: NextRequest) {
     }
     if (err instanceof Error && err.name === "SaasAuthError") {
       return saasGateErrorResponse(err, traceId);
+    }
+    if (err instanceof QuoteProjectMismatchError) {
+      return NextResponse.json(
+        { ok: false, code: err.code, message: "方案不属于当前项目", traceId },
+        { status: 409 },
+      );
+    }
+    if (err instanceof Error && err.message === "Quote not found") {
+      return NextResponse.json(
+        { ok: false, code: "BASE_QUOTE_NOT_FOUND", message: "基准方案不存在", traceId },
+        { status: 404 },
+      );
+    }
+    if (err instanceof Error && err.message === "Quote is not READY") {
+      return NextResponse.json(
+        { ok: false, code: "BASE_QUOTE_NOT_READY", message: "基准方案尚未就绪，无法基于其修改", traceId },
+        { status: 409 },
+      );
     }
     console.error("[quote/generate]", err);
     return NextResponse.json(
