@@ -5,7 +5,8 @@ import { getCurrentUser } from "@/lib/auth/currentUser";
 import { toSafeEntitlementsDebug } from "@/lib/entitlements/publicEntitlement";
 import { evaluateZipAccess } from "@/lib/entitlements/zipAccess";
 import { resolveRequestEntitlement } from "@/lib/entitlements/resolveEntitlement";
-import { normalizeUserTier } from "@/lib/commercial/userTier";
+import { normalizeUserTier, type UserTier } from "@/lib/commercial/userTier";
+import { resolveOrganizationFeatures } from "@/lib/billing/subscription/subscription.resolver";
 import {
   createDevZipProjectBundle,
   isDatabaseConnectivityError,
@@ -228,6 +229,8 @@ type ZipRenderSource = {
   solution: SolutionLike;
   placeholders: PlaceholderLike[];
   dataSource: string;
+  /** Set only on the tender-bound path, where the SaaS subscription is authoritative. */
+  renderTier?: UserTier;
 };
 
 type ZipSourceResult = { ok: true; source: ZipRenderSource } | { ok: false; response: Response };
@@ -280,6 +283,17 @@ async function resolveTenderBoundSource(
     throw err;
   }
 
+  const features = await resolveOrganizationFeatures(org.organizationId);
+  if (!features.flags.canGenerateTender) {
+    return {
+      ok: false,
+      response: zipError(403, "ZIP_TIER_INSUFFICIENT", "投标交付包需要 Enterprise 订阅，请升级后再下载。", {
+        reason: "TIER_INSUFFICIENT",
+        plan: features.plan,
+      }),
+    };
+  }
+
   const { project, quote, budget } = binding;
   const quoteSource = buildQuotePlanPdfSource(quote);
   const companySize =
@@ -295,6 +309,7 @@ async function resolveTenderBoundSource(
       solution: quoteSource.solution,
       placeholders: quoteSource.placeholders,
       dataSource: "db-tender",
+      renderTier: normalizeUserTier(features.plan),
     },
   };
 }
@@ -445,6 +460,78 @@ async function resolveLegacyProjectSource(params: {
   };
 }
 
+/** Legacy planId-scoped entitlement; only for requests without tenderId. */
+async function authorizeLegacyZipAccess(
+  req: NextRequest,
+  planIdForEnt: string,
+  pid: string,
+): Promise<{ ok: true; renderTier: UserTier } | { ok: false; response: Response }> {
+  const { entitlement, debug, source, userId } =
+    await resolveRequestEntitlement({
+      req,
+      planId: planIdForEnt,
+    });
+
+  const zipDecision = evaluateZipAccess({
+    entitlement,
+    debug,
+    planId: planIdForEnt,
+  });
+
+  const diagnostic = toSafeEntitlementsDebug(debug);
+
+  console.log("[ZIP] entitlement", {
+    planId: planIdForEnt,
+    projectId: pid,
+    source,
+    userId,
+    effectiveLevel: zipDecision.effectiveLevel,
+    zipFromEntitlement: zipDecision.zipFromEntitlement,
+    zipFromEnterprisePurchase: zipDecision.zipFromEnterprisePurchase,
+    purchaseStatus: zipDecision.purchaseStatus,
+    devListed: zipDecision.devListed,
+    devBypass: zipDecision.devBypass,
+    allowed: zipDecision.allowed,
+    allowedReason: zipDecision.allowedReason,
+    denyReason: zipDecision.denyReason ?? null,
+    zipEnabled: entitlement.zipEnabled,
+    budgetEnabled: entitlement.budgetEnabled,
+    paidOrderCount: debug.paidOrders.length,
+    orderWinner: debug.orderWinner,
+    licenseWinner: debug.licenseWinner,
+    finalRank: debug.finalRank,
+    winningSource: debug.winningSource,
+    diagnostic,
+  });
+
+  if (!zipDecision.allowed) {
+    const code =
+      zipDecision.denyReason === "NOT_PURCHASED"
+        ? "ZIP_NOT_PURCHASED"
+        : zipDecision.denyReason === "TIER_INSUFFICIENT"
+          ? "ZIP_TIER_INSUFFICIENT"
+          : zipDecision.denyReason === "DEV_NOT_ALLOWLISTED"
+            ? "ZIP_DEV_NOT_ALLOWLISTED"
+            : "ZIP_NOT_ENTITLED";
+
+    return {
+      ok: false,
+      response: zipError(403, code, zipDecision.userMessage, {
+        reason: zipDecision.denyReason ?? "ZIP_NOT_ENTITLED",
+        planId: planIdForEnt,
+        effectiveLevel: entitlement.effectiveLevel,
+        zipEnabled: entitlement.zipEnabled,
+        purchaseStatus: zipDecision.purchaseStatus,
+        allowedReason: zipDecision.allowedReason,
+        diagnostic,
+        winningSource: debug.winningSource,
+      }),
+    };
+  }
+
+  return { ok: true, renderTier: normalizeUserTier(entitlement.effectiveLevel ?? "free") };
+}
+
 export async function POST(req: NextRequest) {
   const startedAt = Date.now();
   try {
@@ -481,64 +568,11 @@ export async function POST(req: NextRequest) {
       return zipError(400, "TENDER_ID_REQUIRED", "缺少 tenderId");
     }
 
-    const { entitlement, debug, source, userId } =
-      await resolveRequestEntitlement({
-        req,
-        planId: planIdForEnt,
-      });
-
-    const zipDecision = evaluateZipAccess({
-      entitlement,
-      debug,
-      planId: planIdForEnt,
-    });
-
-    const diagnostic = toSafeEntitlementsDebug(debug);
-
-    console.log("[ZIP] entitlement", {
-      planId: planIdForEnt,
-      projectId: pid,
-      source,
-      userId,
-      effectiveLevel: zipDecision.effectiveLevel,
-      zipFromEntitlement: zipDecision.zipFromEntitlement,
-      zipFromEnterprisePurchase: zipDecision.zipFromEnterprisePurchase,
-      purchaseStatus: zipDecision.purchaseStatus,
-      devListed: zipDecision.devListed,
-      devBypass: zipDecision.devBypass,
-      allowed: zipDecision.allowed,
-      allowedReason: zipDecision.allowedReason,
-      denyReason: zipDecision.denyReason ?? null,
-      zipEnabled: entitlement.zipEnabled,
-      budgetEnabled: entitlement.budgetEnabled,
-      paidOrderCount: debug.paidOrders.length,
-      orderWinner: debug.orderWinner,
-      licenseWinner: debug.licenseWinner,
-      finalRank: debug.finalRank,
-      winningSource: debug.winningSource,
-      diagnostic,
-    });
-
-    if (!zipDecision.allowed) {
-      const code =
-        zipDecision.denyReason === "NOT_PURCHASED"
-          ? "ZIP_NOT_PURCHASED"
-          : zipDecision.denyReason === "TIER_INSUFFICIENT"
-            ? "ZIP_TIER_INSUFFICIENT"
-            : zipDecision.denyReason === "DEV_NOT_ALLOWLISTED"
-              ? "ZIP_DEV_NOT_ALLOWLISTED"
-              : "ZIP_NOT_ENTITLED";
-
-      return zipError(403, code, zipDecision.userMessage, {
-        reason: zipDecision.denyReason ?? "ZIP_NOT_ENTITLED",
-        planId: planIdForEnt,
-        effectiveLevel: entitlement.effectiveLevel,
-        zipEnabled: entitlement.zipEnabled,
-        purchaseStatus: zipDecision.purchaseStatus,
-        allowedReason: zipDecision.allowedReason,
-        diagnostic,
-        winningSource: debug.winningSource,
-      });
+    let legacyRenderTier: UserTier = "free";
+    if (!tenderIdRequested) {
+      const legacyAccess = await authorizeLegacyZipAccess(req, planIdForEnt, pid);
+      if (!legacyAccess.ok) return legacyAccess.response;
+      legacyRenderTier = legacyAccess.renderTier;
     }
 
     const bodyCompanySize = Number(body.companySize);
@@ -571,7 +605,7 @@ export async function POST(req: NextRequest) {
     const companyNameForRender =
       projectForRender.clientName ?? projectForRender.name ?? "投标企业";
 
-    const renderTier = normalizeUserTier(entitlement.effectiveLevel ?? "free");
+    const renderTier = resolved.source.renderTier ?? legacyRenderTier;
 
     const tenderDocument = buildTenderDocumentContext({
       projectId: renderProjectId,

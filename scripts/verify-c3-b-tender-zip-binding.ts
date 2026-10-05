@@ -191,7 +191,7 @@ stubModule("lib/prisma", {
 });
 
 // ---------------------------------------------------------------------------
-// Entitlement + org gate stubs (legacy ZIP entitlement still evaluated by the real evaluateZipAccess)
+// Entitlement + org gate + subscription stubs (tender path: ENTERPRISE org; legacy path: real evaluateZipAccess)
 // ---------------------------------------------------------------------------
 
 const ORG = "org-c3b";
@@ -233,6 +233,14 @@ stubModule("lib/saas/api-gate", {
     if (requested !== gate.sessionOrg) throw new NamedError("TenantIsolationError", "Organization mismatch");
     return { userId: "user-c3b", organizationId: gate.sessionOrg, traceId: "trace-c3b" };
   },
+});
+stubModule("lib/billing/subscription/subscription.resolver", {
+  resolveOrganizationFeatures: async () => ({
+    plan: "ENTERPRISE",
+    status: "ACTIVE",
+    flags: { canGenerateQuote: true, canGenerateBudget: true, canGenerateTender: true, canExportPDF: true, canUseAPI: true },
+    currentPeriodEnd: null,
+  }),
 });
 
 let provisionCalls = 0;
