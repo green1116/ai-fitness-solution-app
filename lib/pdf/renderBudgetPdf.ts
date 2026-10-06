@@ -58,7 +58,23 @@ type DetailedBudgetItem = {
   remark?: string;
   priceBasis: "VERIFIED" | "ESTIMATE";
   priceSource?: string;
+  estimateBasis?: string;
 };
+
+/**
+ * Display basis of an ESTIMATE row priced from a persisted organization price reference snapshot.
+ * Only the revision is delivered; the full sourceNote stays in the snapshot and is never printed.
+ * Anything malformed is ignored so the row renders exactly as before.
+ */
+function readOrganizationEstimateBasis(row: Record<string, unknown>): string | null {
+  if (row.priceBasis !== "ESTIMATE") return null;
+  const basis = row.estimateBasis;
+  if (!basis || typeof basis !== "object" || Array.isArray(basis)) return null;
+  const { source, revision } = basis as Record<string, unknown>;
+  if (source !== "organization-price-reference") return null;
+  if (typeof revision !== "number" || !Number.isInteger(revision) || revision < 1) return null;
+  return `组织价目表 第 ${revision} 版`;
+}
 
 /** VERIFIED only when the persisted row carries a complete price fact with a single unit price. */
 function readVerifiedPriceSource(
@@ -129,6 +145,7 @@ function readDetailedBudgetItems(items: unknown): DetailedBudgetItem[] | null {
       (typeof row.subCategory === "string" && row.subCategory.trim()) ||
       row.category.trim();
     const priceSource = readVerifiedPriceSource(row, unitPriceMin, unitPriceMax);
+    const estimateBasis = priceSource ? null : readOrganizationEstimateBasis(row);
     out.push({
       category: row.category.trim(),
       name,
@@ -142,6 +159,7 @@ function readDetailedBudgetItems(items: unknown): DetailedBudgetItem[] | null {
         : {}),
       priceBasis: priceSource ? "VERIFIED" : "ESTIMATE",
       ...(priceSource ? { priceSource } : {}),
+      ...(estimateBasis ? { estimateBasis } : {}),
     });
   }
   return out.length > 0 ? out : null;
@@ -201,6 +219,7 @@ function summaryFromPersistedBudget(
         note: it.remark,
         priceBasis: it.priceBasis,
         ...(it.priceSource ? { priceSource: it.priceSource } : {}),
+        ...(it.estimateBasis ? { estimateBasis: it.estimateBasis } : {}),
       })),
       assumptions,
     };

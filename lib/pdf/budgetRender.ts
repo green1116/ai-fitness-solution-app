@@ -292,6 +292,7 @@ type StrictItem = {
   note?: string;
   priceBasis?: "VERIFIED" | "ESTIMATE";
   priceSource?: string;
+  estimateBasis?: string;
 };
 
 /** Configuration context generateBudget appends as the last segment of an ESTIMATE remark. */
@@ -304,18 +305,30 @@ export const VERIFIED_PRICE_TAX_NOTE =
 
 const TAX_STATUS_LABELS = new Set<string>(Object.values(PRICE_FACT_TAX_STATUS_LABEL));
 
-/** Footnotes under the detailed table: basis legend, verified sources, estimate configuration context. */
+export const ORGANIZATION_ESTIMATE_LEGEND =
+  "[估算·组织价目] 按本组织维护的子品类 × 档位单价区间估算，仍属估算，非核实单价。";
+
+export const ORGANIZATION_ESTIMATE_BASIS_PREFIX = "估算依据：";
+
+/**
+ * Footnotes under the detailed table: basis legend, verified sources, estimate configuration context,
+ * organization estimate basis.
+ */
 export function budgetPriceBasisLines(
-  items: Array<Pick<StrictItem, "name" | "note" | "priceBasis" | "priceSource">>,
+  items: Array<Pick<StrictItem, "name" | "note" | "priceBasis" | "priceSource" | "estimateBasis">>,
 ): string[] {
   const verifiedSources = items.filter((it) => it.priceBasis === "VERIFIED" && it.priceSource);
   const taxStatusDisclosed = verifiedSources.some((it) =>
     it.priceSource!.split(" · ").some((segment) => TAX_STATUS_LABELS.has(segment)),
   );
+  const organizationEstimates = items.filter(
+    (it) => it.priceBasis === "ESTIMATE" && it.estimateBasis,
+  );
   return [
     items.some((it) => it.priceBasis === "VERIFIED")
       ? "[核实] 按显式提供来源的核实单价计价，不随预算档位变化；[估算] 按品类 × 预算档位的单价区间估算。"
       : "[估算] 按品类 × 预算档位的单价区间估算。",
+    ...(organizationEstimates.length > 0 ? [ORGANIZATION_ESTIMATE_LEGEND] : []),
     ...(taxStatusDisclosed ? [VERIFIED_PRICE_TAX_NOTE] : []),
     ...verifiedSources.map((it) => `${VERIFIED_PRICE_SOURCE_PREFIX}${it.name} — ${it.priceSource}`),
     ...items
@@ -324,6 +337,9 @@ export function budgetPriceBasisLines(
         const context = it.note?.match(ESTIMATE_CONFIG_CONTEXT_RE)?.[0];
         return context ? [`[估算] ${it.name} — ${context}`] : [];
       }),
+    ...organizationEstimates.map(
+      (it) => `[估算] ${it.name} — ${ORGANIZATION_ESTIMATE_BASIS_PREFIX}${it.estimateBasis}`,
+    ),
   ];
 }
 
@@ -445,6 +461,7 @@ function toStrictSummaryFromBudgetSummary(
         note: it.note,
         ...(it.priceBasis ? { priceBasis: it.priceBasis } : {}),
         ...(it.priceSource ? { priceSource: it.priceSource } : {}),
+        ...(it.estimateBasis ? { estimateBasis: it.estimateBasis } : {}),
       });
     }
   }

@@ -4,6 +4,10 @@
 
 import type { Prisma } from "@prisma/client";
 
+import {
+  isEstimateSubcategoryKey,
+  type EstimatePriceReference,
+} from "@/lib/budget/estimate-price-reference";
 import type { ProjectInput } from "@/lib/domain/tender";
 import {
   applyProductSelections,
@@ -19,6 +23,7 @@ import type { BudgetStructure } from "@/lib/product-engine/types";
 import type { QuoteOrchestrationStepResult } from "@/lib/quote-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { generateBudget } from "@/lib/services/tender/generateBudget";
+import { listActiveOrganizationPriceReferences } from "@/lib/services/organization-price-reference.service";
 import { assertQuoteBelongsToProject } from "@/lib/services/quote.service";
 import {
   buildPlaceholders,
@@ -179,6 +184,19 @@ function rollupCategorySubtotals(
   }));
 }
 
+/** Active organization price references, shaped as the generateBudget estimate input. */
+async function readEstimatePriceReferences(
+  organizationId: string,
+): Promise<EstimatePriceReference[]> {
+  const rows = await listActiveOrganizationPriceReferences(organizationId);
+  return rows.flatMap(
+    ({ id, subcategoryKey, budgetTier, unitPriceMin, unitPriceMax, sourceNote, revision }) =>
+      isEstimateSubcategoryKey(subcategoryKey)
+        ? [{ id, subcategoryKey, budgetTier, unitPriceMin, unitPriceMax, sourceNote, revision }]
+        : [],
+  );
+}
+
 export async function calculateBudget(input: CalculateBudgetInput) {
   const quote = await prisma.quote.findUnique({
     where: { id: input.quoteId },
@@ -198,6 +216,12 @@ export async function calculateBudget(input: CalculateBudgetInput) {
       assertQuoteBelongsToProject(quote, input.projectId, input.organizationId);
     }
   }
+
+  // A failed read must fail the calculation: falling back to platform estimates would silently
+  // drop the organization's price references.
+  const estimatePriceReferences = input.organizationId
+    ? await readEstimatePriceReferences(input.organizationId)
+    : undefined;
 
   const budgetTier: BudgetTier = input.budgetTier ?? "mid";
   const companyInfo = readCompanyInfo(quote.companyInfo);
@@ -223,6 +247,7 @@ export async function calculateBudget(input: CalculateBudgetInput) {
   const placeholders = selected.placeholders;
   const generated = generateBudget(quote.project.id, placeholders, {
     priceBand: budgetTier,
+    ...(estimatePriceReferences ? { estimatePriceReferences } : {}),
   });
   const hasVerifiedPrice = placeholders.some((p) => p.priceFact != null);
   const procurementCount = placeholders.filter(

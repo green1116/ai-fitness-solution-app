@@ -91,6 +91,16 @@ export interface ProductPriceFact {
 
 export type BudgetPriceBasis = "VERIFIED" | "ESTIMATE";
 
+/** Snapshot of the organization estimate price reference an ESTIMATE row was priced from. */
+export interface BudgetEstimateBasis {
+  source: "organization-price-reference";
+  referenceId: string;
+  revision: number;
+  subcategoryKey: string;
+  budgetTier: PriceBand;
+  sourceNote: string;
+}
+
 export interface ProductPlaceholder {
   id: string;
   projectId: string;
@@ -131,6 +141,8 @@ export interface BudgetItem {
   priceBasis?: BudgetPriceBasis;
   /** Present only when priceBasis is VERIFIED. */
   priceFact?: ProductPriceFact;
+  /** Present only on ESTIMATE rows priced from an organization estimate price reference. */
+  estimateBasis?: BudgetEstimateBasis;
 }
 
 export interface BudgetRecord {

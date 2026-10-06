@@ -1,5 +1,11 @@
 import {
+  estimateBasisFromReference,
+  matchEstimatePriceReference,
+  type EstimatePriceReference,
+} from "@/lib/budget/estimate-price-reference";
+import {
   PRICE_FACT_SOURCE_LABEL,
+  type BudgetEstimateBasis,
   type BudgetItem,
   type BudgetRecord,
   type PriceBand,
@@ -59,6 +65,7 @@ function getUnitPriceRange(
 function buildBudgetItem(
   placeholder: ProductPlaceholder,
   priceBand: PriceBand,
+  estimatePriceReferences?: readonly EstimatePriceReference[],
 ): BudgetItem {
   const baseName =
     placeholder.subCategory?.trim() ||
@@ -95,11 +102,9 @@ function buildBudgetItem(
     };
   }
 
-  const [unitPriceMin, unitPriceMax] = getUnitPriceRange(
-    placeholder.category,
-    priceBand,
-  );
-  // Estimates price category × tier, not the configured model: the model stays out of
+  const estimate = resolveEstimateRange(placeholder, priceBand, estimatePriceReferences);
+  const [unitPriceMin, unitPriceMax] = estimate.range;
+  // Estimates price subcategory / category × tier, not the configured model: the model stays out of
   // `name` and must remain the remark's last segment (Budget PDF footnotes read it there).
   const candidateNote = candidateLabel
     ? `；当前配置：${candidateLabel}（${sourceLabel}；单价未核实）`
@@ -117,12 +122,41 @@ function buildBudgetItem(
     remark: `${placeholder.recommendationReason}${candidateNote}`,
     sourceType: "placeholder",
     priceBasis: "ESTIMATE",
+    ...(estimate.basis ? { estimateBasis: estimate.basis } : {}),
+  };
+}
+
+/**
+ * ESTIMATE unit price range: the organization's active reference for subcategory × tier (still an
+ * estimate, snapshotted on the row), otherwise the platform category × tier table.
+ */
+function resolveEstimateRange(
+  placeholder: ProductPlaceholder,
+  priceBand: PriceBand,
+  estimatePriceReferences: readonly EstimatePriceReference[] | undefined,
+): { range: [number, number]; basis?: BudgetEstimateBasis } {
+  const reference = estimatePriceReferences?.length
+    ? matchEstimatePriceReference(
+        estimatePriceReferences,
+        placeholder.category,
+        placeholder.subCategory,
+        priceBand,
+      )
+    : null;
+  if (!reference) {
+    return { range: getUnitPriceRange(placeholder.category, priceBand) };
+  }
+  return {
+    range: [reference.unitPriceMin, reference.unitPriceMax],
+    basis: estimateBasisFromReference(reference),
   };
 }
 
 export type GenerateBudgetOptions = {
   /** When set, overrides each placeholder priceBand for unit price lookup. */
   priceBand?: PriceBand;
+  /** Active organization estimate price references; only rows without a VERIFIED priceFact use them. */
+  estimatePriceReferences?: readonly EstimatePriceReference[];
 };
 
 export function generateBudget(
@@ -135,12 +169,14 @@ export function generateBudget(
     buildBudgetItem(
       placeholder,
       options?.priceBand ?? placeholder.priceBand,
+      options?.estimatePriceReferences,
     ),
   );
 
   const totalEstimateMin = items.reduce((sum, item) => sum + item.subtotalMin, 0);
   const totalEstimateMax = items.reduce((sum, item) => sum + item.subtotalMax, 0);
   const verifiedCount = items.filter((item) => item.priceBasis === "VERIFIED").length;
+  const organizationEstimateCount = items.filter((item) => item.estimateBasis).length;
 
   return {
     id: `${projectId}-budget`,
@@ -159,6 +195,11 @@ export function generateBudget(
       ...(verifiedCount > 0
         ? [
             `${verifiedCount} 项设备按已核实单价计价（来源见明细，不随预算档位变化）；其余设备按品类 × 预算档位估算。`,
+          ]
+        : []),
+      ...(organizationEstimateCount > 0
+        ? [
+            `${organizationEstimateCount} 项设备按组织估算价目表（子品类 × 预算档位）估算，仍属估算，非核实单价。`,
           ]
         : []),
     ],

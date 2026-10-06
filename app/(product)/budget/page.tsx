@@ -19,6 +19,10 @@ import {
   type TenderClientEntitlement,
 } from "@/app/(product)/tender-entitlement-client";
 import { TenderEnterpriseUpgradeCta } from "@/app/(product)/TenderEnterpriseUpgradeCta";
+import {
+  BudgetPriceBasisPanel,
+  reductionOptionPriceBasisLabel,
+} from "@/app/(product)/budget/price-basis";
 import { buildTenderUpgradeHref } from "@/app/(product)/tender-entitlement";
 import {
   isBudgetOverLabelUpperBound,
@@ -1174,6 +1178,12 @@ function BudgetForm() {
             <p className="text-xs text-zinc-500">
               LOW / MID / HIGH 仅影响未提供核实单价的器材估算单价区间；已核实单价不随档位变化，方案器材数量与分区也不变。
             </p>
+            <p className="text-xs text-zinc-500">
+              组织维护了估算价目的子品类按组织价目估算（仍属估算）。{" "}
+              <Link href="/budget/price-reference" className="underline hover:text-zinc-300">
+                管理组织估算价目表
+              </Link>
+            </p>
           </label>
           <label className="block space-y-2">
             <span className="text-sm font-medium text-zinc-200">
@@ -1246,6 +1256,13 @@ function BudgetForm() {
               估算上限超出所选预算区间「{projectBudgetLabel}」，请复核规模或调整档位
             </p>
           ) : null}
+          {budgetId && budgetDetail?.quoteId === quoteId ? (
+            <BudgetPriceBasisPanel items={budgetDetail.items} />
+          ) : budgetId ? (
+            <p className="text-xs text-zinc-500">
+              本浏览器标签页没有该预算的明细快照，暂不能逐项显示价格依据；预算 PDF 按该预算保存时的依据生成。
+            </p>
+          ) : null}
           {budgetId && hasEstimateRange ? (
             <section className="space-y-3 rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
               <p className="font-medium text-zinc-100">② 客户目标预算对照（仅本页参考，不保存）</p>
@@ -1309,7 +1326,10 @@ function BudgetForm() {
                             <p className="text-xs text-zinc-500">
                               当前 {option.currentQuantity} 台 · 单价{" "}
                               {option.unitPriceMin} - {option.unitPriceMax}
-                              {option.priceBasis === "VERIFIED" ? "（已核实单价）" : "（估算单价）"}
+                              {reductionOptionPriceBasisLabel(
+                                option.priceBasis,
+                                budgetDetail?.items[budgetDetail.slotKeys.indexOf(option.slotKey)],
+                              )}
                               {" · "}每减少 1 台约减少 {option.unitPriceMin} - {option.unitPriceMax}
                             </p>
                           </div>

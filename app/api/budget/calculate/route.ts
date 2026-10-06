@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { isKnownApiError } from "@/lib/error/api-error.mapper";
 import { FeatureGateError } from "@/lib/feature-flags/feature-gate";
 import { trackBudgetCalculated } from "@/lib/growth/analytics.events";
 import { growthAwareGateErrorResponse } from "@/lib/growth/growth.api-helper";
@@ -100,7 +101,11 @@ export async function POST(req: NextRequest) {
     }
     console.error("[budget/calculate]", err);
     return NextResponse.json(
-      { ok: false, message: err instanceof Error ? err.message : "预算计算失败", traceId },
+      {
+        ok: false,
+        message: isKnownApiError(err) && err instanceof Error ? err.message : "预算计算失败，请稍后重试",
+        traceId,
+      },
       { status: 500 },
     );
   }

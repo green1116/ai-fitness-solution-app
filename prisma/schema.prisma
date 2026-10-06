@@ -67,6 +67,7 @@ model Organization {
   crmCustomers  Customer[]
   opsCrmIdentityLinks OpsCrmIdentityLink[]
   procurementProducts ProcurementProduct[]
+  organizationPriceReferences OrganizationPriceReference[]
 
   @@map("organization")
 }
@@ -470,6 +471,32 @@ model ProcurementProduct {
   @@index([organizationId, active, category])
   @@index([organizationId, identityKey])
   @@map("procurement_product")
+}
+
+/// C.6-A — Organization estimate price reference: one unit price range per Budget subcategory × tier.
+/// Still an ESTIMATE (never VERIFIED); Budget rows snapshot the reference they were priced from.
+/// `revision` increments only when the range or sourceNote changes; deactivation is soft.
+model OrganizationPriceReference {
+  id             String    @id @default(cuid())
+  organizationId String
+  /// Canonical key from lib/budget/estimate-price-reference.ts (service-validated).
+  subcategoryKey String
+  budgetTier     PriceBand
+  /// CNY per unit, integer yuan; 1 <= min <= max <= 10,000,000 (service-validated).
+  unitPriceMin   Int
+  unitPriceMax   Int
+  sourceNote     String
+  revision       Int       @default(1)
+  active         Boolean   @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, subcategoryKey, budgetTier])
+  @@map("organization_price_reference")
 }
 
 /// V59 — Tender document record (PDF export target)

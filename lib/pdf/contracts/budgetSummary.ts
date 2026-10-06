@@ -20,6 +20,8 @@ export type BudgetItem = {
   priceBasis?: "VERIFIED" | "ESTIMATE";
   /** Human-readable source of a VERIFIED unit price. */
   priceSource?: string;
+  /** Display of a persisted organization estimate basis (ESTIMATE rows only): "组织价目表 第 N 版"; never the sourceNote. */
+  estimateBasis?: string;
 };
 
 export type BudgetSummary = {
