@@ -8,10 +8,24 @@ export type BudgetItemPriceBasis =
   | { kind: "PLATFORM_ESTIMATE" };
 
 export const BUDGET_PRICE_BASIS_LABEL: Record<BudgetPriceBasisKind, string> = {
-  VERIFIED: "核实单价",
+  VERIFIED: "已核实单价",
   ORGANIZATION_ESTIMATE: "组织价目估算",
   PLATFORM_ESTIMATE: "平台通用估算",
 };
+
+const PRICE_BASIS_BADGE_CLASS: Record<BudgetPriceBasisKind, string> = {
+  VERIFIED: "border-emerald-700 text-emerald-200",
+  ORGANIZATION_ESTIMATE: "border-sky-700 text-sky-200",
+  PLATFORM_ESTIMATE: "border-zinc-600 text-zinc-200",
+};
+
+const PRICE_BASIS_ACCENT_CLASS: Record<BudgetPriceBasisKind, string> = {
+  VERIFIED: "border-l-emerald-500",
+  ORGANIZATION_ESTIMATE: "border-l-sky-500",
+  PLATFORM_ESTIMATE: "border-l-zinc-500",
+};
+
+const PRICE_BASIS_KINDS: readonly BudgetPriceBasisKind[] = ["VERIFIED", "ORGANIZATION_ESTIMATE", "PLATFORM_ESTIMATE"];
 
 /** Classifies a persisted Budget row from its own snapshot; never consults the current price reference. */
 export function budgetItemPriceBasis(item: BudgetItem): BudgetItemPriceBasis {
@@ -46,7 +60,7 @@ export function countBudgetPriceBasis(items: readonly BudgetItem[]): Record<Budg
 }
 
 export function budgetItemPriceBasisText(basis: BudgetItemPriceBasis): string {
-  if (basis.kind === "VERIFIED") return "核实单价";
+  if (basis.kind === "VERIFIED") return "已核实单价";
   if (basis.kind === "ORGANIZATION_ESTIMATE") return `估算 · 组织价目表第 ${basis.revision} 版`;
   return "估算 · 平台通用区间";
 }
@@ -67,31 +81,41 @@ export function BudgetPriceBasisPanel({ items }: { items: readonly BudgetItem[] 
   return (
     <section className="space-y-3 rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
       <p className="font-medium text-zinc-100">价格依据（本预算保存时的快照）</p>
-      <p className="flex flex-wrap gap-x-4 gap-y-1">
-        <span>{`${BUDGET_PRICE_BASIS_LABEL.VERIFIED}：${counts.VERIFIED} 项`}</span>
-        <span>{`${BUDGET_PRICE_BASIS_LABEL.ORGANIZATION_ESTIMATE}：${counts.ORGANIZATION_ESTIMATE} 项`}</span>
-        <span>{`${BUDGET_PRICE_BASIS_LABEL.PLATFORM_ESTIMATE}：${counts.PLATFORM_ESTIMATE} 项`}</span>
+      <p className="flex flex-wrap gap-2">
+        {PRICE_BASIS_KINDS.map((kind) => (
+          <span key={kind} className={`rounded-full border px-2.5 py-0.5 ${PRICE_BASIS_BADGE_CLASS[kind]}`}>
+            {`${BUDGET_PRICE_BASIS_LABEL[kind]}：${counts[kind]} 项`}
+          </span>
+        ))}
       </p>
       <ul className="space-y-2">
         {items.map((item, index) => {
           const basis = budgetItemPriceBasis(item);
           return (
-            <li key={index} className="rounded-lg border border-zinc-800 px-3 py-2">
-              <p className="text-zinc-100">
-                {item.name || item.category}
-                <span className="text-zinc-500">（{item.category}）</span>
+            <li
+              key={index}
+              className={`space-y-1 rounded-lg border border-l-4 border-zinc-800 px-3 py-2 ${PRICE_BASIS_ACCENT_CLASS[basis.kind]}`}
+            >
+              <p className="flex flex-wrap items-center gap-2 text-zinc-100">
+                <span>
+                  {item.name || item.category}
+                  <span className="text-zinc-400">（{item.category}）</span>
+                </span>
+                <span className={`rounded-full border px-2 text-xs ${PRICE_BASIS_BADGE_CLASS[basis.kind]}`}>
+                  {BUDGET_PRICE_BASIS_LABEL[basis.kind]}
+                </span>
               </p>
-              <p className="text-xs text-zinc-400">
+              <p className="text-sm text-zinc-200">
                 {`${budgetItemPriceBasisText(basis)} · 单价 ${item.unitPriceMin} - ${item.unitPriceMax}`}
               </p>
               {basis.kind === "ORGANIZATION_ESTIMATE" && basis.sourceNote ? (
-                <p className="break-words text-xs text-zinc-500">{`来源说明：${basis.sourceNote}`}</p>
+                <p className="break-words text-sm text-zinc-300">{`来源说明：${basis.sourceNote}`}</p>
               ) : null}
             </li>
           );
         })}
       </ul>
-      <p className="text-xs text-zinc-500">
+      <p className="text-sm text-zinc-400">
         组织价目估算仍属估算，不是供应商报价或已核实采购价。以上依据取自本预算保存时的快照；之后修改组织估算价目表不会改变本预算，重新计算才会生成新的预算。
       </p>
     </section>

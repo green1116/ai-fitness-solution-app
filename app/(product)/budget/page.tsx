@@ -1178,7 +1178,7 @@ function BudgetForm() {
             <p className="text-xs text-zinc-500">
               LOW / MID / HIGH 仅影响未提供核实单价的器材估算单价区间；已核实单价不随档位变化，方案器材数量与分区也不变。
             </p>
-            <p className="text-xs text-zinc-500">
+            <p className="text-sm text-zinc-400">
               组织维护了估算价目的子品类按组织价目估算（仍属估算）。{" "}
               <Link href="/budget/price-reference" className="underline hover:text-zinc-300">
                 管理组织估算价目表
@@ -1259,9 +1259,20 @@ function BudgetForm() {
           {budgetId && budgetDetail?.quoteId === quoteId ? (
             <BudgetPriceBasisPanel items={budgetDetail.items} />
           ) : budgetId ? (
-            <p className="text-xs text-zinc-500">
+            <p className="text-sm text-zinc-400">
               本浏览器标签页没有该预算的明细快照，暂不能逐项显示价格依据；预算 PDF 按该预算保存时的依据生成。
             </p>
+          ) : null}
+          {budgetId ? (
+            <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-300">
+              <span>组织估算价目表按子品类 × 档位维护估算单价区间（仍属估算），保存后重新计算预算才会使用。</span>
+              <Link
+                href="/budget/price-reference"
+                className="rounded-lg border border-sky-700 px-3 py-1.5 text-sky-200 hover:border-sky-500 hover:text-sky-100"
+              >
+                管理组织估算价目表 →
+              </Link>
+            </div>
           ) : null}
           {budgetId && hasEstimateRange ? (
             <section className="space-y-3 rounded-xl border border-zinc-800 bg-black p-4 text-sm text-zinc-300">
