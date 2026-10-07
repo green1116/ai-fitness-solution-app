@@ -165,6 +165,26 @@ export function isProcurementProductCategory(value: unknown): value is SkuCatego
   );
 }
 
+/** Presentation metadata only: the existing product slot each procurement category feeds. */
+export type ProcurementProductCategoryOption = {
+  category: SkuCategory;
+  subCategory: string;
+  label: string;
+};
+
+const PROCUREMENT_CATEGORY_LABEL_DETAIL: Partial<Record<SkuCategory, string>> = {
+  rack: "力量架类",
+  free_weight: "自由重量",
+};
+
+export const PROCUREMENT_PRODUCT_CATEGORY_OPTIONS: readonly ProcurementProductCategoryOption[] =
+  Object.entries(SLOT_SKU_CATEGORIES).flatMap(([subCategory, categories]) =>
+    categories.map((category) => {
+      const detail = PROCUREMENT_CATEGORY_LABEL_DETAIL[category];
+      return { category, subCategory, label: detail ? `${subCategory}（${detail}）` : subCategory };
+    }),
+  );
+
 const TIER_LABEL: Record<PriceBand, string> = {
   low: "经济档",
   mid: "中档",

@@ -1999,6 +1999,11 @@ function QuoteForm() {
                 <p className="text-xs text-zinc-500">
                   组织采购库中登记的产品标注「采购库产品 / 参数未核实」；选择后方案保存当时的产品快照，之后修改或停用采购库产品不影响已保存的方案。若采购库已登记核实单价，新选择时自动带入，否则预算按档位估算。
                 </p>
+                <p className="text-xs text-zinc-400">
+                  <Link href="/procurement-products" className="underline hover:text-zinc-200">
+                    管理组织采购库
+                  </Link>
+                </p>
                 <p className="text-xs text-zinc-500">
                   预算单价默认按预算档位估算，仅在为已选候选或客户指定产品填写供应商报价或采购合同的核实单价后按核实价计价。
                 </p>
