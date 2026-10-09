@@ -14,7 +14,10 @@ import {
   readProductIntelligenceExperience,
 } from "@/lib/product/experience";
 import { getProjectById } from "@/lib/services/project.service";
+import { canViewSavedBudgets, countProjectBudgets } from "@/lib/services/saved-budget.service";
 import { resolveProjectTenderRoute } from "@/lib/services/tender/projectTenderRoute";
+
+import { savedBudgetDetailHref, savedBudgetHistoryHref } from "./budgets/saved-budget-view";
 
 export default async function ProjectDetailPage({
   params,
@@ -63,6 +66,9 @@ export default async function ProjectDetailPage({
   const budgetRecalcHref = `/budget?projectId=${encodeURIComponent(project.id)}${
     project.quotes[0] ? `&quoteId=${encodeURIComponent(project.quotes[0].id)}` : ""
   }`;
+  const budgetCount = await countProjectBudgets(project.id, organizationId);
+  const latestSavedBudget = budgetCount > 0 ? project.budgets[0] : undefined;
+  const savedBudgetsViewable = latestSavedBudget ? await canViewSavedBudgets(organizationId) : false;
 
   return (
     <div className="space-y-6">
@@ -113,7 +119,47 @@ export default async function ProjectDetailPage({
           </div>
           <div className="text-xs text-zinc-400">已有 {project.quotes.length} 份方案</div>
         </Link>
-        {canGenerateBudget ? (
+        {savedBudgetsViewable && latestSavedBudget ? (
+          <div className="rounded-xl border border-zinc-800 bg-black p-4">
+            <Link
+              href={savedBudgetDetailHref(project.id, latestSavedBudget.id)}
+              className="block hover:text-white"
+            >
+              <div className="text-xs text-emerald-400">第 2 步</div>
+              <div className="font-semibold">预算 · 查看已保存预算</div>
+              <div className="text-xs text-zinc-400">已有 {budgetCount} 份预算</div>
+            </Link>
+            <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-400">
+              <Link href={savedBudgetHistoryHref(project.id)} className="underline hover:text-zinc-200">
+                全部历史预算
+              </Link>
+              {canGenerateBudget ? (
+                <Link href={budgetRecalcHref} className="underline hover:text-zinc-200">
+                  重新计算预算
+                </Link>
+              ) : null}
+            </div>
+            {canGenerateBudget ? null : (
+              <div className="mt-3 border-t border-zinc-800 pt-3">
+                <div className="text-xs text-amber-400">重新计算预算（{proTier.label}）</div>
+                <div className="mt-1 text-xs text-zinc-500">
+                  {proTier.label} · ¥{proTier.monthlyPriceCny}/月 · {proTier.headline} · 当前{" "}
+                  {budgetPaywall.currentPlan} · 提交后由团队联系完成升级
+                </div>
+                <div className="mt-3">
+                  <ProUpgradeContactCta
+                    context={{
+                      organizationId,
+                      projectId: project.id,
+                      quoteId: project.quotes[0]?.id,
+                    }}
+                    buttonClassName="inline-flex rounded-lg bg-emerald-400 px-3 py-1.5 text-xs font-semibold text-black hover:bg-emerald-300"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        ) : canGenerateBudget ? (
           <Link
             href={`/budget?projectId=${encodeURIComponent(project.id)}${
               project.quotes[0]
@@ -132,7 +178,7 @@ export default async function ProjectDetailPage({
                 ? "下一步：计算预算"
                 : "预算"}
             </div>
-            <div className="text-xs text-zinc-400">已有 {project.budgets.length} 份预算</div>
+            <div className="text-xs text-zinc-400">已有 {budgetCount} 份预算</div>
           </Link>
         ) : (
           <div
