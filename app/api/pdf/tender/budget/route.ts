@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeUserTier, type UserTier } from "@/lib/commercial/userTier";
-import {
-  deniedErrorFor,
-  isAccessEnabled,
-  resolveRequestEntitlement,
-} from "@/lib/entitlements/resolveEntitlement";
+import type { UserTier } from "@/lib/commercial/userTier";
+import { normalizeLevel } from "@/lib/entitlement";
+import { deniedErrorFor, resolveRequestEntitlement } from "@/lib/entitlements/resolveEntitlement";
 import {
   devProjectFallbackBudgetSelect,
   isDatabaseConnectivityError,
@@ -22,6 +19,7 @@ export const runtime = "nodejs";
 
 const BUDGET_PDF_ENDPOINT = "/api/pdf/tender/budget";
 const BUDGET_NOT_ENTITLED_MESSAGE = "当前套餐不包含预算 PDF 下载，请升级专业版后重试。";
+const LEGACY_NOT_LINKED_MESSAGE = "当前账号没有该方案的预算 PDF 授权（需本人购买或绑定该方案的专业版授权）。";
 
 function parseRequestBudgetTier(raw: unknown): "low" | "mid" | "high" | undefined {
   const value = String(raw ?? "").trim().toLowerCase();
@@ -35,13 +33,13 @@ function deny(status: number, error: string, message: string) {
 
 type SaasIdentity =
   | { kind: "member"; organizationId: string; userId: string }
-  | { kind: "none" }
+  | { kind: "none"; reason: "SaasAuthError" | "FeatureGateError" }
   | { kind: "denied"; response: NextResponse };
 
 /**
  * Org session identity without feature/usage checks: the gate's rate-limit bucket is this
  * endpoint (not /api/budget/calculate) and no UsageRecord is written, so a download never
- * consumes Budget generation quota. No session / org / membership / role → legacy-only.
+ * consumes Budget generation quota. No session / org / membership / role → kind "none".
  */
 async function resolveSaasIdentity(
   req: NextRequest,
@@ -52,7 +50,7 @@ async function resolveSaasIdentity(
     return { kind: "member", organizationId: gate.organizationId, userId: gate.userId };
   } catch (err) {
     const name = err instanceof Error ? err.name : "";
-    if (name === "SaasAuthError" || name === "FeatureGateError") return { kind: "none" };
+    if (name === "SaasAuthError" || name === "FeatureGateError") return { kind: "none", reason: name };
     if (name === "TenantIsolationError") {
       return {
         kind: "denied",
@@ -73,11 +71,56 @@ function tierFromSaasPlan(plan: string): UserTier {
   return plan === "ENTERPRISE" ? "enterprise" : "pro";
 }
 
+function denyWithoutOrganization(reason: "SaasAuthError" | "FeatureGateError") {
+  console.log("[DEBUG][BUDGET][DECISION]", { allowed: false, reason });
+  return reason === "SaasAuthError"
+    ? deny(401, "ORGANIZATION_CONTEXT_REQUIRED", "请登录并从所属组织的项目页下载该预算 PDF。")
+    : deny(403, "ROLE_NOT_PERMITTED", "当前账号在该组织中无权下载预算 PDF。");
+}
+
+const LEGACY_LEVEL_RANK = { free: 0, pro: 1, enterprise: 2 } as const;
+
+type LinkedLegacyAccess =
+  | { kind: "login-required" }
+  | { kind: "not-linked" }
+  | { kind: "linked"; tier: UserTier };
+
+/**
+ * 无组织历史项目的 legacy 授权只认与当前登录用户可靠关联、且精确限定到该 planId 的记录：
+ * 本人绑定的 License、本人请求携带的 License key、本人支付的 UpgradeOrder。
+ * 匿名、通配 License（planId 为空）、未绑定的 plan-scope License、他人或无主的已支付订单均不授权。
+ */
+async function resolveLinkedLegacyAccess(req: NextRequest, planId: string): Promise<LinkedLegacyAccess> {
+  const { userId, debug } = await resolveRequestEntitlement({ req, planId });
+  if (!userId) return { kind: "login-required" };
+
+  let rank = 0;
+  for (const candidate of debug.licenseCandidates) {
+    if (candidate.planId !== planId) continue;
+    if (candidate.source !== "binding" && candidate.source !== "header-key") continue;
+    rank = Math.max(rank, LEGACY_LEVEL_RANK[candidate.level]);
+  }
+  const paidOrderIds = debug.paidOrders.map((order) => order.id);
+  if (paidOrderIds.length > 0) {
+    const ownOrders = await prisma.upgradeOrder.findMany({
+      where: { id: { in: paidOrderIds }, planId, userId },
+      select: { targetLevel: true },
+    });
+    for (const order of ownOrders) {
+      rank = Math.max(rank, LEGACY_LEVEL_RANK[normalizeLevel(order.targetLevel)]);
+    }
+  }
+  if (rank === 0) return { kind: "not-linked" };
+  return { kind: "linked", tier: rank >= 2 ? "enterprise" : "pro" };
+}
+
 /**
  * Budget PDF 授权：
- * 1) 主路径：组织会话 + 项目归属当前组织 + 订阅计划含 canGenerateBudget（与预算计算同一能力，只读，不计用量）；
- * 2) 兼容回退：旧 License / 已支付 UpgradeOrder（entitlement.budgetEnabled，按 planId=projectId）。
- * 已登录组织访问其他组织的项目直接拒绝，不走回退。
+ * 1) 有 organizationId 的项目（以及任何带 budgetId 的请求）：组织会话 + 成员资格 + 项目归属当前组织 +
+ *    订阅计划含 canGenerateBudget（与预算计算同一能力，只读，不计用量）；任一不满足即拒绝，不走 legacy。
+ * 2) 无 organizationId 的历史项目（或尚未建档的 plan）且未带 budgetId：仅 resolveLinkedLegacyAccess 认可的
+ *    本人关联授权；未登录 401，无可靠关联 403。授权通过后才允许建档 / 读取最新 Budget / stub。
+ * budgetId 字段存在但不是非空字符串时直接 400。
  * 数据来源：请求带 budgetId 时只用该 Budget（须属于 projectId）；未带时沿用最新 Budget / stub 兜底。
  */
 export async function POST(req: NextRequest) {
@@ -93,6 +136,9 @@ export async function POST(req: NextRequest) {
     };
     const { projectId, planId, tier: bodyTier } = body;
     const requestBudgetId = typeof body.budgetId === "string" ? body.budgetId.trim() : "";
+    if (body.budgetId !== undefined && body.budgetId !== null && !requestBudgetId) {
+      return deny(400, "INVALID_BUDGET_ID", "预算编号无效，请从项目页重新进入预算后再下载。");
+    }
 
     const ids = resolveDownloadIds({ projectId, planId });
     if (!ids.ok) {
@@ -111,52 +157,49 @@ export async function POST(req: NextRequest) {
       tier: bodyTier ?? null,
     });
 
-    let renderTier: UserTier | null = null;
-    let accessSource: "saas-subscription" | "legacy-entitlement" = "legacy-entitlement";
+    let renderTier: UserTier;
+    let accessSource: "saas-subscription" | "legacy-linked-entitlement";
 
     const identity = await resolveSaasIdentity(req, resolvedProjectId);
     if (identity.kind === "denied") return identity.response;
-    if (identity.kind === "member") {
-      const owner = await prisma.project.findUnique({
-        where: { id: resolvedProjectId },
-        select: { organizationId: true },
-      });
-      const ownerOrganizationId = owner?.organizationId?.trim() || "";
-      if (ownerOrganizationId && ownerOrganizationId !== identity.organizationId) {
+    if (requestBudgetId && identity.kind === "none") return denyWithoutOrganization(identity.reason);
+
+    const owner = await prisma.project.findUnique({
+      where: { id: resolvedProjectId },
+      select: { organizationId: true },
+    });
+    const ownerOrganizationId = owner?.organizationId?.trim() || "";
+
+    if (ownerOrganizationId || requestBudgetId) {
+      if (identity.kind === "none") return denyWithoutOrganization(identity.reason);
+      if (!owner) {
+        return NextResponse.json(
+          { error: "PROJECT_NOT_FOUND", message: "当前 projectId 无效，请从生成流程进入" },
+          { status: 404 },
+        );
+      }
+      if (ownerOrganizationId !== identity.organizationId) {
         console.log("[DEBUG][BUDGET][DECISION]", { allowed: false, reason: "TENANT_ISOLATION" });
         return deny(403, "TENANT_ISOLATION", "当前项目不属于你的组织，无法下载预算 PDF。");
       }
-      if (ownerOrganizationId) {
-        const features = await resolveOrganizationFeatures(identity.organizationId);
-        if (features.flags.canGenerateBudget) {
-          renderTier = tierFromSaasPlan(features.plan);
-          accessSource = "saas-subscription";
-        }
-      }
-    }
-
-    if (!renderTier) {
-      const { entitlement, source, userId } = await resolveRequestEntitlement({
-        req,
-        planId: requestPlanId,
-      });
-      const allowed = isAccessEnabled(entitlement, "budget");
-      console.log("[access-check]", {
-        type: "budget",
-        planId: requestPlanId,
-        effectiveLevel: entitlement?.effectiveLevel,
-        allowed,
-        source,
-        userId,
-      });
-      if (!allowed) {
-        console.log("[DEBUG][BUDGET][DECISION]", {
-          allowed: false,
-          reason: "BUDGET_NOT_ENTITLED",
-        });
+      const features = await resolveOrganizationFeatures(identity.organizationId);
+      if (!features.flags.canGenerateBudget) {
+        console.log("[DEBUG][BUDGET][DECISION]", { allowed: false, reason: "BUDGET_NOT_ENTITLED" });
         return deny(403, deniedErrorFor("budget"), BUDGET_NOT_ENTITLED_MESSAGE);
       }
-      renderTier = normalizeUserTier(entitlement.effectiveLevel);
+      renderTier = tierFromSaasPlan(features.plan);
+      accessSource = "saas-subscription";
+    } else {
+      const legacy = await resolveLinkedLegacyAccess(req, requestPlanId);
+      console.log("[access-check]", { type: "budget", planId: requestPlanId, legacy: legacy.kind });
+      if (legacy.kind === "login-required") {
+        return deny(401, "LEGACY_LOGIN_REQUIRED", "请登录购买或绑定该方案授权的账号后再下载预算 PDF。");
+      }
+      if (legacy.kind === "not-linked") {
+        return deny(403, deniedErrorFor("budget"), LEGACY_NOT_LINKED_MESSAGE);
+      }
+      renderTier = legacy.tier;
+      accessSource = "legacy-linked-entitlement";
     }
     console.log("[DEBUG][BUDGET][ACCESS]", { allowed: true, source: accessSource, tier: renderTier });
 
@@ -189,6 +232,12 @@ export async function POST(req: NextRequest) {
 
     console.log("[DEBUG][BUDGET][PROJECT]", project);
 
+    if (!project && requestBudgetId) {
+      return NextResponse.json(
+        { error: "PROJECT_NOT_FOUND", message: "当前 projectId 无效，请从生成流程进入" },
+        { status: 404 },
+      );
+    }
     if (!project) {
       try {
         await ensureProjectFromPlanJobId(resolvedProjectId);

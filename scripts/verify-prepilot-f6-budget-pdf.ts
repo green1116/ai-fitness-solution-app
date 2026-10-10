@@ -263,12 +263,12 @@ async function checkRouteRuntime(POST: PostHandler) {
   r = await call(POST, { projectId: "p-basic", planId: "p-basic", budgetId: "b-basic" }, "org-basic");
   assert(r.status === 403 && r.json?.error === "BUDGET_NOT_ENTITLED", "AC5 BASIC → 403 BUDGET_NOT_ENTITLED");
   assert(typeof r.json?.message === "string" && String(r.json.message).length > 0, "AC5 403 carries a message");
-  assert(state.legacyCalls === 1 && state.rendered.length === 0, "AC5 legacy consulted, nothing rendered");
-  // BASIC org + legacy paid order on that project → still allowed (AC8).
+  assert(state.legacyCalls === 0 && state.rendered.length === 0, "AC5 (C.7-F1-S1) legacy not consulted for an organization project, nothing rendered");
+  // C.7-F1-S1: BASIC org + legacy paid order on its organization project → still 403 (no legacy fallback).
   state.legacyPlanIds.add("p-basic");
   r = await call(POST, { projectId: "p-basic", planId: "p-basic", budgetId: "b-basic" }, "org-basic");
-  assert(r.status === 200 && renderedBudgetId() === "b-basic", "AC8 BASIC org with legacy paid order → 200");
-  console.log("✓ AC5 BASIC without legacy → 403 + message; BASIC with legacy order → 200");
+  assert(r.status === 403 && r.json?.error === "BUDGET_NOT_ENTITLED" && state.legacyCalls === 0 && state.rendered.length === 0, "AC8 (C.7-F1-S1) BASIC org with legacy paid order → 403, legacy not consulted");
+  console.log("✓ AC5 BASIC → 403 + message; legacy order does not override the organization plan (C.7-F1-S1)");
 
   // AC6: org A session → org B project denied, even if a legacy license exists for it.
   state.gate = member("org-a");
@@ -295,27 +295,27 @@ async function checkRouteRuntime(POST: PostHandler) {
   assert(r.status === 403, "authorization runs before budget lookup (no existence leak)");
   console.log("✓ AC7 cross-project / unknown budgetId rejected");
 
-  // AC8: legacy callers (no org session, no budgetId) keep working via License / paid order.
+  // AC8 (C.7-F1-S2): legacy grants need a logged-in user linked to the grant (this stub reports no user).
   state.gate = { throwName: "SaasAuthError" };
   state.legacyPlanIds.add("p-legacy");
   r = await call(POST, { projectId: "p-legacy", planId: "p-legacy", tier: "pro" });
-  assert(r.status === 200 && r.type === "application/pdf", "AC8 legacy license caller → 200");
-  assert(r.disposition.startsWith("attachment;"), "F6.1 legacy caller also receives attachment");
-  assert(renderedBudgetId() === "b-legacy" && state.legacyCalls === 1, "AC8 legacy caller uses latest Budget");
+  assert(r.status === 401 && r.json?.error === "LEGACY_LOGIN_REQUIRED", "AC8 (C.7-F1-S2) anonymous legacy license caller → 401");
+  assert(r.type.includes("application/json"), "AC8 (C.7-F1-S2) anonymous legacy caller receives no PDF");
+  assert(state.rendered.length === 0 && state.legacyCalls === 1, "AC8 (C.7-F1-S2) anonymous legacy caller: nothing rendered");
   r = await call(POST, { projectId: "p-new", planId: "p-new" });
-  assert(r.status === 403 && r.json?.error === "BUDGET_NOT_ENTITLED", "anonymous without legacy → 403");
+  assert(r.status === 401 && r.json?.error === "ORGANIZATION_CONTEXT_REQUIRED" && state.legacyCalls === 0, "(C.7-F1-S2) anonymous → organization project → 401, legacy not consulted");
   state.gate = member("org-a");
   r = await call(POST, { projectId: "p-legacy", planId: "p-legacy" }, "org-a");
-  assert(r.status === 200 && state.legacyCalls === 1 && state.featureCalls === 0, "org-less legacy project → legacy only");
+  assert(r.status === 401 && state.rendered.length === 0 && state.featureCalls === 0, "(C.7-F1-S2) org-less legacy project: org membership is not a grant; unlinked legacy → rejected");
   state.gate = { throwName: "FeatureGateError" };
   r = await call(POST, { projectId: "p-new", planId: "p-new", budgetId: "b-mid" }, "org-a");
-  assert(r.status === 403 && state.legacyCalls === 1, "role without use_product gets no SaaS grant");
+  assert(r.status === 403 && state.legacyCalls === 0, "(C.7-F1-S1) role without use_product → 403, no legacy fallback");
   state.gate = { throwName: "RateLimitError" };
   r = await call(POST, { projectId: "p-new", planId: "p-new", budgetId: "b-mid" }, "org-a");
   assert(r.status === 429 && r.json?.error === "RATE_LIMITED", "PDF endpoint throttle → 429");
   r = await call(POST, { projectId: "p-new", planId: "p-other" });
   assert(r.status === 400 && r.json?.error === "ID_MISMATCH", "projectId/planId mismatch still 400");
-  console.log("✓ AC8 legacy License / paid-order callers unchanged");
+  console.log("✓ AC8 legacy License / paid-order callers require a linked logged-in user (C.7-F1-S1/S2)");
 }
 
 function checkRouteStatic() {
